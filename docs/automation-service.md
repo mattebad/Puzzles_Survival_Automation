@@ -155,6 +155,44 @@ and the existing twelve operator routes remain. Production is a zero-resource, s
 maintenance in the same visit before at most one Normal Craft start/reset: 100 Nano Parts,
 43,200 seconds. Exclusive Craft, Daily/D02 ownership and points attribution remain prohibited.
 Registration is composition only; production registration and SQLite runtime controls stay disabled.
+Normal Craft completion claims bind to the unique outstanding confirmed craft-start instance,
+not a reusable reset-only claim key. A completed older craft can therefore be claimed before
+the current reset's one permitted start without suppressing a distinct future completion.
+Navigation recognition remains read-only; craft-instance state is bound after verified arrival.
+Gear Factory radial recognition derives its control from the fresh Atlas mapped screen anchor and
+measured caption evidence, never the left/top of a clipped owner tap ROI. An open radial is not
+terminal Home. Return uses the native runtime's supported `BACK`, not desktop `Escape`.
+Material Claim/Start re-proves the same slot, exact quote and occurrence on the SDK immediate-before
+capture, then binds Core capability and transport to that capture. Background animation alone is
+not a selector change. The completed output caption is read in its measured crop, not full-page OCR.
+The observed Claim successor exposes Produce on the empty slot. That proves the Claim's
+complete-to-idle transition, not a 21,600-second zero-cost START quote; an unquoted restart blocks.
+The full-page Gear Factory hub is recognized only from its measured 2x bright-glyph title crop
+("Gear Factory") plus the measured Nanoweapon label crop; the Nanoweapon tap is that tile's measured
+label plate within the shared safe box. A run that starts on this recognized hub continues from it.
+The Nanoweapon page is recognized independently from its measured title and four measured top-tab
+labels, ignoring only OCR token/line boundaries. This identity permits guarded Back even when the
+selected tab or production fields are unknown. Production state, Claim and Start additionally require
+exactly one white selected label, Material Production; Craft Weapon's Claim is never production.
+The Material tab tap is that exact measured route-owned tab cell, not the Home interaction box.
+The actual completed Material profile reads its current positive ordered output range and unique free
+Claim, with semantic completed=1/active=0; it does not invent an original duration or remaining timer.
+Its cost fields describe that Claim, not a future START quote. Claim reconciliation requires a positive
+idle successor with Claim gone; START independently requires a fresh zero-cost 21,600-second empty-slot
+quote. A missing quote preserves a confirmed claim and blocks START. ACTIVE requires a positive
+single-slot timer within six hours and does not fabricate absent original-duration or cost fields.
+The adapter preserves a blocked partial claim only with equal sent/confirmed counts, agreeing SDK
+input counts, current occurrence/source evidence and verified Home; no cooldown is invented.
+Disputed or unconfirmed effects remain unresolved. Timer-only ACTIVE observations may schedule
+from their current timer without an invisible START quote; zero-resource confirmation describes
+performed validated free effects, not a fabricated cost on the ACTIVE screen.
+Actual idle/active layouts and claim successors remain evidence-required until captured and recognized.
+Each Gear Factory/Nanoweapon navigation tap rebinds on its immediate pre-dispatch capture. Only
+native-pixel ROI quantization is admitted: every planned/fresh ROI edge may differ by at most one
+pixel, with each tap point inside the other ROI; the transport keeps the planned, capability-bound target.
+Native/Core replay covers completed claim, current start, durable duplicate prevention and
+fresh Home return. This offline proof is not live timer or completion acceptance.
+
 
 Batch E adds canonical-only Hero Duel, Recommended Research, and Food Farm Boost routes with fixed
 native bindings and no legacy operator rows; the existing twelve operator routes remain unchanged.

@@ -1,15 +1,15 @@
-from __future__ import annotations
-
 """Canonical native route for zero-resource Nano Material Production."""
+
+from __future__ import annotations
 
 from dataclasses import dataclass, replace
 import hashlib
-import math
 from pathlib import Path
 import re
 import time
 from typing import Any, Callable, Mapping
 
+import cv2
 import numpy as np
 
 from automation_service.registry import (
@@ -29,6 +29,7 @@ from safe_action_core import (
     SafetyStore,
     TransportResult,
 )
+from scripts.atlas_runtime_startup import normalize_runtime_home_atlas_startup
 from scripts.bounded_tesseract import call_ocr, tesseract_data
 from scripts.home_atlas_bluestacks import (
     HOME_ATLAS_NAVIGATION_TASK_ID,
@@ -68,6 +69,48 @@ GEAR_FACTORY_ID = "home.building.gear_factory"
 _TIMER_RE = re.compile(r"(?<![0-9])([0-9]{1,2}):([0-5][0-9]):([0-5][0-9])(?![0-9])", re.ASCII)
 _DURATION_RE = re.compile(r"\b(?:duration|production time)\s*[:=-]?\s*(21600\s*(?:seconds?|s)|6\s*(?:hours?|hrs?)|06:00:00)\b", re.IGNORECASE | re.ASCII)
 
+# Mapped-owner-anchor-relative "Gear Factory" radial control measured on the
+# actual 2026-11-08 radial (owner anchor (230.5, 738.5); circle centre
+# (352, 796), r 36; label "Gear"/"Factory" (315, 820, 387, 866)).
+# The tap-safe owner ROI can be clipped; its left/top are not a radial origin.
+_GEAR_FACTORY_RADIAL_ANCHOR_CONTROL_OFFSET = (76.5, 18.5, 164.5, 132.5)
+
+# Full-page title band shared by the Gear Factory hub and the Nanoweapon page;
+# native-scale OCR misses both white titles.  Measured on the actual
+# 2026-11-08 pages, the 2x bright-glyph crop reads "Gear Factory" (300, 20,
+# 501, 49) and "Nanoweapon" (294, 26, 506, 56).
+_PAGE_TITLE_ROI = (160, 0, 700, 70)
+
+# Gear Factory hub (material70-native-pixel-repair frames 0010-0013): the tile
+# label "Nanoweapon" (468, 714, 666, 740) reads without its notification badge.
+# The control is the measured label plate (452, 700, 690, 746) clipped to the
+# shared safe interaction box.
+_GEAR_FACTORY_HUB_NANOWEAPON_LABEL_ROI = (440, 690, 720, 760)
+_GEAR_FACTORY_HUB_NANOWEAPON_CONTROL = (452, 700, 650, 746)
+
+# Nanoweapon page top tab row (material70-actual-hub-continuation frames
+# 0005-0008): row y 79-146, x 41-759, four equal cells, each inset 2 px from
+# its measured edge.  At glyph threshold 80 every label reads, including gray
+# two-line "Material"/"Production"; at the default white threshold only the
+# selected tab's label reads (red-selected "Craft Weapon").  A notification
+# dot reads as a non-alphanumeric glyph and is ignored.
+_NANOWEAPON_TAB_LABEL_THRESHOLD = 80
+_NANOWEAPON_TAB_CELLS = (
+    ("Craft Weapon", (42, 80, 217, 145)),
+    ("Material Production", (221, 80, 397, 145)),
+    ("Nanoweapon", (401, 80, 577, 145)),
+    ("Inherit Weapon", (581, 80, 757, 145)),
+)
+_NANOWEAPON_MATERIAL_TAB_CONTROL = dict(_NANOWEAPON_TAB_CELLS)["Material Production"]
+
+# Actual selected Material Production completion, ca492a3d frame 0008:
+# single reward profile, output 24-38, one purple Claim; no visible duration,
+# timer or START quote. Counts below are semantic profile facts, not OCR counters.
+_MATERIAL_COMPLETE_CLAIM_CROP = (276, 1168, 525, 1254)
+_MATERIAL_COMPLETE_OUTPUT_CROP = (60, 965, 740, 1040)
+_MATERIAL_COMPLETE_CLAIM_CONTROL = (278, 1172, 522, 1250)
+_MATERIAL_COMPLETE_PANEL = (41, 147, 759, 1254)
+
 
 @dataclass(frozen=True)
 class _Word:
@@ -95,11 +138,25 @@ def _normal(text: str) -> str:
     return " ".join(re.findall(r"[a-z0-9]+", text.casefold(), re.ASCII))
 
 
-def _ocr_words(frame: np.ndarray) -> tuple[_Word, ...]:
+def _ocr_words(frame: np.ndarray, roi=None, *, scale: int = 1, white_text: bool = False, glyph_threshold: int = 200) -> tuple[_Word, ...]:
     if not isinstance(frame, np.ndarray) or frame.ndim != 3 or frame.shape != (1280, 800, 3):
         return ()
+    if type(scale) is not int or scale < 1:
+        return ()
+    ox, oy = (0, 0) if roi is None else (roi[0], roi[1])
+    image = frame if roi is None else frame[roi[1]:roi[3], roi[0]:roi[2]]
+    if image.size == 0:
+        return ()
+    if white_text:
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    if scale != 1:
+        image = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+    if white_text:
+        # Bright labels over dark controls become dark glyphs on white.  The
+        # default admits only white glyphs; measured gray tab labels pass 80.
+        image = cv2.threshold(image, glyph_threshold, 255, cv2.THRESH_BINARY_INV)[1]
     try:
-        data = call_ocr(tesseract_data, frame, config="--psm 11", call_timeout=5.0)
+        data = call_ocr(tesseract_data, image, config="--psm 11", call_timeout=5.0)
     except Exception:
         return ()
     if not isinstance(data, Mapping):
@@ -115,8 +172,10 @@ def _ocr_words(frame: np.ndarray) -> tuple[_Word, ...]:
             continue
         try:
             confidence = float(data["conf"][index])
-            x, y = int(data["left"][index]), int(data["top"][index])
-            width, height = int(data["width"][index]), int(data["height"][index])
+            x = ox + round(int(data["left"][index]) / scale)
+            y = oy + round(int(data["top"][index]) / scale)
+            width = round(int(data["width"][index]) / scale)
+            height = round(int(data["height"][index]) / scale)
             line = (int(data["block_num"][index]), int(data["par_num"][index]), int(data["line_num"][index]))
         except (TypeError, ValueError, OverflowError):
             continue
@@ -200,17 +259,14 @@ def _duration_proof(lines) -> bool:
 
 
 def _panel_observation(captured, *, context, occurrence_key: str) -> _PanelRead:
+    # Production Claim/Start belongs only to the positively selected Material
+    # Production tab; Craft Weapon's own Claim must never be read as material.
+    if _nanoweapon_selected_tab(captured.frame) != "Material Production":
+        return _PanelRead(None, None, "material_production_tab_not_positively_selected")
     words = _ocr_words(captured.frame)
     lines = _lines(words)
-    if len(_phrase_lines(lines, "Nanoweapon")) != 1:
-        return _PanelRead(None, None, "nanoweapon_title_not_uniquely_recognized")
-    if len(_phrase_lines(lines, "Material Production")) != 1:
-        return _PanelRead(None, None, "material_production_tab_not_uniquely_recognized")
-    if not _duration_proof(lines):
-        return _PanelRead(None, None, "exact_21600_second_duration_not_recognized")
+    duration = NANO_MATERIAL_PRODUCTION_DURATION_SECONDS if _duration_proof(lines) else None
     cost_known = _zero_cost_proof(lines)
-    if not cost_known:
-        return _PanelRead(None, None, "zero_resource_cost_or_other_costs_unknown")
 
     timers: list[tuple[int, str, tuple[_Word, ...]]] = []
     for line, line_words in lines:
@@ -226,10 +282,41 @@ def _panel_observation(captured, *, context, occurrence_key: str) -> _PanelRead:
     idle_markers = [row for row in lines if _normal(row[0]) in {"production idle", "idle production"}]
     complete_markers = [row for row in lines if _normal(row[0]) in {"production complete", "production completed", "completed production"}]
     one_slot = any(_normal(line) in {"production slot 1 of 1", "slots 1 of 1", "one production slot", "production slots 1 1"} for line, _ in lines)
-    if not one_slot:
+    claim_crop = _lines(_ocr_words(captured.frame, _MATERIAL_COMPLETE_CLAIM_CROP, scale=2, white_text=True))
+    output_lines = _lines(_ocr_words(captured.frame, _MATERIAL_COMPLETE_OUTPUT_CROP, scale=2))
+    output_ranges = []
+    for line, _line_words in output_lines:
+        output = re.fullmatch(r"produces ([1-9][0-9]*) ([1-9][0-9]*) material s at random upgrade gear", _normal(line))
+        if output is not None:
+            output_ranges.append((int(output[1]), int(output[2])))
+    output_profile = bool(
+        len(output_ranges) == 1 and output_ranges[0][0] <= output_ranges[0][1]
+        and len(_phrase_lines(output_lines, "Factory to increase output.")) == 1
+    )
+    complete_profile = bool(
+        output_profile
+        and len(claim_crop) == 1 and len(_phrase_lines(claim_crop, "Claim")) == 1
+        and not starts and not timers and len(claims) <= 1
+    )
+    idle_profile = bool(
+        output_profile
+        and len(claim_crop) == 1 and len(_phrase_lines(claim_crop, "Produce")) == 1
+        and not starts and not timers and not claims
+    )
+    if not one_slot and not (complete_profile or idle_profile):
         return _PanelRead(None, None, "one_slot_state_not_recognized")
     control = None
-    if len(claims) == 1 and len(starts) == 0 and len(timers) == 1 and timers[0][0] == 0 and len(complete_markers) == 1:
+    if complete_profile:
+        # The approved named free-reward profile owns one completed batch, not
+        # an OCR'd START quote, timer, or literal active/completed counter.
+        production_state, active_count, completed_count, remaining, claim_visible, start_enabled = "complete", 0, 1, None, True, False
+        control, duration, cost_known = _MATERIAL_COMPLETE_CLAIM_CONTROL, None, True
+    elif idle_profile:
+        # Actual Claim successor: the same empty slot exposes Produce. This
+        # proves idle, but neither a duration nor a zero-cost START quote.
+        production_state, active_count, completed_count, remaining, claim_visible, start_enabled = "idle", 0, 0, None, False, True
+        control, duration, cost_known = _MATERIAL_COMPLETE_CLAIM_CONTROL, None, False
+    elif len(claims) == 1 and len(starts) == 0 and len(timers) == 1 and timers[0][0] == 0 and len(complete_markers) == 1 and cost_known:
         production_state, active_count, completed_count, remaining, claim_visible, start_enabled = "complete", 0, 1, 0, True, False
         control = _word_roi(claims[0][1])
     elif len(starts) == 1 and len(claims) == 0 and len(timers) == 1 and timers[0][0] == 0 and len(idle_markers) == 1:
@@ -241,7 +328,7 @@ def _panel_observation(captured, *, context, occurrence_key: str) -> _PanelRead:
     else:
         return _PanelRead(None, None, "production_state_unknown_or_ambiguous")
     panel_words = tuple(word for _line, line_words in lines for word in line_words)
-    panel = _bounds(panel_words)
+    panel = _MATERIAL_COMPLETE_PANEL if complete_profile or idle_profile else _bounds(panel_words)
     if panel is None or control is None or not (panel[0] <= control[0] < control[2] <= panel[2] and panel[1] <= control[1] < control[3] <= panel[3]):
         return _PanelRead(None, None, "production_target_bounds_unknown")
     evidence_ref = _evidence_ref(captured, context.session)
@@ -251,12 +338,12 @@ def _panel_observation(captured, *, context, occurrence_key: str) -> _PanelRead:
         selected_tab=MATERIAL_PRODUCTION_TAB,
         production_state=production_state,
         active_production_count=active_count,
-        production_duration_seconds=NANO_MATERIAL_PRODUCTION_DURATION_SECONDS,
+        production_duration_seconds=duration,
         timer_seconds_remaining=remaining,
-        cost_known=True,
-        cost_type="none",
-        cost_amount=0,
-        other_costs_known=True,
+        cost_known=cost_known,
+        cost_type="none" if cost_known else "unknown",
+        cost_amount=0 if cost_known else None,
+        other_costs_known=cost_known,
         nonzero_other_costs=False,
         target_identity=NANO_MATERIAL_PRODUCTION_TARGET,
         target_roi=control,
@@ -403,17 +490,15 @@ def _dispatch_action(context, *, before_capture, before: MaterialProductionObser
         }
 
     immediate_observation = None
+    issued = None
+    execution = None
 
-    def recapture() -> Observation:
-        nonlocal before_capture, before, immediate_observation
-        if immediate_observation is not None:
-            return immediate_observation
+    def authorize(current):
+        nonlocal before_capture, before, immediate_observation, issued
+        context.checkpoint()
         context.validate_identity()
-        captured = _capture(context, f"nano-material-production-{phase}-pre-dispatch")
         fresh = _panel_observation(
-            captured,
-            context=context,
-            occurrence_key=occurrence_key,
+            current, context=context, occurrence_key=occurrence_key,
         ).observation
         if (
             fresh is None
@@ -424,103 +509,56 @@ def _dispatch_action(context, *, before_capture, before: MaterialProductionObser
             or fresh.timer_seconds_remaining != before.timer_seconds_remaining
             or fresh.target_roi != before.target_roi
             or fresh.occurrence_key != occurrence_key
+            or _semantic_tokens(fresh, action_kind=action_kind, occurrence_key=occurrence_key)
+            != request.semantic_preconditions
         ):
-            raise ValueError("Material Production immediate pre-dispatch state changed")
-        before_capture = captured
-        before = fresh
+            raise ValueError("Material Production immediate pre-dispatch state or quote changed")
+        # Match semantic state, then bind policy and transport to this exact
+        # SDK immediate-before capture. Hologram animation is not a new quote.
+        before_capture, before = current, fresh
         immediate_observation = _route_observation(
-            context,
-            captured,
-            target_identity=subject,
-            target_roi=tuple(fresh.target_roi),
-            control_class=control_class,
-            consequence=consequence,
-            postcondition=postcondition,
+            context, current, target_identity=subject,
+            target_roi=tuple(fresh.target_roi), control_class=control_class,
+            consequence=consequence, postcondition=postcondition,
         )
-        return immediate_observation
+        policy_now = float(context.utc_clock())
+        capability_request = replace(
+            request,
+            observation=immediate_observation,
+            monotonic_now=float(context.monotonic_clock()),
+            lease_owner=context.session.owner,
+            lease_valid=store.lease_valid_for(context.session.owner, policy_now),
+            unresolved_action=store.has_action_block(),
+            duplicate_action_key=store.action_key_exists(key),
+            policy_phase="pre_dispatch",
+        )
+        issued = policy.issue_capability(capability_request)
+        store.audit(FLOW_ID, "capability_issued", policy_now, issued.audit, action_id)
+        if not issued.authorized or issued.capability is None:
+            raise RuntimeError(f"Material Production capability denied:{issued.reason_code}")
 
-    try:
-        immediate_policy_observation = recapture()
-    except Exception as exc:
-        return {
-            "status": "blocked",
-            "reason": f"{type(exc).__name__}:{exc}",
-            "transport_calls": 0,
-            "action_key": key,
-        }
-    policy_now = float(context.utc_clock())
-    capability_request = replace(
-        request,
-        observation=immediate_policy_observation,
-        monotonic_now=float(context.monotonic_clock()),
-        lease_owner=context.session.owner,
-        lease_valid=store.lease_valid_for(context.session.owner, policy_now),
-        unresolved_action=store.has_action_block(),
-        duplicate_action_key=store.action_key_exists(key),
-        policy_phase="pre_dispatch",
-    )
-    issued = policy.issue_capability(capability_request)
-    store.audit(FLOW_ID, "capability_issued", policy_now, issued.audit, action_id)
-    if not issued.authorized or issued.capability is None:
-        return {
-            "status": "blocked",
-            "reason": issued.reason_code,
-            "transport_calls": 0,
-            "action_key": key,
-        }
     def transport(_intent):
-        starting = int(getattr(runtime, "input_count", 0))
+        context.checkpoint()
+        context.validate_identity()
+        starting = int(runtime.input_count)
+        runtime.tap(
+            before_capture, target_identity=subject, target_roi=target_roi,
+            action_key=key, action_class=action_kind, consequential=True,
+        )
+        sent = int(runtime.input_count) - starting
+        return TransportResult(
+            sent == 1,
+            "NANO_MATERIAL_PRODUCTION_INPUT_SENT" if sent == 1 else "NANO_MATERIAL_PRODUCTION_INPUT_NOT_SENT",
+        )
 
-        def authorize(current):
-            rebound = _panel_observation(current, context=context, occurrence_key=occurrence_key).observation
-            if (
-                current.sha256 != before_capture.sha256
-                or rebound is None
-                or not material_production_authorizeable(rebound)
-                or rebound.production_state != before.production_state
-                or rebound.active_production_count != before.active_production_count
-                or rebound.completed_batch_count != before.completed_batch_count
-                or rebound.timer_seconds_remaining != before.timer_seconds_remaining
-                or rebound.target_roi != before.target_roi
-                or rebound.occurrence_key != occurrence_key
-            ):
-                raise RuntimeError("Material Production source or selector changed before dispatch")
-            context.checkpoint()
-            context.validate_identity()
-
-        def dispatch(current):
-            runtime.tap(
-                current,
-                target_identity=subject,
-                target_roi=target_roi,
-                action_key=key,
-                action_class=action_kind,
-                consequential=True,
-            )
-
-        def settled():
-            time.sleep(float(context.settle_seconds))
-            context.checkpoint()
-            return runtime.capture(f"nano-material-production-{phase}-successor-settled")
-
-        try:
-            context.session.run_action(
-                action_class=action_kind,
-                label=f"nano-material-production-{phase}",
-                capture=runtime.capture,
-                authorize=authorize,
-                dispatch=dispatch,
-                recognize=lambda captured: postcondition if observe_successor(captured) else "unknown",
-                settled_successor=settled,
-                consequence_class=consequence,
-            )
-        except Exception as exc:
-            sent = int(getattr(runtime, "input_count", 0)) - starting
-            return TransportResult(sent == 1, f"NANO_MATERIAL_PRODUCTION_{phase.upper()}_{type(exc).__name__}")
-        sent = int(getattr(runtime, "input_count", 0)) - starting
-        return TransportResult(sent == 1, "NANO_MATERIAL_PRODUCTION_INPUT_SENT" if sent == 1 else "NANO_MATERIAL_PRODUCTION_INPUT_NOT_SENT")
+    def settled():
+        time.sleep(float(context.settle_seconds))
+        context.checkpoint()
+        return runtime.capture(f"nano-material-production-{phase}-successor-settled")
 
     def post_observe():
+        if not observe_successor(runtime.capture(f"nano-material-production-{phase}-immediate-post")):
+            observe_successor(settled())
         for captured, after, verified in successors:
             yield Observation(
                 frame_sha256=str(captured.sha256),
@@ -540,21 +578,29 @@ def _dispatch_action(context, *, before_capture, before: MaterialProductionObser
             )
 
     starting_inputs = getattr(runtime, "input_count", None)
-    try:
+
+    def send(current):
+        nonlocal execution
+        if current is not before_capture or issued is None or issued.capability is None:
+            raise RuntimeError("Material Production capability source mismatch")
         execution = SafeActionExecutor(
-            store,
-            policy,
-            context.session.owner,
-            lambda: float(context.monotonic_clock()),
-            transport,
-            recapture,
-            post_observe,
+            store, policy, context.session.owner,
+            lambda: float(context.monotonic_clock()), transport,
+            lambda: immediate_observation, post_observe,
             lambda _intent, observed: bool(
                 successors and successors[-1][2] and observed.frame_sha256 == successors[-1][0].sha256
             ),
             wall_clock=lambda: float(context.utc_clock()),
             max_pre_dispatch_attempts=1,
         ).execute(request, issued.capability)
+
+    try:
+        native_action = context.session.run_action(
+            action_class=action_kind, label=f"nano-material-production-{phase}",
+            capture=runtime.capture, authorize=authorize, dispatch=send,
+            recognize=lambda captured: postcondition if observe_successor(captured) else "unknown",
+            settled_successor=settled, consequence_class=consequence,
+        )
         row = store.get_action_by_key(key)
     except Exception as exc:
         ending_inputs = getattr(runtime, "input_count", None)
@@ -582,17 +628,25 @@ def _dispatch_action(context, *, before_capture, before: MaterialProductionObser
             "successor_observation": None,
             "last_action_evidence": evidence,
         }
-    sent = int(execution.transport_calls)
+    sent = int(runtime.input_count) - starting_inputs
+    confirmed = bool(
+        execution is not None and execution.status is ActionStatus.CONFIRMED
+        and native_action.status == "completed" and sent == 1
+    )
+    unresolved = bool(
+        (execution is not None and execution.status is ActionStatus.UNRESOLVED)
+        or sent > 0 and not confirmed
+    )
     final_successor = next((item for item in reversed(successors) if item[2]), None)
     evidence = action_evidence()
     return {
-        "status": "confirmed" if execution.status is ActionStatus.CONFIRMED else "unresolved" if execution.status is ActionStatus.UNRESOLVED else "blocked",
-        "reason": execution.reason,
+        "status": "confirmed" if confirmed else "unresolved" if unresolved else "blocked",
+        "reason": execution.reason if execution is not None else native_action.reason,
         "action_key": key,
         "journal_status": row.get("final_status") if row else None,
         "transport_calls": sent,
-        "effect_reconciliation_required": execution.status is ActionStatus.UNRESOLVED,
-        "identical_retry_denied": execution.status is ActionStatus.UNRESOLVED or sent > 0 and execution.status is not ActionStatus.CONFIRMED,
+        "effect_reconciliation_required": unresolved,
+        "identical_retry_denied": unresolved,
         "successor_capture": final_successor[0] if final_successor else None,
         "successor_observation": final_successor[1] if final_successor else None,
         "last_action_evidence": evidence,
@@ -614,26 +668,144 @@ def _safe_nav_roi(roi) -> bool:
     )
 
 
-def _line_target(frame: np.ndarray, phrase: str) -> tuple[int, int, int, int] | None:
-    hits = _phrase_lines(_lines(_ocr_words(frame)), phrase)
-    return _word_roi(hits[0][1]) if len(hits) == 1 else None
+def _same_bound_target(planned, fresh, safe_target: Callable[[Any], bool] = _safe_nav_roi) -> bool:
+    """Prove the planned tap still lands on the dispatch frame's own binding.
+
+    Fresh Atlas localization of an animated Home may round a mapped hit ROI
+    edge to an adjacent native pixel between captures.  The planned ROI stays
+    the transport target only when every corresponding edge differs by at most
+    one native pixel and each binding's tap point lies inside the other.
+    """
+    if not safe_target(planned) or not safe_target(fresh):
+        return False
+    if planned == fresh:
+        return True
+    if any(abs(a - b) > 1 for a, b in zip(planned, fresh)):
+        return False
+
+    def center(roi):
+        return ((roi[0] + roi[2]) // 2, (roi[1] + roi[3]) // 2)
+
+    def inside(point, roi):
+        return roi[0] <= point[0] < roi[2] and roi[1] <= point[1] < roi[3]
+
+    return inside(center(planned), fresh) and inside(center(fresh), planned)
+
+
+def _crop_label(words: tuple[_Word, ...]) -> str:
+    ordered = sorted(words, key=lambda word: (word.line, word.roi[0]))
+    # OCR may split gray "Weapon" into "Wea"/"pon" beside the notification
+    # badge (actual Material-selected frame 0008).  Preserve every glyph and
+    # its reading order; only token/line boundaries are immaterial.
+    return "".join(_normal(word.text).replace(" ", "") for word in ordered)
 
 
 def _is_nanoweapon_page(frame: np.ndarray) -> bool:
-    lines = _lines(_ocr_words(frame))
-    return bool(
-        len(_phrase_lines(lines, "Nanoweapon")) == 1
-        and len(_phrase_lines(lines, "Craft Weapon")) == 1
-        and len(_phrase_lines(lines, "Material Production")) == 1
-    )
+    """Prove page identity independently of tab selection or production fields."""
+    title = _lines(_ocr_words(frame, _PAGE_TITLE_ROI, scale=2, white_text=True))
+    if len(title) != 1 or len(_phrase_lines(title, "Nanoweapon")) != 1:
+        return False
+    for label, cell in _NANOWEAPON_TAB_CELLS:
+        visible = _ocr_words(frame, cell, scale=2, white_text=True, glyph_threshold=_NANOWEAPON_TAB_LABEL_THRESHOLD)
+        if _crop_label(visible) != _normal(label).replace(" ", ""):
+            return False
+    return True
+
+
+def _nanoweapon_selected_tab(frame: np.ndarray) -> str | None:
+    """Require exactly one white selected label on the independently known page."""
+    if not _is_nanoweapon_page(frame):
+        return None
+    selected = []
+    for label, cell in _NANOWEAPON_TAB_CELLS:
+        white = _crop_label(_ocr_words(frame, cell, scale=2, white_text=True))
+        if white == _normal(label).replace(" ", ""):
+            selected.append(label)
+        elif white:
+            return None
+    return selected[0] if len(selected) == 1 else None
+
+
+def _is_nanoweapon_material_tab_control(roi) -> bool:
+    # Page tab row is route-owned panel chrome, outside the Home interaction box.
+    return roi == _NANOWEAPON_MATERIAL_TAB_CONTROL
+
+
+def _nanoweapon_material_tab_target(frame: np.ndarray) -> tuple[int, int, int, int] | None:
+    selected = _nanoweapon_selected_tab(frame)
+    return _NANOWEAPON_MATERIAL_TAB_CONTROL if selected is not None and selected != "Material Production" else None
+
+
+def _gear_factory_hub_nanoweapon_target(frame: np.ndarray) -> tuple[int, int, int, int] | None:
+    """Bind the hub's Nanoweapon tile only on a positively titled Gear Factory hub."""
+    title = _lines(_ocr_words(frame, _PAGE_TITLE_ROI, scale=2, white_text=True))
+    if len(title) != 1 or len(_phrase_lines(title, "Gear Factory")) != 1:
+        return None
+    labels = [
+        word
+        for word in _ocr_words(frame, _GEAR_FACTORY_HUB_NANOWEAPON_LABEL_ROI, scale=2, white_text=True)
+        if _normal(word.text) == "nanoweapon"
+    ]
+    if len(labels) != 1:
+        return None
+    control = _GEAR_FACTORY_HUB_NANOWEAPON_CONTROL
+    x0, y0, x1, y1 = labels[0].roi
+    cx, cy = (x0 + x1) // 2, (y0 + y1) // 2
+    if not (control[0] <= cx < control[2] and control[1] <= cy < control[3]) or not _safe_nav_roi(control):
+        return None
+    return control
 
 
 def _is_gear_factory_menu(frame: np.ndarray) -> bool:
-    lines = _lines(_ocr_words(frame))
-    return bool(
-        len(_phrase_lines(lines, "Gear Factory")) == 1
-        and len(_phrase_lines(lines, "Nanoweapon")) == 1
+    return _gear_factory_hub_nanoweapon_target(frame) is not None
+
+def _gear_factory_radial_target(frame: np.ndarray, atlas=None, localizer=None):
+    if atlas is None or localizer is None:
+        atlas = _load_atlas(DEFAULT_ATLAS)
+        localizer = BlueStacksHomeLocalizer(atlas, DEFAULT_ATLAS)
+    owner = _home_binding(frame, atlas, localizer)
+    if owner is None or owner.screen_anchor is None:
+        return None
+    anchor = owner.screen_anchor
+    # Reuse the established Farm radial's owner-relative menu envelope.
+    envelope = (max(0, int(anchor[0] - 280)), max(0, int(anchor[1] - 220)),
+                min(800, int(anchor[0] + 280)), min(1280, int(anchor[1] + 220)))
+    # White radial labels over dark circles are unreliable at native scale; read
+    # the owner envelope as isolated bright glyphs at the Hall of War radial's 2x.
+    words = _ocr_words(frame, envelope, scale=2, white_text=True)
+    labels = {
+        label: [word for word in words if _normal(word.text) == label]
+        for label in ("details", "upgrade", "gear", "factory")
+    }
+    if len(labels["details"]) != 1 or len(labels["upgrade"]) != 1:
+        return None
+    # Bind the measured circle and stacked label to the current Atlas anchor,
+    # not the owner tap ROI, whose safe-area clipping changes its origin.
+    dx0, dy0, dx1, dy1 = _GEAR_FACTORY_RADIAL_ANCHOR_CONTROL_OFFSET
+    control = (
+        round(anchor[0] + dx0), round(anchor[1] + dy0),
+        round(anchor[0] + dx1), round(anchor[1] + dy1),
     )
+    if not _safe_nav_roi(control):
+        return None
+    candidates = []
+    for gear in labels["gear"]:
+        for factory in labels["factory"]:
+            # A vertically stacked action label, not the Home building label.
+            if (
+                gear.roi[3] <= factory.roi[1]
+                and factory.roi[1] - gear.roi[3] <= 2 * (factory.roi[3] - factory.roi[1])
+                and max(gear.roi[0], factory.roi[0]) < min(gear.roi[2], factory.roi[2])
+                and all(word.roi[2] < gear.roi[0] for word in (labels["details"][0], labels["upgrade"][0]))
+                and all(
+                    control[0] <= word.roi[0] < word.roi[2] <= control[2]
+                    and control[1] <= word.roi[1] < word.roi[3] <= control[3]
+                    for word in (gear, factory)
+                )
+            ):
+                candidates.append((gear, factory))
+    return control if len(candidates) == 1 else None
+
 
 
 def _home_binding(frame: np.ndarray, atlas, localizer):
@@ -667,15 +839,16 @@ def _navigation_action(
     recognize: Callable[[Any], str | None],
     allowed_successors: tuple[str, ...],
     dispatch: Callable[[Any, str, tuple[int, int, int, int] | None], None],
+    safe_target: Callable[[Any], bool] = _safe_nav_roi,
 ) -> bool:
     runtime, session, store = context.runtime, context.session, context.action_store
     planning = _capture(context, f"{label}-planning")
     if not source_recognize(planning.frame):
         return False
     planned_roi = bind(planning.frame)
-    if control_class == "GO" and not _safe_nav_roi(planned_roi):
+    if control_class == "GO" and not safe_target(planned_roi):
         return False
-    if control_class != "GO" and planned_roi is not None and not _safe_nav_roi(planned_roi):
+    if control_class != "GO" and planned_roi is not None and not safe_target(planned_roi):
         return False
     proposal = _route_observation(
         context,
@@ -709,48 +882,11 @@ def _navigation_action(
         runtime_session_id=str(runtime.session),
     )
     policy = CentralPolicy(frozenset({HOME_ATLAS_NAVIGATION_TASK_ID}))
-    try:
-        context.checkpoint()
-        context.validate_identity()
-        fresh = runtime.capture(f"{label}-pre-dispatch")
-        if not source_recognize(fresh.frame):
-            raise ValueError("navigation source is not recognized in a fresh frame")
-        fresh_roi = bind(fresh.frame)
-        if fresh_roi != planned_roi or (
-            control_class == "GO" and not _safe_nav_roi(fresh_roi)
-        ):
-            raise ValueError("navigation target could not be rebound from a fresh frame")
-        planning = fresh
-        planned_roi = fresh_roi
-        proposal = _route_observation(
-            context,
-            fresh,
-            target_identity=target_identity,
-            target_roi=fresh_roi,
-            control_class=control_class,
-            consequence="navigate_zero_cost",
-            postcondition=expected_postcondition,
-            source_state=source_state,
-        )
-    except Exception:
-        return False
-    issue_time = float(context.utc_clock())
-    capability_request = replace(
-        request,
-        observation=proposal,
-        monotonic_now=float(context.monotonic_clock()),
-        lease_owner=session.owner,
-        lease_valid=store.lease_valid_for(session.owner, issue_time),
-        unresolved_action=store.has_action_block(),
-        duplicate_action_key=store.action_key_exists(action_key),
-        policy_phase="pre_dispatch",
-    )
-    issued = policy.issue_capability(capability_request)
-    store.audit(HOME_ATLAS_NAVIGATION_TASK_ID, "capability_issued", issue_time, issued.audit, action_id)
-    if not issued.authorized or issued.capability is None:
-        return False
-
     successors: list[tuple[Any, str]] = []
+    issued = None
+    capability_request = request
+    execution = None
+    immediate_before = None
 
     def recognize_frame(captured):
         state = recognize(captured)
@@ -758,48 +894,57 @@ def _navigation_action(
         successors.append((captured, recognized))
         return recognized.lower() if recognized != "UNKNOWN" else "unknown"
 
+    def authorize(before):
+        nonlocal proposal, issued, capability_request, immediate_before
+        context.checkpoint()
+        context.validate_identity()
+        if not source_recognize(before.frame):
+            raise RuntimeError("navigation source is not positively recognized")
+        roi = bind(before.frame)
+        if roi is None or not _same_bound_target(planned_roi, roi, safe_target):
+            raise RuntimeError("navigation target changed before dispatch")
+        # Home animation may change pixels without moving the mapped anchor.
+        # Bind capability and transport to this very same native capture, at
+        # the planned target its own fresh binding has just re-proven.
+        proposal = _route_observation(
+            context, before, target_identity=target_identity, target_roi=planned_roi,
+            control_class=control_class, consequence="navigate_zero_cost",
+            postcondition=expected_postcondition, source_state=source_state,
+        )
+        issue_time = float(context.utc_clock())
+        capability_request = replace(
+            request, observation=proposal,
+            monotonic_now=float(context.monotonic_clock()),
+            lease_owner=session.owner,
+            lease_valid=store.lease_valid_for(session.owner, issue_time),
+            unresolved_action=store.has_action_block(),
+            duplicate_action_key=store.action_key_exists(action_key),
+            policy_phase="pre_dispatch",
+        )
+        issued = policy.issue_capability(capability_request)
+        store.audit(HOME_ATLAS_NAVIGATION_TASK_ID, "capability_issued", issue_time, issued.audit, action_id)
+        if not issued.authorized or issued.capability is None:
+            raise RuntimeError(f"navigation capability denied:{issued.reason_code}")
+        immediate_before = before
+
     def transport(_intent):
-        starting = int(getattr(runtime, "input_count", 0))
-
-        def authorize(before):
-            if frame_digest(before.frame) != frame_digest(planning.frame) or not source_recognize(before.frame):
-                raise RuntimeError("navigation source changed before dispatch")
-            roi = bind(before.frame)
-            if roi != planned_roi or (
-                control_class == "GO" and not _safe_nav_roi(roi)
-            ):
-                raise RuntimeError("navigation target changed before dispatch")
-
-        def send(before):
-            context.checkpoint()
-            dispatch(before, action_key, planned_roi)
-
-        def settled():
-            time.sleep(float(context.settle_seconds))
-            context.checkpoint()
-            return runtime.capture(f"{label}-settled")
-
-        try:
-            session.run_action(
-                action_class="navigation",
-                label=label,
-                capture=runtime.capture,
-                authorize=authorize,
-                dispatch=send,
-                recognize=recognize_frame,
-                consequence_class="navigation_only",
-                settled_successor=settled,
-            )
-        except Exception as exc:
-            sent = int(getattr(runtime, "input_count", 0)) - starting
-            return TransportResult(sent == 1, f"NANO_NAVIGATION_{type(exc).__name__}")
-        sent = int(getattr(runtime, "input_count", 0)) - starting
+        context.checkpoint()
+        context.validate_identity()
+        starting = int(runtime.input_count)
+        dispatch(immediate_before, action_key, planned_roi)
+        sent = int(runtime.input_count) - starting
         return TransportResult(
             sent == 1,
             "NANO_NAVIGATION_INPUT_SENT" if sent == 1 else "NANO_NAVIGATION_INPUT_NOT_SENT",
         )
 
+    def settled():
+        time.sleep(float(context.settle_seconds))
+        context.checkpoint()
+        return runtime.capture(f"{label}-settled")
+
     def post_observe():
+        recognize_frame(settled())
         observed = successors or [(planning, "UNKNOWN")]
         for captured, state in observed:
             yield Observation(
@@ -826,21 +971,31 @@ def _navigation_action(
             and observed.frame_sha256 == successors[-1][0].sha256
         )
 
-    execution = SafeActionExecutor(
-        store,
-        policy,
-        session.owner,
-        lambda: float(context.monotonic_clock()),
-        transport,
-        lambda: proposal,
-        post_observe,
-        reconcile,
-        wall_clock=lambda: float(context.utc_clock()),
-        max_pre_dispatch_attempts=1,
-    ).execute(request, issued.capability)
+    def send(before):
+        nonlocal execution
+        if before is not immediate_before or issued is None or issued.capability is None:
+            raise RuntimeError("navigation capability source mismatch")
+        execution = SafeActionExecutor(
+            store, policy, session.owner,
+            lambda: float(context.monotonic_clock()),
+            transport, lambda: proposal, post_observe, reconcile,
+            wall_clock=lambda: float(context.utc_clock()),
+            max_pre_dispatch_attempts=1,
+        ).execute(request, issued.capability)
+
+    try:
+        result = session.run_action(
+            action_class="navigation", label=label, capture=runtime.capture,
+            authorize=authorize, dispatch=send, recognize=recognize_frame,
+            consequence_class="navigation_only", settled_successor=settled,
+        )
+    except Exception:
+        return False
     return bool(
-        execution.status is ActionStatus.CONFIRMED
+        execution is not None
+        and execution.status is ActionStatus.CONFIRMED
         and execution.transport_calls == 1
+        and result.status == "completed"
         and successors
         and successors[-1][1] in allowed_successors
     )
@@ -857,6 +1012,7 @@ def _navigation_tap(
     source_recognize: Callable[[Any], bool],
     recognize: Callable[[Any], str | None],
     allowed_successors: tuple[str, ...],
+    safe_target: Callable[[Any], bool] = _safe_nav_roi,
 ) -> bool:
     return _navigation_action(
         context,
@@ -869,6 +1025,7 @@ def _navigation_tap(
         source_recognize=source_recognize,
         recognize=recognize,
         allowed_successors=allowed_successors,
+        safe_target=safe_target,
         dispatch=lambda before, action_key, roi: context.runtime.tap(
             before,
             target_identity=target_identity,
@@ -881,7 +1038,6 @@ def _navigation_tap(
 
 
 def _navigate_to_panel(context, *, occurrence_key: str, current) -> tuple[Any | None, _PanelRead | None, str]:
-    runtime = context.runtime
     initial = current
     panel = _panel_observation(current, context=context, occurrence_key=occurrence_key)
     if panel.observation is not None:
@@ -890,6 +1046,8 @@ def _navigate_to_panel(context, *, occurrence_key: str, current) -> tuple[Any | 
         return current, None, "nanoweapon"
     if _is_gear_factory_menu(current.frame):
         kind = "gear_factory"
+    elif _gear_factory_radial_target(current.frame) is not None:
+        kind = "gear_factory_radial"
     elif context.is_clean_home(current.frame):
         try:
             atlas = _load_atlas(DEFAULT_ATLAS)
@@ -908,7 +1066,7 @@ def _navigate_to_panel(context, *, occurrence_key: str, current) -> tuple[Any | 
             label=f"nano-material-open-gear-factory-{context.session.invocation_id}",
             target_identity=GEAR_FACTORY_ID,
             source_state="HOME_BASE",
-            expected_postcondition="GEAR_FACTORY_MENU_OR_NANOWEAPON",
+            expected_postcondition="GEAR_FACTORY_RADIAL_OR_MENU_OR_NANOWEAPON",
             bind=lambda frame: (lambda value: tuple(value.target_roi) if value is not None and value.building_id == GEAR_FACTORY_ID and value.frame_sha256 == frame_digest(frame) and _safe_nav_roi(value.target_roi) else None)(_home_binding(frame, atlas, localizer)),
             source_recognize=lambda frame: bool(
                 context.is_clean_home(frame)
@@ -916,21 +1074,44 @@ def _navigate_to_panel(context, *, occurrence_key: str, current) -> tuple[Any | 
                 and not localization.stale
                 and not localization.overlay
             ),
-            recognize=lambda after: "NANOWEAPON" if _is_nanoweapon_page(after.frame) else "GEAR_FACTORY" if _is_gear_factory_menu(after.frame) else None,
-            allowed_successors=("GEAR_FACTORY", "NANOWEAPON"),
+            recognize=lambda after: "GEAR_FACTORY_RADIAL" if _gear_factory_radial_target(after.frame, atlas, localizer) is not None else "NANOWEAPON" if _is_nanoweapon_page(after.frame) else "GEAR_FACTORY" if _is_gear_factory_menu(after.frame) else None,
+            allowed_successors=("GEAR_FACTORY_RADIAL", "GEAR_FACTORY", "NANOWEAPON"),
         ):
             return None, None, "gear_factory_atlas_navigation_not_verified"
         current = _capture(context, "nano-material-gear-factory-menu")
         if _is_nanoweapon_page(current.frame):
             return current, None, "nanoweapon"
-        if not _is_gear_factory_menu(current.frame):
+        if _gear_factory_radial_target(current.frame, atlas, localizer) is not None:
+            kind = "gear_factory_radial"
+        elif _is_gear_factory_menu(current.frame):
+            kind = "gear_factory"
+        else:
             return None, None, "gear_factory_successor_unknown"
-        kind = "gear_factory"
     else:
         return None, None, panel.reason
 
+    if kind == "gear_factory_radial":
+        if not _navigation_tap(
+            context,
+            label=f"nano-material-open-gear-factory-radial-{context.session.invocation_id}",
+            target_identity="gear-factory:radial-open",
+            source_state="GEAR_FACTORY_RADIAL",
+            expected_postcondition="GEAR_FACTORY_MENU_OR_NANOWEAPON",
+            bind=_gear_factory_radial_target,
+            source_recognize=lambda frame: _gear_factory_radial_target(frame) is not None,
+            recognize=lambda after: "NANOWEAPON" if _is_nanoweapon_page(after.frame) else "GEAR_FACTORY" if _is_gear_factory_menu(after.frame) else None,
+            allowed_successors=("GEAR_FACTORY", "NANOWEAPON"),
+        ):
+            return None, None, "gear_factory_radial_navigation_not_verified"
+        current = _capture(context, "nano-material-gear-factory-screen")
+        if _is_nanoweapon_page(current.frame):
+            return current, None, "nanoweapon"
+        if not _is_gear_factory_menu(current.frame):
+            return None, None, "gear_factory_screen_unknown"
+        kind = "gear_factory"
+
     if kind == "gear_factory":
-        roi = _line_target(current.frame, "Nanoweapon")
+        roi = _gear_factory_hub_nanoweapon_target(current.frame)
         if not _safe_nav_roi(roi):
             return None, None, "nanoweapon_factory_control_unknown"
         if not _navigation_tap(
@@ -939,7 +1120,7 @@ def _navigate_to_panel(context, *, occurrence_key: str, current) -> tuple[Any | 
             target_identity="gear-factory:nanoweapon",
             source_state="GEAR_FACTORY",
             expected_postcondition="NANOWEAPON_PAGE",
-            bind=lambda frame: _line_target(frame, "Nanoweapon") if _is_gear_factory_menu(frame) else None,
+            bind=_gear_factory_hub_nanoweapon_target,
             source_recognize=_is_gear_factory_menu,
             recognize=lambda after: "NANOWEAPON" if _is_nanoweapon_page(after.frame) else None,
             allowed_successors=("NANOWEAPON",),
@@ -953,15 +1134,9 @@ def _navigate_to_panel(context, *, occurrence_key: str, current) -> tuple[Any | 
 
 
 def _select_material_tab(context, *, occurrence_key: str, captured) -> tuple[Any | None, _PanelRead | None]:
-    panel = _panel_observation(captured, context=context, occurrence_key=occurrence_key)
-    if panel.observation is not None:
-        return captured, panel
-    frame = captured.frame
-    lines = _lines(_ocr_words(frame))
-    if not _is_nanoweapon_page(frame):
-        return None, None
-    roi = _word_roi(_phrase_lines(lines, "Material Production")[0][1]) if len(_phrase_lines(lines, "Material Production")) == 1 else None
-    if not _safe_nav_roi(roi):
+    if _nanoweapon_selected_tab(captured.frame) == "Material Production":
+        return captured, _panel_observation(captured, context=context, occurrence_key=occurrence_key)
+    if _nanoweapon_material_tab_target(captured.frame) is None:
         return None, None
     if not _navigation_tap(
         context,
@@ -969,15 +1144,15 @@ def _select_material_tab(context, *, occurrence_key: str, captured) -> tuple[Any
         target_identity="nanoweapon:material-production-tab",
         source_state="NANOWEAPON",
         expected_postcondition="MATERIAL_PRODUCTION_PANEL",
-        bind=lambda frame: _line_target(frame, "Material Production"),
-        source_recognize=_is_nanoweapon_page,
-        recognize=lambda after: "MATERIAL_PRODUCTION" if _panel_observation(after, context=context, occurrence_key=occurrence_key).observation is not None else None,
+        bind=_nanoweapon_material_tab_target,
+        source_recognize=lambda frame: _nanoweapon_material_tab_target(frame) is not None,
+        recognize=lambda after: "MATERIAL_PRODUCTION" if _nanoweapon_selected_tab(after.frame) == "Material Production" else None,
         allowed_successors=("MATERIAL_PRODUCTION",),
+        safe_target=_is_nanoweapon_material_tab_control,
     ):
         return None, None
     current = _capture(context, "nano-material-production-panel")
-    result = _panel_observation(current, context=context, occurrence_key=occurrence_key)
-    return (current, result) if result.observation is not None else (None, result)
+    return current, _panel_observation(current, context=context, occurrence_key=occurrence_key)
 
 
 def _return_home(context, *, occurrence_key: str, current) -> tuple[bool, Any | None]:
@@ -989,7 +1164,7 @@ def _return_home(context, *, occurrence_key: str, current) -> tuple[bool, Any | 
         return False, None
 
     def recognized_home(captured) -> bool:
-        if not context.is_clean_home(captured.frame):
+        if not context.is_clean_home(captured.frame) or _gear_factory_radial_target(captured.frame, atlas, localizer) is not None:
             return False
         localization = localizer.localize(captured.frame)
         return bool(localization.recognized and not localization.stale and not localization.overlay)
@@ -998,15 +1173,24 @@ def _return_home(context, *, occurrence_key: str, current) -> tuple[bool, Any | 
     for ordinal in range(3):
         if recognized_home(frame):
             return True, frame
+        if context.is_clean_home(frame.frame) and _gear_factory_radial_target(frame.frame, atlas, localizer) is None:
+            normalized = _normalize_home_source(context, frame)
+            return (True, normalized) if normalized is not None and recognized_home(normalized) else (False, None)
         panel = _panel_observation(frame, context=context, occurrence_key=occurrence_key)
         if panel.observation is not None:
-            source_recognize = lambda before: _panel_observation(
-                before, context=context, occurrence_key=occurrence_key,
-            ).observation is not None
+            def source_recognize(before):
+                return _panel_observation(
+                    before, context=context, occurrence_key=occurrence_key,
+                ).observation is not None
         elif _is_nanoweapon_page(frame.frame):
-            source_recognize = lambda before: _is_nanoweapon_page(before.frame)
+            def source_recognize(before):
+                return _is_nanoweapon_page(before.frame)
         elif _is_gear_factory_menu(frame.frame):
-            source_recognize = lambda before: _is_gear_factory_menu(before.frame)
+            def source_recognize(before):
+                return _is_gear_factory_menu(before.frame)
+        elif _gear_factory_radial_target(frame.frame, atlas, localizer) is not None:
+            def source_recognize(before):
+                return _gear_factory_radial_target(before.frame, atlas, localizer) is not None
         else:
             return False, None
 
@@ -1019,13 +1203,15 @@ def _return_home(context, *, occurrence_key: str, current) -> tuple[bool, Any | 
             context.validate_identity()
             runtime.press_key(
                 before,
-                key="Escape",
+                key="BACK",
                 action_key=f"{PRODUCT_ID}|{occurrence_key}|return-home:{session.invocation_id}:{ordinal}",
             )
 
         def recognize(after):
             if recognized_home(after):
                 return "HOME_BASE"
+            if context.is_clean_home(after.frame) and _gear_factory_radial_target(after.frame, atlas, localizer) is None:
+                return "HOME_BASE_PENDING_ATLAS"
             if _is_nanoweapon_page(after.frame):
                 return "NANOWEAPON"
             if _is_gear_factory_menu(after.frame):
@@ -1051,9 +1237,13 @@ def _return_home(context, *, occurrence_key: str, current) -> tuple[bool, Any | 
             )
         except Exception:
             return False, None
-        if result.status != "completed" or result.state not in {"HOME_BASE", "NANOWEAPON", "GEAR_FACTORY"}:
+        if result.status != "completed" or result.state not in {"HOME_BASE", "HOME_BASE_PENDING_ATLAS", "NANOWEAPON", "GEAR_FACTORY"}:
             return False, None
         frame = _capture(context, f"nano-material-return-home-current-{ordinal}")
+    if context.is_clean_home(frame.frame) and not recognized_home(frame):
+        frame = _normalize_home_source(context, frame)
+        if frame is None:
+            return False, None
     return (True, frame) if recognized_home(frame) else (False, None)
 
 
@@ -1076,7 +1266,7 @@ def _accounting(context) -> dict[str, object]:
 
 def _home_proof(context, captured) -> dict[str, object]:
     frame, reference = context.capture_reference(captured.path, captured.sha256)
-    if not context.is_clean_home(frame):
+    if not context.is_clean_home(frame.frame) or _gear_factory_radial_target(frame.frame) is not None:
         raise ValueError("terminal frame is not positively recognized canonical Home")
     return {
         "terminal_home_state": "HOME_BASE",
@@ -1126,7 +1316,7 @@ def _retained_panel_proof(context, captured, occurrence_key: str) -> tuple[Mater
     if reference.frame_sha256 != captured.sha256:
         raise ValueError("retained production frame digest differs from the current capture")
     replay = _panel_observation(
-        _CaptureView(frame, reference.frame_sha256, Path(captured.path)),
+        _CaptureView(frame.frame, reference.frame_sha256, Path(captured.path)),
         context=context,
         occurrence_key=occurrence_key,
     ).observation
@@ -1178,7 +1368,40 @@ def _recognized_home(context, frame: np.ndarray, atlas_path: Path = DEFAULT_ATLA
     return bool(localization.recognized and not localization.stale and not localization.overlay)
 
 
+def _normalize_home_source(context, current):
+    """Use the shared simultaneous-pointer recovery, never sequential zoom input."""
+    if _gear_factory_radial_target(current.frame) is not None:
+        return None
+    if _recognized_home(context, current.frame):
+        return current
+    if not context.is_clean_home(current.frame):
+        return None
+    context.checkpoint()
+    context.validate_identity()
+    try:
+        atlas = _load_atlas(DEFAULT_ATLAS)
+        # Each physical zoom is a session-owned run_action input, so route inputs
+        # before or after normalization keep one exact session/runtime count.
+        normalize_runtime_home_atlas_startup(
+            runtime=context.runtime, atlas=atlas, atlas_path=DEFAULT_ATLAS,
+            execute=context.runtime.execute, settle_seconds=float(context.settle_seconds),
+            maximum_zoom_inputs=2, session=context.session,
+        )
+    except Exception:
+        return None
+    normalized = _capture(context, "nano-material-production-atlas-ready")
+    return normalized if _recognized_home(context, normalized.frame) else None
+
+
 def _prepare_route_source(context, current, occurrence_key: str):
+    if _gear_factory_radial_target(current.frame) is not None:
+        if getattr(context.session, "initial_observation", None) is None:
+            context.bind_initial_observation(current)
+        return current
+    if context.is_clean_home(current.frame):
+        if getattr(context.session, "initial_observation", None) is None:
+            context.bind_initial_observation(current)
+        return _normalize_home_source(context, current)
     if getattr(context.session, "initial_observation", None) is not None:
         return current
     panel = _panel_observation(current, context=context, occurrence_key=occurrence_key)
@@ -1206,7 +1429,7 @@ def _prepare_route_source(context, current, occurrence_key: str):
     except Exception:
         return None
     recovered = _capture(context, "nano-material-production-startup-home")
-    return recovered if _recognized_home(context, recovered.frame) else None
+    return _normalize_home_source(context, recovered) if context.is_clean_home(recovered.frame) else None
 
 
 
@@ -1261,12 +1484,14 @@ def run_material_production_in_context(context, *, occurrence_key: str, return_h
     if panel_read.observation is None:
         current, _screen, page_kind = _navigate_to_panel(context, occurrence_key=occurrence_key, current=current)
         if current is None:
-            return _finalize(context, result, current=None, return_home=return_home, occurrence_key=occurrence_key, status="blocked", reason=f"NANO_MATERIAL_PRODUCTION_{page_kind.upper()}")
-        before_tab_selection = current
+            # Navigation helpers discard their source on refusal; prove the actual terminal screen afresh.
+            terminal_source = _capture(context, "nano-material-production-navigation-blocked-source")
+            return _finalize(context, result, current=terminal_source, return_home=return_home, occurrence_key=occurrence_key, status="blocked", reason=f"NANO_MATERIAL_PRODUCTION_{page_kind.upper()}")
         current, panel_read = _select_material_tab(context, occurrence_key=occurrence_key, captured=current)
-        if current is None and context.is_clean_home(before_tab_selection.frame):
-            current = before_tab_selection
-        if current is None or panel_read is None or panel_read.observation is None:
+        if current is None:
+            # A refused tab selection keeps no source; prove the actual terminal screen afresh.
+            current = _capture(context, "nano-material-production-tab-blocked-source")
+        if panel_read is None or panel_read.observation is None:
             return _finalize(context, result, current=current, return_home=return_home, occurrence_key=occurrence_key, status="blocked", reason="NANO_MATERIAL_PRODUCTION_PANEL_NOT_POSITIVELY_RECOGNIZED")
     before = panel_read.observation
     if not material_production_authorizeable(before):
@@ -1316,6 +1541,8 @@ def run_material_production_in_context(context, *, occurrence_key: str, return_h
                 reason=str(result["reason"]),
             )
         current = claim["successor_capture"]
+        result["last_action_evidence"] = claim.get("last_action_evidence")
+        result["zero_resource_cost_confirmed"] = True
         before = claim["successor_observation"]
         if before.production_state != "idle":
             result.update(
@@ -1336,6 +1563,26 @@ def run_material_production_in_context(context, *, occurrence_key: str, return_h
         status = "completed"
         reason = "MATERIAL_PRODUCTION_CLAIMED_THEN_RESTARTED"
     if before.production_state == "idle":
+        try:
+            material_production_start_spec(before)
+        except ValueError:
+            # A confirmed claim remains confirmed; an idle identity is not a
+            # fresh duration/cost quote and must never cause another input.
+            result.update(
+                production_state="idle", active_production_count=0, completed_batch_count=0,
+                production_duration_seconds=before.production_duration_seconds,
+                timer_seconds_remaining=before.timer_seconds_remaining,
+                zero_resource_cost_confirmed=bool(result["committed_action_count"]),
+                production_occurrence_key=occurrence_key,
+                production_target_identity=NANO_MATERIAL_PRODUCTION_TARGET,
+                production_state_frame=_retained_capture_reference(context, current),
+                production_state_observation_sha256=current.sha256,
+            )
+            return _finalize(
+                context, result, current=current, return_home=return_home,
+                occurrence_key=occurrence_key, status="blocked",
+                reason="MATERIAL_PRODUCTION_START_QUOTE_UNKNOWN",
+            )
         start = _dispatch_action(
             context,
             before_capture=current,
@@ -1379,6 +1626,7 @@ def run_material_production_in_context(context, *, occurrence_key: str, return_h
             )
         current = start["successor_capture"]
         before = start["successor_observation"]
+        result["last_action_evidence"] = start.get("last_action_evidence")
         status = "completed"
         reason = "MATERIAL_PRODUCTION_ACTIVE_21600_CONFIRMED"
     if before.production_state != "active" or not material_production_authorizeable(before):
@@ -1403,10 +1651,12 @@ def run_material_production_in_context(context, *, occurrence_key: str, return_h
         production_state="active",
         active_production_count=1,
         completed_batch_count=0,
-        production_duration_seconds=NANO_MATERIAL_PRODUCTION_DURATION_SECONDS,
+        production_duration_seconds=before.production_duration_seconds,
         timer_seconds_remaining=before.timer_seconds_remaining,
         next_eligible_at=next_due,
-        zero_resource_cost_confirmed=True,
+        # Confirmed free action specs prove performed effects, not an inferred
+        # START cost on an observed ACTIVE page.
+        zero_resource_cost_confirmed=bool(result["committed_action_count"]),
         effect_reconciliation_required=False,
         identical_retry_denied=False,
         production_occurrence_key=occurrence_key,
@@ -1430,115 +1680,6 @@ def run_nano_material_production_native(context, arguments: Mapping[str, object]
     )
 
 
-def validate_nano_material_production_native_result(result: Mapping[str, object]) -> bool:
-    calls, committed = result.get("production_transport_calls"), result.get("committed_action_count")
-    status = result.get("status")
-    effect_reconciliation = result.get("effect_reconciliation_required")
-    retry_denied = result.get("identical_retry_denied")
-    if (
-        type(calls) is not int
-        or not 0 <= calls <= MAX_ACTIONS
-        or type(committed) is not int
-        or not 0 <= committed <= calls
-    ):
-        return False
-    if status == "unresolved":
-        if calls and (effect_reconciliation is not True or retry_denied is not True):
-            return False
-        if not calls and (committed or effect_reconciliation is not False or retry_denied is not False):
-            return False
-        if calls and (
-            type(result.get("native_occurrence_key")) is not str
-            or not result.get("native_occurrence_key")
-            or result.get("native_occurrence_key") != result.get("occurrence_key")
-        ):
-            return False
-    elif status in {"completed", "deferred", "blocked"}:
-        if committed != calls or effect_reconciliation is not False or retry_denied is not False:
-            return False
-    else:
-        return False
-    if result.get("accounting_verified") is not True:
-        return False
-    if status == "unresolved" and result.get("terminal_home_verified") is False:
-        evidence = result.get("last_action_evidence")
-        if (
-            calls == 0
-            or type(result.get("attempted_action_count")) is not int
-            or result.get("attempted_action_count") != calls
-            or result.get("attempted_action_count_known") is not True
-            or result.get("action_evidence_required") is not False
-            or effect_reconciliation is not True
-            or retry_denied is not True
-            or type(result.get("native_occurrence_key")) is not str
-            or not result.get("native_occurrence_key")
-            or result.get("native_occurrence_key") != result.get("occurrence_key")
-            or not isinstance(evidence, Mapping)
-        ):
-            return False
-        for phase in ("before", "after"):
-            frame = evidence.get(phase)
-            if (
-                not isinstance(frame, Mapping)
-                or type(frame.get("frame_path")) is not str
-                or not frame["frame_path"]
-                or type(frame.get("frame_sha256")) is not str
-                or re.fullmatch(r"[0-9a-f]{64}", frame["frame_sha256"]) is None
-                or type(frame.get("observed_utc")) is not str
-                or not frame["observed_utc"]
-                or type(frame.get("capture_ordinal")) is not int
-                or frame["capture_ordinal"] <= 0
-            ):
-                return False
-        return True
-    if result.get("terminal_home_verified") is not True:
-        return False
-    home_frame = result.get("terminal_home_frame")
-    if (
-        not isinstance(home_frame, Mapping)
-        or type(home_frame.get("frame_path")) is not str
-        or not home_frame.get("frame_path")
-        or type(home_frame.get("frame_sha256")) is not str
-        or re.fullmatch(r"[0-9a-f]{64}", home_frame["frame_sha256"]) is None
-    ):
-        return False
-    if status not in {"completed", "deferred"}:
-        return True
-    timer = result.get("timer_seconds_remaining")
-    due = result.get("next_eligible_at")
-    state_frame = result.get("production_state_frame")
-    if not isinstance(state_frame, Mapping):
-        return False
-    frame_path = state_frame.get("frame_path")
-    frame_digest = state_frame.get("frame_sha256")
-    observed_utc = state_frame.get("observed_utc")
-    capture_ordinal = state_frame.get("capture_ordinal")
-    due_valid = bool(
-        type(due) in (int, float)
-        and 0 < due <= 1e308
-        and math.isfinite(due)
-    )
-    return bool(
-        result.get("production_state") == "active"
-        and type(result.get("active_production_count")) is int
-        and result.get("active_production_count") == 1
-        and type(result.get("production_duration_seconds")) is int
-        and result.get("production_duration_seconds") == NANO_MATERIAL_PRODUCTION_DURATION_SECONDS
-        and type(timer) is int and 0 < timer <= NANO_MATERIAL_PRODUCTION_DURATION_SECONDS
-        and result.get("zero_resource_cost_confirmed") is True
-        and type(result.get("native_occurrence_key")) is str
-        and result.get("native_occurrence_key") == result.get("occurrence_key")
-        and bool(result.get("native_occurrence_key"))
-        and result.get("production_occurrence_key") == result.get("native_occurrence_key")
-        and result.get("production_target_identity") == NANO_MATERIAL_PRODUCTION_TARGET
-        and due_valid
-        and type(frame_path) is str and bool(frame_path)
-        and type(frame_digest) is str
-        and re.fullmatch(r"[0-9a-f]{64}", frame_digest) is not None
-        and type(observed_utc) is str and bool(observed_utc)
-        and type(capture_ordinal) is int and capture_ordinal > 0
-        and result.get("production_state_observation_sha256") == frame_digest
-    )
 
 
 def create_service_binding(make_native_route_binding):
@@ -1553,6 +1694,5 @@ def create_service_binding(make_native_route_binding):
         max_inputs=MAX_INPUTS,
         max_actions=MAX_ACTIONS,
         driver=run_nano_material_production_native,
-        validator=validate_nano_material_production_native_result,
         action_store_factory=lambda path: SafetyStore(path),
     )

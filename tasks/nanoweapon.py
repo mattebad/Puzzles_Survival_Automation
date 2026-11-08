@@ -272,7 +272,8 @@ def nanoweapon_claim_authorizeable(observation: NanoweaponObservation) -> bool:
         and observation.nano_parts >= 0
         and observation.craft_result_visible is True
         and type(observation.result_identity) is str
-        and bool(observation.result_identity.strip())
+        and observation.result_identity.startswith("craft-instance:")
+        and bool(observation.result_identity[len("craft-instance:"):].strip())
         and observation.claim_visible is True
         and type(observation.active_craft_count) is int
         and observation.active_craft_count == 0
@@ -343,6 +344,7 @@ def nanoweapon_claim_transaction_spec(observation: NanoweaponObservation) -> Act
             "prior_material_production_reconciled=1",
             "normal_craft_tab",
             "completed_normal_craft=1",
+            f"craft_instance={observation.result_identity}",
             "active_craft_count=0",
             "claim_visible=1",
             "cost=none:0",

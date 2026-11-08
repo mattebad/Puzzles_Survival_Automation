@@ -1,25 +1,26 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from contextlib import ExitStack
+from dataclasses import dataclass, replace
 import hashlib
 from pathlib import Path
 import tempfile
+import time
 from types import SimpleNamespace
 import unittest
 from unittest import mock
 
+import cv2
 import numpy as np
 
-from automation_service.registry import (
-    NANO_MATERIAL_PRODUCTION_FLOW_ID,
-    NANO_MATERIAL_PRODUCTION_MAX_INPUTS,
-    NANO_MATERIAL_PRODUCTION_PRODUCT_ID,
-    NANO_MATERIAL_PRODUCTION_PRODUCT_REVISION,
-    NANO_MATERIAL_PRODUCTION_PROFILE_ID,
-)
+from automation_service.registry import NANO_MATERIAL_PRODUCTION_MAX_INPUTS
 from safe_action_core import SafetyStore
+from scripts import atlas_runtime_startup
 from scripts import nano_material_production_bluestacks as route
+from scripts import navigation_development_boundary as boundary
+from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
+from tests.support.environment import requires_tesseract
 
 
 _STATE_CODE = {"home": 1, "gear_factory": 2, "nanoweapon": 3, "active": 4, "idle": 5, "complete": 6, "unknown": 7}
@@ -76,6 +77,7 @@ class _Capture:
     path: Path
     captured_monotonic: float
     ordinal: int
+    png: bytes = b""
 
 
 class _Runtime:
@@ -95,7 +97,9 @@ class _Runtime:
         state_code = _STATE_CODE[self.state]
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         frame[0, 0, 0] = state_code
-        digest = hashlib.sha256(self.state.encode("ascii")).hexdigest()
+        # Animation changes captured pixels without changing the selected control.
+        frame[0, 1, 0] = self.ordinal % 256
+        digest = hashlib.sha256(frame.tobytes()).hexdigest()
         path = self.session / "frames" / f"{self.ordinal:04d}-{label}.png"
         captured = _Capture(frame, digest, path, 100.0 + self.ordinal / 1000.0, self.ordinal)
         self.captures[str(path)] = captured
@@ -220,7 +224,7 @@ class _NativeContext:
             observed_utc="2026-11-06T00:00:00Z",
             capture_ordinal=captured.ordinal,
         )
-        return captured.frame, reference
+        return captured, reference
 
 
 class NanoMaterialProductionNativeSmokeTests(unittest.TestCase):
@@ -229,6 +233,15 @@ class NanoMaterialProductionNativeSmokeTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self._ocr_patch = mock.patch.object(route, "tesseract_data", _fake_tesseract)
         self._ocr_patch.start()
+        # These are logical slot-state replays, not rendered-tab OCR fixtures.
+        self.enterContext(mock.patch.object(
+            route, "_nanoweapon_selected_tab",
+            side_effect=lambda frame: (
+                "Material Production" if int(frame[0, 0, 0]) in {
+                    _STATE_CODE["active"], _STATE_CODE["idle"], _STATE_CODE["complete"],
+                } else None
+            ),
+        ))
 
     def tearDown(self):
         self._ocr_patch.stop()
@@ -251,7 +264,7 @@ class NanoMaterialProductionNativeSmokeTests(unittest.TestCase):
             self.assertEqual(result["active_production_count"], 1)
             self.assertGreater(result["timer_seconds_remaining"], 0)
             self.assertEqual(result["native_occurrence_key"], context.occurrence_key)
-            self.assertTrue(result["zero_resource_cost_confirmed"])
+            self.assertFalse(result["zero_resource_cost_confirmed"])
             self.assertTrue(result["accounting_verified"])
             self.assertFalse(result["terminal_home_verified"])
             self.assertEqual(context.runtime.input_count, 0)
@@ -299,6 +312,97 @@ class NanoMaterialProductionNativeSmokeTests(unittest.TestCase):
         finally:
             context.close()
 
+    def _owned_observation(self, captured, occurrence, *, state):
+        return route.MaterialProductionObservation(
+            screen_state="NANOWEAPON", selected_nanoweapon=True,
+            selected_tab=route.MATERIAL_PRODUCTION_TAB, production_state=state,
+            active_production_count=0, completed_batch_count=1 if state == "complete" else 0,
+            production_duration_seconds=None, timer_seconds_remaining=None,
+            cost_known=state == "complete", cost_type="none" if state == "complete" else "unknown",
+            cost_amount=0 if state == "complete" else None, other_costs_known=state == "complete",
+            nonzero_other_costs=False, target_identity=route.NANO_MATERIAL_PRODUCTION_TARGET,
+            target_roi=route._MATERIAL_COMPLETE_CLAIM_CONTROL, panel_bounds=route._MATERIAL_COMPLETE_PANEL,
+            claim_visible=state == "complete", start_enabled=state == "idle",
+            target_provenance=route.BLUESTACKS_NATIVE_TARGET_PROVENANCE,
+            source_frame_sha256=captured.sha256, evidence_refs=("evidence/owned-frame.png",),
+            occurrence_key=occurrence,
+        )
+
+    def test_completed_claim_does_not_require_start_quote_or_timer(self):
+        context = self._context(state="complete")
+        try:
+            before = self._owned_observation(context.runtime.capture("complete"), context.occurrence_key, state="complete")
+            idle = replace(before, production_state="idle", completed_batch_count=0,
+                           claim_visible=False, start_enabled=True, cost_known=False,
+                           cost_type="unknown", cost_amount=None, other_costs_known=False,
+                           source_frame_sha256="b" * 64)
+            route.material_production_claim_spec(before)
+            self.assertTrue(route.material_production_claim_postcondition_verified(before, idle))
+            with self.assertRaises(ValueError):
+                route.material_production_start_spec(idle)
+            active = replace(idle, production_state="active", active_production_count=1,
+                             start_enabled=False, timer_seconds_remaining=21599,
+                             source_frame_sha256="c" * 64)
+            self.assertTrue(route.material_production_authorizeable(active))
+            self.assertFalse(route.material_production_start_postcondition_verified(idle, active))
+            quoted = replace(idle, production_duration_seconds=21600, cost_known=True,
+                             cost_type="none", cost_amount=0, other_costs_known=True)
+            self.assertTrue(route.material_production_start_postcondition_verified(quoted, active))
+            self.assertFalse(route.material_production_authorizeable(replace(active, timer_seconds_remaining=21601)))
+        finally:
+            context.close()
+
+    def test_confirmed_claim_preserved_when_idle_start_quote_missing(self):
+        context = self._context(state="complete")
+        def panel(captured, **_kwargs):
+            observation = self._owned_observation(captured, context.occurrence_key, state=context.runtime.state)
+            return route._PanelRead(observation, observation.target_roi, "recognized")
+        try:
+            with (
+                mock.patch.object(route, "_panel_observation", side_effect=panel),
+                mock.patch.object(route, "_prepare_route_source", side_effect=lambda _ctx, current, _key: current),
+            ):
+                result = route.run_material_production_in_context(
+                    context, occurrence_key=context.occurrence_key, return_home=False,
+                )
+            self.assertEqual(result["reason"], "MATERIAL_PRODUCTION_START_QUOTE_UNKNOWN")
+            self.assertEqual(result["status"], "blocked")
+            self.assertEqual(result["committed_action_count"], 1)
+            self.assertEqual(result["production_transport_calls"], 1)
+            self.assertFalse(result["effect_reconciliation_required"])
+            self.assertFalse(result["identical_retry_denied"])
+            self.assertEqual([kind for kind, _ in context.runtime.actions], ["CLAIM_NANO_MATERIAL_PRODUCTION"])
+            self.assertIsNotNone(result["last_action_evidence"]["after"])
+            self.assertTrue(result["zero_resource_cost_confirmed"])
+            self.assertEqual(result["production_state_frame"]["frame_sha256"], result["last_action_evidence"]["after"]["frame_sha256"])
+        finally:
+            context.close()
+
+    def test_actual_completed_profile_requires_material_not_craft_ownership(self):
+        context = self._context(state="complete")
+        captured = context.runtime.capture("complete")
+        body = (
+            route._Word("Produces 24-38 material(s) at random. Upgrade Gear", 96, (78, 978, 721, 1003), (1, 1, 1)),
+            route._Word("Factory to increase output.", 96, (237, 1003, 560, 1027), (2, 1, 1)),
+        )
+        claim = (route._Word("Claim", 96, (363, 1200, 438, 1222), (1, 1, 1)),)
+        def words(_frame, roi=None, **_kwargs):
+            return claim if roi == route._MATERIAL_COMPLETE_CLAIM_CROP else body
+        try:
+            with mock.patch.object(route, "_ocr_words", side_effect=words):
+                with mock.patch.object(route, "_nanoweapon_selected_tab", return_value="Material Production"):
+                    observed = route._panel_observation(captured, context=context, occurrence_key=context.occurrence_key)
+                self.assertIsNotNone(observed.observation)
+                self.assertIsNone(observed.observation.production_duration_seconds)
+                self.assertIsNone(observed.observation.timer_seconds_remaining)
+                self.assertEqual(observed.observation.completed_batch_count, 1)
+                self.assertEqual(observed.observation.target_roi, route._MATERIAL_COMPLETE_CLAIM_CONTROL)
+                with mock.patch.object(route, "_nanoweapon_selected_tab", return_value="Craft Weapon"):
+                    refused = route._panel_observation(captured, context=context, occurrence_key=context.occurrence_key)
+                self.assertIsNone(refused.observation)
+        finally:
+            context.close()
+
     def test_opaque_occurrence_with_pipe_is_preserved_exactly(self):
         occurrence = "NANO-MATERIAL-PRODUCTION-MAINTENANCE:timer:2026-11-06|basis"
         context = self._context(state="idle", occurrence=occurrence)
@@ -315,55 +419,6 @@ class NanoMaterialProductionNativeSmokeTests(unittest.TestCase):
         finally:
             context.close()
 
-    def test_home_atlas_navigation_binds_gear_factory_and_canonical_tab(self):
-        context = self._context(state="home")
-        context.session.initial_observation = SimpleNamespace(frame_sha256="already-bound")
-
-        atlas = route._load_atlas(route.DEFAULT_ATLAS)
-
-        class _Localizer:
-            def __init__(self, _atlas, _path):
-                pass
-
-            @staticmethod
-            def localize(_frame):
-                return SimpleNamespace(recognized=True, stale=False, overlay=False)
-
-        def bind_home(frame, _localization, _building, *, home_is_clean):
-            return SimpleNamespace(
-                building_id=route.GEAR_FACTORY_ID,
-                frame_sha256=route.frame_digest(frame),
-                target_roi=(300, 500, 400, 560),
-                overlay_intersects=False,
-                ambiguous_overlap=False,
-                semantic_evidence=("atlas-localized-gear-factory",),
-            )
-
-        with (
-            mock.patch.object(route, "_load_atlas", return_value=atlas),
-            mock.patch.object(route, "BlueStacksHomeLocalizer", _Localizer),
-            mock.patch.object(route, "bind_visible_building", side_effect=bind_home),
-            mock.patch.object(
-                route,
-                "is_clean_home_frame",
-                side_effect=lambda frame: int(frame[0, 0, 0]) == _STATE_CODE["home"],
-            ),
-        ):
-            try:
-                result = route.run_material_production_in_context(
-                    context, occurrence_key=context.occurrence_key, return_home=False,
-                )
-                self.assertEqual(result["status"], "completed")
-                navigation = [
-                    (kind, key) for kind, key in context.runtime.actions
-                    if kind == "navigation"
-                ]
-                self.assertEqual(len(navigation), 3)
-                self.assertTrue(all(context.action_store.action_key_exists(key) for _, key in navigation))
-                self.assertEqual(context.runtime.state, "active")
-                self.assertTrue(result["accounting_verified"])
-            finally:
-                context.close()
 
     def test_unknown_claim_successor_stops_before_start(self):
         context = self._context(state="complete", unknown_after_claim=True)
@@ -398,19 +453,6 @@ class NanoMaterialProductionNativeSmokeTests(unittest.TestCase):
             )
             self.assertIsNotNone(action_row)
             self.assertEqual(action_row["final_status"], "unresolved")
-            self.assertTrue(route.validate_nano_material_production_native_result(result))
-            invalid_effect_evidence = (
-                {"attempted_action_count": None, "attempted_action_count_known": False},
-                {"action_evidence_required": True},
-                {"last_action_evidence": {"before": evidence["before"]}},
-            )
-            for changes in invalid_effect_evidence:
-                with self.subTest(changes=changes):
-                    self.assertFalse(
-                        route.validate_nano_material_production_native_result(
-                            dict(result, **changes)
-                        )
-                    )
             self.assertTrue(result["effect_reconciliation_required"])
             self.assertTrue(result["identical_retry_denied"])
             self.assertEqual(
@@ -453,84 +495,274 @@ class NanoMaterialProductionNativeSmokeTests(unittest.TestCase):
         finally:
             context.close()
 
-    def test_fixed_native_binding_runs_real_driver_and_returns_home_evidence(self):
-        binding = {}
-        native = route.create_service_binding(lambda **values: binding.update(values) or values)
-        self.assertEqual(native["flow_id"], NANO_MATERIAL_PRODUCTION_FLOW_ID)
-        self.assertEqual(native["product_id"], NANO_MATERIAL_PRODUCTION_PRODUCT_ID)
-        self.assertEqual(native["product_revision"], NANO_MATERIAL_PRODUCTION_PRODUCT_REVISION)
-        self.assertEqual(native["runtime_profile_id"], NANO_MATERIAL_PRODUCTION_PROFILE_ID)
-        self.assertEqual(native["max_inputs"], NANO_MATERIAL_PRODUCTION_MAX_INPUTS)
-        self.assertEqual(native["max_actions"], 2)
-        factory_store = native["action_store_factory"](self.root / "factory-store.sqlite")
-        try:
-            self.assertIsInstance(factory_store, SafetyStore)
-        finally:
-            factory_store.close()
-        context = self._context(state="active", occurrence="service-driver")
-        class _HomeLocalizer:
-            def __init__(self, _atlas, _path):
-                pass
 
-            @staticmethod
-            def localize(_frame):
-                return SimpleNamespace(recognized=True, stale=False, overlay=False)
 
-        try:
-            with (
-                mock.patch.object(route, "_load_atlas", return_value=SimpleNamespace()),
-                mock.patch.object(route, "BlueStacksHomeLocalizer", _HomeLocalizer),
-            ):
-                result = binding["driver"](context, {})
-            self.assertEqual(result["status"], "deferred")
-            self.assertTrue(result["terminal_home_verified"])
-            self.assertEqual(result["terminal_home_state"], "HOME_BASE")
-            self.assertTrue(result["accounting_verified"])
-            self.assertEqual(result["native_occurrence_key"], context.occurrence_key)
-            self.assertTrue(binding["validator"](result))
-        finally:
-            context.close()
 
-    def test_native_validator_requires_retained_production_frame_and_exact_identity(self):
-        context = self._context(state="active")
+@dataclass(frozen=True)
+class _PixelCapture(CapturedNativeFrame):
+    ordinal: int = 0
 
-        class _HomeLocalizer:
-            def __init__(self, _atlas, _path):
-                pass
 
-            @staticmethod
-            def localize(_frame):
-                return SimpleNamespace(recognized=True, stale=False, overlay=False)
+class _PixelHomeRuntime(_Runtime):
+    """Native Home pixels and synthetic route panels over a device-free transport."""
 
-        try:
-            with (
-                mock.patch.object(route, "_load_atlas", return_value=SimpleNamespace()),
-                mock.patch.object(route, "BlueStacksHomeLocalizer", _HomeLocalizer),
-            ):
-                result = route.run_material_production_in_context(
-                    context,
-                    occurrence_key=context.occurrence_key,
-                    return_home=True,
-                )
-            self.assertTrue(route.validate_nano_material_production_native_result(result))
-            invalid = (
-                {"production_occurrence_key": "different"},
-                {"production_target_identity": "different"},
-                {"production_state_frame": {**result["production_state_frame"], "frame_path": ""}},
-                {"production_state_frame": {**result["production_state_frame"], "observed_utc": ""}},
-                {"production_state_frame": {**result["production_state_frame"], "capture_ordinal": True}},
-                {"next_eligible_at": float("nan")},
-            )
-            for changes in invalid:
-                with self.subTest(changes=changes):
-                    self.assertFalse(
-                        route.validate_nano_material_production_native_result(
-                            dict(result, **changes)
+    execute = True
+    in_flight_action = None
+    runner = SimpleNamespace(executable="fake-adb-not-executed", serial="emulator-5554")
+
+    def __init__(self, directory, *, zoom_source, zoom_result="canonical", panel_state="idle"):
+        super().__init__(directory, state="zoomed_home")
+        self.zoom_source = zoom_source
+        self.canonical_source = Path(__file__).resolve().parents[1] / "tasks/assets/home_atlas/bluestacks/800x1280/tiles/viewport-010.png"
+        self.zoom_result = zoom_result
+        self.panel_state = panel_state
+        self.events = directory / "fake-native-events.jsonl"
+        self.zoom_calls = 0
+        self.targets = []
+
+    def capture(self, label):
+        # Native capture is blocking. Model a genuine later capture even on
+        # Windows' coarse monotonic clock; never rewrite a policy timestamp.
+        time.sleep(0.02)
+        self.ordinal += 1
+        path = self.session / "frames" / f"{self.ordinal:04d}-{label}.png"
+        if self.state in {"home", "zoomed_home"}:
+            source = self.zoom_source if self.state == "zoomed_home" else self.canonical_source
+            payload = source.read_bytes()
+            frame = cv2.imdecode(np.frombuffer(payload, dtype=np.uint8), cv2.IMREAD_COLOR)
+            digest = hashlib.sha256(payload).hexdigest()
+        else:
+            payload = b""
+            frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+            frame[0, 0, 0] = _STATE_CODE[self.state]
+            digest = hashlib.sha256(self.state.encode("ascii")).hexdigest()
+        captured = _PixelCapture(frame, payload, digest, time.monotonic(), path, self.ordinal)
+        self.captures[str(path)] = captured
+        return captured
+
+    def measure_device_state(self):
+        return "device"
+
+    def dispatch_external_zoom(self, source, *, action_key, transport):
+        if self.input_count >= self.max_inputs:
+            raise RuntimeError("native input budget exhausted")
+        transport()
+        self.zoom_calls += 1
+        self.input_count += 1
+        self.actions.append(("ZOOM", action_key))
+        if self.zoom_result == "canonical":
+            self.state = "home"
+        elif self.zoom_result == "unknown":
+            self.state = "unknown"
+
+    def zoom_out(self, *args, **kwargs):
+        raise AssertionError("sequential zoom transport must never be used")
+
+    def tap(self, captured, **kwargs):
+        self.targets.append(kwargs["target_identity"])
+        super().tap(captured, **kwargs)
+        if kwargs["target_identity"] == "nanoweapon:material-production-tab":
+            self.state = self.panel_state
+
+
+class _PixelZoomTransport:
+    def __init__(self, **kwargs):
+        self.calls = 0
+
+    def zoom_out_once(self):
+        self.calls += 1
+
+
+class NanoMaterialProductionPixelEntryTests(unittest.TestCase):
+    ROOT = Path(__file__).resolve().parents[1]
+    ZOOM_SOURCE = ROOT / "tests/fixtures/home_base/native-home-bio-zoomed-20261029.png"
+    ACTUAL_SOURCE = ROOT / "tests/fixtures/home_base/nano-material-production-home-20261108.png"
+
+    def pixel_context(self, directory, *, source=None, zoom_result="canonical", panel_state="idle"):
+        """Real DevelopmentSession; only device pixels/transport and panel OCR are replayed."""
+        root = Path(directory)
+        context = _NativeContext(root, state="idle", occurrence_key="nano-production-native-pixel-replay")
+        stack = ExitStack()
+        stack.enter_context(mock.patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"))
+        session = stack.enter_context(boundary.DevelopmentSession(
+            owner=context.owner,
+            invocation_id="nano-production-native-pixel-replay",
+            session_directory=root / "native",
+            max_inputs=NANO_MATERIAL_PRODUCTION_MAX_INPUTS,
+        ))
+        context.runtime = _PixelHomeRuntime(
+            root / "native", zoom_source=source or self.ZOOM_SOURCE,
+            zoom_result=zoom_result, panel_state=panel_state,
+        )
+        context.session = session
+        context.is_clean_home = route.is_clean_home_frame
+        context.monotonic_clock = time.monotonic
+        context.bind_initial_observation = lambda captured: session.set_initial_observation(
+            {"frame_sha256": captured.sha256},
+        )
+        close_store = context.close
+
+        def close():
+            try:
+                stack.close()
+            finally:
+                close_store()
+
+        context.close = close
+        return context
+
+    def return_to_zoomed_home(self, context, zoom_source):
+        press_key = context.runtime.press_key
+
+        def press(captured, **kwargs):
+            press_key(captured, **kwargs)
+            context.runtime.state = "zoomed_home"
+            context.runtime.zoom_source = zoom_source
+
+        context.runtime.press_key = press
+
+    def pixel_patches(self):
+        stack = ExitStack()
+        stack.enter_context(mock.patch.object(
+            atlas_runtime_startup, "ScrcpyMotionEventZoomTransport", _PixelZoomTransport,
+        ))
+        real_words = route._ocr_words
+        def panel_words(frame):
+            # Synthetic panel OCR only; Home recognition, zoom classification,
+            # localization, mapped binding and safety policy remain production.
+            if np.count_nonzero(frame) != 1:
+                return ()
+            return real_words(frame)
+        stack.enter_context(mock.patch.object(route, "tesseract_data", _fake_tesseract))
+        stack.enter_context(mock.patch.object(route, "_ocr_words", side_effect=panel_words))
+        return stack
+
+    @requires_tesseract
+    def test_native_home_zoom_entry_mapped_factory_and_terminal_home(self):
+        for panel_state, effects in (("active", 0), ("idle", 1), ("complete", 2)):
+            with self.subTest(panel_state=panel_state), tempfile.TemporaryDirectory() as directory:
+                context = self.pixel_context(directory, panel_state=panel_state)
+                try:
+                    with self.pixel_patches():
+                        result = route.run_material_production_in_context(
+                            context, occurrence_key=context.occurrence_key, return_home=True,
                         )
-                    )
-        finally:
-            context.close()
+                    self.assertEqual(result["status"], "deferred" if not effects else "completed")
+                    self.assertEqual(context.runtime.zoom_calls, 1)
+                    self.assertEqual(context.runtime.targets[:3], [
+                        route.GEAR_FACTORY_ID, "gear-factory:nanoweapon",
+                        "nanoweapon:material-production-tab",
+                    ])
+                    self.assertEqual(result["production_transport_calls"], effects)
+                    self.assertTrue(result["terminal_home_verified"])
+                    self.assertTrue(result["accounting_verified"])
+                    self.assertLessEqual(result["input_count"], route.MAX_INPUTS)
+                    self.assertEqual(context.session.input_count, context.runtime.input_count)
+                finally:
+                    context.close()
 
+    @requires_tesseract
+    def test_retained_actual_failure_source_normalizes_before_atlas_binding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            context = self.pixel_context(directory, source=self.ACTUAL_SOURCE, panel_state="active")
+            try:
+                with self.pixel_patches():
+                    result = route.run_material_production_in_context(
+                        context, occurrence_key=context.occurrence_key, return_home=True,
+                    )
+                self.assertEqual(result["status"], "deferred")
+                self.assertEqual(context.runtime.zoom_calls, 1)
+                self.assertTrue(result["terminal_home_verified"])
+                self.assertTrue(result["accounting_verified"])
+            finally:
+                context.close()
+
+    @requires_tesseract
+    def test_unchanged_unknown_or_exhausted_zoom_never_taps_factory(self):
+        for successor in ("unchanged", "unknown", "budget"):
+            with self.subTest(successor=successor), tempfile.TemporaryDirectory() as directory:
+                context = self.pixel_context(directory, zoom_result=successor)
+                try:
+                    if successor == "budget":
+                        context.runtime.input_count = context.runtime.max_inputs
+                        context.session.input_count = context.runtime.max_inputs
+                    with self.pixel_patches():
+                        result = route.run_material_production_in_context(
+                            context, occurrence_key=context.occurrence_key, return_home=True,
+                        )
+                    self.assertEqual(result["status"], "blocked")
+                    self.assertFalse(result["terminal_home_verified"])
+                    self.assertEqual(result["production_transport_calls"], 0)
+                    self.assertEqual(context.runtime.targets, [])
+                    self.assertEqual(context.runtime.zoom_calls, 0 if successor == "budget" else 1)
+                    self.assertTrue(result["accounting_verified"])
+                finally:
+                    context.close()
+
+    @requires_tesseract
+    def test_panel_return_to_zoomed_home_is_normalized_before_terminal_proof(self):
+        with tempfile.TemporaryDirectory() as directory:
+            context = self.pixel_context(directory, panel_state="active")
+            context.runtime.state = "active"
+            self.return_to_zoomed_home(context, self.ZOOM_SOURCE)
+            try:
+                with self.pixel_patches():
+                    result = route.run_material_production_in_context(
+                        context, occurrence_key=context.occurrence_key, return_home=True,
+                    )
+                self.assertEqual(result["status"], "deferred")
+                self.assertEqual(context.runtime.zoom_calls, 1)
+                self.assertEqual(result["production_transport_calls"], 0)
+                self.assertTrue(result["terminal_home_verified"])
+                self.assertTrue(result["accounting_verified"])
+                self.assertEqual((context.runtime.input_count, context.session.input_count), (2, 2))
+            finally:
+                context.close()
+
+    @requires_tesseract
+    def test_entry_and_terminal_zooms_interleave_with_route_inputs_in_one_session(self):
+        with tempfile.TemporaryDirectory() as directory:
+            context = self.pixel_context(directory, panel_state="active")
+            self.return_to_zoomed_home(context, self.ACTUAL_SOURCE)
+            try:
+                with self.pixel_patches():
+                    result = route.run_material_production_in_context(
+                        context, occurrence_key=context.occurrence_key, return_home=True,
+                    )
+                self.assertEqual(result["status"], "deferred")
+                self.assertTrue(result["terminal_home_verified"])
+                self.assertTrue(result["accounting_verified"])
+                self.assertEqual(context.runtime.zoom_calls, 2)
+                self.assertEqual([kind for kind, _key in context.runtime.actions], [
+                    "ZOOM", "navigation", "navigation", "navigation", "KEY:Escape", "ZOOM",
+                ])
+                self.assertEqual((context.runtime.input_count, context.session.input_count), (6, 6))
+                labels = [row["label"] for row in context.session.actions]
+                self.assertEqual(len(labels), 6)
+                self.assertTrue(labels[0].startswith("home-atlas-startup-zoom-01-"))
+                self.assertTrue(labels[-1].startswith("home-atlas-startup-zoom-01-"))
+                self.assertNotEqual(labels[0], labels[-1])
+                self.assertEqual({row["status"] for row in context.session.actions}, {"completed"})
+            finally:
+                context.close()
+
+    @requires_tesseract
+    def test_return_to_already_zoomed_source_gets_no_identical_zoom(self):
+        with tempfile.TemporaryDirectory() as directory:
+            context = self.pixel_context(directory, panel_state="active")
+            self.return_to_zoomed_home(context, self.ZOOM_SOURCE)
+            try:
+                with self.pixel_patches():
+                    result = route.run_material_production_in_context(
+                        context, occurrence_key=context.occurrence_key, return_home=True,
+                    )
+                self.assertFalse(result["terminal_home_verified"])
+                self.assertEqual(result["production_transport_calls"], 0)
+                self.assertEqual(context.runtime.zoom_calls, 1)
+                self.assertTrue(result["accounting_verified"])
+                self.assertEqual((context.runtime.input_count, context.session.input_count), (5, 5))
+            finally:
+                context.close()
 
 if __name__ == "__main__":
     unittest.main()

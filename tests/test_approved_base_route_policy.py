@@ -258,7 +258,9 @@ def craft_claim_request():
     tokens = (
         f"product_id={NANOWEAPON_PRODUCT}", f"product_revision={NANOWEAPON_REVISION}",
         "effect_ordinal=1", f"game_day_id={DAY}", "prior_material_production_reconciled=1",
-        "normal_craft_tab", "completed_normal_craft=1", "active_craft_count=0", "claim_visible=1", "cost=none:0",
+        "normal_craft_tab", "completed_normal_craft=1",
+        "craft_instance=craft-instance:nanoweapon:start_normal_nanoweapon_craft:0123456789abcdef01234567",
+        "active_craft_count=0", "claim_visible=1", "cost=none:0",
     )
     return route_request(
         task=NANOWEAPON, action="claim_completed_nanoweapon", action_class=ActionClass.ZERO_COST_CONSEQUENTIAL,

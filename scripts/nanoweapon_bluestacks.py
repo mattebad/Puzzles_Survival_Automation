@@ -403,7 +403,7 @@ def recognize_nanoweapon_screen(
         quantity=1 if re.search(r"\b(?:quantity|qty|x)\s*1\b", normalized_text, re.ASCII) else None,
         craft_count=1 if claim_visible else active_count,
         craft_result_visible=bool(claim_visible and completed_marker),
-        result_identity="completed-normal-craft" if claim_visible and completed_marker else "",
+        result_identity="",  # Pixels prove completion, never a durable craft instance.
         craft_timer_active=timer_active,
         game_day_id=game_day_id,
         target_provenance=BLUESTACKS_NATIVE_TARGET_PROVENANCE,
@@ -524,6 +524,82 @@ def _confirmed_start_record(
         cost_amount=NANO_PARTS_REQUIRED,
     )
 
+
+def _claim_instance_key(identity: Any, start: Mapping[str, Any]) -> str:
+    return _action_key(
+        "claim-instance",
+        reset_id=start["game_day_id"],
+        identity=identity,
+        result_identity=start["action_id"],
+    )
+
+
+def _completed_craft_binding(context: Any) -> tuple[str, str]:
+    """Resolve the sole unclaimed journaled start without inventing a manual instance.
+
+    Legacy reset-scoped claims are retained and consumed only when their preceding
+    start is unambiguous. Ordering is journal history, not an estimated craft time.
+    """
+    identity = context.identity
+    records = context.action_store.list_actions_for_task(FLOW_ID)
+    starts: list[Mapping[str, Any]] = []
+    claimed: set[str] = set()
+    for record in records:
+        reset = record.get("game_day_id")
+        if type(reset) is not str or not reset:
+            continue
+        start_key = _action_key("start", reset_id=reset, identity=identity)
+        if record.get("action_key") == start_key:
+            if not _confirmed_start_record(record, action_key=start_key, game_day_id=reset):
+                raise ValueError("Normal Craft instance has unresolved start history")
+            starts.append(record)
+    for start in starts:
+        key = _claim_instance_key(identity, start)
+        claim = context.action_store.get_action_by_key(key)
+        if claim is not None:
+            if not _canonical_action_confirmed(
+                claim, action_key=key, semantic_action="claim_completed_nanoweapon",
+                target_identity="nanoweapon-completed-claim",
+                game_day_id=claim.get("game_day_id"),
+                consequence="nanoweapon_completed_claim",
+                postcondition="NANOWEAPON_CRAFT_CLAIMED", cost_type="none", cost_amount=0,
+            ):
+                raise ValueError("Normal Craft instance claim is unresolved; identical retry denied")
+            claimed.add(start["action_id"])
+    for record in records:
+        reset = record.get("game_day_id")
+        if type(reset) is not str or not reset:
+            continue
+        legacy_key = _action_key(
+            "claim", reset_id=reset, identity=identity,
+            result_identity="completed-normal-craft",
+        )
+        if record.get("action_key") != legacy_key:
+            continue
+        if not _canonical_action_confirmed(
+            record, action_key=legacy_key, semantic_action="claim_completed_nanoweapon",
+            target_identity="nanoweapon-completed-claim", game_day_id=reset,
+            consequence="nanoweapon_completed_claim",
+            postcondition="NANOWEAPON_CRAFT_CLAIMED", cost_type="none", cost_amount=0,
+        ):
+            raise ValueError("legacy Normal Craft claim is unresolved; identical retry denied")
+        preceding = [
+            start for start in starts
+            if start["action_id"] not in claimed
+            and start["prepared_at"] < record["prepared_at"]
+        ]
+        if len(preceding) > 1 or any(
+            start["prepared_at"] == record["prepared_at"] for start in starts
+        ):
+            raise ValueError("legacy Normal Craft claim instance is ambiguous; evidence_required")
+        if preceding:
+            claimed.add(preceding[0]["action_id"])
+    unclaimed = [start for start in starts if start["action_id"] not in claimed]
+    if len(unclaimed) != 1:
+        raise ValueError("completed Normal Craft has no unique unclaimed durable instance; evidence_required")
+    start = unclaimed[0]
+    return f"craft-instance:{start['action_id']}", _claim_instance_key(identity, start)
+
 def _frame_observation(
     context: Any,
     captured: Any,
@@ -573,14 +649,19 @@ def _evidence_ref(context: Any, captured: Any) -> str:
     return "evidence/" + relative.as_posix()
 
 
-def _recognize_capture(context: Any, captured: Any, **kwargs: Any) -> NanoweaponScreen:
-    return recognize_nanoweapon_screen(
+def _recognize_capture(context: Any, captured: Any, *, bind_completed_instance: bool = True,
+                       **kwargs: Any) -> NanoweaponScreen:
+    screen = recognize_nanoweapon_screen(
         captured.frame,
         captured_at=captured.captured_monotonic,
         frame_sha256=captured.sha256,
         evidence_ref=_evidence_ref(context, captured),
         **kwargs,
     )
+    if bind_completed_instance and screen.observation.claim_visible:
+        instance, _key = _completed_craft_binding(context)
+        screen = replace(screen, observation=replace(screen.observation, result_identity=instance))
+    return screen
 
 
 def _execute_consequential(
@@ -770,8 +851,18 @@ def _execute_consequential(
                 starts_this_reset=before.starts_this_reset,
                 start_reset_id=before.game_day_id,
                 prior_material_production_reconciled=True,
+                bind_completed_instance=False,
             )
             rebound = rebound_screen.observation
+            if claim:
+                prepared = store.get_action_by_key(action_key)
+                if (prepared is None or prepared["action_id"] != request.action_id
+                        or prepared["final_status"] != "prepared"):
+                    raise RuntimeError("Normal Craft Claim lacks its current prepared intent")
+                # Identity comes from the unique confirmed start bound before
+                # preparation, not pixels. Do not mistake our own prepared claim
+                # for an uncertain prior invocation when rechecking that frame.
+                rebound = replace(rebound, result_identity=before.result_identity)
             same = (
                 current.sha256 == before_capture.sha256
                 and rebound.source_frame_sha256 == before.source_frame_sha256
@@ -886,16 +977,17 @@ def _execute_consequential(
             )
             and bool(successors and successors[-1][2])
         )
+        sent = int(runtime.input_count) - starting_inputs
         return {
-            "status": "confirmed" if confirmed else "unresolved" if execution.transport_calls else "blocked",
+            "status": "confirmed" if confirmed else "unresolved" if sent else "blocked",
             "reason": execution.reason,
-            "transport_calls": int(execution.transport_calls),
+            "transport_calls": sent,
             "action_key": action_key,
             "journal_status": action_record.get("final_status") if action_record else None,
             "successor_capture": after,
             "successor_observation": after_observation,
-            "effect_reconciliation_required": bool(execution.transport_calls and not confirmed),
-            "identical_retry_denied": bool(execution.transport_calls or action_record is not None),
+            "effect_reconciliation_required": bool(sent and not confirmed),
+            "identical_retry_denied": bool(sent or action_record is not None),
         }
     except Exception as exc:
         ending_inputs = getattr(runtime, "input_count", None)
@@ -1173,6 +1265,7 @@ def _select_craft_tab(context: Any, current: Any, game_day_id: str) -> tuple[Any
             game_day_id=game_day_id,
             starts_this_reset=0,
             prior_material_production_reconciled=True,
+            bind_completed_instance=False,
         )
         return bool(fresh.screen_recognized and fresh.observation.selected_tab == CRAFT_WEAPON_TAB)
 
@@ -1203,14 +1296,17 @@ def _select_craft_tab(context: Any, current: Any, game_day_id: str) -> tuple[Any
 def _return_home(context: Any, *, occurrence_key: str, current: Any) -> tuple[Any | None, dict[str, Any] | None]:
     from scripts import nano_material_production_bluestacks as production
 
-    home, captured = production._return_home(context, occurrence_key=occurrence_key, current=current)
+    fresh = production._capture(context, "nanoweapon-return-home-source")
+    if fresh.captured_monotonic <= current.captured_monotonic:
+        return None, None
+    home, captured = production._return_home(context, occurrence_key=occurrence_key, current=fresh)
     if not home or captured is None or not _safe_home(context, captured.frame):
         return None, None
     try:
         frame, reference = context.capture_reference(captured.path, captured.sha256)
     except Exception:
         return None, None
-    if not _safe_home(context, frame):
+    if not _safe_home(context, frame.frame):
         return None, None
     proof = {
         "terminal_home_state": "HOME_BASE",
@@ -1498,15 +1594,9 @@ def run_nanoweapon_in_context(
         if observation.claim_visible:
             if not nanoweapon_claim_authorizeable(observation):
                 raise ValueError("completed Normal Craft Claim is not positively recognized")
-            claim_key = _action_key(
-                "claim",
-                reset_id=game_day_id,
-                identity=identity,
-                result_identity=claim_result_identity,
-            )
-            if context.action_store.get_action_by_key(claim_key) is not None:
-                result.update(effect_reconciliation_required=True, identical_retry_denied=True)
-                raise ValueError("completed Normal Craft Claim action key already exists; retry denied")
+            bound_instance, claim_key = _completed_craft_binding(context)
+            if bound_instance != claim_result_identity:
+                raise ValueError("completed Normal Craft durable instance changed")
             claim = _execute_consequential(
                 context,
                 before_capture=current,
@@ -1729,12 +1819,11 @@ def run_nanoweapon_in_context(
         journal_blocked = bool(context.action_store.has_action_block())
         unresolved = bool(
             not attempts_known
-            or (dispatch_count is not None and dispatch_count > 0)
+            or (dispatch_count is not None and committed != dispatch_count)
             or journal_blocked
             or result.get("effect_reconciliation_required")
             or result.get("identical_retry_denied")
             or type(committed) is not int
-            or (dispatch_count is not None and committed != dispatch_count)
         )
         result.update(
             status="unresolved" if unresolved else "blocked",
