@@ -58,6 +58,19 @@ def _evidence(frame: CapturedNativeFrame) -> str:
     return str(getattr(frame, "path", "") or f"sha256:{frame.sha256}")
 
 
+def _joined_ocr_hit(hits: Sequence[OcrHit]) -> OcrHit | None:
+    if not hits:
+        return None
+    return OcrHit(
+        " ".join(hit.text for hit in hits),
+        (
+            min(hit.bounds[0] for hit in hits), min(hit.bounds[1] for hit in hits),
+            max(hit.bounds[2] for hit in hits), max(hit.bounds[3] for hit in hits),
+        ),
+        min(hit.confidence for hit in hits),
+    )
+
+
 def _all_hits(frame: CapturedNativeFrame, ocr_engine: Callable | None) -> tuple[Any, ...]:
     engine = ocr_engine or _default_ocr
     hits = tuple(_hits(frame.frame, FULL_FRAME, engine))
@@ -65,25 +78,35 @@ def _all_hits(frame: CapturedNativeFrame, ocr_engine: Callable | None) -> tuple[
         return hits
     title_roi = (180, 0, 660, 66)
     title_hits = _region_ocr(frame.frame, title_roi, psm=7)
-    title = " ".join(hit.text for hit in title_hits)
-    if _normalize(title) != "commander info":
+    title = _joined_ocr_hit(title_hits)
+    if title is None or _normalize(title.text) not in {"commander info", "cmdr talent"}:
         return hits
-    # Full-frame sparse OCR loses this page's title, selected Gear tab and
-    # footer labels. Re-read the observed text bands, not guessed tap points.
-    title_bounds = (
-        min(hit.bounds[0] for hit in title_hits),
-        min(hit.bounds[1] for hit in title_hits),
-        max(hit.bounds[2] for hit in title_hits),
-        max(hit.bounds[3] for hit in title_hits),
-    )
-    replacements = (
-        (65, 80, 165, 130),
-        (210, 80, 310, 130),
-        (42, 1250, 758, 1280),
-    )
-    refined = [OcrHit(title, title_bounds, min(hit.confidence for hit in title_hits))]
-    for roi in replacements:
-        refined.extend(_region_ocr(frame.frame, roi, psm=6 if roi == replacements[-1] else 7))
+    refined = [title]
+    if _normalize(title.text) == "commander info":
+        # Re-read observed text bands, not guessed tap points.
+        replacements = ((65, 80, 165, 130), (210, 80, 310, 130), (42, 1250, 758, 1280))
+        for roi in replacements:
+            refined.extend(_region_ocr(frame.frame, roi, psm=6 if roi == replacements[-1] else 7))
+    else:
+        replacements = (
+            (438, 95, 578, 148), (590, 95, 730, 148),
+            (42, 164, 278, 218), (279, 164, 520, 218), (521, 164, 758, 218),
+        )
+        memory_words = (
+            *_region_ocr(frame.frame, (459, 98, 555, 120), psm=7),
+            *_region_ocr(frame.frame, (456, 120, 556, 145), psm=7),
+        )
+        memory = _joined_ocr_hit(memory_words)
+        if memory is not None and _normalize(memory.text) == "talent memory":
+            refined.append(memory)
+        refined.extend(_region_ocr(frame.frame, replacements[1], psm=7))
+        for roi in replacements[2:]:
+            tab_hits = _region_ocr(frame.frame, roi, psm=7)
+            refined.extend(tab_hits)
+            for hit in tab_hits:
+                caption = _normalize(hit.text)
+                if caption in {"economy:", "military:", "balance:"}:
+                    refined.append(OcrHit(caption[:-1], hit.bounds, hit.confidence))
     regions = (title_roi, *replacements)
     retained = tuple(
         hit for hit in hits
