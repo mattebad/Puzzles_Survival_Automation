@@ -1728,7 +1728,10 @@ def _dispatch_consequential(
             quantity=input_limit,
         ),
         monotonic_now=float(context.monotonic_clock()),
-        observation_max_age_seconds=5.0,
+        # Planning source only: two full Wali detail reads plus a native capture
+        # exceed 5s before the executor's first check. The physical input still
+        # needs the genuinely later immediate recapture within 2s.
+        observation_max_age_seconds=10.0,
         dispatch_max_age_seconds=2.0,
         lease_owner=context.session.owner,
         lease_valid=store.lease_valid_for(context.session.owner, now),
@@ -2131,7 +2134,7 @@ def _dispatch_consequential(
             reconcile,
             wall_clock=lambda: float(context.utc_clock()),
             max_pre_dispatch_attempts=1,
-        ).execute(capability_request, issued.capability)
+        ).execute(request, issued.capability)
         row = store.get_action_by_key(action_key)
     except Exception as exc:
         ending_runtime_inputs = int(getattr(runtime, "input_count", starting_runtime_inputs))
