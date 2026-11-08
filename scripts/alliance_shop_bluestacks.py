@@ -617,6 +617,10 @@ class AllianceShopLivePort:
         self.currency_icons: dict[str, np.ndarray] = {}
         self.last_dialog = None
         self.offer_evidence = {}
+        # Logical navigation identity: each (phase, step, exact source) dispatches at most once,
+        # and a phase whose step made no positive progress never gets another blind attempt.
+        self.navigation_keys: set[str] = set()
+        self.stalled_phases: set[str] = set()
 
     def _capture(self, label):
         self.context.checkpoint()
@@ -760,8 +764,12 @@ class AllianceShopLivePort:
             return False
         if len(target) != 4 or not (0 <= target[0] < target[2] <= 800 and 0 <= target[1] < target[3] <= 1280):
             return False
+        key = f"alliance-shop:{action_name}:{before.sha256}"
+        if key in self.navigation_keys:
+            return False
         self.context.checkpoint()
-        dispatch(before, target, f"alliance-shop:{action_name}:{before.sha256}")
+        self.navigation_keys.add(key)
+        dispatch(before, target, key)
         after = self._capture(f"alliance-shop-{action_name}-immediate-post")
         if recognize(after):
             return True
@@ -796,16 +804,26 @@ class AllianceShopLivePort:
             recognize,
         )
 
-    def _back(self):
+    def _back(self, phase):
+        """One Back from a recognized Alliance page; success needs a different known page."""
         known = {"weekly", "other", "alliance", "alliance_menu"}
+        source: dict[str, str] = {}
         def bind(before):
-            if self._page(before)[0] not in known:
+            page = self._page(before)[0]
+            if page not in known:
                 raise ValueError("Alliance Back source is not recognized")
+            source["page"] = page
             return (0, 0, 800, 1280)
+        def progressed(after):
+            page = self._page(after)[0]
+            return page != source["page"] and page in known | {"home"}
+        target_identity = f"android-back:alliance-shop-{phase}"
         return self._tap(
-            "system-back", "return-home", bind,
-            lambda before, _roi, key: self.runtime.back(before, action_key=key),
-            lambda after: self._page(after)[0] in known | {"home"},
+            target_identity, f"{phase}-return-home", bind,
+            lambda before, _roi, key: self.runtime.back(
+                before, action_key=key, target_identity=target_identity,
+            ),
+            progressed,
         )
 
     def enter_weekly_offers(self):
@@ -1035,7 +1053,7 @@ class AllianceShopLivePort:
         layout = _dialog_layout(captured)
         return None if layout is None else layout.close
 
-    def _close_own_dialog(self, action_name):
+    def _close_own_dialog(self, phase, action_name):
         def bind(before):
             close = self._own_dialog_close(before)
             if close is None:
@@ -1043,8 +1061,8 @@ class AllianceShopLivePort:
             return close
         shop_pages = {self.current_tab} if self.current_tab else {"weekly", "alliance", "other"}
         return self._tap_roi(
-            bind, "alliance-shop:quantity-dialog-close", action_name,
-            lambda frame: self._page(frame)[0] in shop_pages,
+            bind, f"alliance-shop:quantity-dialog-close:{phase}", action_name,
+            lambda frame: _dialog_layout(frame) is None and self._page(frame)[0] in shop_pages,
         )
 
     def open_quantity_dialog(self, offer):
@@ -1066,7 +1084,7 @@ class AllianceShopLivePort:
         return self._quantity_dialog(dialog_frame, offer)
 
     def cancel_quantity_dialog(self):
-        return self._close_own_dialog("cancel-quantity-dialog")
+        return self._close_own_dialog("route", "cancel-quantity-dialog")
 
     def purchase_one(self, offer, dialog, action_key):
         if self.last_dialog is None:
@@ -1076,18 +1094,22 @@ class AllianceShopLivePort:
             self.context, self, offer, dialog, action_key, settle_seconds=self.settle_seconds,
         )
 
-    def return_home(self):
+    def return_home(self, *, phase="terminal"):
+        """Close/back only positively recognized own surfaces; one stalled step ends the phase."""
+        if phase in self.stalled_phases:
+            return False
         for _ in range(5):
             captured = self._capture("alliance-shop-home-return-source")
             if self._home(captured):
                 return True
             if self._own_dialog_close(captured) is not None:
-                if not self._close_own_dialog("close-quantity-dialog"):
-                    return False
-                continue
-            if self._page(captured)[0] not in {"weekly", "other", "alliance", "alliance_menu"}:
+                moved = self._close_own_dialog(phase, f"{phase}-close-quantity-dialog")
+            elif self._page(captured)[0] in {"weekly", "other", "alliance", "alliance_menu"}:
+                moved = self._back(phase)
+            else:
                 return False
-            if not self._back():
+            if not moved:
+                self.stalled_phases.add(phase)
                 return False
         return self._home(self._capture("alliance-shop-home-return-final"))
 
@@ -1429,7 +1451,7 @@ def _service_driver(context, arguments: Mapping[str, object]) -> Mapping[str, ob
         # Only a positively recognized own Alliance Shop page or quantity modal is closed or
         # backed out; unknown/manual contexts return without input.
         try:
-            port.return_home()
+            port.return_home(phase="startup")
         finally:
             context.session.adopt_retained_transport_count(
                 context.runtime.input_count, source=str(context.runtime.events),

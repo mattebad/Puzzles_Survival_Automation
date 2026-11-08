@@ -190,6 +190,10 @@ Existing layout exceptions:
   own modal may close through its freshly rebound white X and return via known Alliance
   pages to verified Home, including on restart. Unknown modal structure receives no
   guessed dismissal or Buy. Actual-pixel replay proves these guards, not purchase effects.
+  Startup and terminal returns use separate navigation phase identities, including
+  source/target duplicate identity. Each Back must reach a different known parent page;
+  unchanged or unknown successors stall that phase without another identical input.
+  This preserves legitimate revisits without weakening purchase-key protection.
   Daily Shops reuses canonical Atlas startup normalization and its scrcpy simultaneous-pointer
   transport for at most two accounted zoom inputs; the sequential virtual-touch pinch is not
   a substitute for an observed camera transition. It then uses shared bounded calculated pans,
