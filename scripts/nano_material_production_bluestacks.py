@@ -635,6 +635,30 @@ def _safe_nav_roi(roi) -> bool:
     )
 
 
+def _same_bound_target(planned, fresh) -> bool:
+    """Prove the planned tap still lands on the dispatch frame's own binding.
+
+    Fresh Atlas localization of an animated Home may round a mapped hit ROI
+    edge to an adjacent native pixel between captures.  The planned ROI stays
+    the transport target only when every corresponding edge differs by at most
+    one native pixel and each binding's tap point lies inside the other.
+    """
+    if not _safe_nav_roi(planned) or not _safe_nav_roi(fresh):
+        return False
+    if planned == fresh:
+        return True
+    if any(abs(a - b) > 1 for a, b in zip(planned, fresh)):
+        return False
+
+    def center(roi):
+        return ((roi[0] + roi[2]) // 2, (roi[1] + roi[3]) // 2)
+
+    def inside(point, roi):
+        return roi[0] <= point[0] < roi[2] and roi[1] <= point[1] < roi[3]
+
+    return inside(center(planned), fresh) and inside(center(fresh), planned)
+
+
 def _line_target(frame: np.ndarray, phrase: str) -> tuple[int, int, int, int] | None:
     hits = _phrase_lines(_lines(_ocr_words(frame)), phrase)
     return _word_roi(hits[0][1]) if len(hits) == 1 else None
@@ -795,12 +819,13 @@ def _navigation_action(
         if not source_recognize(before.frame):
             raise RuntimeError("navigation source is not positively recognized")
         roi = bind(before.frame)
-        if roi != planned_roi or (control_class == "GO" and not _safe_nav_roi(roi)):
+        if roi is None or not _same_bound_target(planned_roi, roi):
             raise RuntimeError("navigation target changed before dispatch")
         # Home animation may change pixels without moving the mapped anchor.
-        # Bind capability and transport to this very same native capture.
+        # Bind capability and transport to this very same native capture, at
+        # the planned target its own fresh binding has just re-proven.
         proposal = _route_observation(
-            context, before, target_identity=target_identity, target_roi=roi,
+            context, before, target_identity=target_identity, target_roi=planned_roi,
             control_class=control_class, consequence="navigate_zero_cost",
             postcondition=expected_postcondition, source_state=source_state,
         )
