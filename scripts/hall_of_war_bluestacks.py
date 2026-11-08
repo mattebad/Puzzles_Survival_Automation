@@ -256,8 +256,17 @@ class HallOfWarVision:
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         lines: list[OCRToken] = []
         for box in boxes:
-            crop = gray[max(0, box[1] - 4):min(NATIVE_HEIGHT, box[3] + 4), max(0, box[0] - 4):min(NATIVE_WIDTH, box[2] + 4)]
-            enlarged = cv2.resize(crop, None, fx=3.0, fy=3.0, interpolation=cv2.INTER_CUBIC)
+            rows = slice(max(0, box[1] - 4), min(NATIVE_HEIGHT, box[3] + 4))
+            cols = slice(max(0, box[0] - 4), min(NATIVE_WIDTH, box[2] + 4))
+            # Read only the caption's own white strokes (plus their anti-aliased
+            # edge): animated Home art inside the line box (bobbing quest
+            # markers) otherwise makes Tesseract drop an unchanged caption.
+            strokes = cv2.dilate(
+                cv2.inRange(cv2.cvtColor(frame[rows, cols], cv2.COLOR_BGR2HSV), (0, 0, 200), (180, 50, 255)),
+                cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)),
+            )
+            isolated = (255 - np.where(strokes > 0, gray[rows, cols], 0)).astype(np.uint8)
+            enlarged = cv2.resize(isolated, None, fx=3.0, fy=3.0, interpolation=cv2.INTER_CUBIC)
             try:
                 text = self._normal(call_ocr(tesseract_string, enlarged, config="--psm 7"))
             except (RuntimeError, OSError, ValueError):
