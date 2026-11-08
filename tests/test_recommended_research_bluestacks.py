@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 from contextlib import closing
 from datetime import datetime, timezone
+import hashlib
 import json
 from pathlib import Path
 import tempfile
@@ -476,14 +477,21 @@ class ResearchFinalFenceRegressionTests(unittest.TestCase):
                     path=root / f"frame-{code}.png",
                 )
             context = SimpleNamespace(
-                runtime=SimpleNamespace(session=root), action_store=store, owner="research-test",
+                runtime=SimpleNamespace(session=root, action_keys=("entry", "recommendation"), input_count=2),
+                session=SimpleNamespace(owner="research-test"),
+                action_store=store, owner="research-test", invocation_id="fence-regression",
+                occurrence_key="fence-occurrence", identity="fixed-research-identity",
+                checkpoint=lambda: None, validate_identity=lambda: None,
+                accounting=lambda: SimpleNamespace(
+                    verified=True, input_count=2, session_input_count=2, runtime_input_count=2,
+                ),
                 utc_clock=lambda: 1001.0, monotonic_clock=lambda: 5.0,
                 is_clean_home=lambda frame: int(frame[0, 0, 0]) == 1,
                 _recommended_research_center_level=24,
                 _recommended_research_queue1_state="idle",
                 _recommended_research_queue1_remaining=None,
             )
-            binding = SimpleNamespace(screen_anchor=(400, 580))
+            binding = SimpleNamespace(building_id=route.RESEARCH_CENTER_ID, screen_anchor=(400, 580))
             def model_center_level(frame, _binding):
                 words = route._ocr_words(rows[int(frame[0, 0, 0])])
                 levels = [int(word.text) for word in words if word.text.isdecimal()]
@@ -501,6 +509,19 @@ class ResearchFinalFenceRegressionTests(unittest.TestCase):
                     costs=route._merge_top_and_scrolled_resource_rows(top.resource_pairs, quote.resource_pairs),
                     scrolled_refs=quote.evidence_refs,
                 )
+                context._recommended_research_visit = {
+                    "valid": True, "identity": route._research_visit_identity(context),
+                    "action_keys": context.runtime.action_keys, "input_count": 2,
+                    "home_source": (captures[1].sha256, captures[1].captured_monotonic),
+                    "home_binding": binding, "home_used_at": 1.5,
+                    "home_pixels": hashlib.sha256(captures[1].frame.tobytes()).hexdigest(),
+                    "home_screen": route._source_screen(context, captures[1]),
+                    "center_level": model_center_level(captures[1].frame, binding),
+                    "list_source": (captures[2].sha256, captures[2].captured_monotonic),
+                    "list_used_at": 2.5, "listing": listing,
+                    "list_pixels": hashlib.sha256(captures[2].frame.tobytes()).hexdigest(),
+                    "transitions": ("entry", "recommendation"),
+                }
                 def rebuild():
                     screen = route._source_screen(context, captures[4], expected_detail_identity=listing.first_recommendation_identity)
                     return route._fresh_start_detail(
@@ -531,6 +552,8 @@ class ResearchFinalFenceRegressionTests(unittest.TestCase):
                 for code, replacement in mutations:
                     original = rows[code]
                     rows[code] = replacement
+                    original_pixel = int(captures[code].frame[0, 0, 1])
+                    captures[code].frame[0, 0, 1] ^= 128
                     with self.subTest(code=code, replacement=replacement["text"]):
                         self.assertIsNone(rebuild())
                         with self.assertRaisesRegex(RuntimeError, "TARGET_NOT_FRESHLY_BOUND"):
@@ -548,7 +571,13 @@ class ResearchFinalFenceRegressionTests(unittest.TestCase):
                             )
                         self.assertIsNone(store.get_action_by_key("changed-quote:start"))
                     rows[code] = original
+                    captures[code].frame[0, 0, 1] = original_pixel
                 context.monotonic_clock = lambda: 12.0
+                self.assertTrue(tech_upgrade_authorizeable(rebuild(), listing))
+                context.runtime.input_count = 3
+                self.assertIsNone(rebuild())
+                context.runtime.input_count = 2
+                context.monotonic_clock = lambda: 14.0
                 self.assertIsNone(rebuild())
 
 
