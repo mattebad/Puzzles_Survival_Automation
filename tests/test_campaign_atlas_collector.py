@@ -71,7 +71,6 @@ class CampaignAtlasCollectorTests(unittest.TestCase):
             production_survey_call_graph,
             SURVEY_RUNNER_ID,
             SURVEY_EVIDENCE_VALIDATOR_ID,
-            SURVEY_RECOVERY_HANDLER_ID,
             assert_swipe_not_blind_retry,
             count_home_entry_transports,
             require_bound_survey_target,
@@ -111,7 +110,6 @@ class CampaignAtlasCollectorTests(unittest.TestCase):
         )
         self.assertIn(SURVEY_RUNNER_ID, pnsctl._BLUESTACKS_FLOW_RUNNERS)
         self.assertIn(SURVEY_EVIDENCE_VALIDATOR_ID, pnsctl._BLUESTACKS_EVIDENCE_VALIDATORS)
-        self.assertIn(SURVEY_RECOVERY_HANDLER_ID, pnsctl._BLUESTACKS_RECOVERY_HANDLERS)
 
         swipe = (400, 400, 400, 540, 350)
         with self.assertRaises(RuntimeError):

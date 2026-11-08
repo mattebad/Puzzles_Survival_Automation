@@ -222,13 +222,14 @@ class OperatorCliTests(unittest.TestCase):
                     {
                         "observe",
                         "launch-game",
+                        "recover-resource-home",
+                        "recover-network",
                         "delegated-dry-run",
                         "run-flow",
                     }
                 ),
                 "bluestacks": frozenset(
                     {
-                        "preflight",
                         "verify-flow",
                         "recover-home",
                         "reconcile-campaign-atlas-survey-action",
@@ -237,6 +238,7 @@ class OperatorCliTests(unittest.TestCase):
                 "automation-service": frozenset(
                     {
                         "serve",
+                        "inspect-rearm",
                         "status",
                         "health",
                         "enable",
@@ -259,6 +261,7 @@ class OperatorCliTests(unittest.TestCase):
             ["noahs-tavern-nav"],
             ["noahs-tavern-recruit"],
             ["bluestacks", "reload-game"],
+            ["bluestacks", "preflight"],
             ["bluestacks", "dismiss-reload-overlay"],
             ["bluestacks", "run-flow"],
             ["automation-service", "campaign-plan"],
@@ -305,9 +308,6 @@ class OperatorCliTests(unittest.TestCase):
                 self.assertIn(
                     route["evidence_validator"], pnsctl._BLUESTACKS_EVIDENCE_VALIDATORS
                 )
-                self.assertIn(
-                    route["recovery_handler"], pnsctl._BLUESTACKS_RECOVERY_HANDLERS
-                )
 
     def test_canonical_ruins_is_not_a_legacy_development_operator(self):
         registry = pnsctl._load_bluestacks_flow_registry()
@@ -350,10 +350,6 @@ class OperatorCliTests(unittest.TestCase):
         self.assertNotIn(
             "troop_training_consolidation_evidence",
             pnsctl._BLUESTACKS_EVIDENCE_VALIDATORS,
-        )
-        self.assertNotIn(
-            "troop_training_consolidation_recovery",
-            pnsctl._BLUESTACKS_RECOVERY_HANDLERS,
         )
         choices = _flow_id_choices(
             pnsctl.parser(),

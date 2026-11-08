@@ -33,7 +33,6 @@ from safe_action_core.path_safety import UnsafePathError, require_no_untrusted_s
 FLOW_ID = ENHANCEMENT_FLOW_ID
 RUNNER_ID = "enhancement_family_bluestacks_runner"
 VALIDATOR_ID = "enhancement_family_bluestacks_evidence"
-RECOVERY_ID = "enhancement_family_bluestacks_recovery"
 MAX_DISPATCH_BEARING_CANARY_RUNS_PER_CATEGORY = 1
 MAX_TOTAL_DISPATCH_BEARING_CANARY_RUNS = 3
 MAX_DISPATCH_BEARING_CANARY_RUNS = MAX_TOTAL_DISPATCH_BEARING_CANARY_RUNS
@@ -3685,23 +3684,10 @@ def verify_enhancement_family(
     }
 
 
-def recover_enhancement_family(queue: Mapping[str, Any], lease: Mapping[str, Any]) -> str:
-    recovery_lease = dict(lease)
-    recovery_lease["enhancement_recovery_only"] = True
-    recovery_lease.setdefault("enhancement_variant", "gear")
-    recovery_lease.setdefault("max_inputs", 1)
-    recovery_lease.setdefault("enhancement_reset_identity", _stamp())
-    return run_enhancement_family(queue, recovery_lease, live=True)
-
-
-def register(
-    runners: dict[str, Any], validators: dict[str, Any], handlers: dict[str, Any]
-) -> None:
+def register(runners: dict[str, Any], validators: dict[str, Any]) -> None:
     runners[RUNNER_ID] = run_enhancement_family
     validators[VALIDATOR_ID] = verify_enhancement_family
-    handlers[RECOVERY_ID] = recover_enhancement_family
 
 
 run_enhancement_bluestacks = run_enhancement_family
 verify_enhancement_bluestacks = verify_enhancement_family
-recover_enhancement_bluestacks = recover_enhancement_family

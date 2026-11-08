@@ -313,10 +313,6 @@ class BioenhancerFlowDeliveryTests(unittest.TestCase):
         self.assertEqual(contract["runner"], RUNNER_ID)
         self.assertEqual(contract["consequence_class"], "consequential")
         self.assertIn(RUNNER_ID, pnsctl._BLUESTACKS_FLOW_RUNNERS)
-        self.assertEqual(
-            contract["recovery_handler"],
-            "bioenhancer_free_research_bluestacks_recovery",
-        )
 
     def test_dry_run_is_zero_transport_and_preserves_disabled_state(self):
         result = run_bioenhancer_free_research(
@@ -550,14 +546,7 @@ class BioenhancerFlowDeliveryTests(unittest.TestCase):
                 lease={"owner": "test-owner"},
                 maximum=8,
             )
-            with (
-                patch.object(pnsctl, "REPO_ROOT", root),
-                patch.object(
-                    pnsctl,
-                    "_load_flow_delivery_state",
-                    side_effect=pnsctl.OperatorError("no active delivery"),
-                ),
-            ):
+            with patch.object(pnsctl, "REPO_ROOT", root):
                 verdict = json.loads(pnsctl.bluestacks_verify_flow(session))
             self.assertEqual(verdict["status"], "verified")
             self.assertEqual(verdict["flow_id"], FLOW_ID)

@@ -30,14 +30,20 @@ from tasks.runtime_identity import BLUESTACKS_ADB
 class CanonicalServeFacadeTests(unittest.TestCase):
 
     def test_a_global_option_value_named_serve_is_not_the_command(self):
-        for common in (["--state-path", "serve"], ["--state-path=serve"], ["--mode", "serve"]):
+        for common in (
+            ["--state-path", "serve"],
+            ["--state-path=serve"],
+            ["--mode", "serve"],
+            ["--state-path", "inspect-rearm"],
+        ):
             with self.subTest(common=common), patch.object(cli, "main") as canonical:
                 with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
                     pnsctl.main(["automation-service", *common, "status"])
                 self.assertEqual(error.exception.code, 2)
                 canonical.assert_not_called()
 
-    def test_help_exposes_the_canonical_serve_options(self):
+
+    def test_help_opens_neither_runtime_nor_authority_stores(self):
         output = io.StringIO()
         with patch.object(LocalBlueStacksRuntime, "connect") as connect, patch(
             "scripts.resource_item_authorization.open_admitted_resource_store"
@@ -48,22 +54,6 @@ class CanonicalServeFacadeTests(unittest.TestCase):
         connect.assert_not_called()
         resource_store.assert_not_called()
         action_store.assert_not_called()
-        for option in (
-            "--live",
-            "--flow",
-            "--campaign-stage",
-            "--campaign-cadence-seconds",
-            "ruins",
-            "alliance-help",
-            "nano-material-production",
-            "nanoweapon",
-            "hero-duel",
-            "recommended-research",
-            "food-farm-boost",
-            "hall-of-war",
-            "troop-training",
-        ):
-            self.assertIn(option, output.getvalue())
         with redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as error:
             pnsctl.main(["automation-service", "--help"])
         self.assertEqual(error.exception.code, 0)

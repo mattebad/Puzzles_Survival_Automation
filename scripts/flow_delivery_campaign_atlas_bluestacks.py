@@ -122,7 +122,6 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 FLOW_ID = "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION"
 SURVEY_RUNNER_ID = "campaign_atlas_native_survey_runner"
 SURVEY_EVIDENCE_VALIDATOR_ID = "campaign_atlas_native_survey_evidence"
-SURVEY_RECOVERY_HANDLER_ID = "campaign_atlas_native_survey_recovery"
 DEFAULT_HOME_ATLAS = (
     REPO_ROOT / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
 )
@@ -4114,28 +4113,6 @@ def verify_campaign_atlas_native_survey(
     }
 
 
-def recover_campaign_atlas_native_survey(
-    structure: Mapping[str, Any],
-    queue: Mapping[str, Any],
-    lease: Mapping[str, Any],
-) -> dict[str, Any]:
-    pnsctl = _pnsctl()
-    del queue, lease
-    result = structure.get("result") or {}
-    survey = result.get("survey_result") or {}
-    if survey.get("terminal") == "unresolved" or survey.get("unresolved"):
-        raise pnsctl.OperatorError(
-            "Campaign atlas survey unresolved; identical retry prohibited; "
-            "reconcile retained SafeActionExecutor/journal evidence before any new input"
-        )
-    if survey.get("live_preflight_inadmissible"):
-        raise pnsctl.OperatorError(
-            "Campaign atlas survey live_preflight remains inadmissible: "
-            + "; ".join(live_survey_preflight_blockers())
-        )
-    raise pnsctl.OperatorError("Campaign atlas survey recovery has no authorized retry path")
-
-
 def _locate_unique_action_frame(session: Path, *, action_key: str, suffix: str) -> Path:
     frames_dir = session / "runtime" / "frames"
     if not frames_dir.is_dir():
@@ -4946,8 +4923,6 @@ def reconcile_campaign_atlas_survey_action_offline(
 def register(
     runners: dict[str, Any],
     validators: dict[str, Any],
-    handlers: dict[str, Any],
 ) -> None:
     runners[SURVEY_RUNNER_ID] = run_campaign_atlas_native_survey
     validators[SURVEY_EVIDENCE_VALIDATOR_ID] = verify_campaign_atlas_native_survey
-    handlers[SURVEY_RECOVERY_HANDLER_ID] = recover_campaign_atlas_native_survey

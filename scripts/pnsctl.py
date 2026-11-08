@@ -110,16 +110,13 @@ _DEFAULT_MAX_INPUTS = {
     RECRUITMENT_MAINTENANCE_FLOW_ID: flow_delivery_recruitment_bluestacks.MAX_INPUTS,
     CAMPAIGN_AP_FLOW_ID: CAMPAIGN_DEVELOPMENT_SESSION_MAX_INPUTS,
 }
-FLOW_DELIVERY_QUEUE = REPO_ROOT / "tasks" / "flow_delivery_queue.json"
-FLOW_DELIVERY_LEASE = REPO_ROOT / ".local-orchestrator" / "flow-delivery-lease.json"
 FLOW_DELIVERY_BLUESTACKS_REGISTRY = (
     REPO_ROOT / "tasks" / "flow_delivery_bluestacks_registry.json"
 )
 # Handler IDs are fixed code bindings, never arbitrary commands. They remain empty until a flow's
-# reviewed implementation registers all three route-specific capabilities.
+# reviewed implementation registers both route-specific capabilities.
 _BLUESTACKS_FLOW_RUNNERS: dict[str, Any] = {}
 _BLUESTACKS_EVIDENCE_VALIDATORS: dict[str, Any] = {}
-_BLUESTACKS_RECOVERY_HANDLERS: dict[str, Any] = {}
 
 
 def _register_checked_in_bluestacks_handlers() -> None:
@@ -196,51 +193,18 @@ def _register_checked_in_bluestacks_handlers() -> None:
             register as register_recruitment,
         )
 
-    register_campaign(
-        _BLUESTACKS_FLOW_RUNNERS,
-        _BLUESTACKS_EVIDENCE_VALIDATORS,
-        _BLUESTACKS_RECOVERY_HANDLERS,
-    )
-    register_campaign_atlas(
-        _BLUESTACKS_FLOW_RUNNERS,
-        _BLUESTACKS_EVIDENCE_VALIDATORS,
-        _BLUESTACKS_RECOVERY_HANDLERS,
-    )
-    register_ultimate_challenge(
-        _BLUESTACKS_FLOW_RUNNERS,
-        _BLUESTACKS_EVIDENCE_VALIDATORS,
-        _BLUESTACKS_RECOVERY_HANDLERS,
-    )
-    register_enhancement(
-        _BLUESTACKS_FLOW_RUNNERS,
-        _BLUESTACKS_EVIDENCE_VALIDATORS,
-        _BLUESTACKS_RECOVERY_HANDLERS,
-    )
-    register_world_map(
-        _BLUESTACKS_FLOW_RUNNERS,
-        _BLUESTACKS_EVIDENCE_VALIDATORS,
-        _BLUESTACKS_RECOVERY_HANDLERS,
-    )
-    register_bioenhancer(
-        _BLUESTACKS_FLOW_RUNNERS,
-        _BLUESTACKS_EVIDENCE_VALIDATORS,
-        _BLUESTACKS_RECOVERY_HANDLERS,
-    )
-    register_supply_depot(
-        _BLUESTACKS_FLOW_RUNNERS,
-        _BLUESTACKS_EVIDENCE_VALIDATORS,
-        _BLUESTACKS_RECOVERY_HANDLERS,
-    )
-    register_personal_might(
-        _BLUESTACKS_FLOW_RUNNERS,
-        _BLUESTACKS_EVIDENCE_VALIDATORS,
-        _BLUESTACKS_RECOVERY_HANDLERS,
-    )
-    register_recruitment(
-        _BLUESTACKS_FLOW_RUNNERS,
-        _BLUESTACKS_EVIDENCE_VALIDATORS,
-        _BLUESTACKS_RECOVERY_HANDLERS,
-    )
+    for register in (
+        register_campaign,
+        register_campaign_atlas,
+        register_ultimate_challenge,
+        register_enhancement,
+        register_world_map,
+        register_bioenhancer,
+        register_supply_depot,
+        register_personal_might,
+        register_recruitment,
+    ):
+        register(_BLUESTACKS_FLOW_RUNNERS, _BLUESTACKS_EVIDENCE_VALIDATORS)
 
 
 _register_checked_in_bluestacks_handlers()
@@ -381,84 +345,6 @@ def reconcile(args: argparse.Namespace) -> str:
         store.close()
     return json.dumps(result, sort_keys=True)
 
-
-def _load_flow_delivery_state(
-    *,
-    require_runtime_held: bool = True,
-    allow_troop_training_recovery: bool = False,
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    try:
-        queue = json.loads(FLOW_DELIVERY_QUEUE.read_text(encoding="utf-8"))
-        lease = json.loads(FLOW_DELIVERY_LEASE.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise OperatorError(
-            "a valid local flow-delivery queue and lease are required"
-        ) from exc
-    if queue.get("queue_kind") != "development_flow_delivery":
-        raise OperatorError("invalid flow-delivery queue authority")
-    if lease.get("workflow") != "pns-flow-delivery":
-        raise OperatorError("invalid flow-delivery lease authority")
-    if require_runtime_held and lease.get("runtime_ownership_state") != "held":
-        raise OperatorError("the parent must hold BlueStacks runtime ownership")
-    if not require_runtime_held and lease.get("runtime_ownership_state") not in {
-        "none",
-        "released",
-        "held",
-    }:
-        raise OperatorError("BlueStacks runtime ownership is unknown")
-    active_flow = queue.get("active_flow_id")
-    if not active_flow or lease.get("active_flow") != active_flow:
-        raise OperatorError("queue and lease must identify one active development flow")
-    if active_flow not in BLUESTACKS_FLOW_IDS and not (
-        allow_troop_training_recovery and active_flow == TROOP_TRAINING_FLOW_ID
-    ):
-        raise OperatorError("active flow is not in the BlueStacks allowlist")
-    if lease.get("unresolved_action_state") != "clear" and not (
-        allow_troop_training_recovery and active_flow == TROOP_TRAINING_FLOW_ID
-    ):
-        raise OperatorError("the global unresolved-action gate is not clear")
-    return queue, lease
-
-
-
-def _retained_enhancement_state(
-    session_directory: Path,
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Build evidence-only context for a released Enhancement session."""
-
-    session = Path(session_directory).resolve()
-    allowed_root = (REPO_ROOT / ".local-captures").resolve()
-    try:
-        session.relative_to(allowed_root)
-    except ValueError as exc:
-        raise OperatorError(
-            "retained Enhancement session is outside .local-captures"
-        ) from exc
-    result_path = session / "flow-delivery-result.json"
-    try:
-        result = json.loads(result_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise OperatorError("retained Enhancement result is unavailable") from exc
-    if (
-        not isinstance(result, dict)
-        or result.get("flow_id") != ENHANCEMENT_FLOW_ID
-    ):
-        raise OperatorError("retained session is not Enhancement evidence")
-    return (
-        {
-            "queue_kind": "development_flow_delivery",
-            "active_flow_id": result["flow_id"],
-            "retained_evidence": True,
-        },
-        {
-            "workflow": "pns-flow-delivery",
-            "active_flow": result["flow_id"],
-            "active_stage": "evidence_review",
-            "runtime_ownership_state": "released",
-            "unresolved_action_state": "clear",
-            "retained_evidence": True,
-        },
-    )
 
 def _troop_training_recovery_history() -> dict[str, Any] | None:
     """Read canonical Training and Resource effect history without mutating it."""
@@ -619,7 +505,6 @@ def _load_bluestacks_flow_registry() -> dict[str, dict[str, str]]:
     required = {
         "runner",
         "evidence_validator",
-        "recovery_handler",
         "consequence_class",
     }
     for flow_id, contract in registry["flows"].items():
@@ -636,11 +521,11 @@ def _load_bluestacks_flow_registry() -> dict[str, dict[str, str]]:
 
 
 def _implemented_bluestacks_flow_ids() -> tuple[str, ...]:
-    """Flow IDs whose registry route has all three handlers bound in code.
+    """Flow IDs whose registry route has its runner and validator bound in code.
 
     This is the single source for the flow IDs ``pnsctl`` offers and accepts, so
     a planned or contract-only flow can never be selectable before it has a
-    runner, evidence validator, and recovery handler.
+    runner and evidence validator.
     """
 
     return tuple(
@@ -648,7 +533,6 @@ def _implemented_bluestacks_flow_ids() -> tuple[str, ...]:
         for flow_id, route in _load_bluestacks_flow_registry().items()
         if route["runner"] in _BLUESTACKS_FLOW_RUNNERS
         and route["evidence_validator"] in _BLUESTACKS_EVIDENCE_VALIDATORS
-        and route["recovery_handler"] in _BLUESTACKS_RECOVERY_HANDLERS
     )
 
 
@@ -716,43 +600,6 @@ def _run_fixed_bluestacks_adb(*arguments: str, binary: bool = False) -> bytes | 
         )
         raise OperatorError("fixed BlueStacks ADB operation failed: " + stderr.strip())
     return result.stdout
-
-
-def bluestacks_preflight() -> str:
-    queue, lease = _load_flow_delivery_state()
-    state = str(_run_fixed_bluestacks_adb("get-state")).strip()
-    frame = _run_fixed_bluestacks_adb("exec-out", "screencap", "-p", binary=True)
-    if (
-        not isinstance(frame, bytes)
-        or frame[:8] != b"\x89PNG\r\n\x1a\n"
-        or len(frame) < 24
-    ):
-        raise OperatorError("BlueStacks preflight did not receive a valid PNG frame")
-    width = int.from_bytes(frame[16:20], "big")
-    height = int.from_bytes(frame[20:24], "big")
-    focus = str(_run_fixed_bluestacks_adb("shell", "dumpsys", "window"))
-    if state != "device":
-        raise OperatorError("approved BlueStacks serial is not in device state")
-    if (width, height) != (BLUESTACKS_NATIVE_WIDTH, BLUESTACKS_NATIVE_HEIGHT):
-        raise OperatorError("BlueStacks native frame is not 800x1280")
-    focused_package = _focused_package(focus)
-    if focused_package != BLUESTACKS_PACKAGE:
-        raise OperatorError("Puzzles & Survival is not the foreground package")
-    return json.dumps(
-        {
-            "status": "ready",
-            "flow_id": queue["active_flow_id"],
-            "lease_owner": lease["owner"],
-            "serial": BLUESTACKS_SERIAL,
-            "private_serial": True,
-            "native_width": width,
-            "native_height": height,
-            "foreground_package": focused_package,
-            "runtime_ownership_state": "held",
-            "dispatch": False,
-        },
-        sort_keys=True,
-    )
 
 
 def _development_runtime_observation() -> tuple[dict[str, Any], bytes]:
@@ -2945,63 +2792,48 @@ def _retained_flow_result(
     return session, result
 
 
+# Retained flows admitted for offline verification; their route validators judge
+# only the retained session. Other legacy flows stay unavailable here.
+_RETAINED_EVIDENCE_FLOW_IDS = frozenset(
+    {
+        CAMPAIGN_PROVING_FLOW_ID,
+        CAMPAIGN_AP_FLOW_ID,
+        ENHANCEMENT_FLOW_ID,
+        WORLD_FLOW_ID,
+        RECRUITMENT_MAINTENANCE_FLOW_ID,
+        BIOENHANCER_FLOW_ID,
+        PERSONAL_MIGHT_FLOW_ID,
+        SUPPLY_FLOW_ID,
+    }
+)
+
+
 def bluestacks_verify_flow(session_directory: Path) -> str:
     session, retained_result = _retained_flow_result(session_directory)
-    retained_flow_id = str(retained_result["flow_id"])
+    flow_id = str(retained_result["flow_id"])
+    if flow_id not in _RETAINED_EVIDENCE_FLOW_IDS:
+        raise OperatorError("retained flow has no offline evidence adapter")
     structure = _verify_flow_structure(session)
-    try:
-        queue, lease = _load_flow_delivery_state(require_runtime_held=False)
-        if queue.get("active_flow_id") != retained_flow_id:
-            raise OperatorError("active flow does not match retained evidence")
-    except OperatorError:
-        if retained_flow_id == CAMPAIGN_PROVING_FLOW_ID:
-            queue = {"active_flow_id": retained_flow_id}
-            lease = {
-                "active_stage": "evidence_review",
-                "runtime_ownership_state": "released",
-                "unresolved_action_state": "clear",
-            }
-        elif retained_flow_id == ENHANCEMENT_FLOW_ID:
-            queue, lease = _retained_enhancement_state(session_directory)
-        elif retained_flow_id == WORLD_FLOW_ID:
-            queue = {"active_flow_id": retained_flow_id}
-            lease = {
-                "active_stage": "evidence_review",
-                "runtime_ownership_state": "released",
-                "unresolved_action_state": "clear",
-            }
-        elif retained_flow_id in {
-            CAMPAIGN_AP_FLOW_ID,
-            RECRUITMENT_MAINTENANCE_FLOW_ID,
-            BIOENHANCER_FLOW_ID,
-            PERSONAL_MIGHT_FLOW_ID,
-            SUPPLY_FLOW_ID,
-        }:
-            queue = {"active_flow_id": retained_flow_id}
-            lease = {
-                "active_stage": "evidence_review",
-                "runtime_ownership_state": "released",
-                "unresolved_action_state": "clear",
-            }
-        else:
-            raise OperatorError(
-                "released flow has no retained evidence adapter"
-            )
-    if lease.get("active_stage") != "evidence_review":
-        raise OperatorError("verify-flow requires the active evidence_review stage")
-    flow_id = queue["active_flow_id"]
+    if structure["result"].get("flow_id") != flow_id:
+        raise OperatorError("flow evidence belongs to another flow")
     contract = _load_bluestacks_flow_registry().get(flow_id)
     if (
         contract is None
         or contract["evidence_validator"] not in _BLUESTACKS_EVIDENCE_VALIDATORS
     ):
         raise OperatorError("FLOW_EVIDENCE_VALIDATOR_UNAVAILABLE")
-    if structure["result"].get("flow_id") != flow_id:
-        raise OperatorError("flow evidence belongs to another active flow")
+    # Verification is offline: the context identifies the retained session and
+    # grants no runtime ownership, stage, or input authority.
+    evidence_context = {
+        "flow_id": flow_id,
+        "session_directory": str(session),
+        "retained_evidence": True,
+        "input_authority": False,
+    }
     verdict = _BLUESTACKS_EVIDENCE_VALIDATORS[contract["evidence_validator"]](
         structure,
-        queue,
-        lease,
+        evidence_context,
+        evidence_context,
     )
     if not isinstance(verdict, dict) or verdict.get("status") not in {
         "verified",
@@ -3013,15 +2845,7 @@ def bluestacks_verify_flow(session_directory: Path) -> str:
     return json.dumps(verdict, sort_keys=True)
 
 
-
-def _run_troop_training_return_home(
-    queue: Mapping[str, Any],
-    lease: Mapping[str, Any],
-    *,
-    history_required: bool,
-    runtime_input_lock=None,
-    checkpoint=None,
-) -> str:
+def _run_troop_training_return_home(admitted_history: Mapping[str, Any]) -> str:
     from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
     from scripts.navigation_development_boundary import (
         DevelopmentInitialObservation,
@@ -3032,26 +2856,12 @@ def _run_troop_training_return_home(
         run_troop_training_home_recovery,
     )
 
-    if queue.get("active_flow_id") != TROOP_TRAINING_FLOW_ID:
-        raise OperatorError("manual Training recovery requires the active Training route")
-    if (runtime_input_lock is None) != (checkpoint is None):
-        raise OperatorError("borrowed Training recovery requires a lock and checkpoint")
-    if lease.get("runtime_ownership_state") == "held" and runtime_input_lock is None:
-        raise OperatorError(
-            "the active controller must call recover-home with its held runtime lock"
-        )
     invocation_id = (
         f"troop-training-recover-home-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
     )
     session_directory = _development_session_directory(invocation_id)
     max_inputs = TROOP_TRAINING_MAX_INPUTS
     before = _checkpoint_hashes()
-    session_options: dict[str, Any] = {}
-    if runtime_input_lock is not None:
-        session_options = {
-            "runtime_input_lock": runtime_input_lock,
-            "checkpoint": checkpoint,
-        }
     result: dict[str, Any] = {
         "status": "blocked",
         "flow_id": TROOP_TRAINING_FLOW_ID,
@@ -3063,41 +2873,28 @@ def _run_troop_training_return_home(
         "max_inputs": max_inputs,
         "session_directory": str(session_directory),
     }
+    # The session acquires the singleton runtime input lock itself, so an
+    # executing canonical service pass or any other runtime owner blocks it.
     with DevelopmentSession(
         owner=f"pnsctl-troop-training-recover-home:{TROOP_TRAINING_FLOW_ID}",
         invocation_id=invocation_id,
         session_directory=session_directory,
         max_inputs=max_inputs,
-        **session_options,
     ) as session:
         lock = session.runtime_input_lock
         lock_owner, lock_invocation = lock.owner, lock.invocation_id
 
         def fence() -> None:
             lock.assert_held(lock_owner, lock_invocation)
-            if checkpoint is not None:
-                checkpoint()
 
-        current_queue, current_lease = _load_flow_delivery_state(
-            require_runtime_held=False,
-            allow_troop_training_recovery=True,
-        )
-        if (
-            current_queue.get("active_flow_id") != TROOP_TRAINING_FLOW_ID
-            or current_lease.get("active_stage") != lease.get("active_stage")
-        ):
-            raise OperatorError("Training flow-delivery authorization changed before recovery")
         history = _troop_training_recovery_history()
-        if history_required and history is None:
+        if history is None:
             raise OperatorError(
-                "released Training recovery requires canonical pending queue/action history"
+                "Training recovery requires canonical SQLite action/resource history"
             )
-        if (
-            current_lease.get("unresolved_action_state") != "clear"
-            and history is None
-        ):
+        if history != admitted_history:
             raise OperatorError(
-                "Training recovery lacks its canonical unresolved action history"
+                "canonical Training action/resource history changed before recovery"
             )
         runtime = LocalBlueStacksRuntime.connect(
             adb=str(BLUESTACKS_ADB),
@@ -3194,43 +2991,21 @@ def _run_troop_training_return_home(
     return json.dumps(result, sort_keys=True)
 
 
-def bluestacks_recover_home(*, runtime_input_lock=None, checkpoint=None) -> str:
-    queue, lease = _load_flow_delivery_state(
-        require_runtime_held=False,
-        allow_troop_training_recovery=True,
-    )
-    if lease.get("active_stage") not in {
-        "live_preflight",
-        "live_execution",
-        "evidence_review",
-    }:
+def bluestacks_recover_home() -> str:
+    """Manual navigation-only Training Home recovery.
+
+    Admission is the canonical Training action/resource history: it must name
+    the Training candidate and prove no unrelated unresolved effect or Resource
+    block. The history is reread unchanged under the singleton runtime input
+    lock before any runtime connection. No Training effect is resolved.
+    """
+
+    history = _troop_training_recovery_history()
+    if history is None:
         raise OperatorError(
-            "recover-home is available only during an admitted live delivery stage"
+            "Training recovery requires canonical SQLite action/resource history"
         )
-    if queue.get("active_flow_id") == TROOP_TRAINING_FLOW_ID:
-        history = _troop_training_recovery_history()
-        unresolved = lease.get("unresolved_action_state") != "clear"
-        released = lease.get("runtime_ownership_state") != "held"
-        if (unresolved or released) and history is None:
-            raise OperatorError(
-                "Training recovery requires canonical SQLite action/resource history"
-            )
-        return _run_troop_training_return_home(
-            queue,
-            lease,
-            history_required=unresolved or released,
-            runtime_input_lock=runtime_input_lock,
-            checkpoint=checkpoint,
-        )
-    if lease.get("runtime_ownership_state") != "held":
-        raise OperatorError("legacy flow recovery requires its held controller runtime")
-    contract = _load_bluestacks_flow_registry().get(queue["active_flow_id"])
-    if (
-        contract is None
-        or contract["recovery_handler"] not in _BLUESTACKS_RECOVERY_HANDLERS
-    ):
-        raise OperatorError("FLOW_RECOVERY_HANDLER_UNAVAILABLE")
-    return _BLUESTACKS_RECOVERY_HANDLERS[contract["recovery_handler"]](queue, lease)
+    return _run_troop_training_return_home(history)
 
 
 def bluestacks_reconcile_campaign_atlas_survey_action(
@@ -3271,21 +3046,28 @@ def bluestacks_reconcile_campaign_atlas_survey_action(
     return json.dumps(result, sort_keys=True)
 
 
-def _canonical_service_serve_argv(command_argv: Sequence[str]) -> list[str] | None:
-    """Forward only canonical serve syntax; leave its parser authoritative."""
+# Canonical service commands whose own parser is authoritative: pnsctl forwards
+# their raw syntax instead of duplicating options, validation, or help.
+_CANONICAL_SERVICE_COMMANDS = frozenset({"serve", "inspect-rearm"})
+
+
+def _canonical_service_argv(
+    command_argv: Sequence[str],
+) -> tuple[str, list[str]] | None:
+    """Return the forwarded canonical command and its argv, if any."""
 
     if not command_argv or command_argv[0] != "automation-service":
         return None
     index = 1
     while index < len(command_argv):
         value = command_argv[index]
-        if value == "serve":
-            return list(command_argv[1:])
+        if value in _CANONICAL_SERVICE_COMMANDS:
+            return value, list(command_argv[1:])
         option, separator, _value = value.partition("=")
         if option not in {"--mode", "--adapter", "--state-path"}:
             return None
-        # A separate option value can itself be named "serve". Skip it rather
-        # than mistaking a path or invalid mode value for the command.
+        # A separate option value can itself be named like a command. Skip it
+        # rather than mistaking a path or invalid mode value for the command.
         index += 1 if separator else 2
     return None
 
@@ -3542,7 +3324,6 @@ def parser() -> argparse.ArgumentParser:
     rec.add_argument("--reason", default="positive_postcondition")
     bluestacks = sub.add_parser("bluestacks")
     bluestacks_sub = bluestacks.add_subparsers(dest="bluestacks_command", required=True)
-    bluestacks_sub.add_parser("preflight")
     verify_flow = bluestacks_sub.add_parser("verify-flow")
     verify_flow.add_argument("session_directory", type=Path)
     bluestacks_sub.add_parser("recover-home")
@@ -3559,11 +3340,18 @@ def parser() -> argparse.ArgumentParser:
     automation_sub = automation.add_subparsers(
         dest="automation_service_command", required=True
     )
-    # main forwards serve before this parser runs, so the canonical CLI owns
-    # its options, validation, help and existing runtime controls.
+    # main forwards serve and inspect-rearm before this parser runs, so the
+    # canonical CLI owns their options, validation, help and runtime controls.
     automation_sub.add_parser(
         "serve",
         help="canonical native service; put --mode, --adapter and --state-path before serve",
+    )
+    automation_sub.add_parser(
+        "inspect-rearm",
+        help=(
+            "audited zero-effect inspection rearm of an exhausted, disabled, blocked flow "
+            "(state-only; --preview is read-only); put --state-path before inspect-rearm"
+        ),
     )
     automation_status = automation_sub.add_parser("status")
     automation_status.add_argument(
@@ -3635,10 +3423,14 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     command_argv = list(sys.argv[1:] if argv is None else argv)
-    canonical_argv = _canonical_service_serve_argv(command_argv)
-    if canonical_argv is not None:
+    canonical = _canonical_service_argv(command_argv)
+    if canonical is not None:
         from automation_service.cli import main as automation_main
 
+        command, canonical_argv = canonical
+        if command == "inspect-rearm":
+            # State-only audited rearm; it never reaches runtime or transport.
+            return automation_main(canonical_argv)
         return automation_main(
             canonical_argv,
             application_startup=owner_bound_application_startup,
@@ -3728,10 +3520,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 2
     if args.command == "bluestacks":
+        from scripts.navigation_development_boundary import NavigationBoundaryError
+
         try:
-            if args.bluestacks_command == "preflight":
-                output = bluestacks_preflight()
-            elif args.bluestacks_command == "verify-flow":
+            if args.bluestacks_command == "verify-flow":
                 output = bluestacks_verify_flow(args.session_directory)
             elif args.bluestacks_command == "recover-home":
                 output = bluestacks_recover_home()
@@ -3744,7 +3536,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 raise OperatorError("unknown BlueStacks command")
             print(output)
             return 0
-        except (OperatorError, OSError, subprocess.SubprocessError) as exc:
+        # NavigationBoundaryError carries runtime input lock ownership denial
+        # (e.g. a held service pass), raised before any connect or input.
+        except (
+            OperatorError,
+            NavigationBoundaryError,
+            OSError,
+            subprocess.SubprocessError,
+        ) as exc:
             print(
                 json.dumps(
                     {

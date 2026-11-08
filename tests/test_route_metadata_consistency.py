@@ -541,7 +541,7 @@ class FlowIdSetRelationTests(RouteTestCase):
         self.assertEqual(
             set(pnsctl.BLUESTACKS_FLOW_IDS),
             _operator_ids(),
-            "a flow in tasks/flow_delivery_bluestacks_registry.json has no runner/validator/recovery bound in code (or the reverse)",
+            "a flow in tasks/flow_delivery_bluestacks_registry.json has no runner/validator bound in code (or the reverse)",
         )
 
     def test_development_session_defaults_cover_exactly_the_operator_flows_with_a_budget(self) -> None:

@@ -38,7 +38,6 @@ from scripts.world_map_navigation_bluestacks import (
     POPUP_CLOSE,
     RECOVERY_PATH,
     RUNNER_ID,
-    RECOVERY_ID,
     SEARCH_ENTRY_ONLY_PATH,
     FULL_ROUTE_PATH,
     VALIDATOR_ID,
@@ -1410,40 +1409,13 @@ def verify_world_map_navigation_foundation(
     }
 
 
-def recover_world_map_navigation_foundation(
-    queue: Mapping[str, Any],
-    lease: Mapping[str, Any],
-) -> str:
-    """Observe-only recovery binding; it never sends Back or any game input."""
-
-    del queue, lease
-    pnsctl = _pnsctl()
-    state = str(pnsctl._run_fixed_bluestacks_adb("get-state")).strip()
-    if state != "device":
-        raise pnsctl.OperatorError("approved BlueStacks serial is not in device state")
-    return json.dumps(
-        {
-            "status": "recovered_or_already_safe",
-            "flow_id": FLOW_ID,
-            "dispatch": False,
-            "recovery": "observe_only_no_input",
-            "production_registration": "NOT_REGISTERED",
-            "scheduler_enabled": False,
-        },
-        sort_keys=True,
-    )
-
-
 def register(
     runners: dict[str, Any],
     validators: dict[str, Any],
-    handlers: dict[str, Any],
 ) -> None:
     runners[RUNNER_ID] = run_world_map_navigation_foundation
     validators[VALIDATOR_ID] = verify_world_map_navigation_foundation
-    handlers[RECOVERY_ID] = recover_world_map_navigation_foundation
 
 
 run_world_map_navigation_bluestacks = run_world_map_navigation_foundation
 verify_world_map_navigation_bluestacks = verify_world_map_navigation_foundation
-recover_world_map_navigation_bluestacks = recover_world_map_navigation_foundation
