@@ -64,6 +64,7 @@ from tasks.hall_of_war import (
     dispatch_policy_preconditions,
     reward_policy_preconditions,
 )
+from tasks.home_atlas import BuildingBinding
 from tasks.home_context import HomeReadyObservation
 from tasks.radial_semantics import (
     ActionabilityState,
@@ -211,46 +212,159 @@ class HallOfWarVision:
         orange = cv2.inRange(hsv, (5, 70, 90), (38, 255, 255))
         return float(np.count_nonzero(edges)) / edges.size >= 0.003 or float(np.count_nonzero(orange)) / orange.size >= 0.035
 
-    def bind_text_target(self, frame: np.ndarray, phrase: str, identity: str, *, padding: tuple[int, int] = (22, 18)) -> BoundTarget | None:
-        boxes = self._phrase_boxes(frame, phrase)
-        if len(boxes) != 1:
-            return None
-        x0, y0, x1, y1 = boxes[0]
+    def _padded_target(self, frame: np.ndarray, box: tuple[int, int, int, int], identity: str,
+                       padding: tuple[int, int] = (22, 18)) -> BoundTarget | None:
+        x0, y0, x1, y1 = box
         px, py = padding
         roi = (max(0, x0 - px), max(0, y0 - py), min(NATIVE_WIDTH, x1 + px), min(NATIVE_HEIGHT, y1 + py))
         if not self._visual_button(frame, roi):
             return None
         return BoundTarget(identity, roi)
 
+    def bind_text_target(self, frame: np.ndarray, phrase: str, identity: str, *, padding: tuple[int, int] = (22, 18)) -> BoundTarget | None:
+        boxes = self._phrase_boxes(frame, phrase)
+        if len(boxes) != 1:
+            return None
+        return self._padded_target(frame, boxes[0], identity, padding)
+
+    # The opened Hall radial covers the owner's own title, and full-frame OCR
+    # interleaves its wrapped white captions with the busy Home art. Captions
+    # are therefore read as isolated white text lines inside a bounded envelope
+    # around the freshly Atlas-bound Hall interaction anchor.
+    _RADIAL_ENVELOPE = (300, 60, 230)  # |dx|, pixels above, pixels below the bound anchor
+    _RADIAL_MAX_CAPTION_LINES = 24
+
+    def _radial_caption_lines(self, frame: np.ndarray, anchor: tuple[float, float]) -> tuple[OCRToken, ...] | None:
+        if not self._native(frame):
+            return None
+        ax, ay = int(round(anchor[0])), int(round(anchor[1]))
+        reach, above, below = self._RADIAL_ENVELOPE
+        x0, y0 = max(0, ax - reach), max(0, ay - above)
+        x1, y1 = min(NATIVE_WIDTH, ax + reach), min(NATIVE_HEIGHT, ay + below)
+        if x0 >= x1 or y0 >= y1:
+            return None
+        white = cv2.inRange(cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2HSV), (0, 0, 200), (180, 50, 255))
+        white = cv2.morphologyEx(white, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (15, 3)))
+        count, _, stats, _ = cv2.connectedComponentsWithStats(white)
+        boxes = [
+            (x0 + int(left), y0 + int(top), x0 + int(left + width), y0 + int(top + height))
+            for left, top, width, height, area in stats[1:count]
+            if 12 <= height <= 34 and width >= 20 and area >= 120
+        ]
+        if len(boxes) > self._RADIAL_MAX_CAPTION_LINES:
+            return None
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        lines: list[OCRToken] = []
+        for box in boxes:
+            crop = gray[max(0, box[1] - 4):min(NATIVE_HEIGHT, box[3] + 4), max(0, box[0] - 4):min(NATIVE_WIDTH, box[2] + 4)]
+            enlarged = cv2.resize(crop, None, fx=3.0, fy=3.0, interpolation=cv2.INTER_CUBIC)
+            try:
+                text = self._normal(call_ocr(tesseract_string, enlarged, config="--psm 7"))
+            except (RuntimeError, OSError, ValueError):
+                return None
+            if text:
+                lines.append(OCRToken(text, box, None))
+        return tuple(lines)
+
+    def radial_captions(self, frame: np.ndarray, anchor: tuple[float, float]) -> dict[str, tuple[int, int, int, int]] | None:
+        """Exact, unique Hall radial captions arranged around the bound Hall anchor."""
+        lines = self._radial_caption_lines(frame, anchor)
+        if lines is None:
+            return None
+        found: dict[str, list[tuple[int, int, int, int]]] = {}
+        for line in lines:
+            found.setdefault(line.text, []).append(line.roi)
+
+        def single(word: str) -> tuple[int, int, int, int] | None:
+            boxes = found.get(word, [])
+            return boxes[0] if len(boxes) == 1 else None
+
+        def stacked(first: str, second: str) -> tuple[int, int, int, int] | None:
+            upper, lower = single(first), single(second)
+            if upper is None or lower is None:
+                return None
+            gap = lower[1] - upper[3]
+            height = max(upper[3] - upper[1], lower[3] - lower[1])
+            if not 0 <= gap <= height or abs((upper[0] + upper[2]) - (lower[0] + lower[2])) > 24:
+                return None
+            return (min(upper[0], lower[0]), upper[1], max(upper[2], lower[2]), lower[3])
+
+        details = single("details")
+        upgrade = single("upgrade")
+        military = stacked("military", "operation")
+        zombie = stacked("zombie", "zero")
+        if details is None or upgrade is None or military is None or zombie is None:
+            return None
+        captions = {
+            "Details": details, "Upgrade": upgrade,
+            "Military Operation": military, "Zombie Zero": zombie,
+        }
+        centers = [(box[0] + box[2]) / 2 for box in captions.values()]
+        if not min(centers) < anchor[0] < max(centers):
+            return None
+        return captions
+
+    def radial_target(self, frame: np.ndarray, captions: Mapping[str, tuple[int, int, int, int]] | None) -> BoundTarget | None:
+        if not captions or "Zombie Zero" not in captions:
+            return None
+        return self._padded_target(frame, captions["Zombie Zero"], HALL_OF_WAR_RADIAL_TARGET)
+
+    @staticmethod
+    def same_hall_anchor(entry: BuildingBinding | None, current: BuildingBinding | None) -> bool:
+        return bool(
+            entry is not None and current is not None
+            and entry.building_id == current.building_id == HALL_OF_WAR_ATLAS_BUILDING_ID
+            and entry.screen_anchor is not None and current.screen_anchor is not None
+            and abs(entry.screen_anchor[0] - current.screen_anchor[0]) <= 3.0
+            and abs(entry.screen_anchor[1] - current.screen_anchor[1]) <= 3.0
+        )
+
     def is_clean_home(self, frame: np.ndarray) -> bool:
         return self._native(frame) and is_clean_home_frame(frame)
 
-    def radial_semantics(self, frame: np.ndarray, runtime, captured) -> HomeRadialSemantics | None:
-        text = self.text(frame)
-        if not all(self._contains(text, item) for item in ("Hall of War", "Zombie Zero", "Military Operation", "Upgrade", "Details")):
+    def radial_semantics(self, frame: np.ndarray, runtime, captured, *, entry: BuildingBinding | None,
+                         current: BuildingBinding | None) -> HomeRadialSemantics | None:
+        """Hall radial owned by the immediate-before Atlas Hall binding.
+
+        The radial covers the Hall title, so ownership is the canonical Atlas
+        Hall binding of the tapped entry, re-proved at the same anchor on this
+        exact capture, plus the Hall-only caption set arranged around it.
+        """
+        if entry is None or current is None or not self.same_hall_anchor(entry, current):
             return None
         ordinal = getattr(runtime, "ordinal", None)
         if type(ordinal) is not int or ordinal < 1:
             return None
         identity = identity_from_captured(captured, session_id=str(runtime.session), ordinal=ordinal, label="hall-of-war-radial")
-        owner = OwningFacilityObservation(
-            identity, HALL_OF_WAR_ATLAS_BUILDING_ID, RecognitionState.RECOGNIZED, 0.98,
-            RadialAmbiguityState.NONE, ("visible Hall of War label",),
-        )
-        target = self.bind_text_target(frame, "Zombie Zero", HALL_OF_WAR_RADIAL_TARGET)
+        if current.frame_sha256 != identity.semantic_sha256 or current.overlay_intersects or current.ambiguous_overlap:
+            return None
+        if current.screen_anchor is None:
+            return None
+        captions = self.radial_captions(frame, current.screen_anchor)
+        target = self.radial_target(frame, captions)
         if target is None:
             return None
+        confidence = float(current.confidence)
+        owner = OwningFacilityObservation(
+            identity, HALL_OF_WAR_ATLAS_BUILDING_ID, RecognitionState.RECOGNIZED, confidence,
+            RadialAmbiguityState.NONE,
+            ("immediate-before Atlas Hall of War entry binding",
+             "same-capture Atlas Hall of War binding at the entry anchor",
+             "Hall-only radial captions anchored to the bound Hall of War"),
+        )
         control = RadialControlObservation(
             identity, "hall_of_war_zombie_zero", "Zombie Zero", ControlRole.PRIMARY_ACTION,
-            RecognitionState.RECOGNIZED, 0.98, ActionabilityState.ACTIONABLE,
+            RecognitionState.RECOGNIZED, confidence, ActionabilityState.ACTIONABLE,
             "exact route-owned Hall of War radial label and bound current target",
             ("facility.screen",), ("facility.upgrade", "facility.train_queue"),
-            HALL_OF_WAR_ATLAS_BUILDING_ID, RadialAmbiguityState.NONE, ("visible Zombie Zero label",),
+            HALL_OF_WAR_ATLAS_BUILDING_ID, RadialAmbiguityState.NONE, ("exact stacked Zombie Zero caption",),
+            {"target_roi": ",".join(str(value) for value in target.target_roi)},
         )
         return HomeRadialSemantics(
-            identity, HALL_OF_WAR_RADIAL_ID, RecognitionState.RECOGNIZED, 0.98,
+            identity, HALL_OF_WAR_RADIAL_ID, RecognitionState.RECOGNIZED, confidence,
             owner, (control,), RadialAmbiguityState.NONE,
-            ("Hall of War owner, radial controls and target share one capture",),
+            ("Hall of War owner binding, radial captions and target share one capture",),
+            {"entry_frame_sha256": str(entry.frame_sha256)},
         )
 
     def zombie_zero_page(self, frame: np.ndarray) -> bool:
@@ -548,6 +662,7 @@ class HallOfWarBoundary:
         self.formation_proof: dict[str, Any] | None = None
         self.radial_semantics: HomeRadialSemantics | None = None
         self._last_successor_capture = None
+        self._hall_entry_binding: BuildingBinding | None = None
 
     def _checkpoint(self, *, active_action_id: str | None = None) -> None:
         self.session.runtime_input_lock.assert_held(
@@ -1039,8 +1154,34 @@ class HallOfWarBoundary:
         captured = self._last_successor_capture
         if captured is None or not np.array_equal(frame, captured.frame):
             return "unknown"
-        semantics = self.vision.radial_semantics(frame, self.runtime, captured)
+        semantics = self._hall_radial(captured)
         return "home_radial" if semantics is not None and semantics.recognized else "unknown"
+
+    def _hall_radial(self, captured) -> HomeRadialSemantics | None:
+        return self.vision.radial_semantics(
+            captured.frame, self.runtime, captured,
+            entry=self._hall_entry_binding, current=self._hall_binding(captured.frame),
+        )
+
+    def _bind_zombie_zero(self, frame: np.ndarray) -> BoundTarget | None:
+        # Rebind on the immediate-before frame: same Hall anchor as the tapped
+        # entry, the full exact caption set, and the recognized radial target.
+        recognized = self.radial_semantics
+        current = self._hall_binding(frame)
+        if (recognized is None or not recognized.recognized
+                or current is None or current.screen_anchor is None
+                or not self.vision.same_hall_anchor(self._hall_entry_binding, current)):
+            return None
+        target = self.vision.radial_target(frame, self.vision.radial_captions(frame, current.screen_anchor))
+        try:
+            expected = tuple(int(value) for value in recognized.controls[0].metadata["target_roi"].split(","))
+        except (IndexError, KeyError, ValueError):
+            return None
+        if target is None or len(expected) != 4:
+            return None
+        if any(abs(a - b) > 6 for a, b in zip(target.target_roi, expected)):
+            return None
+        return target
 
     def _return_home_from_preset_memory(self, recognize_page: Callable[..., Any]) -> bool:
         def page(captured) -> str:
@@ -1104,7 +1245,7 @@ class HallOfWarBoundary:
                 successor=self._radial_successor,
             )
             radial_capture = self._capture("hall-of-war-radial-current")
-            self.radial_semantics = self.vision.radial_semantics(radial_capture.frame, self.runtime, radial_capture)
+            self.radial_semantics = self._hall_radial(radial_capture)
             if self.radial_semantics is None or not self.radial_semantics.recognized:
                 raise HallOfWarRouteError("hall_of_war_radial_successor_not_recognized")
             self.result["radial_semantics"] = {
@@ -1112,6 +1253,7 @@ class HallOfWarBoundary:
                 "facility_identity": self.radial_semantics.owning_facility.facility_semantic_id,
                 "target_label": "Zombie Zero",
                 "source_frame_sha256": self.radial_semantics.source_frame.semantic_sha256,
+                "entry_frame_sha256": self.radial_semantics.metadata["entry_frame_sha256"],
             }
             control = self.radial_semantics.controls[0]
             if control.control_id != "hall_of_war_zombie_zero" or control.label != "Zombie Zero":
@@ -1119,7 +1261,7 @@ class HallOfWarBoundary:
             self._navigation_tap(
                 label="open-zombie-zero", source_state="HOME_WITH_KNOWN_RADIAL",
                 target_identity=HALL_OF_WAR_RADIAL_TARGET,
-                binder=lambda frame: self.vision.bind_text_target(frame, "Zombie Zero", HALL_OF_WAR_RADIAL_TARGET),
+                binder=self._bind_zombie_zero,
                 successor=lambda frame: "zombie_zero" if self.vision.zombie_zero_page(frame) else "unknown",
             )
             page = self._capture("hall-of-war-zombie-zero-page")
@@ -1345,8 +1487,7 @@ class HallOfWarBoundary:
             self.result.update(status="unresolved", identical_retry_denied=True)
         return self.result
 
-    def _bind_hall_of_war(self, frame: np.ndarray) -> BoundTarget | None:
-        captured = self._current_capture_for(frame)
+    def _hall_binding(self, frame: np.ndarray) -> BuildingBinding | None:
         localization = self.localizer.localize(frame)
         if not localization.recognized or localization.stale or localization.overlay:
             return None
@@ -1356,12 +1497,14 @@ class HallOfWarBoundary:
                 or binding.frame_sha256 != localization.frame_sha256
                 or binding.overlay_intersects or binding.ambiguous_overlap):
             return None
-        return BoundTarget(HALL_OF_WAR_ATLAS_BUILDING_ID, tuple(binding.target_roi))
+        return binding
 
-    def _current_capture_for(self, frame):
-        # The current-frame navigation callback supplies its own captured object;
-        # this compatibility method deliberately does not reconstruct one.
-        return frame
+    def _bind_hall_of_war(self, frame: np.ndarray) -> BoundTarget | None:
+        # Called only from open-building authorization on its immediate-before
+        # frame; that exact binding is the radial's carried owner entry.
+        binding = self._hall_binding(frame)
+        self._hall_entry_binding = binding
+        return None if binding is None else BoundTarget(HALL_OF_WAR_ATLAS_BUILDING_ID, tuple(binding.target_roi))
 
     def _bind_dispatch_target(self, frame: np.ndarray, composite: ChallengeObservation) -> BoundTarget | None:
         if not self.vision.dispatch_page(frame):
