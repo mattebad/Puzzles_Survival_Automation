@@ -5,35 +5,83 @@ Current owner direction and planning live in [tracker #53](https://github.com/ma
 
 ## Current resumed development state
 
-- **Acceptance is not queue completion.** Only #66 has a fully accepted native route
-  receipt in this resumed run: integrated source `a4811874`, one owned 1K Food,
-  129810 to 129809, one confirmed authority effect, three inputs and verified Home.
-  Do not repeat it to manufacture a newer receipt. #54's zero-ready pass and #56's
-  zero-request visit are safe observations, not ready-chest or ten-Help acceptance.
+- **Acceptance is not queue completion.** #66 has a fully accepted native route
+  receipt: integrated source `a4811874`, one owned 1K Food, 129810 to 129809,
+  one confirmed authority effect, three inputs and verified Home. #73 now also has
+  verified recovered/resumed canonical completion, detailed below. Do not repeat
+  either effect to manufacture a receipt. #54's zero-ready pass and #56's
+  zero-request visit are not ready-chest or ten-Help acceptance.
 - **Latest #72 native visit:** source `7cd33b5`, seven accounted navigation inputs,
   zero purchases/effects and verified terminal Home. Ruins offer handling stopped on
   missing exact offer/in-shop Owned evidence; the one bounded Rare Earth selector
   reveal did not prove that tab's successor. Both per-tab results were retained.
   The route is implemented but purchase acceptance remains `evidence_required`.
-- **Latest #73 native visit:** source `ffbc99f` dispatched exactly one ordinary Weekly
-  Bioenhance Scheme Buy: Owned 29 to 30, stock 5 to 4, Alliance Coins 1464257 to
-  1384257 (80000 debit). These are historical observations, not runtime constants.
-  Terminal return reached Alliance Menu but hit a duplicate navigation identity.
-  Runtime/session totals were both eight; the boundary reported accounting unverified.
-  Core action `b93d1fe8da73cfef9f89badf72993417cd5f40d2213ad44cc568540c9f3e4181`
-  remains unresolved after postcondition observation failure. **Do not buy again.**
-  Current context is Alliance Menu. Next is exact retained-effect inspection, one
-  bounded known-menu Home recovery and audited reconciliation, not clearing counters,
-  cold restarting or relabelling the original failed canary accepted.
+- **#73 recovered/resumed completion:** the original Weekly Bioenhance Scheme Buy
+  changed Owned 29 to 30, stock 5 to 4 and Alliance Coins 1464257 to 1384257.
+  A fresh bounded inspection returned Home and reconciled that exact action
+  `b93d1fe8da73cfef9f89badf72993417cd5f40d2213ad44cc568540c9f3e4181`.
+  The subsequent canonical route at source `5be0024` completed as
+  `ALLIANCE_SHOP_PASS_VERIFIED`, with one prior confirmed action, zero new inputs,
+  zero Buy calls and fresh terminal Home. This is recovered/resumed acceptance,
+  not relabelling the original failed canary. Evidence:
+  `restart-resume-20261108T035832132346Z/alliance-shop73-confirmed-resume-native/`.
 - **Other concrete repairs:** #77's actual HOT modal now recognizes offline, but exact
   ordinary-resource balance/debit evidence remains absent (abbreviated Home HUD,
   blurred modal). It must not donate on guessed balances. #70's real-session zoom
   accounting repair passed 43 focused checks and Ruff; its native qualification remains
   open. Ruins wallet/header repair `5bd88fc` passed 47 focused/Home checks and a direct
   actual-pixel observer smoke; no new #69 challenge or chest is inferred.
-- **Remaining scenarios:** #69/#56 and #77/#72 still need qualifying effects;
-  #73 needs reconciliation and later finished-route acceptance without replaying today's Buy.
-  #70/#71, #75/#76/#78 and #95/#96/#67 still need finished-route native qualification.
+- **Latest actual guard stops:** #71 reached the Gear Factory radial, not the full
+  production/craft screen; no production/craft effect was confirmed. Its dispatched
+  non-consequential navigation remains unresolved. `SafetyStore.has_action_block`
+  filters consequential actions only: this is not a global native gate.
+  #75 still has no confirmed entry/flee cycle; its last overview-header rebind
+  failure was reproduced on the actual paired frames and corrected. Two existing
+  route-owned Back inputs subsequently verified clean Home without gameplay.
+  #76 has not started Research; exact identity/HUD recognition fixes address its
+  observed pre-start stops, but admission and native acceptance remain open.
+  The current Research Center Atlas binding was revalidated offline on two real
+  Home captures; both project to the actual globe-topped building. Root and E
+  already share the corrected anchor. No new Atlas edit was warranted; the
+  corrected entry still needs a live tap and Research start/debit/timer proof.
+- **#67 actual attempts and repairs:** the first native visit sent zero inputs
+  before the 60-second service lease expired. Real-frame profiling isolated the
+  Home "Rider Camp" label launching Training tier OCR. The reader now defers that
+  scan until Training prerequisites are present; the canonical executor also
+  renews its existing lease during long recognition, retaining stop/reset/clock
+  and generation checks. Supported canonical startup recovery marked the orphan
+  FAILED without resetting history. The next visit finished in about 25 seconds,
+  still with zero inputs/effects, and exposed the borrowed-session generation
+  comparison. Both adapter and native comparisons are corrected. Training remains
+  unaccepted; two persisted failures and the unproved Training switch branch remain.
+- **#95 actual Military subpath:** source `118d72f` freshly verified exact saved
+  Military as already Applied, then returned through the owned Back chain to
+  canonical Home. Five navigation inputs were accounted by runtime and SDK;
+  zero switches, resources or gameplay effects. Actual captures exposed missing
+  header/status OCR, animated-page pixel comparison, overlapping OCR duplicates,
+  and premature acceptance of the old source page after an input; these were
+  corrected in F through `8771c47`. Evidence:
+  `restart-resume-20261108T035832132346Z/commander95-military-owned-roundtrip-20261108T131328027923Z/`.
+  This is native helper inspection, not full #95 switch acceptance. Economy and
+  Training switch costs/confirmation/effects remain `evidence_required`.
+- **#96 latest canonical visit:** source `4cfea07` independently verified saved
+  Military already Applied and all three owned Back successors, then opened the
+  correct freshly mapped Hall of War radial. Seven navigation inputs, zero
+  Dispatch/reward/switch calls, verified accounting. The prior real visit also
+  exercised two guarded, measured Atlas pans. Concrete `DirectPanPlan` endpoint
+  and PNG-versus-Atlas pixel-identity mismatches were corrected through F
+  `eb6be88`; no freshness, overlay or ambiguity guard was removed.
+  The latest stop is `open-building_successor_unknown`: the actual radial
+  occludes its owner label and its wrapped controls defeat full-frame OCR.
+  Repair current-source radial ownership and its Zombie Zero binder together;
+  do not repeat the already successful building tap just to obtain another image.
+  Six canonical failures remain retained, inspected baseline three, maximum
+  attempts three; the first window was rearmed through supported `inspect-rearm`,
+  not raw counters or a higher limit. Full Hall acceptance remains
+  `evidence_required`. Current game context is the Hall radial, not terminal Home.
+  Evidence: `restart-resume-20261108T035832132346Z/hall-of-war96-native-current-atlas-identity-20261108T134358611017Z/`.
+- **Remaining scenarios:** #54, #69/#56, #77/#72, #70/#71, #75/#76/#78 and
+  #95/#96/#67 still need their qualifying finished-route effects.
   Prior manual Duel/Farm/Hall effects and restart-invalidated preset state remain
   reconciliation inputs, not permission to repeat effects. #74 uses baseline/final
   cumulative normal-upgrade verification; its Campaign/150-diamond Reset stays
@@ -46,8 +94,9 @@ Current owner direction and planning live in [tracker #53](https://github.com/ma
 - **Posture and ownership:** parent is the sole authorized live operator; subagents
   edit offline only. Every finite visit restores service/all route switches OFF and
   retains its authorization, transport, semantic and terminal records. The latest
-  #73 controller result confirms that disabled posture. No merge, deployment or
-  permanent scheduling was performed. Preserve Original captures, unrelated changes
+  controller and read-only snapshot confirm service/every flow OFF; the runtime
+  input-lock table is empty. No worker has live authority.
+  No merge, deployment or permanent scheduling was performed. Preserve Original captures, unrelated changes
   and owner-source stash `f5c8b264a18b4ad78aaeb0c07e28b199b12ce705`.
 - **Evidence roots:** Original `.local-captures/development-sessions/`
   `resumed-queue-20261108T014450968963Z/resource66-repaired/` and
