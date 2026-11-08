@@ -1618,13 +1618,17 @@ def _guarded_action(
     cost_type: str = "none",
     cost_amount: int = 0,
     consequence_class: str = "navigation_only",
+    initial_plan: _ActionPlan | None = None,
 ) -> tuple[Any, Any | None, bool]:
     """Execute one fresh-bound input through CentralPolicy, the canonical store, and the held session."""
 
     visit = getattr(context, "_recommended_research_visit", None)
     if visit is not None and not _research_visit_valid(context):
         raise RuntimeError("RECOMMENDED_RESEARCH_VISIT_CONTINUITY_LOST")
-    initial_plan = plan_builder(captured)
+    # A caller may already have decoded this immutable planning source.
+    # Authorization below always rebuilds on the SDK immediate-before capture.
+    if initial_plan is None:
+        initial_plan = plan_builder(captured)
     if initial_plan is None:
         raise RuntimeError("RECOMMENDED_RESEARCH_TARGET_NOT_FRESHLY_BOUND")
     action_id = f"{action_key}:{uuid4().hex}"
@@ -2263,7 +2267,15 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             current_binding = _binding_for_home(context, captured.frame, localizer, building)
             if current_binding is None:
                 return None
-            current_home = _source_screen(context, captured)
+            # This fresh binding already proved clean Home on these exact
+            # pixels. Do not run the same Home classifier again during the
+            # dispatch-age window; the canonical reader still guards frame
+            # shape/digest and reads the actual current queue.
+            current_home = recognize_research_screen(
+                captured.frame, source_frame_sha256=str(captured.sha256),
+                evidence_refs=(_capture_ref(context, captured),),
+                home_recognized=True,
+            )
             pixels = hashlib.sha256(captured.frame.tobytes()).hexdigest()
             current_level = (
                 visit["center_level"]
@@ -2302,7 +2314,8 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
         # immediate entry authorization repeats phase-use proof on its own
         # capture and preserves that exact original timestamp.
         home = context.session.observe(context.runtime.capture, label="recommended-research-entry-phase-source")
-        if building_plan(home) is None:
+        entry_plan = building_plan(home)
+        if entry_plan is None:
             context._recommended_research_visit = None
             return _normal_result(
                 context, status="blocked", reason="research_entry_phase_proof_unknown_or_expired",
@@ -2338,6 +2351,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 action_key=_navigation_key(context, occurrence, "open-center"),
                 plan_builder=building_plan,
                 recognizes_successor=radial_successor,
+                initial_plan=entry_plan,
             )
             step += 1
             if not verified or after is None or radial_state["value"] is None:

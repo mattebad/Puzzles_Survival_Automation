@@ -190,6 +190,9 @@ the resource quote remain subject to the 10-second consuming-use fence and origi
 pre-dispatch source fence; captures are never re-dated. Same-frame OCR decoding is memoized by
 source identity and pixel digest only, not promoted to current evidence. Known pre-start refusal
 with no sent/unresolved effect uses guarded Home return; unknown sent effects permit no input.
+The already-computed Home entry plan is reused only for planning, avoiding duplicate Atlas/phase
+decoding on the same capture. SDK immediate-before authorization always rebinds and proves the
+current Home/queue/owned level again; a fresh clean-Home binding supplies that frame's classification.
 A complete current four-resource scroll supplies its own quote; partial overlapping views still
 require matching overlap. A fully identified scrolled sheet can return Home without a cached
 recommendation identity, but starting still requires the fresh first-recommendation identity.
