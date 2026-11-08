@@ -170,6 +170,18 @@ labels, ignoring only OCR token/line boundaries. This identity permits guarded B
 selected tab or production fields are unknown. Production state, Claim and Start additionally require
 exactly one white selected label, Material Production; Craft Weapon's Claim is never production.
 The Material tab tap is that exact measured route-owned tab cell, not the Home interaction box.
+The actual completed Material profile reads its current positive ordered output range and unique free
+Claim, with semantic completed=1/active=0; it does not invent an original duration or remaining timer.
+Its cost fields describe that Claim, not a future START quote. Claim reconciliation requires a positive
+idle successor with Claim gone; START independently requires a fresh zero-cost 21,600-second empty-slot
+quote. A missing quote preserves a confirmed claim and blocks START. ACTIVE requires a positive
+single-slot timer within six hours and does not fabricate absent original-duration or cost fields.
+The adapter preserves a blocked partial claim only with equal sent/confirmed counts, agreeing SDK
+input counts, current occurrence/source evidence and verified Home; no cooldown is invented.
+Disputed or unconfirmed effects remain unresolved. Timer-only ACTIVE observations may schedule
+from their current timer without an invisible START quote; zero-resource confirmation describes
+performed validated free effects, not a fabricated cost on the ACTIVE screen.
+Actual idle/active layouts and claim successors remain evidence-required until captured and recognized.
 Each Gear Factory/Nanoweapon navigation tap rebinds on its immediate pre-dispatch capture. Only
 native-pixel ROI quantization is admitted: every planned/fresh ROI edge may differ by at most one
 pixel, with each tap point inside the other ROI; the transport keeps the planned, capability-bound target.

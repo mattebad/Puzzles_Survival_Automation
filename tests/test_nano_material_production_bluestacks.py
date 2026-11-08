@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import ExitStack
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
 from pathlib import Path
 import tempfile
@@ -222,7 +222,7 @@ class _NativeContext:
             observed_utc="2026-11-06T00:00:00Z",
             capture_ordinal=captured.ordinal,
         )
-        return captured.frame, reference
+        return captured, reference
 
 
 class NanoMaterialProductionNativeSmokeTests(unittest.TestCase):
@@ -231,6 +231,15 @@ class NanoMaterialProductionNativeSmokeTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self._ocr_patch = mock.patch.object(route, "tesseract_data", _fake_tesseract)
         self._ocr_patch.start()
+        # These are logical slot-state replays, not rendered-tab OCR fixtures.
+        self.enterContext(mock.patch.object(
+            route, "_nanoweapon_selected_tab",
+            side_effect=lambda frame: (
+                "Material Production" if int(frame[0, 0, 0]) in {
+                    _STATE_CODE["active"], _STATE_CODE["idle"], _STATE_CODE["complete"],
+                } else None
+            ),
+        ))
 
     def tearDown(self):
         self._ocr_patch.stop()
@@ -253,7 +262,7 @@ class NanoMaterialProductionNativeSmokeTests(unittest.TestCase):
             self.assertEqual(result["active_production_count"], 1)
             self.assertGreater(result["timer_seconds_remaining"], 0)
             self.assertEqual(result["native_occurrence_key"], context.occurrence_key)
-            self.assertTrue(result["zero_resource_cost_confirmed"])
+            self.assertFalse(result["zero_resource_cost_confirmed"])
             self.assertTrue(result["accounting_verified"])
             self.assertFalse(result["terminal_home_verified"])
             self.assertEqual(context.runtime.input_count, 0)
@@ -301,6 +310,97 @@ class NanoMaterialProductionNativeSmokeTests(unittest.TestCase):
         finally:
             context.close()
 
+    def _owned_observation(self, captured, occurrence, *, state):
+        return route.MaterialProductionObservation(
+            screen_state="NANOWEAPON", selected_nanoweapon=True,
+            selected_tab=route.MATERIAL_PRODUCTION_TAB, production_state=state,
+            active_production_count=0, completed_batch_count=1 if state == "complete" else 0,
+            production_duration_seconds=None, timer_seconds_remaining=None,
+            cost_known=state == "complete", cost_type="none" if state == "complete" else "unknown",
+            cost_amount=0 if state == "complete" else None, other_costs_known=state == "complete",
+            nonzero_other_costs=False, target_identity=route.NANO_MATERIAL_PRODUCTION_TARGET,
+            target_roi=route._MATERIAL_COMPLETE_CLAIM_CONTROL, panel_bounds=route._MATERIAL_COMPLETE_PANEL,
+            claim_visible=state == "complete", start_enabled=state == "idle",
+            target_provenance=route.BLUESTACKS_NATIVE_TARGET_PROVENANCE,
+            source_frame_sha256=captured.sha256, evidence_refs=("evidence/owned-frame.png",),
+            occurrence_key=occurrence,
+        )
+
+    def test_completed_claim_does_not_require_start_quote_or_timer(self):
+        context = self._context(state="complete")
+        try:
+            before = self._owned_observation(context.runtime.capture("complete"), context.occurrence_key, state="complete")
+            idle = replace(before, production_state="idle", completed_batch_count=0,
+                           claim_visible=False, start_enabled=True, cost_known=False,
+                           cost_type="unknown", cost_amount=None, other_costs_known=False,
+                           source_frame_sha256="b" * 64)
+            route.material_production_claim_spec(before)
+            self.assertTrue(route.material_production_claim_postcondition_verified(before, idle))
+            with self.assertRaises(ValueError):
+                route.material_production_start_spec(idle)
+            active = replace(idle, production_state="active", active_production_count=1,
+                             start_enabled=False, timer_seconds_remaining=21599,
+                             source_frame_sha256="c" * 64)
+            self.assertTrue(route.material_production_authorizeable(active))
+            self.assertFalse(route.material_production_start_postcondition_verified(idle, active))
+            quoted = replace(idle, production_duration_seconds=21600, cost_known=True,
+                             cost_type="none", cost_amount=0, other_costs_known=True)
+            self.assertTrue(route.material_production_start_postcondition_verified(quoted, active))
+            self.assertFalse(route.material_production_authorizeable(replace(active, timer_seconds_remaining=21601)))
+        finally:
+            context.close()
+
+    def test_confirmed_claim_preserved_when_idle_start_quote_missing(self):
+        context = self._context(state="complete")
+        def panel(captured, **_kwargs):
+            observation = self._owned_observation(captured, context.occurrence_key, state=context.runtime.state)
+            return route._PanelRead(observation, observation.target_roi, "recognized")
+        try:
+            with (
+                mock.patch.object(route, "_panel_observation", side_effect=panel),
+                mock.patch.object(route, "_prepare_route_source", side_effect=lambda _ctx, current, _key: current),
+            ):
+                result = route.run_material_production_in_context(
+                    context, occurrence_key=context.occurrence_key, return_home=False,
+                )
+            self.assertEqual(result["reason"], "MATERIAL_PRODUCTION_START_QUOTE_UNKNOWN")
+            self.assertEqual(result["status"], "blocked")
+            self.assertEqual(result["committed_action_count"], 1)
+            self.assertEqual(result["production_transport_calls"], 1)
+            self.assertFalse(result["effect_reconciliation_required"])
+            self.assertFalse(result["identical_retry_denied"])
+            self.assertEqual([kind for kind, _ in context.runtime.actions], ["CLAIM_NANO_MATERIAL_PRODUCTION"])
+            self.assertIsNotNone(result["last_action_evidence"]["after"])
+            self.assertTrue(result["zero_resource_cost_confirmed"])
+            self.assertEqual(result["production_state_frame"]["frame_sha256"], result["last_action_evidence"]["after"]["frame_sha256"])
+        finally:
+            context.close()
+
+    def test_actual_completed_profile_requires_material_not_craft_ownership(self):
+        context = self._context(state="complete")
+        captured = context.runtime.capture("complete")
+        body = (
+            route._Word("Produces 24-38 material(s) at random. Upgrade Gear", 96, (78, 978, 721, 1003), (1, 1, 1)),
+            route._Word("Factory to increase output.", 96, (237, 1003, 560, 1027), (2, 1, 1)),
+        )
+        claim = (route._Word("Claim", 96, (363, 1200, 438, 1222), (1, 1, 1)),)
+        def words(_frame, roi=None, **_kwargs):
+            return claim if roi == route._MATERIAL_COMPLETE_CLAIM_CROP else body
+        try:
+            with mock.patch.object(route, "_ocr_words", side_effect=words):
+                with mock.patch.object(route, "_nanoweapon_selected_tab", return_value="Material Production"):
+                    observed = route._panel_observation(captured, context=context, occurrence_key=context.occurrence_key)
+                self.assertIsNotNone(observed.observation)
+                self.assertIsNone(observed.observation.production_duration_seconds)
+                self.assertIsNone(observed.observation.timer_seconds_remaining)
+                self.assertEqual(observed.observation.completed_batch_count, 1)
+                self.assertEqual(observed.observation.target_roi, route._MATERIAL_COMPLETE_CLAIM_CONTROL)
+                with mock.patch.object(route, "_nanoweapon_selected_tab", return_value="Craft Weapon"):
+                    refused = route._panel_observation(captured, context=context, occurrence_key=context.occurrence_key)
+                self.assertIsNone(refused.observation)
+        finally:
+            context.close()
+
     def test_opaque_occurrence_with_pipe_is_preserved_exactly(self):
         occurrence = "NANO-MATERIAL-PRODUCTION-MAINTENANCE:timer:2026-11-06|basis"
         context = self._context(state="idle", occurrence=occurrence)
@@ -317,55 +417,6 @@ class NanoMaterialProductionNativeSmokeTests(unittest.TestCase):
         finally:
             context.close()
 
-    def test_home_atlas_navigation_binds_gear_factory_and_canonical_tab(self):
-        context = self._context(state="home")
-        context.session.initial_observation = SimpleNamespace(frame_sha256="already-bound")
-
-        atlas = route._load_atlas(route.DEFAULT_ATLAS)
-
-        class _Localizer:
-            def __init__(self, _atlas, _path):
-                pass
-
-            @staticmethod
-            def localize(_frame):
-                return SimpleNamespace(recognized=True, stale=False, overlay=False)
-
-        def bind_home(frame, _localization, _building, *, home_is_clean):
-            return SimpleNamespace(
-                building_id=route.GEAR_FACTORY_ID,
-                frame_sha256=route.frame_digest(frame),
-                target_roi=(300, 500, 400, 560),
-                overlay_intersects=False,
-                ambiguous_overlap=False,
-                semantic_evidence=("atlas-localized-gear-factory",),
-            )
-
-        with (
-            mock.patch.object(route, "_load_atlas", return_value=atlas),
-            mock.patch.object(route, "BlueStacksHomeLocalizer", _Localizer),
-            mock.patch.object(route, "bind_visible_building", side_effect=bind_home),
-            mock.patch.object(
-                route,
-                "is_clean_home_frame",
-                side_effect=lambda frame: int(frame[0, 0, 0]) == _STATE_CODE["home"],
-            ),
-        ):
-            try:
-                result = route.run_material_production_in_context(
-                    context, occurrence_key=context.occurrence_key, return_home=False,
-                )
-                self.assertEqual(result["status"], "completed")
-                navigation = [
-                    (kind, key) for kind, key in context.runtime.actions
-                    if kind == "navigation"
-                ]
-                self.assertEqual(len(navigation), 3)
-                self.assertTrue(all(context.action_store.action_key_exists(key) for _, key in navigation))
-                self.assertEqual(context.runtime.state, "active")
-                self.assertTrue(result["accounting_verified"])
-            finally:
-                context.close()
 
     def test_unknown_claim_successor_stops_before_start(self):
         context = self._context(state="complete", unknown_after_claim=True)

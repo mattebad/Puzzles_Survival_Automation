@@ -201,6 +201,23 @@ def _require_production_frame(result: Mapping[str, object]) -> None:
     ):
         raise ValueError("Nano Material Production requires retained production frame evidence")
 
+
+def _require_effect_evidence(result: Mapping[str, object]) -> None:
+    if result.get("zero_resource_cost_confirmed") is not True:
+        raise ValueError("Nano Material Production performed free effects are unproven")
+    evidence = result.get("last_action_evidence")
+    if not isinstance(evidence, Mapping):
+        raise ValueError("Nano Material Production action evidence is missing")
+    for phase in ("before", "after"):
+        frame = evidence.get(phase)
+        _require_production_frame({
+            "production_state_frame": frame,
+            "production_state_observation_sha256": frame.get("frame_sha256") if isinstance(frame, Mapping) else None,
+        })
+    before, after = evidence["before"], evidence["after"]
+    if before["frame_sha256"] == after["frame_sha256"] or after["capture_ordinal"] <= before["capture_ordinal"]:
+        raise ValueError("Nano Material Production effect successor is not distinct and ordered")
+
 class NanoMaterialProductionRunner:
     """Device-free construction over an injected, fixed native route binding."""
 
@@ -313,6 +330,52 @@ class NanoMaterialProductionRunner:
                 )
                 raise NanoMaterialProductionRunnerError(str(partial["reason"]), partial_result=partial)
             calls, committed = _required_route_counts(native_result)
+            inputs = (outcome.input_count, outcome.session_input_count, outcome.runtime_input_count)
+            if (
+                any(type(value) is not int for value in inputs)
+                or not 0 <= inputs[0] <= MAX_INPUTS
+                or len(set(inputs)) != 1 or calls > inputs[0]
+            ):
+                raise ValueError("Nano Material Production SDK input accounting is disputed")
+            if calls:
+                _require_effect_evidence(native_result)
+            if (
+                native_result.get("status") == "blocked"
+                and native_result.get("reason") == "MATERIAL_PRODUCTION_START_QUOTE_UNKNOWN"
+                and calls == committed == 1
+                and type(native_result.get("active_production_count")) is int
+                and type(native_result.get("completed_batch_count")) is int
+                and native_result.get("production_state") == "idle"
+                and native_result.get("active_production_count") == 0
+                and native_result.get("completed_batch_count") == 0
+                and native_result.get("effect_reconciliation_required") is False
+                and native_result.get("identical_retry_denied") is False
+                and native_result.get("terminal_home_verified") is True
+            ):
+                _require_terminal_home(native_result)
+                _require_production_frame(native_result)
+                if (
+                    native_result.get("native_occurrence_key") != occurrence_key
+                    or native_result.get("occurrence_key") != occurrence_key
+                    or native_result.get("production_occurrence_key") != occurrence_key
+                    or native_result.get("production_target_identity") != NANO_MATERIAL_PRODUCTION_TARGET
+                    or native_result["last_action_evidence"]["after"]["frame_sha256"]
+                    != native_result.get("production_state_observation_sha256")
+                ):
+                    raise ValueError("Nano Material Production partial claim source/occurrence is unproven")
+                validate_identity()
+                partial = dict(
+                    native_result, flow_id=FLOW_ID, product_id=PRODUCT_ID,
+                    product_revision=PRODUCT_REVISION, task_id=PRODUCT_ID,
+                    account_id=identity.account_id, server_id=identity.server_id,
+                    reset_id=identity.reset_id, backend_identity=dict(backend_identity),
+                    runtime_profile_id=PROFILE_ID, accounting_verified=True,
+                    input_count=inputs[0], total_input_count=inputs[0],
+                    next_eligible_at=None, startup_recovery=outcome.startup_recovery,
+                    session_directory=outcome.session_directory,
+                )
+                # A known partial is not a timer completion and has no invented due.
+                raise NanoMaterialProductionRunnerError(str(partial["reason"]), partial_result=partial)
             if (
                 native_result.get("status") not in {"completed", "deferred"}
                 or native_result.get("terminal_home_verified") is not True
@@ -326,11 +389,12 @@ class NanoMaterialProductionRunner:
                 native_result.get("production_state") != "active"
                 or type(native_result.get("active_production_count")) is not int
                 or native_result.get("active_production_count") != 1
-                or type(native_result.get("production_duration_seconds")) is not int
-                or native_result.get("production_duration_seconds") != NANO_MATERIAL_PRODUCTION_DURATION_SECONDS
+                or (native_result.get("production_duration_seconds") is not None and (
+                    type(native_result.get("production_duration_seconds")) is not int
+                    or native_result.get("production_duration_seconds") != NANO_MATERIAL_PRODUCTION_DURATION_SECONDS
+                ))
                 or type(timer) is not int
                 or not 0 < timer <= NANO_MATERIAL_PRODUCTION_DURATION_SECONDS
-                or native_result.get("zero_resource_cost_confirmed") is not True
                 or native_result.get("native_occurrence_key") != occurrence_key
                 or native_result.get("occurrence_key") != occurrence_key
             ):
@@ -424,11 +488,12 @@ def nano_material_production_next_due(result, identity, started_at: float) -> fl
         result.get("production_state") != "active"
         or type(result.get("active_production_count")) is not int
         or result.get("active_production_count") != 1
-        or type(result.get("production_duration_seconds")) is not int
-        or result.get("production_duration_seconds") != NANO_MATERIAL_PRODUCTION_DURATION_SECONDS
-        or result.get("zero_resource_cost_confirmed") is not True
+        or (result.get("production_duration_seconds") is not None and (
+            type(result.get("production_duration_seconds")) is not int
+            or result.get("production_duration_seconds") != NANO_MATERIAL_PRODUCTION_DURATION_SECONDS
+        ))
     ):
-        raise ValueError("Nano Material Production current active zero-cost state is unproven")
+        raise ValueError("Nano Material Production current active single-slot state is unproven")
     if (
         result.get("task_id") != PRODUCT_ID
         or result.get("runtime_profile_id") != PROFILE_ID
@@ -450,6 +515,8 @@ def nano_material_production_next_due(result, identity, started_at: float) -> fl
     inputs = result.get("total_input_count")
     input_count = result.get("input_count")
     calls, committed = _required_route_counts(result)
+    if calls:
+        _require_effect_evidence(result)
     if (
         type(inputs) is not int
         or type(input_count) is not int
