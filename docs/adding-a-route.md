@@ -178,6 +178,13 @@ Existing layout exceptions:
   ambiguous, changed-context, or still-clipped evidence stops without speculative effects.
   The retained `donation77-0028-clipped-hot.png` provenance identifies the immutable
   native source; negative image mutations are test-only, not live acceptance.
+  Alliance Shop rebinds the fresh Home footer through the shared recognizer and distinguishes
+  the actual Alliance title and red-selected Shop tabs from incidental navigation labels.
+  Daily Shops normalizes positively recognized zoomed Home with at most two accounted
+  zoom inputs, then uses shared bounded calculated pans, fresh mapped Ruins binding and
+  route-owned Ruins/Exchange successors. Unknown or unchanged navigation stops; an absent
+  action-store lease dispatches nothing. These are offline-proven entry guards, not purchase
+  effect or route-level live acceptance.
 
 * **Batch D Nano Material Production and Nanoweapon**: canonical-service-only routes with fixed
   native bindings and no operator rows. Nano Material Production uses a non-reset-scoped timer

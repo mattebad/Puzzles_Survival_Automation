@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import re
 import time
-from typing import Any, Callable, Mapping, Protocol
+from typing import Any, Mapping, Protocol
 
 import cv2
 import numpy as np
@@ -359,9 +359,11 @@ def _norm(value: str) -> str:
     return re.sub(r"[^0-9a-z★]+", "", value.casefold())
 
 
-def _ocr_words(captured) -> tuple[_OcrWord, ...]:
+def _ocr_words(captured, roi=None, *, psm=6) -> tuple[_OcrWord, ...]:
     from scripts.bounded_tesseract import call_ocr, tesseract_data
-    data = call_ocr(tesseract_data, captured.frame, config="--psm 6")
+    x_offset, y_offset = (roi[0], roi[1]) if roi else (0, 0)
+    frame = captured.frame[roi[1]:roi[3], roi[0]:roi[2]] if roi else captured.frame
+    data = call_ocr(tesseract_data, frame, config=f"--psm {psm}")
     words = []
     for index, raw in enumerate(data.get("text", ())):
         text = str(raw).strip()
@@ -372,6 +374,7 @@ def _ocr_words(captured) -> tuple[_OcrWord, ...]:
             line = (int(data["block_num"][index]), int(data["par_num"][index]), int(data["line_num"][index]))
         except (KeyError, TypeError, ValueError, IndexError):
             continue
+        x, y = x + x_offset, y + y_offset
         if text and confidence >= 35 and 0 <= x < x + width <= 800 and 0 <= y < y + height <= 1280:
             words.append(_OcrWord(text, (x, y, x + width, y + height), line))
     return tuple(words)
@@ -429,6 +432,20 @@ def _icon_matches(a, b):
     return norm > 1e-6 and float(np.sum(first * second) / norm) >= 0.86
 
 
+def _selected_tab(captured, label, roi):
+    """Bind the red selected tab around a current OCR label, not label presence."""
+    hits = _hits(_ocr_words(captured, roi, psm=7), label)
+    if len(hits) != 1:
+        return False
+    x0, y0, x1, y1 = hits[0]
+    patch = captured.frame[max(roi[1], y0 - 8):min(roi[3], y1 + 8),
+                           max(roi[0], x0 - 8):min(roi[2], x1 + 8)].astype(np.float32)
+    if patch.size == 0:
+        return False
+    blue, green, red = patch[:, :, 0], patch[:, :, 1], patch[:, :, 2]
+    return float(np.mean((red > 55) & (red > green * 1.4) & (red > blue * 1.3))) >= 0.45
+
+
 class AllianceShopLivePort:
     """Fresh native OCR and current-frame taps for the observed Alliance Shop path."""
 
@@ -455,18 +472,29 @@ class AllianceShopLivePort:
         return bool(is_clean_home_frame(captured.frame))
 
     def _page(self, captured):
-        words = self._words(captured)
-        if _has(words, "Weekly Offers"):
-            return "weekly", words
-        if _has(words, "Other"):
-            return "other", words
-        if _has(words, "Alliance Shop"):
-            return "alliance", words
-        if _has(words, "Alliance"):
-            return "alliance_menu", words
+        # Home footer and unselected tabs are not screen titles.
         if self._home(captured):
-            return "home", words
-        return "unknown", words
+            return "home", ()
+        from scripts.alliance_donation_bluestacks import recognize_surface, SCREEN_TITLE_ROI
+        title = _ocr_words(captured, SCREEN_TITLE_ROI)
+        header = _norm(" ".join(word.text for word in sorted(title, key=lambda word: word.roi[0])))
+        if header == "alliance":
+            surface = recognize_surface(
+                captured, reset_id=self.context.identity.reset_id,
+                evidence_ref=str(captured.path),
+            )
+            return ("alliance_menu", self._words(captured)) if surface.state == "ALLIANCE_HOME" else ("unknown", ())
+        if header != "allianceshop":
+            return "unknown", ()
+        from scripts.alliance_donation_bluestacks import _alliance_menu_clear
+        if not _alliance_menu_clear(captured.frame):
+            return "unknown", ()
+        if _selected_tab(captured, "Weekly Offers", (40, 85, 281, 155)):
+            return "weekly", self._words(captured)
+        if _selected_tab(captured, "Shop", (281, 85, 521, 155)):
+            page = "other" if _selected_tab(captured, "Other", (617, 165, 758, 220)) else "alliance"
+            return page, self._words(captured)
+        return "unknown", ()
 
     def action_status(self, action_key):
         import hashlib
@@ -583,9 +611,12 @@ class AllianceShopLivePort:
         settled = self._capture(f"alliance-shop-{action_name}-settled")
         return bool(recognize(settled))
 
-    def _tap_text(self, label, target_identity, action_name, recognize):
+    def _tap_text(self, label, target_identity, action_name, recognize, *, source_pages, roi=None):
         def bind(before):
-            matches = _hits(self._words(before), label)
+            if self._page(before)[0] not in source_pages:
+                raise ValueError("Alliance navigation source changed")
+            words = _ocr_words(before, roi, psm=6 if roi[1] >= 1180 else 7) if roi else self._words(before)
+            matches = _hits(words, label)
             if len(matches) != 1:
                 raise ValueError(f"Alliance {label!r} target is not uniquely recognized")
             return matches[0]
@@ -607,35 +638,55 @@ class AllianceShopLivePort:
         )
 
     def _back(self):
-        def recognize(after):
-            page, _words = self._page(after)
-            return page in {"weekly", "other", "alliance", "alliance_menu", "home"}
+        known = {"weekly", "other", "alliance", "alliance_menu"}
+        def bind(before):
+            if self._page(before)[0] not in known:
+                raise ValueError("Alliance Back source is not recognized")
+            return (0, 0, 800, 1280)
         return self._tap(
-            "system-back", "return-home", lambda _before: (0, 0, 800, 1280),
-            lambda before, _roi, key: self.runtime.back(before, action_key=key), recognize,
+            "system-back", "return-home", bind,
+            lambda before, _roi, key: self.runtime.back(before, action_key=key),
+            lambda after: self._page(after)[0] in known | {"home"},
         )
 
     def enter_weekly_offers(self):
         if not self._home(self._capture("alliance-shop-home-source")):
             return False
-        if not self._tap_text("Alliance", "home.alliance-entry", "open-alliance",
-                              lambda frame: self._page(frame)[0] in {"alliance", "alliance_menu"}):
+        from scripts.alliance_donation_bluestacks import _home_alliance_target
+        def bind_home(before):
+            if not self._home(before):
+                raise ValueError("Alliance entry requires fresh clean Home")
+            target = _home_alliance_target(before)
+            if target is None:
+                raise ValueError("Alliance Home footer is not recognized")
+            return target[1]
+        if not self._tap_roi(
+            bind_home, "home-nav:alliance", "open-alliance",
+            lambda frame: self._page(frame)[0] == "alliance_menu",
+        ):
             return False
         if not self._tap_text("Alliance Shop", "alliance:shop-entry", "open-shop",
-                              lambda frame: self._page(frame)[0] == "alliance"):
+                              lambda frame: self._page(frame)[0] in {"alliance", "weekly", "other"},
+                              source_pages={"alliance_menu"}, roi=(40, 1180, 760, 1280)):
             return False
+        if self._page(self._capture("alliance-shop-open-shop-current-tab"))[0] == "weekly":
+            self.current_tab = "weekly"
+            return True
         if not self._tap_text("Weekly Offers", "alliance-shop:weekly-tab", "open-weekly",
-                              lambda frame: self._page(frame)[0] == "weekly"):
+                              lambda frame: self._page(frame)[0] == "weekly",
+                              source_pages={"alliance", "other"}, roi=(40, 85, 281, 155)):
             return False
         self.current_tab = "weekly"
         return True
 
     def enter_other_offers(self):
         if not self._tap_text("Shop", "alliance-shop:standard-shop", "open-standard-shop",
-                              lambda frame: _has(self._words(frame), "Other")):
+                              lambda frame: self._page(frame)[0] == "alliance",
+                              source_pages={"weekly"}, roi=(281, 85, 521, 155)):
             return False
         if not self._tap_text("Other", "alliance-shop:other-tab", "open-other",
-                              lambda frame: self._page(frame)[0] == "other"):
+                              lambda frame: self._page(frame)[0] == "other",
+                              source_pages={"alliance"}, roi=(617, 165, 758, 220)):
             return False
         self.current_tab = "other"
         return True
@@ -829,7 +880,7 @@ class AllianceShopLivePort:
         if self._page(captured)[0] != self.current_tab:
             return None
         try:
-            roi = self._outer_buy_roi(captured, offer)
+            self._outer_buy_roi(captured, offer)
         except ValueError:
             return None
         if not self._tap_roi(

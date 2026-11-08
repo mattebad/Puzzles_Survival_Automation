@@ -275,7 +275,9 @@ class DailyShopsPurchaseRoute:
 
     def run(self) -> DailyShopsRouteResult:
         if not self.port.enter_ruins_shop():
-            self.result.reason = "RUINS_SHOP_HOME_ATLAS_PATH_NOT_VERIFIED"
+            self.result.reason = getattr(
+                self.port, "entry_reason", ""
+            ) or "RUINS_SHOP_HOME_ATLAS_PATH_NOT_VERIFIED"
             self.result.home_return_attempted = True
             self.result.home_returned = self.port.return_home()
             self.result.terminal_home_verified = self.result.home_returned
@@ -365,6 +367,9 @@ class DailyShopsLivePort:
         self.last_offer_capture = None
         self.last_dialog = None
         self.backend_identity = None
+        self._home_atlas = None
+        self._home_localizer = None
+        self.entry_reason = ""
 
     def _capture(self, label):
         self.context.checkpoint()
@@ -500,37 +505,97 @@ class DailyShopsLivePort:
             lambda after: bool(recognize(after)),
         )
 
-    def _mapped_ruins(self, captured):
+    def _home_mapping(self):
+        from pathlib import Path
         from tasks.home_atlas import load_home_atlas
-        from tasks.home_atlas_vision import BlueStacksHomeLocalizer, bind_visible_building
-        from scripts.startup_normalization import is_clean_home_frame
-        atlas_path = __import__("pathlib").Path(__file__).resolve().parents[1] / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
-        atlas = load_home_atlas(atlas_path)
-        localization = BlueStacksHomeLocalizer(atlas, atlas_path).localize(captured.frame)
+        from tasks.home_atlas_vision import BlueStacksHomeLocalizer
+        if self._home_atlas is None or self._home_localizer is None:
+            atlas_path = Path(__file__).resolve().parents[1] / "tasks/assets/home_atlas/bluestacks/800x1280/atlas.json"
+            self._home_atlas = load_home_atlas(atlas_path)
+            self._home_localizer = BlueStacksHomeLocalizer(self._home_atlas, atlas_path)
+        return self._home_atlas, self._home_localizer
+
+    def _mapped_ruins(self, frame):
+        from tasks.home_atlas_vision import bind_visible_building, frame_digest
+        atlas, localizer = self._home_mapping()
+        localization = localizer.localize(frame)
         binding = bind_visible_building(
-            captured.frame, localization, atlas.lookup_building("home.building.ruins"),
-            home_is_clean=is_clean_home_frame,
-        ) if localization.recognized else None
-        if (binding is None or binding.frame_sha256 != captured.sha256
+            frame, localization, atlas.lookup_building("home.building.ruins"),
+            home_is_clean=self.context.is_clean_home,
+        )
+        # Atlas bindings use the decoded-frame semantic digest, not the native
+        # capture's transport PNG digest. The SDK deliberately keeps both.
+        if (binding is None or binding.frame_sha256 != frame_digest(frame)
                 or binding.overlay_intersects or binding.ambiguous_overlap):
             return None
-        return tuple(binding.target_roi)
+        return binding
 
+
+    def _normalize_home_zoom(self, home):
+        from scripts.atlas_startup_normalizer import (
+            AtlasStartupDisposition, BlueStacksAtlasStartupNormalizer,
+        )
+        _atlas, localizer = self._home_mapping()
+        normalizer = BlueStacksAtlasStartupNormalizer(
+            localizer, maximum_zoom_inputs=2, home_is_clean=self.context.is_clean_home,
+        )
+        # The SDK classifies each fresh source and owns the two-input/repeated-frame
+        # fences. Native runtime owns freshness, input accounting and transport.
+        while True:
+            step = normalizer.observe(home.frame)
+            if step.disposition is AtlasStartupDisposition.READY:
+                return home
+            if step.disposition is not AtlasStartupDisposition.RECOVER_ZOOM:
+                self.entry_reason = f"DAILY_SHOPS_ENTRY_DEFERRED:{step.reason}"
+                return None
+            self.context.checkpoint()
+            if self.runtime.input_count >= min(MAX_INPUTS, self.context.max_inputs):
+                self.entry_reason = "DAILY_SHOPS_ENTRY_INPUT_BUDGET_EXHAUSTED"
+                return None
+            self.runtime.zoom_out(
+                home, action_key=(
+                    f"daily-shops:home-zoom:{self.session.invocation_id}:"
+                    f"{step.recovery_input_ordinal}:{step.source_frame_sha256}"
+                ),
+            )
+            normalizer.record_zoom_input_dispatched(step.source_frame_sha256)
+            self._capture("daily-shops-home-zoom-immediate-post")
+            if self.settle_seconds:
+                import time
+                time.sleep(self.settle_seconds)
+            home = self._capture("daily-shops-home-zoom-settled")
 
     def _open_ruins_shop(self):
+        from scripts.home_atlas_bluestacks import bind_or_pan_mapped_home_building
+        self.entry_reason = ""
         home = self._capture("daily-shops-ruins-home-source")
         if not self.context.is_clean_home(home.frame):
+            self.entry_reason = "DAILY_SHOPS_ENTRY_REQUIRES_CLEAN_HOME"
             return False
-        roi = self._mapped_ruins(home)
-        if roi is None or not self._tap(
-            home, roi, "home.building.ruins", f"daily-shops:home-ruins:{home.sha256}",
+        atlas, localizer = self._home_mapping()
+        home = self._normalize_home_zoom(home)
+        if home is None:
+            return False
+        home, binding, reason = bind_or_pan_mapped_home_building(
+            self.context, current=home, atlas=atlas, localizer=localizer,
+            building_id="home.building.ruins", product_id=PRODUCT_ID,
+            binding_for_frame=self._mapped_ruins, maximum_pans=8,
+        )
+        if home is None or binding is None:
+            self.entry_reason = f"DAILY_SHOPS_ENTRY_DEFERRED:{reason}"
+            return False
+        if not self._tap(
+            home, tuple(binding.target_roi), "home.building.ruins",
+            f"daily-shops:home-ruins:{home.sha256}",
             lambda after: self._page(after)[0] == "ruins_challenge",
         ):
+            self.entry_reason = "DAILY_SHOPS_RUINS_OVERVIEW_NOT_VERIFIED"
             return False
         if not self._tap_text(
             "Exchange", "daily-shops:ruins-exchange",
             lambda after: self._page(after)[0] == "ruins",
         ):
+            self.entry_reason = "DAILY_SHOPS_EXCHANGE_SUCCESSOR_NOT_VERIFIED"
             return False
         self.current_tab = "ruins"
         return True
