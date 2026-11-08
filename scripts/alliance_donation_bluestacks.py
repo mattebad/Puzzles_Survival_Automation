@@ -55,6 +55,9 @@ _RESOURCE_AMOUNT_RE = re.compile(r"^[0-9][0-9,]*(?:\.[0-9]+)?[KMB]?$", re.IGNORE
 _EXACT_AMOUNT_RE = re.compile(r"^[0-9][0-9,]*$", re.ASCII)
 _TIMER_RE = re.compile(r"(?<![0-9])([0-9]{1,2}):([0-5][0-9]):([0-5][0-9])(?![0-9])", re.ASCII)
 
+# Keep Back/border art out of title OCR, without clipping the glyphs at y=17.
+SCREEN_TITLE_ROI = (260, 6, 540, 60)
+
 
 @dataclass(frozen=True)
 class TextWord:
@@ -109,7 +112,8 @@ def _words(
         return ()
     crop = np.ascontiguousarray(frame[y0:y1, x0:x1])
     reader = ocr_reader or tesseract_data
-    data = call_ocr(reader, crop, config="--psm 6", timeout=5.0)
+    # call_ocr owns the bounded per-call timeout; passing ``timeout`` here collides with it (TypeError).
+    data = call_ocr(reader, crop, config="--psm 6")
     if not isinstance(data, Mapping):
         return ()
     fields = ("text", "left", "top", "width", "height", "conf", "block_num", "par_num", "line_num")
@@ -313,7 +317,7 @@ def _panel_observation(
         target_visible = False
     premium_roi = premium[-1] if premium is not None else None
     isolated = bool(
-        chosen is not None and premium_roi is not None
+        chosen is not None and target_roi is not None and premium_roi is not None
         and not (target_roi[0] < premium_roi[2] and premium_roi[0] < target_roi[2]
                  and target_roi[1] < premium_roi[3] and premium_roi[1] < target_roi[3])
     )
@@ -367,6 +371,30 @@ def _panel_observation(
                            "current_hot_panel" if hot else "current_hot_marker_unproven")
 
 
+def _alliance_tech_entry(words: tuple[TextWord, ...]) -> ROI | None:
+    """Bind the menu label, not the OCR line shared with Alliance War."""
+    matches: list[ROI] = []
+    for line in _lines(words):
+        for left, right in zip(line.words, line.words[1:]):
+            if (_normalize(left.text) == "alliance" and _normalize(right.text) == "tech"
+                    and 400 <= left.roi[0] < right.roi[0]
+                    and 430 <= left.roi[1] <= 880
+                    and abs(left.roi[1] - right.roi[1]) <= 12
+                    and 0 <= right.roi[0] - left.roi[2] <= 30):
+                bound = _union([left.roi, right.roi], pad_x=18, pad_y=14)
+                if bound is not None:
+                    matches.append(bound)
+    return matches[0] if len(matches) == 1 else None
+
+
+def _alliance_menu_clear(frame: np.ndarray) -> bool:
+    from scripts.daily_row_claim_bluestacks import _generic_modal_overlay_evidence
+
+    overlay = _generic_modal_overlay_evidence(frame)
+    return overlay.get("recognized") is False and overlay.get("state") in {"none_observed", "none"}
+
+
+
 def recognize_surface(
     captured: Any,
     *,
@@ -383,13 +411,12 @@ def recognize_surface(
     if home.is_home and is_clean_home_frame(frame):
         return DonationSurface("HOME", digest, evidence_ref)
     words = _words(frame, (0, 35, 800, 1195), ocr_reader=ocr_reader)
-    lines = _lines(words)
-    lines_norm = tuple((line, _normalize(line.text)) for line in lines)
     panel = _panel_observation(captured, reset_id=reset_id, evidence_ref=evidence_ref, words=words)
     if panel is not None:
         return panel
-    header = next(((line, text) for line, text in lines_norm if line.roi[1] < 150), None)
-    if header and "alliance tech" in header[1]:
+    title_words = _words(frame, SCREEN_TITLE_ROI, ocr_reader=ocr_reader)
+    header = _normalize(" ".join(word.text for word in sorted(title_words, key=lambda word: word.roi[0])))
+    if header == "alliance tech":
         hot_word, tech_line = _hot_binding(frame, words)
         tech_slug = _slug(tech_line.text) if tech_line else None
         target_roi = _union([hot_word.roi, tech_line.roi], pad_x=18, pad_y=12) if hot_word and tech_line else None
@@ -398,12 +425,11 @@ def recognize_surface(
                                target_roi, tech_line.text.strip() if tech_line else None,
                                tech_slug, hot_roi=hot_word.roi if hot_word else None,
                                reason="current_hot_bound" if target_roi else "waiting_for_auto_hot_scroll")
-    if header and _normalize(header[1]) == "alliance":
-        entry = next((line for line, text in lines_norm if "alliance tech" in text and 430 <= line.roi[1] <= 880), None)
-        target_roi = _union([entry.roi], pad_x=18, pad_y=14) if entry else None
+    if header == "alliance" and _alliance_menu_clear(frame):
+        target_roi = _alliance_tech_entry(words)
         return DonationSurface("ALLIANCE_HOME", digest, evidence_ref,
-                               "alliance:tech-entry" if entry else None, target_roi,
-                               reason="alliance_tech_entry_bound" if entry else "alliance_tech_entry_not_visible")
+                               "alliance:tech-entry" if target_roi else None, target_roi,
+                               reason="alliance_tech_entry_bound" if target_roi else "alliance_tech_entry_not_visible")
     return DonationSurface("UNKNOWN", digest, evidence_ref, reason="alliance_surface_unrecognized")
 
 
