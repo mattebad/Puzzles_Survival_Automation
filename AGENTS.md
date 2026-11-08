@@ -13,6 +13,19 @@
   an old receipt. Legacy receipts remain historical records and do not imply a
   runtime bypass today.
 
+## Live route development priority
+
+- For the approved base-route queue, when current live authorization is present,
+  prioritize completing bounded canonical live routes over additional offline scaffolding.
+- Do not create new mock or replay tests for this queue. Fix concrete native blockers
+  and verify the changed path in the actual game with retained semantic evidence.
+  Existing focused tests are for a concrete regression, not repeated broad gates.
+- Defer unrelated static cleanup, documentation expansion and new recovery/control
+  tooling. Use existing canonical APIs; resume live execution after the necessary fix.
+- Report actual completed gameplay and end-to-end acceptance first, not test counts.
+- This priority does not bypass singleton ownership, current authorization, resource
+  budgets, leases/fences or UNKNOWN reconciliation. Never repeat an uncertain effect.
+
 ## Canonical architecture and safety
 
 - Extend the existing kernel and contracts. `safe_action_core/` retains existing
