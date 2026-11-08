@@ -117,6 +117,19 @@ class BoundTarget:
     target_roi: tuple[int, int, int, int]
 
 
+@dataclass(frozen=True)
+class ZombieZeroMenu:
+    """Exact current Zombie Zero menu labels read from one native frame."""
+
+    title_roi: tuple[int, int, int, int]
+    damage_roi: tuple[int, int, int, int]
+    today_highest_damage: int | None
+    reward_header: str
+    reward_header_roi: tuple[int, int, int, int]
+    footer_text: tuple[str, ...]
+    attack: BoundTarget | None
+
+
 class HallOfWarVision:
     """OCR/geometry recognizers for the exact observed Hall of War UI surfaces."""
 
@@ -227,42 +240,43 @@ class HallOfWarVision:
             return None
         return self._padded_target(frame, boxes[0], identity, padding)
 
-    # The opened Hall radial covers the owner's own title, and full-frame OCR
-    # interleaves its wrapped white captions with the busy Home art. Captions
-    # are therefore read as isolated white text lines inside a bounded envelope
-    # around the freshly Atlas-bound Hall interaction anchor.
+    # Hall surfaces draw their labels over busy, animated art (Home radial
+    # captions, the Zombie Zero boss portrait), where sparse full-frame OCR
+    # interleaves or drops them. Labels are therefore read as isolated text
+    # lines of one known colour inside a bounded band.
+    _WHITE_TEXT = ((0, 0, 200), (180, 50, 255))
+    _GOLD_TEXT = ((10, 90, 150), (30, 200, 255))
+    _MAX_TEXT_LINES = 24
     _RADIAL_ENVELOPE = (300, 60, 230)  # |dx|, pixels above, pixels below the bound anchor
-    _RADIAL_MAX_CAPTION_LINES = 24
 
-    def _radial_caption_lines(self, frame: np.ndarray, anchor: tuple[float, float]) -> tuple[OCRToken, ...] | None:
+    def _text_lines(self, frame: np.ndarray, band: tuple[int, int, int, int],
+                    colour: tuple[tuple[int, int, int], tuple[int, int, int]]) -> tuple[OCRToken, ...] | None:
         if not self._native(frame):
             return None
-        ax, ay = int(round(anchor[0])), int(round(anchor[1]))
-        reach, above, below = self._RADIAL_ENVELOPE
-        x0, y0 = max(0, ax - reach), max(0, ay - above)
-        x1, y1 = min(NATIVE_WIDTH, ax + reach), min(NATIVE_HEIGHT, ay + below)
-        if x0 >= x1 or y0 >= y1:
+        x0, y0, x1, y1 = band
+        if not (0 <= x0 < x1 <= NATIVE_WIDTH and 0 <= y0 < y1 <= NATIVE_HEIGHT):
             return None
-        white = cv2.inRange(cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2HSV), (0, 0, 200), (180, 50, 255))
-        white = cv2.morphologyEx(white, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (15, 3)))
-        count, _, stats, _ = cv2.connectedComponentsWithStats(white)
+        low, high = colour
+        mask = cv2.inRange(cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2HSV), low, high)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (15, 3)))
+        count, _, stats, _ = cv2.connectedComponentsWithStats(mask)
         boxes = [
             (x0 + int(left), y0 + int(top), x0 + int(left + width), y0 + int(top + height))
             for left, top, width, height, area in stats[1:count]
             if 12 <= height <= 34 and width >= 20 and area >= 120
         ]
-        if len(boxes) > self._RADIAL_MAX_CAPTION_LINES:
+        if len(boxes) > self._MAX_TEXT_LINES:
             return None
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         lines: list[OCRToken] = []
         for box in boxes:
             rows = slice(max(0, box[1] - 4), min(NATIVE_HEIGHT, box[3] + 4))
             cols = slice(max(0, box[0] - 4), min(NATIVE_WIDTH, box[2] + 4))
-            # Read only the caption's own white strokes (plus their anti-aliased
-            # edge): animated Home art inside the line box (bobbing quest
-            # markers) otherwise makes Tesseract drop an unchanged caption.
+            # Read only the line's own strokes (plus their anti-aliased edge):
+            # animated art inside the line box (bobbing quest markers) otherwise
+            # makes Tesseract drop an unchanged label.
             strokes = cv2.dilate(
-                cv2.inRange(cv2.cvtColor(frame[rows, cols], cv2.COLOR_BGR2HSV), (0, 0, 200), (180, 50, 255)),
+                cv2.inRange(cv2.cvtColor(frame[rows, cols], cv2.COLOR_BGR2HSV), low, high),
                 cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)),
             )
             isolated = (255 - np.where(strokes > 0, gray[rows, cols], 0)).astype(np.uint8)
@@ -274,6 +288,14 @@ class HallOfWarVision:
             if text:
                 lines.append(OCRToken(text, box, None))
         return tuple(lines)
+
+    def _radial_caption_lines(self, frame: np.ndarray, anchor: tuple[float, float]) -> tuple[OCRToken, ...] | None:
+        # The opened radial covers the Hall's own title; its captions are read
+        # around the freshly Atlas-bound Hall interaction anchor.
+        ax, ay = int(round(anchor[0])), int(round(anchor[1]))
+        reach, above, below = self._RADIAL_ENVELOPE
+        band = (max(0, ax - reach), max(0, ay - above), min(NATIVE_WIDTH, ax + reach), min(NATIVE_HEIGHT, ay + below))
+        return self._text_lines(frame, band, self._WHITE_TEXT)
 
     def radial_captions(self, frame: np.ndarray, anchor: tuple[float, float]) -> dict[str, tuple[int, int, int, int]] | None:
         """Exact, unique Hall radial captions arranged around the bound Hall anchor."""
@@ -376,34 +398,81 @@ class HallOfWarVision:
             {"entry_frame_sha256": str(entry.frame_sha256)},
         )
 
-    def zombie_zero_page(self, frame: np.ndarray) -> bool:
-        text = self.text(frame)
-        return (
-            self._contains(text, "Zombie Zero")
-            and self._contains(text, "Today's Highest Dmg")
-            and self._contains(text, "Daily Reward")
+    # Fixed native Zombie Zero menu bands. The huge gold boss total above the
+    # damage line is not white text and never matches the damage label.
+    _MENU_TITLE_BAND = (0, 0, NATIVE_WIDTH, 80)
+    _MENU_DAMAGE_BAND = (75, 730, 675, 875)
+    _MENU_REWARD_BAND = (60, 860, 740, 960)
+    _MENU_FOOTER_BAND = (40, 1080, 760, NATIVE_HEIGHT)
+    _MENU_DAMAGE_LINE = re.compile(r"today[’']?s highest dmg(.*)")
+    _MENU_DAMAGE_VALUE = re.compile(r"\s*:?\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)")
+
+    def zombie_zero_menu(self, frame: np.ndarray) -> ZombieZeroMenu | None:
+        # Bands are read in order and stop at the first missing exact label,
+        # so non-menu frames do not pay for every band's line OCR.
+        title = self._text_lines(frame, self._MENU_TITLE_BAND, self._WHITE_TEXT)
+        titles = [line.roi for line in title or () if line.text == "zombie zero"]
+        if len(titles) != 1:
+            return None
+        damage = self._text_lines(frame, self._MENU_DAMAGE_BAND, self._WHITE_TEXT)
+        damages = [(line.roi, match) for line in damage or () if (match := self._MENU_DAMAGE_LINE.fullmatch(line.text))]
+        if len(damages) != 1:
+            return None
+        reward = self._text_lines(frame, self._MENU_REWARD_BAND, self._GOLD_TEXT)
+        headers = [line for line in reward or () if line.text in ("daily reward", "daily reward claimed")]
+        if len(headers) != 1:
+            return None
+        footer = self._text_lines(frame, self._MENU_FOOTER_BAND, self._WHITE_TEXT)
+        if footer is None:
+            return None
+        damage_roi, label = damages[0]
+        value = self._MENU_DAMAGE_VALUE.fullmatch(label.group(1))
+        return ZombieZeroMenu(
+            titles[0], damage_roi,
+            int(value.group(1).replace(",", "")) if value is not None else None,
+            headers[0].text, headers[0].roi,
+            tuple(line.text for line in footer),
+            self._attack_button(frame, footer),
         )
 
+    def _attack_button(self, frame: np.ndarray, footer: tuple[OCRToken, ...]) -> BoundTarget | None:
+        # Target is the measured gold button that contains the one exact
+        # "Attack" label, not a fixed coordinate.
+        labels = [line.roi for line in footer if line.text == "attack"]
+        if len(labels) != 1:
+            return None
+        lx0, ly0, lx1, ly1 = labels[0]
+        x0, y0, x1, y1 = self._MENU_FOOTER_BAND
+        gold = cv2.inRange(cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2HSV), (8, 120, 120), (30, 255, 255))
+        count, _, stats, _ = cv2.connectedComponentsWithStats(gold)
+        buttons = [
+            (x0 + int(left), y0 + int(top), x0 + int(left + width), y0 + int(top + height))
+            for left, top, width, height, area in stats[1:count]
+            if area >= 2000
+        ]
+        containing = [box for box in buttons if box[0] <= lx0 and box[1] <= ly0 and lx1 <= box[2] and ly1 <= box[3]]
+        return BoundTarget(ATTACK_TARGET, containing[0]) if len(containing) == 1 else None
+
+    def zombie_zero_page(self, frame: np.ndarray) -> bool:
+        return self.zombie_zero_menu(frame) is not None
+
     def today_highest_damage(self, frame: np.ndarray) -> int | None:
-        text = self.text(frame, (75, 730, 675, 875))
-        normalized = self._normal(text)
-        match = re.search(r"today s highest dmg\s*[: ]\s*([0-9][0-9,]*)", normalized)
-        if match is None:
-            match = re.search(r"highest dmg\s*[: ]\s*([0-9][0-9,]*)", normalized)
-        if match is None:
-            return None
-        try:
-            return int(match.group(1).replace(",", ""))
-        except ValueError:
-            return None
+        menu = self.zombie_zero_menu(frame)
+        return None if menu is None else menu.today_highest_damage
+
+    @staticmethod
+    def _ready_attack(menu: ZombieZeroMenu) -> BoundTarget | None:
+        # Any other footer text (timer, limit notice) withholds READY.
+        return menu.attack if menu.footer_text == ("attack",) else None
 
     def attempt_state(self, frame: np.ndarray) -> AttemptState:
-        text = self.text(frame)
-        if not self.zombie_zero_page(frame):
+        menu = self.zombie_zero_menu(frame)
+        if menu is None:
             return AttemptState.UNKNOWN
+        text = " ".join((self._normal(self.text(frame)),) + menu.footer_text)
         if re.search(r"\b(?:cooldown|cooling down|in\s+\d)\b", text):
             return AttemptState.BUSY
-        if self.bind_text_target(frame, "Attack", ATTACK_TARGET) is not None:
+        if self._ready_attack(menu) is not None:
             return AttemptState.READY
         if self._contains(text, "unavailable") or self._contains(text, "daily limit"):
             return AttemptState.UNAVAILABLE
@@ -414,7 +483,8 @@ class HallOfWarVision:
         return self._contains(text, "Dispatch") and self._contains(text, "Quick Select")
 
     def bind_attack(self, frame: np.ndarray) -> BoundTarget | None:
-        return self.bind_text_target(frame, "Attack", ATTACK_TARGET)
+        menu = self.zombie_zero_menu(frame)
+        return None if menu is None else self._ready_attack(menu)
 
     def bind_formation_arrow(self, frame: np.ndarray) -> BoundTarget | None:
         if not self.dispatch_page(frame):
@@ -552,17 +622,17 @@ class HallOfWarVision:
                      for x0, y0, x1, y1 in self._HERO_RECTS)
 
     def challenge_reward(self, frame: np.ndarray) -> RewardObservation | None:
-        if not self.zombie_zero_page(frame):
+        located = self._challenge_reward(frame)
+        return None if located is None else located[0]
+
+    def _challenge_reward(self, frame: np.ndarray) -> tuple[RewardObservation, tuple[int, int, int, int]] | None:
+        menu = self.zombie_zero_menu(frame)
+        if menu is None:
             return None
         text = self._normal(self.text(frame))
-        claimed = self._contains(text, "Daily Reward Claimed")
-        header = self._phrase_boxes(frame, "Daily Reward")
-        if len(header) != 1:
-            # The claimed title is a separate, exact combined phrase.
-            header = self._phrase_boxes(frame, "Daily Reward Claimed")
-        if len(header) != 1:
-            return None
-        y = (header[0][1] + header[0][3]) // 2
+        claimed = menu.reward_header == "daily reward claimed" or self._contains(text, "Daily Reward Claimed")
+        header = menu.reward_header_roi
+        y = (header[1] + header[3]) // 2
         x0, x1 = 205, 545
         row = frame[max(0, y + 20):min(NATIVE_HEIGHT, y + 145), x0:x1]
         if row.size == 0:
@@ -583,16 +653,16 @@ class HallOfWarVision:
         else:
             state = RewardState.UNKNOWN
         digest = hashlib.sha256(frame.tobytes()).hexdigest()
-        return RewardObservation("ZOMBIE_ZERO", True, state, glow, checkmarks, digest)
+        return RewardObservation("ZOMBIE_ZERO", True, state, glow, checkmarks, digest), header
 
     def bind_reward_row(self, frame: np.ndarray) -> BoundTarget | None:
-        observation = self.challenge_reward(frame)
-        if observation is None or observation.reward is not RewardState.READY or not observation.glowing:
+        located = self._challenge_reward(frame)
+        if located is None:
             return None
-        header = self._phrase_boxes(frame, "Daily Reward")
-        if len(header) != 1:
+        observation, header = located
+        if observation.reward is not RewardState.READY or not observation.glowing:
             return None
-        y0, y1 = header[0][1], min(NATIVE_HEIGHT, header[0][3] + 155)
+        y0, y1 = header[1], min(NATIVE_HEIGHT, header[3] + 155)
         return BoundTarget(REWARD_TARGET, (190, y0, 560, y1))
 
     def result_modal(self, frame: np.ndarray) -> tuple[bool, int | None]:
