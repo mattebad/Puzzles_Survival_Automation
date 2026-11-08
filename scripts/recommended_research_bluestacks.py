@@ -672,9 +672,11 @@ def recognize_research_screen(
     return ResearchScreenObservation("UNKNOWN", source_frame_sha256, refs, text, words, recognized=False)
 
 
-# Measured actual radial captions read 92-96; lower reads are not owner evidence.
+# Measured actual Details/Research captions read 96 on both real radial frames;
+# lower reads are not owner evidence. Upgrade sits under its white arrow icon
+# and the mask can merge them (actual '“Upgrade' conf 41), so it is not required.
 _RADIAL_CAPTION_MIN_CONFIDENCE = 80.0
-_RADIAL_CAPTIONS = ("details", "upgrade", "research")
+_RADIAL_REQUIRED_CAPTIONS = ("details", "research")
 
 
 def recognize_research_radial(
@@ -699,12 +701,15 @@ def recognize_research_radial(
     ax, ay = building_binding.screen_anchor
     captions: list[ResearchWord] = []
     if ocr_data is None:
-        # Native frames: the owner's complete Details/Upgrade/Research caption set.
+        # Native frames: exactly one owner Details and one Research caption.
         captions = [
             word for word in _radial_caption_words(frame, (ax, ay))
             if word.confidence >= _RADIAL_CAPTION_MIN_CONFIDENCE
         ]
-        if any(sum(word.normalized == name for word in captions) != 1 for name in _RADIAL_CAPTIONS):
+        if any(sum(word.normalized == name for word in captions) != 1 for name in _RADIAL_REQUIRED_CAPTIONS):
+            return None
+        details = next(word for word in captions if word.normalized == "details")
+        if not 35 <= math.hypot(details.center[0] - ax, details.center[1] - ay) <= 240:
             return None
     page = recognize_research_screen(
         frame,
@@ -1470,6 +1475,20 @@ def _action_key(identity: Any, game_day_id: str) -> str:
     return f"recommended-research:v1:{hashlib.sha256(scope).hexdigest()}"
 
 
+def _navigation_key(context: Any, occurrence_key: str, name: str) -> str:
+    """Non-consuming navigation identity: unique per native invocation, never per retry.
+
+    The durable reset-scoped start key stays ``_action_key``; navigation from a
+    later invocation's fresh source must not collide with retained earlier rows.
+    """
+
+    invocation = getattr(context, "invocation_id", None)
+    if not isinstance(invocation, str) or not invocation.strip():
+        raise RuntimeError("RECOMMENDED_RESEARCH_INVOCATION_ID_REQUIRED")
+    return f"{occurrence_key}:{invocation}:recommended-research:{name}"
+
+
+
 def _home_from_current(
     context: Any,
     policy: CentralPolicy,
@@ -1485,7 +1504,7 @@ def _home_from_current(
     plan = _return_plan(current.frame, screen)
     if plan is None:
         return current, False, step
-    action_key = f"{occurrence_key}:recommended-research:return-home:{step}"
+    action_key = _navigation_key(context, occurrence_key, f"return-home:{step}")
     result, after, verified = _guarded_action(
         context,
         policy,
@@ -1673,7 +1692,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 captured=home,
                 game_day_id=game_day_id,
                 occurrence_key=occurrence,
-                action_key=f"{occurrence}:recommended-research:open-center",
+                action_key=_navigation_key(context, occurrence, "open-center"),
                 plan_builder=building_plan,
                 recognizes_successor=radial_successor,
             )
@@ -1723,7 +1742,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             captured=after,
             game_day_id=game_day_id,
             occurrence_key=occurrence,
-            action_key=f"{occurrence}:recommended-research:radial-research",
+            action_key=_navigation_key(context, occurrence, "radial-research"),
             plan_builder=radial_plan,
             recognizes_successor=list_successor,
         )
@@ -1818,7 +1837,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             captured=after,
             game_day_id=game_day_id,
             occurrence_key=occurrence,
-            action_key=f"{occurrence}:recommended-research:list-research",
+            action_key=_navigation_key(context, occurrence, "list-research"),
             plan_builder=list_button_plan,
             recognizes_successor=detail_successor,
         )
@@ -1884,7 +1903,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 captured=after,
                 game_day_id=game_day_id,
                 occurrence_key=occurrence,
-                action_key=f"{occurrence}:recommended-research:requirements-scroll-down",
+                action_key=_navigation_key(context, occurrence, "requirements-scroll-down"),
                 plan_builder=scroll_down_plan,
                 recognizes_successor=scrolled_successor,
             )
@@ -1939,7 +1958,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 captured=after_scroll,
                 game_day_id=game_day_id,
                 occurrence_key=occurrence,
-                action_key=f"{occurrence}:recommended-research:requirements-scroll-up",
+                action_key=_navigation_key(context, occurrence, "requirements-scroll-up"),
                 plan_builder=scroll_up_plan,
                 recognizes_successor=top_successor,
             )
