@@ -65,6 +65,11 @@ _RESEARCH_PANEL_RE = re.compile(r"([0-9][0-9,]*)\s*/\s*([0-9][0-9,]*)")
 _LEVEL_RE = re.compile(r"(?:\(\s*)?([0-9]{1,3})\s*/\s*([0-9]{1,3})(?:\s*\))?")
 _CLOCK_RE = re.compile(r"(?<![0-9])([0-9]{1,2}):([0-9]{2}):([0-9]{2})(?![0-9])")
 _DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
+# Owned intermediate between a detail sheet and the Research Center: one
+# category's technology tree under its white header (actual Research Center
+# categories: Development, Economy, Military, Fortification, Unit Tactics).
+TREE_SCREEN = "RESEARCH_TREE"
+_RESEARCH_TREE_CATEGORIES = frozenset({"development", "economy", "military", "fortification", "unittactics"})
 _UNSAFE_OVERLAY_MARKERS = (
     "insufficientresource",
     "notenoughresource",
@@ -130,6 +135,7 @@ class ResearchScreenObservation:
     active_identity: str | None = None
     active_remaining_seconds: int | None = None
     active_resource_rows: tuple[ResearchResourceRow, ...] = ()
+    research_category: str | None = None
     recognized: bool = False
 
 
@@ -281,29 +287,31 @@ def _canonical_title(title: str) -> str:
     return f"{match.group(1)} {match.group(2).replace('l', 'I').replace('|', 'I')}"
 
 
-def _research_page_words(frame: Any, words: tuple[ResearchWord, ...]) -> tuple[ResearchWord, ...]:
-    """Reread the Research Center page controls the full-frame pass drops.
+def _reread_line_words(
+    reread: Sequence[ResearchWord], block: int, *, gap: int = 40,
+) -> tuple[list[ResearchWord], int]:
+    """Give each horizontally separated reread cluster its own line identity."""
 
-    Runs only once the full-frame read shows exactly one recommendation header.
-    The white title band, the white Research buttons below that header and the
-    row title beside each button (anchored by its own confident words) are
-    reread; nothing is added without a confident current read.
-    """
+    grouped: list[ResearchWord] = []
+    previous_right: int | None = None
+    previous_y: float | None = None
+    for word in sorted(reread, key=lambda item: (item.roi[1] // 40, item.roi[0])):
+        if (
+            previous_right is not None
+            and previous_y is not None
+            and (word.roi[0] - previous_right > gap or abs(word.center[1] - previous_y) > 20)
+        ):
+            block += 1
+        grouped.append(ResearchWord(word.text, word.normalized, word.roi, word.confidence, (block, 0, 0)))
+        previous_right, previous_y = word.roi[2], word.center[1]
+    return grouped, block + 1
 
-    lines = _line_groups(words)
-    headers = [line for line in lines if "recomd" in _normalize(_line_text(line)) or "recommended" in _normalize(_line_text(line))]
-    if len(headers) != 1:
-        return words
+
+def _reread_list_rows(
+    frame: Any, words: tuple[ResearchWord, ...], header_bottom: int, block: int,
+    added: list[ResearchWord], replaced: list[tuple[int, int, int, int]],
+) -> int:
     height, width = frame.shape[:2]
-    header_bottom = _line_bounds(headers[0])[3]
-    block = max((word.line_id[0] for word in words), default=0) + 1
-    added: list[ResearchWord] = []
-    replaced: list[tuple[int, int, int, int]] = []
-    if not any(_line_bounds(line)[1] < 180 for line in _phrase_lines(lines, "Research Center")):
-        for word in _prepared_crop_words(frame, (0, 0, width, 180), _white_ink, "--psm 6"):
-            if word.confidence >= _RESEARCH_PAGE_MIN_CONFIDENCE:
-                added.append(ResearchWord(word.text, word.normalized, word.roi, word.confidence, (block, word.line_id[1], word.line_id[2])))
-        block += 1
     buttons = sorted(
         (
             word for word in _prepared_crop_words(frame, (330, header_bottom, width, height), _white_ink, "--psm 6")
@@ -337,6 +345,107 @@ def _research_page_words(frame: Any, words: tuple[ResearchWord, ...]) -> tuple[R
         added.extend(ResearchWord(word.text, word.normalized, word.roi, word.confidence, (block, 0, 0)) for word in row)
         replaced.append((0, band[1], band[2], band[3]))
         block += 1
+    return block
+
+
+def _detail_title_lines(lines: Sequence[tuple[ResearchWord, ...]]) -> list[tuple[ResearchWord, ...]]:
+    """Sheet title rows: one "(n/m)" level token right of confident title words."""
+
+    labels = (*_phrase_lines(lines, "Original Time"), *_phrase_lines(lines, "Actual Time"))
+    labels_top = min((_line_bounds(line)[1] for line in labels), default=None)
+    titles = []
+    for line in lines:
+        x0, y0, x1, y1 = _line_bounds(line)
+        levels = [word for word in line if _LEVEL_RE.fullmatch(word.text.strip())]
+        if y0 <= 500 or (labels_top is not None and y1 >= labels_top) or len(levels) != 1:
+            continue
+        if any(
+            word.confidence >= _RESEARCH_PAGE_MIN_CONFIDENCE and word.normalized.isalpha() and word.roi[2] <= levels[0].roi[0]
+            for word in line
+        ):
+            titles.append(line)
+    return titles
+
+
+def _reread_detail_controls(
+    frame: Any, words: tuple[ResearchWord, ...], lines: Sequence[tuple[ResearchWord, ...]], block: int,
+    added: list[ResearchWord], replaced: list[tuple[int, int, int, int]],
+) -> int:
+    """Reread the actual detail sheet's title row and its bottom control pair.
+
+    Measured on the actual Troop Load II sheet: the full-frame pass merged the
+    title with its icon/close glyphs ('@ Troop Load 11 (8/10) x') and dropped
+    both bottom controls; white-ink rereads gave 'Troop Load II (8/10)'
+    (96/96/73-78/93-96) and 'Research Now' 96/96 left of ordinary 'Research' 96.
+    """
+
+    height, width = frame.shape[:2]
+    title_lines = _detail_title_lines(lines)
+    if len(title_lines) == 1:
+        line = title_lines[0]
+        level = next(word for word in line if _LEVEL_RE.fullmatch(word.text.strip()))
+        anchors = [
+            word for word in line
+            if word.confidence >= _RESEARCH_PAGE_MIN_CONFIDENCE
+            and word.normalized.isalpha()
+            and word.roi[2] <= level.roi[0]
+        ]
+        if anchors:
+            band = (
+                max(0, min(word.roi[0] for word in anchors) - 8),
+                max(0, min(word.roi[1] for word in (*anchors, level)) - 6),
+                min(width, level.roi[2] + 8),
+                min(height, max(word.roi[3] for word in (*anchors, level)) + 6),
+            )
+            row = [word for word in _prepared_crop_words(frame, band, _white_ink, "--psm 7") if word.normalized]
+            if (
+                row
+                and all(word.confidence >= 60 for word in row)
+                and sum(bool(_LEVEL_RE.fullmatch(word.text.strip())) for word in row) == 1
+                and any(word.normalized.isalpha() for word in row)
+            ):
+                added.extend(ResearchWord(word.text, word.normalized, word.roi, word.confidence, (block, 0, 0)) for word in row)
+                replaced.append(band)
+                block += 1
+    controls_top = max(_line_bounds(line)[3] for line in lines)
+    if controls_top < height - 24:
+        controls = [
+            word for word in _prepared_crop_words(frame, (0, controls_top, width, height), _white_ink, "--psm 6")
+            if word.normalized in {"research", "now"} and word.confidence >= _RESEARCH_PAGE_MIN_CONFIDENCE
+        ]
+        grouped, block = _reread_line_words(controls, block)
+        added.extend(grouped)
+        replaced.extend(word.roi for word in grouped)
+    return block
+
+
+def _research_page_words(frame: Any, words: tuple[ResearchWord, ...]) -> tuple[ResearchWord, ...]:
+    """Reread the Research page text the full-frame pass drops.
+
+    The white header band is always reread when no title was found there.
+    With exactly one recommendation header the Research buttons and their
+    anchored row titles are reread; with exactly one Original/Actual Time pair
+    the detail title row and bottom controls are. Nothing is added without a
+    confident current read.
+    """
+
+    lines = _line_groups(words)
+    height, width = frame.shape[:2]
+    block = max((word.line_id[0] for word in words), default=0) + 1
+    added: list[ResearchWord] = []
+    replaced: list[tuple[int, int, int, int]] = []
+    if not any(_line_bounds(line)[1] < 180 for line in _phrase_lines(lines, "Research Center")):
+        for word in _prepared_crop_words(frame, (0, 0, width, 180), _white_ink, "--psm 6"):
+            if word.confidence >= _RESEARCH_PAGE_MIN_CONFIDENCE:
+                added.append(ResearchWord(word.text, word.normalized, word.roi, word.confidence, (block, word.line_id[1], word.line_id[2])))
+        block += 1
+    headers = [line for line in lines if "recomd" in _normalize(_line_text(line)) or "recommended" in _normalize(_line_text(line))]
+    if len(headers) == 1:
+        block = _reread_list_rows(frame, words, _line_bounds(headers[0])[3], block, added, replaced)
+    elif (
+        len(_phrase_lines(lines, "Original Time")) == 1 and len(_phrase_lines(lines, "Actual Time")) == 1
+    ) or len(_detail_title_lines(lines)) == 1:
+        block = _reread_detail_controls(frame, words, lines, block, added, replaced)
     if not added:
         return words
     retained = tuple(
@@ -669,6 +778,23 @@ def recognize_research_screen(
                             diamonds.append((abs(y - (now_bounds[1] + now_bounds[3]) / 2) + abs(x - now_bounds[2]), value))
         research_now_diamonds = min(diamonds)[1] if diamonds else None
         actual_time = _clock_seconds(" ".join(_line_text(line) for line in time_actual_lines))
+        if actual_time is None:
+            # Actual sheet prints both clocks on the row below their labels:
+            # take the one clock directly under the single "Actual" label.
+            labels = [word for line in time_actual_lines for word in line if word.normalized == "actual"]
+            if len(labels) == 1:
+                lx0, _ly0, _lx1, ly1 = labels[0].roi
+                clocks = [
+                    word for word in words
+                    if _CLOCK_RE.fullmatch(word.text.strip())
+                    and 0 <= word.roi[1] - ly1 <= 40
+                    and abs(word.roi[0] - lx0) <= 30
+                ]
+                if len(clocks) == 1:
+                    actual_time = _clock_seconds(clocks[0].text)
+        if now_bounds is not None and detail_button_roi is not None and detail_button_roi[0] <= now_bounds[2]:
+            # The ordinary control must be the one right of Research Now.
+            detail_button_roi = None
         panel_top = detail_title_bounds[1] - 24
         panel_bottom = max(_line_bounds(line)[3] for line in lines if _line_bounds(line)[1] >= panel_top)
         panel = _panel_bounds(lines, top=panel_top, bottom=panel_bottom)
@@ -754,6 +880,28 @@ def recognize_research_screen(
                     recognized=len(rows) == len(RESEARCH_RESOURCES),
                 )
 
+    if (
+        not home_recognized
+        and not title_lines
+        and not recommendation_lines
+        and not time_actual_lines
+        and not time_original_lines
+        and not research_now_lines
+    ):
+        categories = [
+            line for line in lines
+            if _line_bounds(line)[3] < 90 and _normalize(_line_text(line)) in _RESEARCH_TREE_CATEGORIES
+        ]
+        if len(categories) == 1:
+            return ResearchScreenObservation(
+                screen_state=TREE_SCREEN,
+                frame_sha256=source_frame_sha256,
+                evidence_refs=refs,
+                text=text,
+                words=words,
+                research_category=_line_text(categories[0]),
+                recognized=True,
+            )
     queue_state, queue_remaining = _queue1_from_lines(lines)
     if home_recognized:
         return ResearchScreenObservation(
@@ -1428,15 +1576,35 @@ def _page_plan(screen: ResearchScreenObservation, *, state: str, target: str, co
     return _ActionPlan(target, roi, state, control, postcondition, semantic_action)
 
 
+# The Back arrow walks detail -> tree -> Research Center -> Home. Each hop must
+# land on a recognized page strictly nearer Home, or on verified clean Home.
+_RETURN_PARENT_STATES: dict[str, frozenset[str]] = {
+    DETAIL_SCREEN: frozenset({TREE_SCREEN, LIST_SCREEN}),
+    TREE_SCREEN: frozenset({LIST_SCREEN}),
+    LIST_SCREEN: frozenset(),
+    ACTIVE_SCREEN: frozenset(),
+}
+_RETURN_HOME_MAX_BACKS = 3
+
+
 def _return_plan(frame: Any, screen: ResearchScreenObservation) -> _ActionPlan | None:
-    if screen.screen_state not in {LIST_SCREEN, DETAIL_SCREEN, ACTIVE_SCREEN}:
+    if screen.screen_state not in _RETURN_PARENT_STATES:
         return None
     from scripts.daily_resource_item_bluestacks import _bag_back_arrow_visual
 
     target = _bag_back_arrow_visual(frame, maximum_left=90, search_right=180)
     if target is None:
         return None
-    roi = tuple(int(value) for value in target)
+    roi = (int(target[0]), int(target[1]), int(target[2]), int(target[3]))
+    if _RETURN_PARENT_STATES[screen.screen_state]:
+        return _ActionPlan(
+            "recommended-research:back-parent",
+            roi,
+            screen.screen_state,
+            "CLOSE",
+            "RECOMMENDED_RESEARCH_PARENT_OR_HOME",
+            "RECOMMENDED_RESEARCH_RETURN_HOME",
+        )
     return _ActionPlan(
         "recommended-research:back-home",
         roi,
@@ -1596,27 +1764,46 @@ def _home_from_current(
     step: int,
     key_name: str | None = None,
 ) -> tuple[Any, bool, int]:
-    if context.is_clean_home(current.frame):
-        return current, True, step
-    screen = _source_screen(context, current)
-    plan = _return_plan(current.frame, screen)
-    if plan is None:
-        return current, False, step
-    action_key = _navigation_key(context, occurrence_key, key_name or f"return-home:{step}")
-    result, after, verified = _guarded_action(
-        context,
-        policy,
-        captured=current,
-        game_day_id=game_day_id,
-        occurrence_key=occurrence_key,
-        action_key=action_key,
-        plan_builder=lambda fresh_capture: _return_plan(fresh_capture.frame, _source_screen(context, fresh_capture)),
-        recognizes_successor=lambda captured: context.is_clean_home(captured.frame),
-    )
-    del result
-    if after is not None and context.is_clean_home(after.frame):
-        return after, True, step + 1
-    return current, False, step + 1
+    """Bounded guarded Back chain; every hop needs a recognized nearer successor."""
+
+    for hop in range(_RETURN_HOME_MAX_BACKS):
+        if context.is_clean_home(current.frame):
+            return current, True, step
+        screen = _source_screen(context, current)
+        plan = _return_plan(current.frame, screen)
+        if plan is None:
+            return current, False, step
+        parents = _RETURN_PARENT_STATES[plan.source_state]
+
+        def nearer_home(captured: Any, parents: frozenset[str] = parents) -> bool:
+            if context.is_clean_home(captured.frame):
+                return True
+            if not parents:
+                return False
+            successor = _source_screen(context, captured)
+            return bool(
+                successor.recognized
+                and successor.screen_state in parents
+                and _return_plan(captured.frame, successor) is not None
+            )
+
+        name = f"{key_name}:{hop}" if key_name else f"return-home:{step}"
+        result, after, verified = _guarded_action(
+            context,
+            policy,
+            captured=current,
+            game_day_id=game_day_id,
+            occurrence_key=occurrence_key,
+            action_key=_navigation_key(context, occurrence_key, name),
+            plan_builder=lambda fresh_capture: _return_plan(fresh_capture.frame, _source_screen(context, fresh_capture)),
+            recognizes_successor=nearer_home,
+        )
+        del result
+        step += 1
+        if not verified or after is None:
+            return current, False, step
+        current = after
+    return current, context.is_clean_home(current.frame), step
 
 
 
@@ -1630,8 +1817,8 @@ def _startup(context: Any, policy: CentralPolicy, game_day_id: str, occurrence_k
     screen = _source_screen(context, initial)
     if screen.recognized and _return_plan(initial.frame, screen) is not None:
         # A positively identified Research page (e.g. left open by an earlier
-        # unverified successor): bind that exact source, then one guarded Back
-        # to a verified Home.
+        # unverified successor): bind that exact source, then the bounded
+        # guarded Back chain (detail -> tree -> list -> Home) to verified Home.
         if context.session.initial_observation is None:
             context.bind_initial_observation(initial, extra={
                 "route_source": "recommended-research-existing-page",
@@ -1923,8 +2110,9 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                     selected_technology_identity=screen.selected_technology_identity,
                     current_level=screen.current_level,
                     target_level=screen.target_level,
-                    prerequisites_known=bool(screen.prerequisite_lines),
-                    prerequisites_met=bool(screen.prerequisite_lines),
+                    # Navigation proof only: row text is not prerequisite proof.
+                    prerequisites_known=False,
+                    prerequisites_met=False,
                     prerequisite_evidence=screen.prerequisite_evidence,
                     queue1_state=getattr(context, "_recommended_research_queue1_state", "unknown"),
                     queue1_remaining_seconds=getattr(context, "_recommended_research_queue1_remaining", None),
