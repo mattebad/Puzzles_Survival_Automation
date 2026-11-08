@@ -440,6 +440,91 @@ class HeroDuelVision:
             lines = (*lines, confirm[0])
         return references, lines
 
+    def _lineup_portrait_proof(self, captured):
+        """Fail-closed correspondence of checked cards, named slots and four bans."""
+        if len(self.exclusion_portrait_refs) != 4 or not self.event_identity:
+            return None
+        frame = captured.frame
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        names = []
+        for index in range(5):
+            left = 42 + 144 * index
+            rows = self._lines(cv2.resize(gray[430:465, left:left + 140], None, fx=3, fy=3),
+                               psm=7, scale=3)
+            if len(rows) != 1 or self.hero_name(rows[0]) is None:
+                return None
+            names.append(rows[0]["text"].strip())
+        if len(set(names)) != 5:
+            return None
+        gold = cv2.inRange(cv2.cvtColor(frame, cv2.COLOR_BGR2HSV), (10, 60, 170), (40, 255, 255))
+        contours, _ = cv2.findContours(gold, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        checks = []
+        for contour in contours:
+            x, y, w, h = cv2.boundingRect(contour)
+            polygon = cv2.approxPolyDP(contour, .03 * cv2.arcLength(contour, True), True)
+            if (40 <= w <= 65 and 30 <= h <= 50 and 450 <= cv2.contourArea(contour) <= 900
+                    and len(polygon) == 6 and 530 < y < 740):
+                checks.append((x + w // 2, y + h // 2))
+        checks.sort()
+        if (len(checks) != 5 or max(y for _, y in checks) - min(y for _, y in checks) > 5
+                or any(not 125 < b[0] - a[0] < 150 for a, b in zip(checks, checks[1:]))):
+            return None
+        sift = cv2.SIFT_create(nfeatures=400)
+
+        def descriptors(image):
+            _, result = sift.detectAndCompute(image, None)
+            return result if result is not None and len(result) >= 40 else None
+
+        slots = [descriptors(gray[95:380, 42 + 144 * i:182 + 144 * i]) for i in range(5)]
+        cards = [descriptors(gray[y - 64:y + 46, x - 61:x + 61]) for x, y in checks]
+        restricted = []
+        for ref in self.exclusion_portrait_refs:
+            if ref["reset_id"] != self.reset_id or ref["event_identity"] != self.event_identity:
+                return None
+            payload = Path(ref["source_path"]).read_bytes()
+            if hashlib.sha256(payload).hexdigest() != ref["source_frame_sha256"]:
+                return None
+            original = cv2.imdecode(np.frombuffer(payload, dtype=np.uint8), cv2.IMREAD_COLOR)
+            box = tuple(ref["roi"])
+            if original is None or _roi_hash(original, box) != ref["crop_pixel_sha256"]:
+                return None
+            x0, y0, x1, y1 = box
+            restricted.append(descriptors(cv2.cvtColor(original[y0 + 8:y1 - 8, x0 + 8:x1 - 8],
+                                                        cv2.COLOR_BGR2GRAY)))
+        if any(item is None for item in (*slots, *cards, *restricted)):
+            return None
+        matcher = cv2.BFMatcher()
+
+        def pairs(left, right):
+            return {(m[0].queryIdx, m[0].trainIdx) for m in matcher.knnMatch(left, right, k=2)
+                    if len(m) == 2 and m[0].distance < .7 * m[1].distance}
+
+        def score(left, right):
+            return len(pairs(left, right) & {(j, i) for i, j in pairs(right, left)})
+
+        roster_scores = [[score(card, slot) for slot in slots] for card in cards]
+        order = []
+        for scores in roster_scores:
+            ranked = sorted(range(5), key=lambda i: scores[i], reverse=True)
+            if scores[ranked[0]] < 6 or scores[ranked[0]] - scores[ranked[1]] < 4:
+                return None
+            order.append(ranked[0])
+        if len(set(order)) != 5:
+            return None
+        banned_scores = [[score(portrait, slot) for slot in slots] for portrait in restricted]
+        # Four correspondences can support a projective match: even a tentative
+        # match at that level is ambiguous and blocks, below six-match acceptance.
+        if any(value >= 4 for row in banned_scores for value in row):
+            return None
+        return {
+            "source_path": str(captured.path), "source_frame_sha256": captured.sha256,
+            "reset_id": self.reset_id, "event_identity": self.event_identity,
+            "selected_slot_ids": tuple(names), "first_five_roster_ids": tuple(names[i] for i in order),
+            "checked_card_centers": checks, "roster_slot_mutual_matches": roster_scores,
+            "restriction_slot_mutual_matches": banned_scores,
+            "excluded_portrait_refs": self.exclusion_portrait_refs,
+        }
+
     def recognize(self, captured, *, clean_home=False, target_hint=None):
         self.checkpoint()
         lines = self._lines(captured.frame)
@@ -488,6 +573,11 @@ class HeroDuelVision:
             state = "hero_duel_overview"
         elif "hero duel" in norm and "survival" in norm:
             state = "event_select"
+        if state == "unknown":
+            title = cv2.cvtColor(captured.frame[5:65, 200:650], cv2.COLOR_BGR2GRAY)
+            heading = self._lines(cv2.resize(title, None, fx=3, fy=3), psm=7, scale=3)
+            if len(heading) == 1 and heading[0]["norm"] == "hero lineup":
+                state = "defense_formation"
 
         overlay = "none"
         if state != "loss_result" and any(self.has(line, "cash mall", "purchase", "buy now", "recharge") for line in lines):
@@ -553,6 +643,41 @@ class HeroDuelVision:
                     if candidate["center"][1] > bottom + 30))
             else:
                 displayed = ()
+        portrait_proof = None
+        if state == "defense_formation" and self.exclusion_portrait_refs:
+            portrait_proof = self._lineup_portrait_proof(captured)
+            if portrait_proof is None:
+                excluded, displayed, defense = None, (), ()
+            else:
+                excluded = tuple(f"portrait-crop-sha256:{ref['crop_pixel_sha256']}"
+                                 for ref in self.exclusion_portrait_refs)
+                self.excluded = excluded
+                # Preserve actual slot positions; normalize membership to roster
+                # order for the existing first-five policy, without reselecting.
+                displayed = defense = portrait_proof["first_five_roster_ids"]
+        elif state == "attack_formation" and self.exclusion_portrait_refs:
+            excluded = None
+        if state == "defense_formation" and not any(row["norm"] == "save form" for row in lines):
+            # Read the measured bottom gold control, not a fixed tap point.
+            gold = cv2.inRange(cv2.cvtColor(captured.frame, cv2.COLOR_BGR2HSV),
+                               (10, 80, 90), (40, 255, 255))
+            controls, _ = cv2.findContours(gold, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            buttons = []
+            for contour in controls:
+                x, y, w, h = cv2.boundingRect(contour)
+                if not (150 < w < 400 and 40 < h < 110 and y > 1000):
+                    continue
+                crop = captured.frame[y + 5:y + h - 5, x + 5:x + w - 5]
+                rows = self._lines(cv2.resize(cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY),
+                                              None, fx=3, fy=3), psm=7, scale=3)
+                if len(rows) == 1 and rows[0]["norm"] == "save form":
+                    x0, y0, x1, y1 = rows[0]["box"]
+                    box = (x + 5 + x0 // 3, y + 5 + y0 // 3,
+                           x + 5 + (x1 + 2) // 3, y + 5 + (y1 + 2) // 3)
+                    buttons.append({**rows[0], "box": box, "word_boxes": (),
+                                    "center": ((box[0] + box[2]) // 2, (box[1] + box[3]) // 2)})
+            if len(buttons) == 1:
+                lines = (*lines, buttons[0])
         target_roi = None
         if target_hint and state != "unknown" and overlay == "none":
             if target_hint == ("hero-duel-emergency-close-x", "emergency close x"):
@@ -595,6 +720,7 @@ class HeroDuelVision:
             "event_active": event_active, "free_entries_remaining": self.free_counter(lines),
             "pass_balance": observed_pass, "excluded_hero_ids": excluded,
             "excluded_portrait_refs": self.exclusion_portrait_refs,
+            "portrait_eligibility_proof": portrait_proof,
             "displayed_hero_ids": displayed, "defense_hero_ids": defense,
             "defense_save_acknowledged": self.defense_saved, "attack_hero_ids": attack,
             "attack_slots_populated": len(attack) if state == "attack_formation" else None,
@@ -1104,7 +1230,9 @@ class HeroDuelNativeFlow:
             return None
         captured = self.capture("hero-duel-defense-source")
         page = self.observe(captured)
-        if self.vision.excluded is None:
+        if page.get("portrait_eligibility_proof") is not None:
+            self.result["defense_portrait_eligibility_proof"] = page["portrait_eligibility_proof"]
+        if page.get("excluded_hero_ids") is None:
             self.result["defense_roster_observation"] = {
                 "source_path": str(captured.path), "source_frame_sha256": captured.sha256,
                 "reset_id": self.reset_id, "event_identity": self.event_identity,
