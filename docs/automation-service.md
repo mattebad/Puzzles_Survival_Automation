@@ -281,6 +281,16 @@ expired or ambiguous evidence denies input. Recommendation title/button rereads 
 current pixels; an already-open recognized Research page gets at most three guarded Back hops,
 each reaching a recognized nearer parent or Home. Unknown/unchanged successors stop without retry.
 Startup must verify Home; these recovery guards do not establish Research-start acceptance.
+Home/Atlas/owned level and idle queue must be fresh within 10 seconds when entering Research;
+the first recommendation must be fresh within 10 seconds when selected. Their original captures
+and phase-use times may persist only through the same exclusive canonical invocation's verified
+navigation chain, fixed identity/session/lease, existing canonical generation checkpoints and
+unchanged input accounting. Unknown transitions,
+context loss, consuming inputs or restart invalidate that proof. Current detail, prerequisites and
+the resource quote remain subject to the 10-second consuming-use fence and original 5-second
+pre-dispatch source fence; captures are never re-dated. Same-frame OCR decoding is memoized by
+source identity and pixel digest only, not promoted to current evidence. Known pre-start refusal
+with no sent/unresolved effect uses guarded Home return; unknown sent effects permit no input.
 A complete current four-resource scroll supplies its own quote; partial overlapping views still
 require matching overlap. A fully identified scrolled sheet can return Home without a cached
 recommendation identity, but starting still requires the fresh first-recommendation identity.
@@ -299,6 +309,8 @@ confidence of at least 80, otherwise a clipped, missing or disagreeing count sta
 Farm uses fixed runtime identity, source-bound collection/boost controls and current lease/freshness
 guards. A displayed item cost of one is
 not owned inventory; unproved inventory or premium confirmation/effects remains blocked.
+An offscreen Farm uses the existing bounded, verified Atlas Home pans before binding a reachable
+mapped Farm. An unknown approach stops before collection/boost and captures fresh terminal context.
 
 
 Batch F adds canonical-only Hall of War and Troop Training native service routes. It removes the

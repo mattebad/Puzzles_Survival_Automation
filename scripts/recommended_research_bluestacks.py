@@ -1147,13 +1147,26 @@ def _source_screen(
     expected_detail_identity: str | None = None,
 ) -> ResearchScreenObservation:
     ref = _capture_ref(context, captured)
-    return recognize_research_screen(
-        captured.frame,
-        source_frame_sha256=str(captured.sha256),
-        evidence_refs=(ref,) if ref else (),
-        home_recognized=context.is_clean_home(captured.frame),
-        expected_detail_identity=expected_detail_identity,
-    )
+    if not native_frame_guard(captured.frame) or not _DIGEST_RE.fullmatch(str(captured.sha256)):
+        return ResearchScreenObservation("UNKNOWN", str(captured.sha256), (ref,) if ref else (), "", (), recognized=False)
+    # Decode immutable captured pixels once per invocation, never re-date them.
+    # The pixel digest prevents mutated frames or a reused source identity from
+    # turning this OCR memo into cached current-screen authority.
+    key = (str(captured.sha256), float(captured.captured_monotonic),
+           expected_detail_identity, ref, hashlib.sha256(captured.frame.tobytes()).hexdigest())
+    cache = getattr(context, "_recommended_research_screen_cache", None)
+    if cache is None:
+        cache = {}
+        context._recommended_research_screen_cache = cache
+    if key not in cache:
+        cache[key] = recognize_research_screen(
+            captured.frame,
+            source_frame_sha256=str(captured.sha256),
+            evidence_refs=(ref,) if ref else (),
+            home_recognized=context.is_clean_home(captured.frame),
+            expected_detail_identity=expected_detail_identity,
+        )
+    return cache[key]
 
 
 def _binding_for_home(context: Any, frame: Any, localizer: BlueStacksHomeLocalizer, building: Any) -> BuildingBinding | None:
@@ -1397,6 +1410,29 @@ def _detail_observation(
         recognized=True,
     )
 
+def _research_visit_identity(context: Any) -> tuple[Any, ...]:
+    return (
+        id(context), context.invocation_id, context.occurrence_key, context.owner,
+        context.session.owner, str(context.runtime.session), repr(context.identity),
+    )
+
+
+def _research_visit_valid(context: Any) -> bool:
+    proof = getattr(context, "_recommended_research_visit", None)
+    accounting = context.accounting()
+    return bool(
+        isinstance(proof, dict) and proof.get("valid") is True
+        and proof.get("identity") == _research_visit_identity(context)
+        and proof.get("action_keys") == tuple(context.runtime.action_keys)
+        and proof.get("input_count") == context.runtime.input_count
+        and accounting.verified is True
+        and accounting.input_count == accounting.session_input_count
+        == accounting.runtime_input_count == proof.get("input_count")
+        and context.action_store.lease_valid_for(context.owner, context.utc_clock())
+        and not context.action_store.has_action_block()
+    )
+
+
 
 def _fresh_start_detail(
     context: Any, *, captured: Any, screen: ResearchScreenObservation,
@@ -1404,39 +1440,54 @@ def _fresh_start_detail(
     listing: RecommendedResearchListObservation, quote_capture: Any,
     quote_screen: ResearchScreenObservation, expected: TechUpgradeObservation,
 ) -> TechUpgradeObservation | None:
-    """Rebuild the quote under a short, lease-exclusive navigation-only invariant.
+    """Retain phase-fresh entry/selection only across verified exclusive navigation.
 
-    Home owns queue/Center level, the list owns recommendation order, and the
-    overlapping requirements views own the four-resource quote. None is a
-    timeless fact: every source must still be fresh at the final input fence.
+    Original source timestamps and phase-use times remain unchanged. Detail and
+    resource affordability are still fresh at consuming use, not inherited from
+    entry or a previous visit.
     """
+    context.checkpoint()
+    context.validate_identity()
+    proof = getattr(context, "_recommended_research_visit", None)
     now = context.monotonic_clock()
-    sources = (home, listing_capture, quote_capture, captured)
+    if not _research_visit_valid(context):
+        return None
+    sources = (quote_capture, captured)
     if any(not 0 <= now - source.captured_monotonic <= 10.0 for source in sources):
         return None
-    store = context.action_store
-    if not store.lease_valid_for(context.owner, context.utc_clock()) or store.has_action_block():
+    if proof.get("home_source") != (home.sha256, home.captured_monotonic):
         return None
-    if not (home.captured_monotonic <= listing_capture.captured_monotonic <= quote_capture.captured_monotonic <= captured.captured_monotonic):
+    if proof.get("home_binding") != home_binding or home_binding.building_id != RESEARCH_CENTER_ID:
         return None
-    home_screen = _source_screen(context, home)
-    fresh_listing = _list_observation(_source_screen(context, listing_capture), context)
+    if proof.get("list_source") != (listing_capture.sha256, listing_capture.captured_monotonic):
+        return None
+    if (
+        not native_frame_guard(home.frame) or not native_frame_guard(listing_capture.frame)
+        or proof["home_pixels"] != hashlib.sha256(home.frame.tobytes()).hexdigest()
+        or proof["list_pixels"] != hashlib.sha256(listing_capture.frame.tobytes()).hexdigest()
+    ):
+        return None
+    if not (
+        0 <= proof["home_used_at"] - home.captured_monotonic <= 10.0
+        and 0 <= proof["list_used_at"] - listing_capture.captured_monotonic <= 10.0
+        and home.captured_monotonic <= listing_capture.captured_monotonic
+        <= quote_capture.captured_monotonic <= captured.captured_monotonic
+        and proof.get("transitions")
+    ):
+        return None
+    home_screen = proof["home_screen"]
+    fresh_listing = proof["listing"]
     queue_state, queue_remaining = _queue1_from_lines(_line_groups(screen.words))
     if (
-        home_screen.queue1_state != "idle"
-        or queue_state not in {"unknown", "idle"}
-        or fresh_listing is None
+        home_screen.queue1_state != "idle" or queue_state not in {"unknown", "idle"}
         or fresh_listing.first_recommendation_identity != listing.first_recommendation_identity
-        or not research_list_navigation_authorizeable(fresh_listing)
         or screen.selected_technology_identity != fresh_listing.first_recommendation_identity
     ):
         return None
-    context._recommended_research_center_level = _research_center_level(home.frame, home_binding)
+    context._recommended_research_center_level = proof["center_level"]
     context._recommended_research_queue1_state = home_screen.queue1_state
     context._recommended_research_queue1_remaining = queue_remaining
-    fresh_quote = _source_screen(
-        context, quote_capture, expected_detail_identity=fresh_listing.first_recommendation_identity,
-    )
+    fresh_quote = _source_screen(context, quote_capture, expected_detail_identity=fresh_listing.first_recommendation_identity)
     if fresh_quote != quote_screen:
         return None
     costs = (
@@ -1570,6 +1621,9 @@ def _guarded_action(
 ) -> tuple[Any, Any | None, bool]:
     """Execute one fresh-bound input through CentralPolicy, the canonical store, and the held session."""
 
+    visit = getattr(context, "_recommended_research_visit", None)
+    if visit is not None and not _research_visit_valid(context):
+        raise RuntimeError("RECOMMENDED_RESEARCH_VISIT_CONTINUITY_LOST")
     initial_plan = plan_builder(captured)
     if initial_plan is None:
         raise RuntimeError("RECOMMENDED_RESEARCH_TARGET_NOT_FRESHLY_BOUND")
@@ -1581,10 +1635,17 @@ def _guarded_action(
 
     def authorize(before: Any) -> None:
         context.checkpoint()
+        context.validate_identity()
+        if visit is not None and not _research_visit_valid(context):
+            raise RuntimeError("RECOMMENDED_RESEARCH_VISIT_CONTINUITY_LOST")
         plan = plan_builder(before)
         if plan is None or plan.target_identity != initial_plan.target_identity or plan.source_state != initial_plan.source_state:
             raise RuntimeError("RECOMMENDED_RESEARCH_PREINPUT_TARGET_CHANGED")
         references = (_capture_ref(context, before),)
+        if action_class is ActionClass.SPEND_OR_STRATEGIC and visit is not None:
+            references = tuple(dict.fromkeys((
+                *references, visit["home_ref"], visit["list_ref"], visit["quote_ref"],
+            )))
         observation = _policy_observation(
             before,
             plan,
@@ -1634,7 +1695,7 @@ def _guarded_action(
         if not consumed.allow_dispatch:
             store.mark_cancelled(action_id, context.utc_clock(), "capability:" + consumed.reason_code)
             raise RuntimeError(f"RECOMMENDED_RESEARCH_CAPABILITY_DENIED:{consumed.reason_code}")
-        action_state.update(plan=plan, request=request, intent=intent)
+        action_state.update(plan=plan, request=request, intent=intent, before=before)
 
     def dispatch(before: Any) -> None:
         context.checkpoint()
@@ -1695,6 +1756,8 @@ def _guarded_action(
             ),
         )
     except BaseException:
+        if visit is not None:
+            visit["valid"] = False
         if action_state.get("intent") is not None:
             try:
                 row = store.get_action(action_id)
@@ -1719,6 +1782,23 @@ def _guarded_action(
                     store.mark_unresolved(action_id, context.utc_clock(), "route_successor_not_proven")
         except Exception as exc:
             raise RuntimeError("RECOMMENDED_RESEARCH_CANONICAL_RECONCILIATION_FAILED") from exc
+    if visit is not None and action_class is ActionClass.NAVIGATION_ONLY:
+        keys = tuple(context.runtime.action_keys)
+        verified_chain = (
+            result.status == "completed" and action_state.get("post_ok") is True
+            and context.runtime.input_count == visit["input_count"] + 1
+            and keys == visit["action_keys"] + (action_key,)
+            and visit["identity"] == _research_visit_identity(context)
+        )
+        visit["valid"] = verified_chain
+        if verified_chain:
+            before, after = action_state["before"], action_state["post"]
+            visit["transitions"].append({
+                "action_key": action_key, "postcondition": postcondition,
+                "source_sha256": before.sha256, "source_captured_at": before.captured_monotonic,
+                "successor_sha256": after.sha256, "successor_captured_at": after.captured_monotonic,
+            })
+            visit.update(action_keys=keys, input_count=context.runtime.input_count)
     return result, action_state.get("post"), bool(action_state.get("post_ok"))
 
 
@@ -1981,6 +2061,11 @@ def _home_from_current(
     key_name: str | None = None,
 ) -> tuple[Any, bool, int]:
     """Bounded guarded Back chain; every hop needs a recognized nearer successor."""
+    # Home return ends the exclusive forward proof chain; it can never be
+    # resumed as retained entry/selection authority afterwards.
+    context._recommended_research_visit = None
+    if context.action_store.has_action_block():
+        return current, False, step
 
     for hop in range(_RETURN_HOME_MAX_BACKS):
         if context.is_clean_home(current.frame):
@@ -2105,6 +2190,8 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             },
         )
     semantic_progress: dict[str, Any] = {}
+    context._recommended_research_screen_cache = {}
+    context._recommended_research_visit = None
     try:
         initial = _startup(context, policy, game_day_id, occurrence_key)
         home = context.session.observe(context.runtime.capture, label="recommended-research-home-source")
@@ -2161,18 +2248,46 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                     terminal_home_verified=home_screen.screen_state == "HOME_BASE" and home_screen.recognized,
                 )
         home = entry_home
-        center_level = _research_center_level(home.frame, binding)
-        context._recommended_research_center_level = center_level
-        context._recommended_research_queue1_state = queue_state
-        context._recommended_research_queue1_remaining = queue_remaining
+        visit = {
+            "identity": _research_visit_identity(context), "valid": True,
+            "action_keys": tuple(context.runtime.action_keys),
+            "input_count": context.runtime.input_count, "transitions": [],
+        }
+        context._recommended_research_visit = visit
         owner_binding: dict[str, BuildingBinding | None] = {"value": binding}
         occurrence = occurrence_key
         step = 0
 
         def building_plan(captured: Any) -> _ActionPlan | None:
+            nonlocal home, binding
             current_binding = _binding_for_home(context, captured.frame, localizer, building)
             if current_binding is None:
                 return None
+            current_home = _source_screen(context, captured)
+            pixels = hashlib.sha256(captured.frame.tobytes()).hexdigest()
+            current_level = (
+                visit["center_level"]
+                if visit.get("home_source") == (captured.sha256, captured.captured_monotonic) and visit.get("home_pixels") == pixels
+                else _research_center_level(captured.frame, current_binding)
+            )
+            used_at = context.monotonic_clock()
+            if (
+                not 0 <= used_at - captured.captured_monotonic <= 10.0
+                or current_home.queue1_state != "idle" or current_level is None
+                or not _research_visit_valid(context)
+            ):
+                return None
+            home, binding = captured, current_binding
+            context._recommended_research_center_level = current_level
+            context._recommended_research_queue1_state = current_home.queue1_state
+            context._recommended_research_queue1_remaining = current_home.queue1_remaining_seconds
+            visit.update(
+                home_source=(captured.sha256, captured.captured_monotonic),
+                home_used_at=used_at, home_screen=current_home, center_level=current_level,
+                home_ref=_capture_ref(context, captured),
+                home_pixels=pixels,
+                home_binding=current_binding,
+            )
             owner_binding["value"] = current_binding
             return _ActionPlan(
                 RESEARCH_CENTER_ID,
@@ -2183,6 +2298,16 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 "RECOMMENDED_RESEARCH_OPEN_CENTER",
             )
 
+        # A real new capture after Atlas planning, not a re-dated source. The
+        # immediate entry authorization repeats phase-use proof on its own
+        # capture and preserves that exact original timestamp.
+        home = context.session.observe(context.runtime.capture, label="recommended-research-entry-phase-source")
+        if building_plan(home) is None:
+            context._recommended_research_visit = None
+            return _normal_result(
+                context, status="blocked", reason="research_entry_phase_proof_unknown_or_expired",
+                game_day_id=game_day_id, terminal_home_verified=context.is_clean_home(home.frame),
+            )
         radial_state: dict[str, ResearchScreenObservation | None] = {"value": None}
 
         def radial_successor(captured: Any) -> bool:
@@ -2277,12 +2402,23 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             return _normal_result(context, status="blocked", reason="first_recommendation_list_control_unavailable", game_day_id=game_day_id, terminal_home_verified=home_verified, route_steps=step)
 
         def list_button_plan(captured: Any) -> _ActionPlan | None:
+            nonlocal listing_capture, listing
             fresh_screen = _source_screen(context, captured)
             fresh_listing = _list_observation(fresh_screen, context)
             if fresh_listing is None or fresh_listing.first_recommendation_identity != listing.first_recommendation_identity:
                 return None
             if not research_list_navigation_authorizeable(fresh_listing):
                 return None
+            used_at = context.monotonic_clock()
+            if not 0 <= used_at - captured.captured_monotonic <= 10.0 or not _research_visit_valid(context):
+                return None
+            listing_capture, listing = captured, fresh_listing
+            visit.update(
+                list_source=(captured.sha256, captured.captured_monotonic),
+                list_used_at=used_at, listing=fresh_listing,
+                list_ref=_capture_ref(context, captured),
+                list_pixels=hashlib.sha256(captured.frame.tobytes()).hexdigest(),
+            )
             return _ActionPlan(
                 fresh_listing.target_identity,
                 tuple(fresh_listing.target_roi),
@@ -2571,6 +2707,35 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             current, home_verified, step = _home_from_current(context, policy, current=after, game_day_id=game_day_id, occurrence_key=occurrence, step=step)
             return _normal_result(context, status="blocked", reason="research_start_or_premium_target_not_isolated", game_day_id=game_day_id, terminal_home_verified=home_verified, route_steps=step)
 
+        # Entry/selection retain their phase-use provenance only through this
+        # verified exclusive navigation chain. Affordability/detail do not:
+        # both still have to be fresh at the consuming fence.
+        start_source_ages = {
+            name: context.monotonic_clock() - source.captured_monotonic
+            for name, source in (
+                ("resource_quote", quote_capture), ("detail", after),
+            )
+        }
+        if not _research_visit_valid(context) or any(not 0 <= age <= 10.0 for age in start_source_ages.values()):
+            current, home_verified, step = _home_from_current(
+                context, policy, current=after, game_day_id=game_day_id,
+                occurrence_key=occurrence, step=step,
+            )
+            return _normal_result(
+                context, status="blocked", reason="research_cross_page_source_expired",
+                game_day_id=game_day_id, terminal_home_verified=home_verified,
+                route_steps=step, source_ages_seconds=start_source_ages,
+                **selection_facts,
+            )
+        visit["quote_ref"] = _capture_ref(context, quote_capture)
+        semantic_progress["phase_proof"] = {
+            "invocation_id": context.invocation_id,
+            "home": {"frame_sha256": home.sha256, "captured_at": home.captured_monotonic, "used_at": visit["home_used_at"]},
+            "recommendation": {"frame_sha256": listing_capture.sha256, "captured_at": listing_capture.captured_monotonic, "used_at": visit["list_used_at"]},
+            "resource_quote": {"frame_sha256": quote_capture.sha256, "captured_at": quote_capture.captured_monotonic},
+            "transitions": list(visit["transitions"]),
+        }
+
         active_state: dict[str, ResearchActiveObservation | None] = {"value": None}
 
         def start_plan_builder(captured: Any) -> _ActionPlan | None:
@@ -2728,6 +2893,43 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             or row_status in {"prepared", "input_sent", "unresolved"}
             or row_lookup_failed
         )
+        if (
+            not possible_effect and not context.action_store.has_action_block()
+            and isinstance(exc, RuntimeError) and str(exc).startswith((
+                "RECOMMENDED_RESEARCH_TARGET_NOT_FRESHLY_BOUND",
+                "RECOMMENDED_RESEARCH_PREINPUT_TARGET_CHANGED",
+                "RECOMMENDED_RESEARCH_VISIT_CONTINUITY_LOST",
+            ))
+        ):
+            # Only known pre-START/no-dispatch refusal can navigate out.
+            # Revalidate ownership and inspect a real current capture first;
+            # unknown/sent effects never enter this recovery branch.
+            try:
+                context.checkpoint()
+                context.validate_identity()
+                recovery_source = context.session.observe(
+                    context.runtime.capture, label="recommended-research-prestart-refusal-source",
+                )
+                recovery_screen = _source_screen(context, recovery_source)
+                if context.is_clean_home(recovery_source.frame) or (
+                    recovery_screen.recognized and _return_plan(recovery_source.frame, recovery_screen) is not None
+                ):
+                    _, recovered, recovery_step = _home_from_current(
+                        context, policy, current=recovery_source, game_day_id=game_day_id,
+                        occurrence_key=occurrence_key, step=locals().get("step", 0),
+                        key_name="prestart-refusal-return-home",
+                    )
+                    if recovered:
+                        return _normal_result(
+                            context, status="blocked", reason="research_prestart_proof_refused",
+                            refusal=str(exc), game_day_id=game_day_id,
+                            terminal_home_verified=True, route_steps=recovery_step,
+                            **semantic_progress,
+                        )
+            except Exception:
+                # Existing failure reporting retains all journals/evidence.
+                pass
+            possible_effect = possible_effect or context.action_store.has_action_block()
         if isinstance(row, Mapping) and row_status in {"prepared", "input_sent", "unresolved"}:
             try:
                 context.action_store.mark_unresolved(
