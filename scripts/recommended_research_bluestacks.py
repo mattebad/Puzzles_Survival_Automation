@@ -31,6 +31,7 @@ from safe_action_core import (
 )
 from tasks.home_atlas import BuildingBinding, HomeAtlas, load_home_atlas
 from tasks.home_atlas_vision import (
+    HUD_MASK_RECTS,
     BlueStacksHomeLocalizer,
     bind_visible_building,
     native_frame_guard,
@@ -202,27 +203,48 @@ def _read_words(frame: Any, ocr_data: Mapping[str, object] | None = None) -> tup
     return _ocr_words(ocr_data)
 
 
+def _scaled_crop_words(frame: Any, roi: tuple[int, int, int, int], config: str) -> tuple[ResearchWord, ...]:
+    from scripts.bounded_tesseract import call_ocr, tesseract_data
+
+    x0, y0, x1, y1 = roi
+    crop = cv2.resize(cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2GRAY), None, fx=3, fy=3)
+    data = call_ocr(tesseract_data, crop, config=config, call_timeout=5.0)
+    if not isinstance(data, Mapping):
+        return ()
+    try:
+        data = {
+            **data,
+            "left": [x0 + int(value) // 3 for value in data["left"]],
+            "top": [y0 + int(value) // 3 for value in data["top"]],
+            "width": [-(-int(value) // 3) for value in data["width"]],
+            "height": [-(-int(value) // 3) for value in data["height"]],
+        }
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return ()
+    return _ocr_words(data)
+
+
 def _home_research_hud_words(frame: Any, words: tuple[ResearchWord, ...]) -> tuple[ResearchWord, ...]:
-    """Reread the fraction beside the fresh, measured left-HUD Research label."""
-    anchors = [word for word in words if word.normalized == "research"
-               and 0 <= word.roi[0] < word.roi[2] <= 138 and 150 <= word.roi[1] < word.roi[3] <= 760]
+    """Reread the fraction beneath the fresh, measured left-HUD Research label.
+
+    Full-frame OCR can drop the small HUD label entirely, so the label is
+    measured from the shared fixed left-HUD column and must be unique there.
+    """
+    hud = HUD_MASK_RECTS[1]
+    anchors = [word for word in _scaled_crop_words(frame, hud, "--psm 11") if word.normalized == "research"]
     if len(anchors) != 1:
         return words
     anchor = anchors[0]
-    left, top = max(0, anchor.roi[0] - 14), max(150, anchor.roi[1] - 10)
-    right, bottom = min(138, anchor.roi[2] + 18), min(760, anchor.roi[3] + 24)
-    crop = cv2.resize(cv2.cvtColor(frame[top:bottom, left:right], cv2.COLOR_BGR2GRAY),
-                      None, fx=3, fy=3)
-    refined = _read_words(crop)
+    left, top = max(hud[0], anchor.roi[0] - 14), max(hud[1], anchor.roi[1] - 10)
+    right, bottom = min(hud[2], anchor.roi[2] + 18), min(hud[3], anchor.roi[3] + 24)
     block = max((word.line_id[0] for word in words), default=0) + 1
     retained = tuple(word for word in words
                      if not (left <= word.center[0] <= right and top <= word.center[1] <= bottom))
-    translated = tuple(ResearchWord(
-        word.text, word.normalized,
-        (left + word.roi[0] // 3, top + word.roi[1] // 3,
-         left + (word.roi[2] + 2) // 3, top + (word.roi[3] + 2) // 3),
-        word.confidence, (block, word.line_id[1], word.line_id[2]),
-    ) for word in refined if _LEVEL_RE.fullmatch(word.text) or _CLOCK_RE.fullmatch(word.text))
+    translated = tuple(
+        ResearchWord(word.text, word.normalized, word.roi, word.confidence, (block, word.line_id[1], word.line_id[2]))
+        for word in _scaled_crop_words(frame, (left, top, right, bottom), "--psm 6")
+        if _LEVEL_RE.fullmatch(word.text) or _CLOCK_RE.fullmatch(word.text)
+    )
     label = ResearchWord(anchor.text, anchor.normalized, anchor.roi, anchor.confidence, (block, 0, 0))
     return (*retained, label, *translated)
 
