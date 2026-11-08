@@ -1962,6 +1962,69 @@ def _swipe_list_action(
     return action, before_frame, after_frame, after_recognition, holder
 
 
+def recover_resource_item_home(
+    runtime: RuntimeLike,
+    session: SessionLike,
+    *,
+    ocr: Callable[[np.ndarray], Mapping[str, Sequence[object]]] | None = None,
+) -> dict[str, Any]:
+    """Recover only a positively identified Resources list with at most one Back."""
+    if not bool(getattr(runtime, "execute", False)) or getattr(session, "max_inputs", None) != 1:
+        raise DailyResourceItemRecognitionError("Home recovery requires an executing one-input session")
+    source = session.observe(runtime.capture, label="resource-home-recovery-source")
+    frames = {"source": source}
+    source_home = _recognize_home(source.frame, ocr=ocr)
+    recognitions: dict[str, Any] = {"home-source": source_home}
+    if not source_home.get("home_verified"):
+        bag = _recognize_bag(source.frame, ocr=ocr)
+        recognitions["bag"] = bag
+        if not bag.get("recognized") or _return_home_target(source.frame, ocr=ocr) is None:
+            result = _result(
+                session, status="evidence_required",
+                reason="recovery source is neither verified Home nor the exact Resources list",
+                frames=frames, recognitions=recognitions,
+            )
+            return dict(result, max_inputs=1, completion_scope="navigation_only")
+        _, before, after, home = _tap_action(
+            runtime, session, label="resource-home-recovery-back",
+            target_identity=HOME_TARGET_IDENTITY,
+            action_key="daily-resource-item:recover-home",
+            bind=lambda frame: (
+                _return_home_target(frame, ocr=ocr)
+                if _recognize_bag(frame, ocr=ocr).get("recognized") else None
+            ),
+            recognize=lambda frame: _recognize_home(frame, ocr=ocr),
+            settled_successor=lambda: (
+                time.sleep(1.0) or runtime.capture("resource-home-recovery-settled")
+            ),
+        )
+        if before is not None:
+            frames["return-home-immediate-before"] = before
+        if after is not None:
+            frames["return-home-immediate-post"] = after
+        recognitions["home"] = home
+        if not _record(home).get("home_verified"):
+            result = _result(
+                session, status="evidence_required",
+                reason="one recovery Back did not prove Home; no identical retry",
+                frames=frames, recognitions=recognitions,
+            )
+            return dict(result, max_inputs=1, completion_scope="navigation_only")
+    final, final_home = _settled_observe(
+        runtime, session, label="resource-home-recovery-terminal",
+        recognize=lambda frame: _recognize_home(frame, ocr=ocr),
+    )
+    frames["home"] = final
+    recognitions["home"] = final_home
+    verified = bool(final_home.get("home_verified"))
+    result = _result(
+        session, status="completed" if verified else "evidence_required",
+        reason="navigation-only verified Home" if verified else "settled Home was not proven",
+        frames=frames, recognitions=recognitions, terminal_home_verified=verified,
+    )
+    return dict(result, max_inputs=1, completion_scope="navigation_only")
+
+
 def _run_route(
     runtime: RuntimeLike,
     session: SessionLike,
@@ -1998,41 +2061,7 @@ def _run_route(
             }
             max_inputs = int(getattr(session, "max_inputs", MAX_ROUTE_INPUTS) or MAX_ROUTE_INPUTS)
             if max_inputs <= 1 and _return_home_target(source.frame, ocr=ocr) is not None:
-                _, home_before, home_post, home_successor = _tap_action(
-                    runtime,
-                    session,
-                    label="daily-resource-item-return-home",
-                    target_identity=HOME_TARGET_IDENTITY,
-                    action_key="daily-resource-item:return-home",
-                    bind=lambda frame: _return_home_target(frame, ocr=ocr),
-                    recognize=lambda frame: _recognize_home(frame, ocr=ocr),
-                    settled_successor=lambda: (
-                        time.sleep(1.0)
-                        or runtime.capture("daily-resource-item-return-home-settled")
-                    ),
-                )
-                if home_before is not None:
-                    frames["return-home-immediate-before"] = home_before
-                if home_post is not None:
-                    frames["return-home-immediate-post"] = home_post
-                    frames["home"] = home_post
-                terminal_home = bool(
-                    home_post is not None
-                    and _record(home_successor).get("home_verified") is True
-                )
-                recognitions["home"] = home_successor
-                return _result(
-                    session,
-                    status="completed" if terminal_home else "evidence_required",
-                    reason=(
-                        "Resources source returned to verified Home"
-                        if terminal_home
-                        else "Resources source return did not prove verified Home"
-                    ),
-                    frames=frames,
-                    recognitions=recognitions,
-                    terminal_home_verified=terminal_home,
-                )
+                return recover_resource_item_home(runtime, session, ocr=ocr)
         else:
             return _result(
                 session,
