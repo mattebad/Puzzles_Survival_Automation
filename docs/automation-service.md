@@ -177,8 +177,9 @@ eligibility evidence still blocks dispatch. Actual historical desktop images pro
 only, not native input binding or three-cycle acceptance. Research refreshes queue, prerequisites,
 paired resource costs/balances and the exact detail control immediately before start; changed,
 expired or ambiguous evidence denies input. Recommendation title/button rereads use measured
-current pixels; an already-open recognized Research page gets one guarded Back and must reach
-verified Home before a new visit, or startup stops. These guards do not establish start acceptance.
+current pixels; an already-open recognized Research page gets at most three guarded Back hops,
+each reaching a recognized nearer parent or Home. Unknown/unchanged successors stop without retry.
+Startup must verify Home; these recovery guards do not establish Research-start acceptance.
 Farm uses fixed runtime identity, source-bound collection/boost controls and current lease/freshness
 guards. A displayed item cost of one is
 not owned inventory; unproved inventory or premium confirmation/effects remains blocked.
