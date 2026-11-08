@@ -179,9 +179,11 @@ class HeroDuelVision:
             survival = [row for row in labels if row["norm"] == "hero duel survival"]
             if len(survival) != 1:
                 return lines
-        heading_bottom = survival[0]["box"][3]
+        heading_center = survival[0]["center"][1]
+        # Artwork can extend OCR boxes across the heading/Time boundary.
+        # Associate by text-row centers, not non-overlapping box edges.
         time_words = [box for row in lines for word, box in row["word_boxes"]
-                      if _norm(word) == "time" and heading_bottom < box[1] < heading_bottom + 100]
+                      if _norm(word) == "time" and heading_center < (box[1] + box[3]) / 2 < heading_center + 100]
         if not time_words:
             return (*header, *labels)
         x0, y0, _, y1 = min(time_words, key=lambda box: box[1])
