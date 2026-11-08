@@ -639,19 +639,19 @@ class HallOfWarBoundary:
                 zooms += 1
                 continue
             if step.disposition is HomeDriverDisposition.PAN:
-                if pans >= 2 or step.plan is None or not step.plan.pan_start or not step.plan.pan_end:
+                if pans >= 2 or step.plan is None or not step.plan.drag_start or not step.plan.drag_end:
                     raise HallOfWarRouteError("hall_of_war_home_atlas_pan_unavailable_or_over_budget")
                 before_localization = step.localization
-                pan_roi = (min(step.plan.pan_start[0], step.plan.pan_end[0]),
-                           min(step.plan.pan_start[1], step.plan.pan_end[1]),
-                           max(step.plan.pan_start[0], step.plan.pan_end[0]) + 1,
-                           max(step.plan.pan_start[1], step.plan.pan_end[1]) + 1)
+                pan_roi = (min(step.plan.drag_start[0], step.plan.drag_end[0]),
+                           min(step.plan.drag_start[1], step.plan.drag_end[1]),
+                           max(step.plan.drag_start[0], step.plan.drag_end[0]) + 1,
+                           max(step.plan.drag_start[1], step.plan.drag_end[1]) + 1)
                 self.navigation.prepare_source_safety(self._safety(captured, "HOME_BASE", pan_roi))
                 self.session.run_action(
                     action_class="navigation", label=f"hall-of-war-home-pan-{pans + 1}",
                     capture=self.runtime.capture,
                     dispatch=lambda before, plan=step.plan: self.navigation.swipe(
-                        before, start=plan.pan_start, end=plan.pan_end,
+                        before, start=plan.drag_start, end=plan.drag_end,
                         action_key=f"hall-of-war-home-pan:{before.sha256}",
                         target_identity=HOME_ATLAS_PAN_TARGET,
                     ),
