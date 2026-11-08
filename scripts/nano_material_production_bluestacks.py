@@ -709,48 +709,11 @@ def _navigation_action(
         runtime_session_id=str(runtime.session),
     )
     policy = CentralPolicy(frozenset({HOME_ATLAS_NAVIGATION_TASK_ID}))
-    try:
-        context.checkpoint()
-        context.validate_identity()
-        fresh = runtime.capture(f"{label}-pre-dispatch")
-        if not source_recognize(fresh.frame):
-            raise ValueError("navigation source is not recognized in a fresh frame")
-        fresh_roi = bind(fresh.frame)
-        if fresh_roi != planned_roi or (
-            control_class == "GO" and not _safe_nav_roi(fresh_roi)
-        ):
-            raise ValueError("navigation target could not be rebound from a fresh frame")
-        planning = fresh
-        planned_roi = fresh_roi
-        proposal = _route_observation(
-            context,
-            fresh,
-            target_identity=target_identity,
-            target_roi=fresh_roi,
-            control_class=control_class,
-            consequence="navigate_zero_cost",
-            postcondition=expected_postcondition,
-            source_state=source_state,
-        )
-    except Exception:
-        return False
-    issue_time = float(context.utc_clock())
-    capability_request = replace(
-        request,
-        observation=proposal,
-        monotonic_now=float(context.monotonic_clock()),
-        lease_owner=session.owner,
-        lease_valid=store.lease_valid_for(session.owner, issue_time),
-        unresolved_action=store.has_action_block(),
-        duplicate_action_key=store.action_key_exists(action_key),
-        policy_phase="pre_dispatch",
-    )
-    issued = policy.issue_capability(capability_request)
-    store.audit(HOME_ATLAS_NAVIGATION_TASK_ID, "capability_issued", issue_time, issued.audit, action_id)
-    if not issued.authorized or issued.capability is None:
-        return False
-
     successors: list[tuple[Any, str]] = []
+    issued = None
+    capability_request = request
+    execution = None
+    immediate_before = None
 
     def recognize_frame(captured):
         state = recognize(captured)
@@ -758,48 +721,56 @@ def _navigation_action(
         successors.append((captured, recognized))
         return recognized.lower() if recognized != "UNKNOWN" else "unknown"
 
+    def authorize(before):
+        nonlocal proposal, issued, capability_request, immediate_before
+        context.checkpoint()
+        context.validate_identity()
+        if not source_recognize(before.frame):
+            raise RuntimeError("navigation source is not positively recognized")
+        roi = bind(before.frame)
+        if roi != planned_roi or (control_class == "GO" and not _safe_nav_roi(roi)):
+            raise RuntimeError("navigation target changed before dispatch")
+        # Home animation may change pixels without moving the mapped anchor.
+        # Bind capability and transport to this very same native capture.
+        proposal = _route_observation(
+            context, before, target_identity=target_identity, target_roi=roi,
+            control_class=control_class, consequence="navigate_zero_cost",
+            postcondition=expected_postcondition, source_state=source_state,
+        )
+        issue_time = float(context.utc_clock())
+        capability_request = replace(
+            request, observation=proposal,
+            monotonic_now=float(context.monotonic_clock()),
+            lease_owner=session.owner,
+            lease_valid=store.lease_valid_for(session.owner, issue_time),
+            unresolved_action=store.has_action_block(),
+            duplicate_action_key=store.action_key_exists(action_key),
+            policy_phase="pre_dispatch",
+        )
+        issued = policy.issue_capability(capability_request)
+        store.audit(HOME_ATLAS_NAVIGATION_TASK_ID, "capability_issued", issue_time, issued.audit, action_id)
+        if not issued.authorized or issued.capability is None:
+            raise RuntimeError(f"navigation capability denied:{issued.reason_code}")
+        immediate_before = before
+
     def transport(_intent):
-        starting = int(getattr(runtime, "input_count", 0))
-
-        def authorize(before):
-            if frame_digest(before.frame) != frame_digest(planning.frame) or not source_recognize(before.frame):
-                raise RuntimeError("navigation source changed before dispatch")
-            roi = bind(before.frame)
-            if roi != planned_roi or (
-                control_class == "GO" and not _safe_nav_roi(roi)
-            ):
-                raise RuntimeError("navigation target changed before dispatch")
-
-        def send(before):
-            context.checkpoint()
-            dispatch(before, action_key, planned_roi)
-
-        def settled():
-            time.sleep(float(context.settle_seconds))
-            context.checkpoint()
-            return runtime.capture(f"{label}-settled")
-
-        try:
-            session.run_action(
-                action_class="navigation",
-                label=label,
-                capture=runtime.capture,
-                authorize=authorize,
-                dispatch=send,
-                recognize=recognize_frame,
-                consequence_class="navigation_only",
-                settled_successor=settled,
-            )
-        except Exception as exc:
-            sent = int(getattr(runtime, "input_count", 0)) - starting
-            return TransportResult(sent == 1, f"NANO_NAVIGATION_{type(exc).__name__}")
-        sent = int(getattr(runtime, "input_count", 0)) - starting
+        context.checkpoint()
+        context.validate_identity()
+        starting = int(runtime.input_count)
+        dispatch(immediate_before, action_key, planned_roi)
+        sent = int(runtime.input_count) - starting
         return TransportResult(
             sent == 1,
             "NANO_NAVIGATION_INPUT_SENT" if sent == 1 else "NANO_NAVIGATION_INPUT_NOT_SENT",
         )
 
+    def settled():
+        time.sleep(float(context.settle_seconds))
+        context.checkpoint()
+        return runtime.capture(f"{label}-settled")
+
     def post_observe():
+        recognize_frame(settled())
         observed = successors or [(planning, "UNKNOWN")]
         for captured, state in observed:
             yield Observation(
@@ -826,21 +797,31 @@ def _navigation_action(
             and observed.frame_sha256 == successors[-1][0].sha256
         )
 
-    execution = SafeActionExecutor(
-        store,
-        policy,
-        session.owner,
-        lambda: float(context.monotonic_clock()),
-        transport,
-        lambda: proposal,
-        post_observe,
-        reconcile,
-        wall_clock=lambda: float(context.utc_clock()),
-        max_pre_dispatch_attempts=1,
-    ).execute(request, issued.capability)
+    def send(before):
+        nonlocal execution
+        if before is not immediate_before or issued is None or issued.capability is None:
+            raise RuntimeError("navigation capability source mismatch")
+        execution = SafeActionExecutor(
+            store, policy, session.owner,
+            lambda: float(context.monotonic_clock()),
+            transport, lambda: proposal, post_observe, reconcile,
+            wall_clock=lambda: float(context.utc_clock()),
+            max_pre_dispatch_attempts=1,
+        ).execute(capability_request, issued.capability)
+
+    try:
+        result = session.run_action(
+            action_class="navigation", label=label, capture=runtime.capture,
+            authorize=authorize, dispatch=send, recognize=recognize_frame,
+            consequence_class="navigation_only", settled_successor=settled,
+        )
+    except Exception:
+        return False
     return bool(
-        execution.status is ActionStatus.CONFIRMED
+        execution is not None
+        and execution.status is ActionStatus.CONFIRMED
         and execution.transport_calls == 1
+        and result.status == "completed"
         and successors
         and successors[-1][1] in allowed_successors
     )
@@ -1087,7 +1068,7 @@ def _accounting(context) -> dict[str, object]:
 
 def _home_proof(context, captured) -> dict[str, object]:
     frame, reference = context.capture_reference(captured.path, captured.sha256)
-    if not context.is_clean_home(frame):
+    if not context.is_clean_home(frame.frame):
         raise ValueError("terminal frame is not positively recognized canonical Home")
     return {
         "terminal_home_state": "HOME_BASE",
@@ -1137,7 +1118,7 @@ def _retained_panel_proof(context, captured, occurrence_key: str) -> tuple[Mater
     if reference.frame_sha256 != captured.sha256:
         raise ValueError("retained production frame digest differs from the current capture")
     replay = _panel_observation(
-        _CaptureView(frame, reference.frame_sha256, Path(captured.path)),
+        _CaptureView(frame.frame, reference.frame_sha256, Path(captured.path)),
         context=context,
         occurrence_key=occurrence_key,
     ).observation
