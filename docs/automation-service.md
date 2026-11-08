@@ -165,6 +165,10 @@ supported `BACK` input, not an unsupported desktop `Escape` key.
 The full-page Gear Factory hub is recognized only from its measured 2x bright-glyph title crop
 ("Gear Factory") plus the measured Nanoweapon label crop; the Nanoweapon tap is that tile's measured
 label plate within the shared safe box. A run that starts on this recognized hub continues from it.
+The Nanoweapon page is recognized from its measured title crop and four measured top-tab cells;
+exactly one tab must read as the white selected label. Production state, Claim and Start are read only
+while Material Production is positively selected, so Craft Weapon's own Claim is never production.
+The Material tab tap is that exact measured route-owned tab cell, not the Home interaction box.
 Each Gear Factory/Nanoweapon navigation tap rebinds on its immediate pre-dispatch capture. Only
 native-pixel ROI quantization is admitted: every planned/fresh ROI edge may differ by at most one
 pixel, with each tap point inside the other ROI; the transport keeps the planned, capability-bound target.
