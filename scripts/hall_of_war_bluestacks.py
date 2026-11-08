@@ -267,27 +267,33 @@ class HallOfWarVision:
         ]
         if len(boxes) > self._MAX_TEXT_LINES:
             return None
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         lines: list[OCRToken] = []
         for box in boxes:
-            rows = slice(max(0, box[1] - 4), min(NATIVE_HEIGHT, box[3] + 4))
-            cols = slice(max(0, box[0] - 4), min(NATIVE_WIDTH, box[2] + 4))
-            # Read only the line's own strokes (plus their anti-aliased edge):
-            # animated art inside the line box (bobbing quest markers) otherwise
-            # makes Tesseract drop an unchanged label.
-            strokes = cv2.dilate(
-                cv2.inRange(cv2.cvtColor(frame[rows, cols], cv2.COLOR_BGR2HSV), low, high),
-                cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)),
-            )
-            isolated = (255 - np.where(strokes > 0, gray[rows, cols], 0)).astype(np.uint8)
-            enlarged = cv2.resize(isolated, None, fx=3.0, fy=3.0, interpolation=cv2.INTER_CUBIC)
-            try:
-                text = self._normal(call_ocr(tesseract_string, enlarged, config="--psm 7"))
-            except (RuntimeError, OSError, ValueError):
+            text = self._read_isolated(frame, (max(0, box[0] - 4), max(0, box[1] - 4),
+                                               min(NATIVE_WIDTH, box[2] + 4), min(NATIVE_HEIGHT, box[3] + 4)), colour)
+            if text is None:
                 return None
             if text:
                 lines.append(OCRToken(text, box, None))
         return tuple(lines)
+
+    def _read_isolated(self, frame: np.ndarray, box: tuple[int, int, int, int],
+                       colour: tuple[tuple[int, int, int], tuple[int, int, int]]) -> str | None:
+        # Read only the box's own strokes of one colour (plus their
+        # anti-aliased edge): animated art inside the box (bobbing quest
+        # markers) otherwise makes Tesseract drop an unchanged label.
+        x0, y0, x1, y1 = box
+        strokes = cv2.dilate(
+            cv2.inRange(cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2HSV), *colour),
+            cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)),
+        )
+        gray = cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2GRAY)
+        isolated = (255 - np.where(strokes > 0, gray, 0)).astype(np.uint8)
+        enlarged = cv2.resize(isolated, None, fx=3.0, fy=3.0, interpolation=cv2.INTER_CUBIC)
+        try:
+            return self._normal(call_ocr(tesseract_string, enlarged, config="--psm 7"))
+        except (RuntimeError, OSError, ValueError):
+            return None
 
     def _radial_caption_lines(self, frame: np.ndarray, anchor: tuple[float, float]) -> tuple[OCRToken, ...] | None:
         # The opened radial covers the Hall's own title; its captions are read
@@ -398,7 +404,7 @@ class HallOfWarVision:
             {"entry_frame_sha256": str(entry.frame_sha256)},
         )
 
-    # Fixed native Zombie Zero menu bands. The huge gold boss total above the
+    # Fixed native Zombie Zero menu bands. The large gold total above the
     # damage line is not white text and never matches the damage label.
     _MENU_TITLE_BAND = (0, 0, NATIVE_WIDTH, 80)
     _MENU_DAMAGE_BAND = (75, 730, 675, 875)
@@ -406,6 +412,7 @@ class HallOfWarVision:
     _MENU_FOOTER_BAND = (40, 1080, 760, NATIVE_HEIGHT)
     _MENU_DAMAGE_LINE = re.compile(r"today[’']?s highest dmg(.*)")
     _MENU_DAMAGE_VALUE = re.compile(r"\s*:?\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)")
+    _MENU_REWARD_HEADERS = ("daily reward", "daily reward (claimed)")
 
     def zombie_zero_menu(self, frame: np.ndarray) -> ZombieZeroMenu | None:
         # Bands are read in order and stop at the first missing exact label,
@@ -419,7 +426,7 @@ class HallOfWarVision:
         if len(damages) != 1:
             return None
         reward = self._text_lines(frame, self._MENU_REWARD_BAND, self._GOLD_TEXT)
-        headers = [line for line in reward or () if line.text in ("daily reward", "daily reward claimed")]
+        headers = [line for line in reward or () if line.text in self._MENU_REWARD_HEADERS]
         if len(headers) != 1:
             return None
         footer = self._text_lines(frame, self._MENU_FOOTER_BAND, self._WHITE_TEXT)
@@ -485,17 +492,26 @@ class HallOfWarVision:
 
     _DISPATCH_FOOTER_BAND = (40, 1140, 760, NATIVE_HEIGHT)
 
-    def _quick_select_button(self, frame: np.ndarray) -> tuple[int, int, int, int] | None:
-        # Formation page: exact "Dispatch" header plus the measured gold
-        # button holding the exact "Quick Select" label.
+    def _dispatch_footer(self, frame: np.ndarray) -> tuple[str, tuple[int, int, int, int]] | None:
+        # Formation page: exact "Dispatch" header plus exactly one measured
+        # gold footer button holding "Quick Select" (empty) or "Dispatch"
+        # (populated formation).
         title = self._text_lines(frame, self._MENU_TITLE_BAND, self._WHITE_TEXT)
         if len([line for line in title or () if line.text == "dispatch"]) != 1:
             return None
         footer = self._text_lines(frame, self._DISPATCH_FOOTER_BAND, self._WHITE_TEXT)
-        return None if footer is None else self._gold_button(frame, self._DISPATCH_FOOTER_BAND, footer, "quick select")
+        if footer is None:
+            return None
+        found = [(label, button) for label in ("quick select", "dispatch")
+                 if (button := self._gold_button(frame, self._DISPATCH_FOOTER_BAND, footer, label)) is not None]
+        return found[0] if len(found) == 1 else None
+
+    def _quick_select_button(self, frame: np.ndarray) -> tuple[int, int, int, int] | None:
+        footer = self._dispatch_footer(frame)
+        return footer[1] if footer is not None and footer[0] == "quick select" else None
 
     def dispatch_page(self, frame: np.ndarray) -> bool:
-        return self._quick_select_button(frame) is not None
+        return self._dispatch_footer(frame) is not None
 
     def bind_attack(self, frame: np.ndarray) -> BoundTarget | None:
         menu = self.zombie_zero_menu(frame)
@@ -526,22 +542,60 @@ class HallOfWarVision:
             return None
         return BoundTarget(FORMATION_ARROW_TARGET, roi)
 
+    _SELECTOR_BAND = (40, 300, 760, 1160)
+    _SELECTOR_ROW = ((0, 80, 70), (12, 255, 200))
+
+    def _troop_set_rows(self, frame: np.ndarray) -> dict[int, tuple[tuple[int, int, int, int], tuple[int, int, int, int]]] | None:
+        """Exact Troop Set 1/2/3 rows of the open selector: measured row panel and its separate Edit control."""
+        if not self._native(frame):
+            return None
+        x0, y0, x1, y1 = self._SELECTOR_BAND
+        panel_mask = cv2.inRange(cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2HSV), *self._SELECTOR_ROW)
+        count, _, stats, _ = cv2.connectedComponentsWithStats(panel_mask)
+        panels = [
+            (x0 + int(left), y0 + int(top), x0 + int(left + width), y0 + int(top + height))
+            for left, top, width, height, area in stats[1:count]
+            if 300 <= width <= 420 and 50 <= height <= 75 and area >= 0.75 * width * height
+        ]
+        # Measured geometry first: without three row panels no OCR is spent.
+        if len(panels) < 3 or self.dispatch_page(frame):
+            return None
+        white = self._text_lines(frame, self._SELECTOR_BAND, self._WHITE_TEXT)
+        gold = self._text_lines(frame, self._SELECTOR_BAND, self._GOLD_TEXT)
+        if white is None or gold is None:
+            return None
+
+        def inside(roi: tuple[int, int, int, int], panel: tuple[int, int, int, int]) -> bool:
+            return panel[0] <= roi[0] and roi[2] <= panel[2] and panel[1] <= roi[1] and roi[3] <= panel[3]
+
+        rows: dict[int, tuple[tuple[int, int, int, int], tuple[int, int, int, int]]] = {}
+        for panel in panels:
+            edits = [line.roi for line in gold if line.text == "edit" and inside(line.roi, panel)]
+            labels = [line.roi for line in white if line.text.startswith("troop set") and inside(line.roi, panel)]
+            if not edits and not labels:
+                continue  # locked VIP rows carry no Troop Set label or Edit control
+            if len(edits) != 1 or len(labels) != 1 or labels[0][2] >= edits[0][0]:
+                return None
+            # The narrow set digit can sit apart from "Troop Set"; read the
+            # label once from its measured start to the Edit control.
+            text = self._read_isolated(frame, (labels[0][0] - 4, panel[1] + 6, edits[0][0] - 4, panel[3] - 6), self._WHITE_TEXT)
+            match = re.fullmatch(r"troop set ([123])", text or "")
+            if match is None or int(match.group(1)) in rows:
+                return None
+            rows[int(match.group(1))] = (panel, edits[0])
+        return rows if set(rows) == {1, 2, 3} else None
+
     def troop_set_selector(self, frame: np.ndarray) -> bool:
-        text = self.text(frame)
-        return self._contains(text, "Troop Set 1") and self._contains(text, "Edit") and not self.dispatch_page(frame)
+        return self._troop_set_rows(frame) is not None
 
     def bind_troop_set_one(self, frame: np.ndarray) -> BoundTarget | None:
-        if not self.troop_set_selector(frame):
+        rows = self._troop_set_rows(frame)
+        if rows is None:
             return None
-        target = self.bind_text_target(frame, "Troop Set 1", TROOP_SET_ONE_TARGET)
-        if target is None:
-            return None
-        edit_boxes = self._phrase_boxes(frame, "Edit")
-        if any(not (target.target_roi[2] <= box[0] or box[2] <= target.target_roi[0])
-               and abs((target.target_roi[1] + target.target_roi[3] - box[1] - box[3]) // 2) < 55
-               for box in edit_boxes):
-            return None
-        return target
+        panel, edit = rows[1]
+        # The row body up to, and excluding, its separate Edit control.
+        roi = (panel[0], panel[1], edit[0] - 8, panel[3])
+        return BoundTarget(TROOP_SET_ONE_TARGET, roi) if roi[2] - roi[0] >= 100 else None
 
     _HERO_BAND = (0, 100, NATIVE_WIDTH, 300)
 
@@ -656,9 +710,15 @@ class HallOfWarVision:
     def loss_effect_approved(self, frame: np.ndarray) -> bool:
         return self.loss_effect_proof(frame)[0]
 
+    # Historically observed white toast just below Clear Hero on the owned
+    # Dispatch page (desktop capture 0046); native band still to be measured.
+    _APPLIED_TOAST_BAND = (40, 330, 760, 470)
+
     def troop_set_one_applied(self, frame: np.ndarray) -> bool:
-        text = self._normal(self.text(frame))
-        return self.dispatch_page(frame) and self._contains(text, "Troop Set 1 formation applied")
+        if not self.dispatch_page(frame):
+            return False
+        toast = self._text_lines(frame, self._APPLIED_TOAST_BAND, self._WHITE_TEXT)
+        return len([line for line in toast or () if line.text == "troop set 1 formation applied"]) == 1
 
     def formation_signature(self, frame: np.ndarray) -> tuple[str, ...]:
         if not self._native(frame):
@@ -674,8 +734,8 @@ class HallOfWarVision:
         menu = self.zombie_zero_menu(frame)
         if menu is None:
             return None
-        text = self._normal(self.text(frame))
-        claimed = menu.reward_header == "daily reward claimed" or self._contains(text, "Daily Reward Claimed")
+        # Historically observed claimed header: "Daily Reward (Claimed)".
+        claimed = menu.reward_header == "daily reward (claimed)"
         header = menu.reward_header_roi
         y = (header[1] + header[3]) // 2
         x0, x1 = 205, 545
