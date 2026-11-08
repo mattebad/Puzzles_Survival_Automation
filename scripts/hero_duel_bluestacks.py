@@ -545,9 +545,9 @@ class HeroDuelVision:
         self.checkpoint()
         lines = self._lines(captured.frame)
         lines = self._arena_lines(captured.frame, lines)
-        if ("hero duel" in _norm(" ".join(row["text"] for row in lines))
-                and not any("survival" in row["norm"] for row in lines)):
-            # Reread the textured header exactly, not a fuzzy event-name alias.
+        if not clean_home and not any(
+                row["box"][1] < 75 and "hero duel survival" in row["norm"] for row in lines):
+            # Full-frame OCR can lose either title word against the textured header.
             title_image = cv2.cvtColor(captured.frame[5:65, 200:650], cv2.COLOR_BGR2GRAY)
             titles = self._lines(cv2.resize(title_image, None, fx=3, fy=3), psm=7, scale=3)
             if any(row["norm"] == "hero duel survival" for row in titles):
