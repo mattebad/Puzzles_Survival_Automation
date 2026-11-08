@@ -71,15 +71,27 @@ Current owner direction and planning live in [tracker #53](https://github.com/ma
   exercised two guarded, measured Atlas pans. Concrete `DirectPanPlan` endpoint
   and PNG-versus-Atlas pixel-identity mismatches were corrected through F
   `eb6be88`; no freshness, overlay or ambiguity guard was removed.
-  The latest stop is `open-building_successor_unknown`: the actual radial
-  occludes its owner label and its wrapped controls defeat full-frame OCR.
-  Repair current-source radial ownership and its Zombie Zero binder together;
-  do not repeat the already successful building tap just to obtain another image.
+  That radial stop was repaired using current Atlas ownership and isolated
+  captions, without repeating the successful building tap. Two finite,
+  navigation-only inspections subsequently opened Zombie Zero and its Dispatch
+  formation page (one input each, no Dispatch/reward/spend). F `1076b2f`, integrated
+  as `6290a77`, replaces failed full-frame menu OCR with bounded actual-label
+  recognition: current Today's Highest Dmg is 0 and Attack is a measured gold
+  button. Its fresh source guard passed in the live menu-to-formation inspection.
+  The SDK stopped at `unknown_successor` on the correct visible Dispatch page:
+  its unchanged formation reader still misses Dispatch/Quick Select. Current
+  formation has five empty hero slots and 0/160,200 troops. Repair from the
+  retained successor, then inspect saved Troop Set 1; do not repeat Attack or
+  Dispatch an empty formation. This navigation proof is not route acceptance.
   Six canonical failures remain retained, inspected baseline three, maximum
   attempts three; the first window was rearmed through supported `inspect-rearm`,
   not raw counters or a higher limit. Full Hall acceptance remains
-  `evidence_required`. Current game context is the Hall radial, not terminal Home.
-  Evidence: `restart-resume-20261108T035832132346Z/hall-of-war96-native-current-atlas-identity-20261108T134358611017Z/`.
+  `evidence_required`. Current game context is the Dispatch formation selection
+  page, not terminal Home. Runtime controls remain disabled; the input lock is
+  empty. Canonical attempt counts and evidence remain intact.
+  Evidence: `restart-resume-20261108T035832132346Z/hall-of-war96-native-current-atlas-identity-20261108T134358611017Z/`
+  and `hall96-current-menu-to-formation-20261108T143406693457Z/` under that same
+  restart-resume directory.
 - **Remaining scenarios:** #54, #69/#56, #77/#72, #70/#71, #75/#76/#78 and
   #95/#96/#67 still need their qualifying finished-route effects.
   Prior manual Duel/Farm/Hall effects and restart-invalidated preset state remain
