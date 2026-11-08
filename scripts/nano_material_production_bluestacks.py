@@ -1299,7 +1299,9 @@ def run_material_production_in_context(context, *, occurrence_key: str, return_h
     if panel_read.observation is None:
         current, _screen, page_kind = _navigate_to_panel(context, occurrence_key=occurrence_key, current=current)
         if current is None:
-            return _finalize(context, result, current=None, return_home=return_home, occurrence_key=occurrence_key, status="blocked", reason=f"NANO_MATERIAL_PRODUCTION_{page_kind.upper()}")
+            # Navigation helpers discard their source on refusal; prove the actual terminal screen afresh.
+            terminal_source = _capture(context, "nano-material-production-navigation-blocked-source")
+            return _finalize(context, result, current=terminal_source, return_home=return_home, occurrence_key=occurrence_key, status="blocked", reason=f"NANO_MATERIAL_PRODUCTION_{page_kind.upper()}")
         before_tab_selection = current
         current, panel_read = _select_material_tab(context, occurrence_key=occurrence_key, captured=current)
         if current is None and context.is_clean_home(before_tab_selection.frame):
