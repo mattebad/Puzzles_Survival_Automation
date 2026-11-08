@@ -1224,10 +1224,33 @@ def _research_center_level(frame: Any, binding: BuildingBinding | None) -> int |
         and 10 <= stats[index][0] <= 40
         and 15 <= wy1 - wy0 - (stats[index][1] + stats[index][3]) <= 30
     ]
+    plate_inset = 1
+    if not plates:
+        # Actual night Home200932 frames0002/0024: the <70 terrain merges
+        # into the plate, so darkness alone has no isolated component.
+        # Its closed rim remains unique in this same caption-owned window:
+        # 29x15, inset2 excludes the rim while retaining the complete digits.
+        # This is plate segmentation only; the two ink cuts and all six OCR
+        # readings below are unchanged. Ambiguous dark plates never recover.
+        edges = cv2.Canny(cv2.cvtColor(window, cv2.COLOR_BGR2GRAY), 60, 160)
+        contours, _hierarchy = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for contour in contours:
+            px, py, pw, ph = cv2.boundingRect(contour)
+            if (
+                18 <= pw <= 44 and 10 <= ph <= 20
+                and cv2.contourArea(contour) >= .6 * pw * ph
+                and 10 <= px <= 40
+                and 15 <= wy1 - wy0 - (py + ph) <= 30
+            ):
+                interior = window[py + 2:py + ph - 2, px + 2:px + pw - 2]
+                interior_dark = cv2.cvtColor(interior, cv2.COLOR_BGR2HSV)[:, :, 2] < 70
+                if int(interior_dark.sum()) >= .6 * interior_dark.size:
+                    plates.append((px, py, pw, ph))
+        plate_inset = 2
     if len(plates) != 1:
         return None
     px, py, pw, ph = plates[0]
-    plate = cv2.cvtColor(window[py + 1:py + ph - 1, px + 1:px + pw - 1], cv2.COLOR_BGR2HSV)
+    plate = cv2.cvtColor(window[py + plate_inset:py + ph - plate_inset, px + plate_inset:px + pw - plate_inset], cv2.COLOR_BGR2HSV)
     readings = []
     for minimum_value in _RESEARCH_CENTER_PLATE_INK_VALUES:
         ink = ((plate[:, :, 2] >= minimum_value) & (plate[:, :, 1] <= 60)).astype("uint8") * 255
