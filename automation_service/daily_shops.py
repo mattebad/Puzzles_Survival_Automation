@@ -7,11 +7,17 @@ from pathlib import Path
 import re
 import time
 from types import MappingProxyType
-from typing import Any, Mapping
-from .contracts import FlowSpec, NormalizedOutcome, NormalizedResult
+from typing import Any, Callable, Mapping
+from .contracts import (
+    FlowDescriptor, FlowSpec, NormalizedOutcome, NormalizedResult,
+    PerceptionEnvelope, SchedulerFacts,
+)
 from .registry import RegisteredDispatchSnapshot, canonical_entry
+from .state import RunRecord
 
-from .native_execution import NativeRouteBoundary, NativeRouteOutcome, NativeRouteRequest
+from .native_execution import (
+    NativeRouteBoundary, NativeRouteOutcome, NativeRouteRequest, RuntimeInputLockPort,
+)
 from .registry import (
     DAILY_SHOPS_FLOW_ID as FLOW_ID,
     DAILY_SHOPS_MAX_INPUTS as MAX_INPUTS,
@@ -29,7 +35,10 @@ from tasks.purchases_disabled import (
     canonical_purchase_action_key,
 )
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
-from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL, derive_resource_runtime_identity, resource_fixed_runtime_binding
+from tasks.runtime_identity import (
+    BLUESTACKS_ADB, BLUESTACKS_SERIAL, VerifiedRuntimeIdentity,
+    derive_resource_runtime_identity, resource_fixed_runtime_binding,
+)
 from tasks.scheduler_task_result import SchedulerIdentity
 
 PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
@@ -40,7 +49,9 @@ _TABS = ("ruins", "rare_earth")
 
 
 def _epoch(value: object, field: str) -> float:
-    if type(value) not in (int, float) or not math.isfinite(float(value)) or value < 0:
+    if type(value) is not int and type(value) is not float:
+        raise ValueError(f"Daily Shops {field} must be a finite UTC epoch")
+    if not math.isfinite(float(value)) or value < 0:
         raise ValueError(f"Daily Shops {field} must be a finite UTC epoch")
     return float(value)
 
@@ -75,8 +86,10 @@ def _validated_due_context(result: Mapping[str, Any], identity: SchedulerIdentit
     counts = tuple(result.get(name) for name in (
         "input_count", "total_input_count", "session_input_count", "runtime_input_count",
     ))
-    if (any(type(value) is not int for value in counts) or len(set(counts)) != 1
-            or not 0 <= counts[0] <= MAX_INPUTS
+    input_count = counts[0]
+    if (type(input_count) is not int
+            or any(type(value) is not int for value in counts) or len(set(counts)) != 1
+            or not 0 <= input_count <= MAX_INPUTS
             or result.get("max_inputs") != MAX_INPUTS or result.get("max_actions") != MAX_ACTIONS):
         raise ValueError("Daily Shops native and session input accounting differs")
     source = result.get("source_frame")
@@ -203,8 +216,9 @@ class DailyShopsRunner:
 
     def __init__(self, *, native: NativeRouteBoundary | None = None,
                  adb: str = str(BLUESTACKS_ADB), serial: str = BLUESTACKS_SERIAL,
-                 output_directory: Path, utc_clock=time.time,
-                 monotonic_clock=time.monotonic, settle_seconds=1.0):
+                 output_directory: Path, utc_clock: Callable[[], float] = time.time,
+                 monotonic_clock: Callable[[], float] = time.monotonic,
+                 settle_seconds: float = 1.0) -> None:
         self.native = native
         self.adb, self.serial = str(adb), serial
         self.output_directory = Path(output_directory)
@@ -221,7 +235,8 @@ class DailyShopsRunner:
             raise ValueError("Daily Shops native binding identity mismatch")
 
     def __call__(self, identity: SchedulerIdentity, previous_reset_id: str | None,
-                 checkpoint, *, runtime_input_lock, occurrence_key: str) -> Mapping[str, Any]:
+                 checkpoint: Callable[[], None], *, runtime_input_lock: RuntimeInputLockPort,
+                 occurrence_key: str) -> Mapping[str, Any]:
         try:
             return self._execute(
                 identity, previous_reset_id, checkpoint,
@@ -253,7 +268,8 @@ class DailyShopsRunner:
             return result
 
     def _execute(self, identity: SchedulerIdentity, previous_reset_id: str | None,
-                 checkpoint, *, runtime_input_lock, occurrence_key: str) -> Mapping[str, Any]:
+                 checkpoint: Callable[[], None], *, runtime_input_lock: RuntimeInputLockPort,
+                 occurrence_key: str) -> Mapping[str, Any]:
         started = self._epoch(self.utc_clock(), "start")
         backend = self._validate_identity(identity, started)
         if (self.adb, self.serial) != (str(BLUESTACKS_ADB), BLUESTACKS_SERIAL):
@@ -273,7 +289,7 @@ class DailyShopsRunner:
             return self._blocked(identity, previous_reset_id, occurrence_key, started,
                                  "DAILY_SHOPS_NATIVE_BINDING_UNAVAILABLE")
 
-        def validate_identity():
+        def validate_identity() -> None:
             runtime_input_lock.assert_held("automation-service", runtime_input_lock.invocation_id)
             checkpoint()
             runtime_input_lock.assert_held("automation-service", runtime_input_lock.invocation_id)
@@ -371,13 +387,15 @@ class DailyShopsRunner:
         return result
 
     @staticmethod
-    def _epoch(value, field):
-        if type(value) not in (int, float) or not math.isfinite(float(value)) or float(value) < 0:
+    def _epoch(value: object, field: str) -> float:
+        if type(value) is not int and type(value) is not float:
+            raise ValueError(f"Daily Shops {field} must be a finite UTC epoch")
+        if not math.isfinite(float(value)) or float(value) < 0:
             raise ValueError(f"Daily Shops {field} must be a finite UTC epoch")
         return float(value)
 
     @staticmethod
-    def _validate_identity(identity, now):
+    def _validate_identity(identity: SchedulerIdentity, now: float) -> VerifiedRuntimeIdentity:
         if not isinstance(identity, SchedulerIdentity) or identity.task_id != PRODUCT_ID:
             raise ValueError("Daily Shops scheduler identity mismatch")
         if identity.reset_id != recruitment_reset(now):
@@ -389,7 +407,10 @@ class DailyShopsRunner:
         return backend
 
     @staticmethod
-    def _blocked(identity, previous_reset_id, occurrence_key, started, reason):
+    def _blocked(
+        identity: SchedulerIdentity, previous_reset_id: str | None,
+        occurrence_key: str, started: float | None, reason: str,
+    ) -> dict[str, object]:
         return {
             "status": "blocked", "reason": reason, "flow_id": FLOW_ID,
             "product_id": PRODUCT_ID, "product_revision": PRODUCT_REVISION,
@@ -418,7 +439,11 @@ class DailyShopsExecutionHandler:
     max_inputs = MAX_INPUTS
     max_actions = MAX_ACTIONS
 
-    def __init__(self, snapshot: RegisteredDispatchSnapshot, execute, *, flow_spec: FlowSpec | None = None):
+    def __init__(
+        self, snapshot: RegisteredDispatchSnapshot,
+        execute: Callable[[RunRecord, SchedulerFacts], NormalizedResult], *,
+        flow_spec: FlowSpec | None = None,
+    ) -> None:
         if not isinstance(snapshot, RegisteredDispatchSnapshot):
             raise TypeError("Daily Shops requires a typed registered dispatch snapshot")
         if (snapshot.flow_id, snapshot.product_id, snapshot.product_revision, snapshot.profile) != (
@@ -431,10 +456,12 @@ class DailyShopsExecutionHandler:
         self.snapshot, self._execute = snapshot, execute
         self.flow_spec = flow_spec
 
-    def describe(self):
+    def describe(self) -> FlowDescriptor:
         return canonical_entry(FLOW_ID).descriptor
 
-    def eligibility(self, facts, perception=None):
+    def eligibility(
+        self, facts: SchedulerFacts, perception: PerceptionEnvelope | None = None,
+    ) -> bool:
         return bool(not facts.gate_failures(self.describe())
             and facts.accepted_product == PRODUCT_ID
             and facts.product_revision == PRODUCT_REVISION
@@ -444,19 +471,26 @@ class DailyShopsExecutionHandler:
 
     revalidate = eligibility
 
-    def execute_run(self, run, facts, perception=None):
+    def execute_run(
+        self, run: RunRecord, facts: SchedulerFacts,
+        perception: PerceptionEnvelope | None = None,
+    ) -> NormalizedResult:
         return self._execute(run, facts)
 
-    def plan(self, facts, perception=None):
+    def plan(
+        self, facts: SchedulerFacts, perception: PerceptionEnvelope | None = None,
+    ) -> NormalizedResult:
         return self.recover("DAILY_SHOPS_CANONICAL_RUN_REQUIRED")
 
-    def reconcile(self, plan, perception=None):
+    def reconcile(
+        self, plan: object, perception: PerceptionEnvelope | None = None,
+    ) -> NormalizedResult:
         return plan if isinstance(plan, NormalizedResult) else self.recover("DAILY_SHOPS_UNKNOWN_RESULT")
 
-    def recover(self, reason_code):
+    def recover(self, reason_code: str) -> NormalizedResult:
         return NormalizedResult(NormalizedOutcome.BLOCKED, reason_code, verified=False)
 
-    def summarize(self):
+    def summarize(self) -> Mapping[str, object]:
         return {"flow_id": FLOW_ID, "selection_only": False, "transport_count": 0}
 
 

@@ -7,11 +7,17 @@ from pathlib import Path
 import re
 import time
 from types import MappingProxyType
-from typing import Any, Mapping
-from .contracts import FlowSpec, NormalizedOutcome, NormalizedResult
+from typing import Any, Callable, Mapping
+from .contracts import (
+    FlowDescriptor, FlowSpec, NormalizedOutcome, NormalizedResult,
+    PerceptionEnvelope, SchedulerFacts,
+)
 from .registry import RegisteredDispatchSnapshot, canonical_entry
+from .state import RunRecord
 
-from .native_execution import NativeRouteBoundary, NativeRouteOutcome, NativeRouteRequest
+from .native_execution import (
+    NativeRouteBoundary, NativeRouteOutcome, NativeRouteRequest, RuntimeInputLockPort,
+)
 from .registry import (
     ALLIANCE_SHOP_FLOW_ID as FLOW_ID,
     ALLIANCE_SHOP_MAX_INPUTS as MAX_INPUTS,
@@ -30,6 +36,7 @@ from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 from tasks.runtime_identity import (
     BLUESTACKS_ADB,
     BLUESTACKS_SERIAL,
+    VerifiedRuntimeIdentity,
     derive_resource_runtime_identity,
     resource_fixed_runtime_binding,
 )
@@ -43,7 +50,8 @@ _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 def _epoch(value: object, field: str) -> float:
-    if type(value) not in (int, float) or not math.isfinite(float(value)) or value < 0:
+    if (not isinstance(value, (int, float)) or type(value) not in (int, float)
+            or not math.isfinite(float(value)) or value < 0):
         raise ValueError(f"Alliance Shop {field} must be a finite UTC epoch")
     return float(value)
 
@@ -78,8 +86,9 @@ def _validated_due_context(result: Mapping[str, Any], identity: SchedulerIdentit
     counts = tuple(result.get(name) for name in (
         "input_count", "total_input_count", "session_input_count", "runtime_input_count",
     ))
+    input_count = counts[0]
     if (any(type(value) is not int for value in counts) or len(set(counts)) != 1
-            or not 0 <= counts[0] <= MAX_INPUTS
+            or type(input_count) is not int or not 0 <= input_count <= MAX_INPUTS
             or result.get("max_inputs") != MAX_INPUTS or result.get("max_actions") != MAX_ACTIONS):
         raise ValueError("Alliance Shop native and session input accounting differs")
     source = result.get("source_frame")
@@ -102,7 +111,7 @@ def _validated_due_context(result: Mapping[str, Any], identity: SchedulerIdentit
     return completed, (reset_start + timedelta(days=1)).timestamp()
 
 
-def _validate_scan_readiness(value: Any, *, required_reason: str | None = None) -> None:
+def _validate_scan_readiness(value: Any, *, required_reason: str | None = None) -> Mapping[str, Any]:
     if not isinstance(value, Mapping) or value.get("complete") is not True:
         raise ValueError("Alliance Shop inventory scan is not complete")
     refs, hashes = value.get("frame_refs"), value.get("frame_sha256s")
@@ -113,6 +122,7 @@ def _validate_scan_readiness(value: Any, *, required_reason: str | None = None) 
         raise ValueError("Alliance Shop inventory scan lacks captured frame evidence")
     if required_reason is not None and value.get("reason") != required_reason:
         raise ValueError("Alliance Shop inventory absence is not proven")
+    return value
 
 
 def _validate_offer_evidence(row: Any, *, shop: str, item: str, rarity: int | None) -> None:
@@ -150,8 +160,7 @@ def _validate_selection_evidence(result: Mapping[str, Any], selected: Mapping[st
     evidence = result.get("selection_evidence")
     if not isinstance(evidence, Mapping):
         raise ValueError("Alliance Shop selected purchase lacks preferred inventory evidence")
-    weekly_inventory = evidence.get("weekly_inventory")
-    _validate_scan_readiness(weekly_inventory)
+    weekly_inventory = _validate_scan_readiness(evidence.get("weekly_inventory"))
     if weekly_inventory.get("reason") not in {"", None}:
         raise ValueError("Alliance Shop Weekly selection scan is unresolved")
     weekly_offers = evidence.get("weekly_offers")
@@ -186,7 +195,7 @@ def _validate_selection_evidence(result: Mapping[str, Any], selected: Mapping[st
         )
     fallback_inventory = evidence.get("fallback_inventory")
     fallback_offer = evidence.get("fallback_offer")
-    _validate_scan_readiness(fallback_inventory)
+    fallback_inventory = _validate_scan_readiness(fallback_inventory)
     if fallback_inventory.get("reason") not in {"", None} or not isinstance(fallback_offer, Mapping):
         raise ValueError("Alliance Shop Other fallback scan is unresolved")
     _validate_offer_evidence(
@@ -209,8 +218,7 @@ def _validate_no_work_readiness(result: Mapping[str, Any]) -> None:
             or evidence.get("reason") != "NO_AFFORDABLE_ALLOWLISTED_OFFER"
             or result.get("reason") != evidence.get("reason")):
         raise ValueError("Alliance Shop no-work result lacks its exact route reason")
-    weekly_inventory = evidence.get("weekly_inventory")
-    _validate_scan_readiness(weekly_inventory)
+    weekly_inventory = _validate_scan_readiness(evidence.get("weekly_inventory"))
     if weekly_inventory.get("reason") not in {"", None}:
         raise ValueError("Alliance Shop weekly offer scan has an unresolved state")
     weekly_offers = evidence.get("weekly_offers")
@@ -230,7 +238,7 @@ def _validate_no_work_readiness(result: Mapping[str, Any]) -> None:
     if fallback_offer is None:
         _validate_scan_readiness(fallback_inventory, required_reason="EXACT_FALLBACK_NOT_PRESENT")
     else:
-        _validate_scan_readiness(fallback_inventory)
+        fallback_inventory = _validate_scan_readiness(fallback_inventory)
         if fallback_inventory.get("reason") not in {"", None}:
             raise ValueError("Alliance Shop fallback scan has an unresolved state")
         _validate_unaffordable_offer(
@@ -293,8 +301,9 @@ class AllianceShopRunner:
 
     def __init__(self, *, native: NativeRouteBoundary | None = None,
                  adb: str = str(BLUESTACKS_ADB), serial: str = BLUESTACKS_SERIAL,
-                 output_directory: Path, utc_clock=time.time,
-                 monotonic_clock=time.monotonic, settle_seconds=1.0):
+                 output_directory: Path, utc_clock: Callable[[], float] = time.time,
+                 monotonic_clock: Callable[[], float] = time.monotonic,
+                 settle_seconds: float = 1.0) -> None:
         self.native = native
         self.adb, self.serial = str(adb), serial
         self.output_directory = Path(output_directory)
@@ -311,7 +320,8 @@ class AllianceShopRunner:
             raise ValueError("Alliance Shop native binding identity mismatch")
 
     def __call__(self, identity: SchedulerIdentity, previous_reset_id: str | None,
-                 checkpoint, *, runtime_input_lock, occurrence_key: str) -> Mapping[str, Any]:
+                 checkpoint: Callable[[], None], *, runtime_input_lock: RuntimeInputLockPort,
+                 occurrence_key: str) -> Mapping[str, Any]:
         try:
             return self._execute(
                 identity, previous_reset_id, checkpoint,
@@ -343,7 +353,8 @@ class AllianceShopRunner:
             return result
 
     def _execute(self, identity: SchedulerIdentity, previous_reset_id: str | None,
-                 checkpoint, *, runtime_input_lock, occurrence_key: str) -> Mapping[str, Any]:
+                 checkpoint: Callable[[], None], *, runtime_input_lock: RuntimeInputLockPort,
+                 occurrence_key: str) -> Mapping[str, Any]:
         started = self._epoch(self.utc_clock(), "start")
         backend = self._validate_identity(identity, started)
         if (self.adb, self.serial) != (str(BLUESTACKS_ADB), BLUESTACKS_SERIAL):
@@ -360,7 +371,7 @@ class AllianceShopRunner:
             return self._blocked(identity, previous_reset_id, occurrence_key, started,
                                  "ALLIANCE_SHOP_NATIVE_BINDING_UNAVAILABLE")
 
-        def validate_identity():
+        def validate_identity() -> None:
             runtime_input_lock.assert_held("automation-service", runtime_input_lock.invocation_id)
             checkpoint()
             runtime_input_lock.assert_held("automation-service", runtime_input_lock.invocation_id)
@@ -440,13 +451,14 @@ class AllianceShopRunner:
         return result
 
     @staticmethod
-    def _epoch(value, field):
-        if type(value) not in (int, float) or not math.isfinite(float(value)) or float(value) < 0:
+    def _epoch(value: object, field: str) -> float:
+        if (not isinstance(value, (int, float)) or type(value) not in (int, float)
+                or not math.isfinite(float(value)) or float(value) < 0):
             raise ValueError(f"Alliance Shop {field} must be a finite UTC epoch")
         return float(value)
 
     @staticmethod
-    def _validate_identity(identity, now):
+    def _validate_identity(identity: SchedulerIdentity, now: float) -> VerifiedRuntimeIdentity:
         if not isinstance(identity, SchedulerIdentity) or identity.task_id != PRODUCT_ID:
             raise ValueError("Alliance Shop scheduler identity mismatch")
         if identity.reset_id != recruitment_reset(now):
@@ -458,7 +470,8 @@ class AllianceShopRunner:
         return backend
 
     @staticmethod
-    def _blocked(identity, previous_reset_id, occurrence_key, started, reason):
+    def _blocked(identity: SchedulerIdentity, previous_reset_id: str | None,
+                 occurrence_key: str, started: float | None, reason: str) -> dict[str, Any]:
         return {
             "status": "blocked", "reason": reason, "flow_id": FLOW_ID,
             "product_id": PRODUCT_ID, "product_revision": PRODUCT_REVISION,
@@ -487,7 +500,9 @@ class AllianceShopExecutionHandler:
     max_inputs = MAX_INPUTS
     max_actions = MAX_ACTIONS
 
-    def __init__(self, snapshot: RegisteredDispatchSnapshot, execute, *, flow_spec: FlowSpec | None = None):
+    def __init__(self, snapshot: RegisteredDispatchSnapshot,
+                 execute: Callable[[RunRecord, SchedulerFacts], NormalizedResult], *,
+                 flow_spec: FlowSpec | None = None) -> None:
         if not isinstance(snapshot, RegisteredDispatchSnapshot):
             raise TypeError("Alliance Shop requires a typed registered dispatch snapshot")
         if (snapshot.flow_id, snapshot.product_id, snapshot.product_revision, snapshot.profile) != (
@@ -500,10 +515,10 @@ class AllianceShopExecutionHandler:
         self.snapshot, self._execute = snapshot, execute
         self.flow_spec = flow_spec
 
-    def describe(self):
+    def describe(self) -> FlowDescriptor:
         return canonical_entry(FLOW_ID).descriptor
 
-    def eligibility(self, facts, perception=None):
+    def eligibility(self, facts: SchedulerFacts, perception: PerceptionEnvelope | None = None) -> bool:
         return bool(not facts.gate_failures(self.describe())
             and facts.accepted_product == PRODUCT_ID
             and facts.product_revision == PRODUCT_REVISION
@@ -513,19 +528,22 @@ class AllianceShopExecutionHandler:
 
     revalidate = eligibility
 
-    def execute_run(self, run, facts, perception=None):
+    def execute_run(self, run: RunRecord, facts: SchedulerFacts,
+                    perception: PerceptionEnvelope | None = None) -> NormalizedResult:
         return self._execute(run, facts)
 
-    def plan(self, facts, perception=None):
+    def plan(self, facts: SchedulerFacts,
+             perception: PerceptionEnvelope | None = None) -> NormalizedResult:
         return self.recover("ALLIANCE_SHOP_CANONICAL_RUN_REQUIRED")
 
-    def reconcile(self, plan, perception=None):
+    def reconcile(self, plan: object,
+                  perception: PerceptionEnvelope | None = None) -> NormalizedResult:
         return plan if isinstance(plan, NormalizedResult) else self.recover("ALLIANCE_SHOP_UNKNOWN_RESULT")
 
-    def recover(self, reason_code):
+    def recover(self, reason_code: str) -> NormalizedResult:
         return NormalizedResult(NormalizedOutcome.BLOCKED, reason_code, verified=False)
 
-    def summarize(self):
+    def summarize(self) -> Mapping[str, object]:
         return {"flow_id": FLOW_ID, "selection_only": False, "transport_count": 0}
 
 
