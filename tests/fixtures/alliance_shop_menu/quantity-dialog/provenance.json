@@ -1,0 +1,26 @@
+{
+  "ticket": 73,
+  "scope": "Canonical #73 live run selected Weekly Bioenhance Scheme and opened its quantity modal; 0 inner Buy, 0 purchase effect; modal was not recognized or closed. No purchase or Home acceptance evidence.",
+  "source_root": "Puzzle_Survival_Runtime_POC",
+  "frames": [
+    {
+      "fixture": "0011-alliance-shop-weekly-scan-1.png",
+      "source": ".local-captures/development-sessions/restart-resume-20261108T035832132346Z/alliance-shop73-inventory-repair-native/native/ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE-20261108T070856757599Z-4d9625d0/alliance-shop-native-20261108T070856868840Z/frames/0011-alliance-shop-weekly-scan-1.png",
+      "sha256": "2dcb95eda163b1ac27629a63c925679881b14e45479731638d486aeb94f28567",
+      "kind": "unaltered immutable Original native 800x1280 frame"
+    },
+    {
+      "fixture": "0013-alliance-shop-open-quantity-dialog-immediate-before.png",
+      "source": ".local-captures/development-sessions/restart-resume-20261108T035832132346Z/alliance-shop73-inventory-repair-native/native/ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE-20261108T070856757599Z-4d9625d0/alliance-shop-native-20261108T070856868840Z/frames/0013-alliance-shop-open-quantity-dialog-immediate-before.png",
+      "sha256": "ce2550eaedcf6da6c3bb533a558eb1a8dfe3f83f3a78e16693c9c037a4f4549d",
+      "kind": "unaltered immutable Original native 800x1280 frame"
+    },
+    {
+      "fixture": "0015-alliance-shop-open-quantity-dialog-settled.png",
+      "source": ".local-captures/development-sessions/restart-resume-20261108T035832132346Z/alliance-shop73-inventory-repair-native/native/ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE-20261108T070856757599Z-4d9625d0/alliance-shop-native-20261108T070856868840Z/frames/0015-alliance-shop-open-quantity-dialog-settled.png",
+      "sha256": "267a0fd6b08f6d0dcc5acf8b20bd6315c3b023edab04416b5bbdbc2767a18d41",
+      "kind": "unaltered immutable Original native 800x1280 frame",
+      "note": "Original 0016-alliance-shop-home-return-source.png is byte-identical (same sha256): the failed Home return observed this unclosed modal."
+    }
+  ]
+}
