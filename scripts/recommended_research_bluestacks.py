@@ -227,14 +227,35 @@ def _scaled_crop_words(frame: Any, roi: tuple[int, int, int, int], config: str) 
     return _translated_words(call_ocr(tesseract_data, crop, config=config, call_timeout=5.0), x0, y0)
 
 
+def _white_ink(crop: Any) -> Any:
+    """Keep only white UI strokes, darkened onto a blank page."""
+
+    white = cv2.inRange(cv2.cvtColor(crop, cv2.COLOR_BGR2HSV), (0, 0, 180), (179, 80, 255))
+    strokes = cv2.dilate(white, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)))
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    return cv2.bitwise_not(cv2.bitwise_and(gray, gray, mask=strokes))
+
+
+def _gray(crop: Any) -> Any:
+    return cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+
+
+def _prepared_crop_words(
+    frame: Any, roi: tuple[int, int, int, int], prepare: Callable[[Any], Any], config: str,
+) -> tuple[ResearchWord, ...]:
+    from scripts.bounded_tesseract import call_ocr, tesseract_data
+
+    x0, y0, x1, y1 = roi
+    scaled = cv2.resize(prepare(frame[y0:y1, x0:x1]), None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
+    return _translated_words(call_ocr(tesseract_data, scaled, config=config, call_timeout=5.0), x0, y0)
+
+
 def _radial_caption_words(frame: Any, anchor: tuple[float, float]) -> tuple[ResearchWord, ...]:
     """Read the white radial captions beneath a freshly bound owner anchor.
 
     Full-frame OCR merges the small outlined captions with the city art, so
-    only white strokes in the owner's caption band are kept, darkened onto a
-    blank page and read sparse at 3x.
+    only white strokes in the owner's caption band are read sparse at 3x.
     """
-    from scripts.bounded_tesseract import call_ocr, tesseract_data
 
     height, width = frame.shape[:2]
     ax, ay = (int(round(value)) for value in anchor)
@@ -242,13 +263,87 @@ def _radial_caption_words(frame: Any, anchor: tuple[float, float]) -> tuple[Rese
     x1, y1 = min(width, ax + 240), min(height, ay + 210)
     if x1 - x0 < 24 or y1 - y0 < 24:
         return ()
-    crop = frame[y0:y1, x0:x1]
-    white = cv2.inRange(cv2.cvtColor(crop, cv2.COLOR_BGR2HSV), (0, 0, 180), (179, 80, 255))
-    strokes = cv2.dilate(white, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)))
-    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
-    ink = cv2.bitwise_not(cv2.bitwise_and(gray, gray, mask=strokes))
-    scaled = cv2.resize(ink, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
-    return _translated_words(call_ocr(tesseract_data, scaled, config="--psm 11", call_timeout=5.0), x0, y0)
+    return _prepared_crop_words(frame, (x0, y0, x1, y1), _white_ink, "--psm 11")
+
+
+# Actual Research Center page rereads measured 95-96 for the title and both
+# Research buttons, and 95-96 for the row title words they anchor.
+_RESEARCH_PAGE_MIN_CONFIDENCE = 80.0
+_ROMAN_TAIL_RE = re.compile(r"(.*\S)\s+([IVXl|]{1,4})")
+
+
+def _canonical_title(title: str) -> str:
+    """Tesseract reads this font's roman-numeral I as l or |; titles end in I/V/X tiers."""
+
+    match = _ROMAN_TAIL_RE.fullmatch(title)
+    if match is None:
+        return title
+    return f"{match.group(1)} {match.group(2).replace('l', 'I').replace('|', 'I')}"
+
+
+def _research_page_words(frame: Any, words: tuple[ResearchWord, ...]) -> tuple[ResearchWord, ...]:
+    """Reread the Research Center page controls the full-frame pass drops.
+
+    Runs only once the full-frame read shows exactly one recommendation header.
+    The white title band, the white Research buttons below that header and the
+    row title beside each button (anchored by its own confident words) are
+    reread; nothing is added without a confident current read.
+    """
+
+    lines = _line_groups(words)
+    headers = [line for line in lines if "recomd" in _normalize(_line_text(line)) or "recommended" in _normalize(_line_text(line))]
+    if len(headers) != 1:
+        return words
+    height, width = frame.shape[:2]
+    header_bottom = _line_bounds(headers[0])[3]
+    block = max((word.line_id[0] for word in words), default=0) + 1
+    added: list[ResearchWord] = []
+    replaced: list[tuple[int, int, int, int]] = []
+    if not any(_line_bounds(line)[1] < 180 for line in _phrase_lines(lines, "Research Center")):
+        for word in _prepared_crop_words(frame, (0, 0, width, 180), _white_ink, "--psm 6"):
+            if word.confidence >= _RESEARCH_PAGE_MIN_CONFIDENCE:
+                added.append(ResearchWord(word.text, word.normalized, word.roi, word.confidence, (block, word.line_id[1], word.line_id[2])))
+        block += 1
+    buttons = sorted(
+        (
+            word for word in _prepared_crop_words(frame, (330, header_bottom, width, height), _white_ink, "--psm 6")
+            if word.normalized == "research" and word.confidence >= _RESEARCH_PAGE_MIN_CONFIDENCE
+        ),
+        key=lambda word: (word.roi[1], word.roi[0]),
+    )
+    for button in buttons:
+        bx0, by0, _bx1, by1 = button.roi
+        added.append(ResearchWord(button.text, button.normalized, button.roi, button.confidence, (block, 0, 0)))
+        replaced.append(button.roi)
+        block += 1
+        anchors = [
+            word for word in words
+            if word.confidence >= _RESEARCH_PAGE_MIN_CONFIDENCE
+            and word.roi[1] > header_bottom
+            and word.roi[2] <= bx0 - 8
+            and by0 - 40 <= word.center[1] <= by1
+        ]
+        if not anchors:
+            continue
+        band = (
+            max(0, min(word.roi[0] for word in anchors) - 8),
+            max(header_bottom, min(word.roi[1] for word in anchors) - 6),
+            bx0 - 8,
+            min(height, max(word.roi[3] for word in anchors) + 6),
+        )
+        row = [word for word in _prepared_crop_words(frame, band, _gray, "--psm 11") if word.normalized]
+        if not row or any(word.confidence < 60 for word in row):
+            continue
+        added.extend(ResearchWord(word.text, word.normalized, word.roi, word.confidence, (block, 0, 0)) for word in row)
+        replaced.append((0, band[1], band[2], band[3]))
+        block += 1
+    if not added:
+        return words
+    retained = tuple(
+        word for word in words
+        if not any(x0 <= word.center[0] <= x1 and y0 <= word.center[1] <= y1 for x0, y0, x1, y1 in replaced)
+    )
+    return (*retained, *added)
 
 
 def _home_research_hud_words(frame: Any, words: tuple[ResearchWord, ...]) -> tuple[ResearchWord, ...]:
@@ -440,6 +535,8 @@ def recognize_research_screen(
     words = _read_words(frame, ocr_data)
     if home_recognized and ocr_data is None:
         words = _home_research_hud_words(frame, words)
+    elif ocr_data is None:
+        words = _research_page_words(frame, words)
     lines = _line_groups(words)
     text = "\n".join(_line_text(line) for line in lines)
     normalized_text = _normalize(text)
@@ -486,7 +583,7 @@ def recognize_research_screen(
                     candidates.append((abs(((y0 + y1) / 2) - ((by0 + by1) / 2)), y0, words_left))
             if candidates:
                 candidates.sort(key=lambda item: (item[0], item[1]))
-                title = " ".join(word.text for word in sorted(candidates[0][2], key=lambda item: item.roi[0])).strip()
+                title = _canonical_title(" ".join(word.text for word in sorted(candidates[0][2], key=lambda item: item.roi[0])).strip())
                 identity = research_identity(title)
                 page_bounds = _panel_bounds(lines, top=header_bottom - 20, bottom=max(_line_bounds(line)[3] for line in buttons) + 24)
                 button_roi = _padded_roi((bx0, by0, bx1, by1))
@@ -515,7 +612,7 @@ def recognize_research_screen(
             continue
         value = _line_text(line)
         match = _LEVEL_RE.search(value)
-        title = value[:match.start()].strip(" ():-") if match else value
+        title = _canonical_title(value[:match.start()].strip(" ():-") if match else value)
         identity = research_identity(title)
         if identity is None or (expected_detail_identity is not None and identity != expected_detail_identity):
             continue
@@ -1497,6 +1594,7 @@ def _home_from_current(
     game_day_id: str,
     occurrence_key: str,
     step: int,
+    key_name: str | None = None,
 ) -> tuple[Any, bool, int]:
     if context.is_clean_home(current.frame):
         return current, True, step
@@ -1504,7 +1602,7 @@ def _home_from_current(
     plan = _return_plan(current.frame, screen)
     if plan is None:
         return current, False, step
-    action_key = _navigation_key(context, occurrence_key, f"return-home:{step}")
+    action_key = _navigation_key(context, occurrence_key, key_name or f"return-home:{step}")
     result, after, verified = _guarded_action(
         context,
         policy,
@@ -1523,12 +1621,29 @@ def _home_from_current(
 
 
 
-def _startup(context: Any, game_day_id: str, occurrence_key: str) -> Any:
+def _startup(context: Any, policy: CentralPolicy, game_day_id: str, occurrence_key: str) -> Any:
     initial = context.initial_frame
     if context.is_clean_home(initial.frame):
         if context.session.initial_observation is None:
             context.bind_initial_observation(initial, extra={"route_source": "recommended-research-clean-home"})
         return initial
+    screen = _source_screen(context, initial)
+    if screen.recognized and _return_plan(initial.frame, screen) is not None:
+        # A positively identified Research page (e.g. left open by an earlier
+        # unverified successor): bind that exact source, then one guarded Back
+        # to a verified Home.
+        if context.session.initial_observation is None:
+            context.bind_initial_observation(initial, extra={
+                "route_source": "recommended-research-existing-page",
+                "research_page_state": screen.screen_state,
+            })
+        home, home_verified, _step = _home_from_current(
+            context, policy, current=initial, game_day_id=game_day_id,
+            occurrence_key=occurrence_key, step=0, key_name="startup-return-home",
+        )
+        if not home_verified:
+            raise RuntimeError("RECOMMENDED_RESEARCH_STARTUP_HOME_NOT_PROVEN")
+        return home
     recovery = context.prepare_startup(
         source_context="recommended_research_clean_home",
         recognize_successor=lambda captured: context.is_clean_home(captured.frame),
@@ -1554,11 +1669,12 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
     if not isinstance(occurrence_key, str) or not occurrence_key.strip():
         raise RuntimeError("RECOMMENDED_RESEARCH_OCCURRENCE_KEY_REQUIRED")
     start_action_key = _action_key(context.identity, game_day_id)
+    policy = CentralPolicy(supervised_tasks=frozenset({FLOW_ID}))
     prior = context.action_store.get_action_by_key(start_action_key)
     if prior is not None:
         status = prior.get("final_status")
         if status == "confirmed":
-            _startup(context, game_day_id, occurrence_key)
+            _startup(context, policy, game_day_id, occurrence_key)
             home = context.session.observe(
                 context.runtime.capture,
                 label="recommended-research-reset-action-home",
@@ -1585,10 +1701,9 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 "identical_retry_denied": pending,
             },
         )
-    policy = CentralPolicy(supervised_tasks=frozenset({FLOW_ID}))
     semantic_progress: dict[str, Any] = {}
     try:
-        initial = _startup(context, game_day_id, occurrence_key)
+        initial = _startup(context, policy, game_day_id, occurrence_key)
         home = context.session.observe(context.runtime.capture, label="recommended-research-home-source")
         if not context.is_clean_home(home.frame):
             return _normal_result(context, status="blocked", reason="fresh_clean_home_not_proven", game_day_id=game_day_id)

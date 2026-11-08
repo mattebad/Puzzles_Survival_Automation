@@ -176,8 +176,11 @@ alone never establishes an eligible hero, free entry or actionable control: miss
 eligibility evidence still blocks dispatch. Actual historical desktop images prove classification
 only, not native input binding or three-cycle acceptance. Research refreshes queue, prerequisites,
 paired resource costs/balances and the exact detail control immediately before start; changed,
-expired or ambiguous evidence denies input. Farm uses fixed runtime identity, source-bound
-collection/boost controls and current lease/freshness guards. A displayed item cost of one is
+expired or ambiguous evidence denies input. Recommendation title/button rereads use measured
+current pixels; an already-open recognized Research page gets one guarded Back and must reach
+verified Home before a new visit, or startup stops. These guards do not establish start acceptance.
+Farm uses fixed runtime identity, source-bound collection/boost controls and current lease/freshness
+guards. A displayed item cost of one is
 not owned inventory; unproved inventory or premium confirmation/effects remains blocked.
 
 
