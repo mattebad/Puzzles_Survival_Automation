@@ -17,6 +17,7 @@
   "recognized_states": [
     "home_canonical",
     "alliance_screen",
+    "alliance_help_hub",
     "help_source_fresh",
     "help_all_ready_exact",
     "individual_help_ready",
@@ -44,14 +45,38 @@
       "terminal_outcomes": ["blocked", "manual_required"]
     },
     {
-      "transition_id": "recover-help-context-to-alliance-before-normal-entry",
+      "transition_id": "recover-help-context-to-hub-before-normal-entry",
       "from": "help_source_fresh",
-      "to": "alliance_screen",
+      "to": "alliance_help_hub",
       "planner": "scripts/alliance_help_bluestacks.py",
       "permitted_input": "safe_return_to_canonical_home",
       "postconditions": [
         "fresh clear Speedup Help source and current Back are rebound",
-        "changed exact Alliance menu successor is positively recognized without repeating Help"
+        "changed exact Alliance Help hub successor is positively recognized without repeating Help"
+      ],
+      "terminal_outcomes": ["blocked", "manual_required"]
+    },
+    {
+      "transition_id": "recover-help-hub-to-alliance-before-normal-entry",
+      "from": "alliance_help_hub",
+      "to": "alliance_screen",
+      "planner": "scripts/alliance_help_bluestacks.py",
+      "permitted_input": "safe_return_to_canonical_home",
+      "postconditions": [
+        "fresh clear Alliance Help hub and current Back are rebound",
+        "changed exact Alliance menu successor is positively recognized without selecting another hub row"
+      ],
+      "terminal_outcomes": ["blocked", "manual_required"]
+    },
+    {
+      "transition_id": "recover-help-hub-directly-home-before-normal-entry",
+      "from": "alliance_help_hub",
+      "to": "home_canonical",
+      "planner": "scripts/alliance_help_bluestacks.py",
+      "permitted_input": "safe_return_to_canonical_home",
+      "postconditions": [
+        "fresh clear Alliance Help hub and current Back are rebound",
+        "changed canonical Home successor is positively recognized before normal Home entry"
       ],
       "terminal_outcomes": ["blocked", "manual_required"]
     },
@@ -83,18 +108,30 @@
       ]
     },
     {
-      "transition_id": "open-help-source",
+      "transition_id": "open-help-hub",
       "from": "alliance_screen",
-      "to": "help_source_fresh",
+      "to": "alliance_help_hub",
       "planner": "scripts/alliance_help_bluestacks.py",
       "permitted_input": "open_help_from_current_alliance",
       "postconditions": [
-        "fresh current Alliance Help source is positively recognized"
+        "fresh Alliance Help hub title, exact Speedup Help / Transport Resources / Reinforce Allies row order and clear overlay are positively recognized"
       ],
       "terminal_outcomes": [
         "blocked",
         "manual_required"
       ]
+    },
+    {
+      "transition_id": "open-speedup-help",
+      "from": "alliance_help_hub",
+      "to": "help_source_fresh",
+      "planner": "scripts/alliance_help_bluestacks.py",
+      "permitted_input": "open_speedup_help_from_current_help_hub",
+      "postconditions": [
+        "only the current recognized Speedup Help label box is bound",
+        "fresh clear Speedup Help successor is positively recognized before any request effect"
+      ],
+      "terminal_outcomes": ["blocked", "manual_required"]
     },
     {
       "transition_id": "bind-help-all-exact-count",
@@ -285,6 +322,7 @@
   "permitted_inputs": [
     "open_alliance_from_current_home",
     "open_help_from_current_alliance",
+    "open_speedup_help_from_current_help_hub",
     "dispatch_help_all_for_exact_known_free_request_count_within_remaining_quota",
     "dispatch_one_individually_recognized_free_help",
     "safe_return_to_canonical_home"
@@ -307,7 +345,7 @@
     "manual_required"
   ],
   "cooldown_deferred_behavior": "Cooldown pulses are reset-scoped. Preserve confirmed partial request quota across restart within the same daily reset; stop at ten actual successful requests or when free Help disappears. A later pulse resumes only the remaining verified quota.",
-  "bounded_recovery_behavior": "A positively recognized existing Alliance menu or fresh clear Speedup Help source may use at most two route-owned Back steps to reach fresh canonical Home before normal entry. Each immediate source and changed expected successor is verified; unknown, changed or unchanged sources/successors stop without identical retry. Recovery consumes physical inputs, not Help quota, and never repeats or reconciles a Help effect. Unknown target, cost, overlay, stale source, unchanged result, or unresolved request successor blocks further identical dispatch across restart. Preserve confirmed quota; use only a positively recognized safe return to canonical Home.",
+  "bounded_recovery_behavior": "A positively recognized existing Alliance menu, Alliance Help hub or fresh clear Speedup Help source may use at most three distinct route-owned Back steps to reach fresh canonical Home before normal entry. Exact reverse contexts are Speedup Help to hub to Alliance to Home; a positively recognized direct Home successor is also accepted. Each immediate source and changed expected successor is verified; unknown, changed or unchanged sources/successors stop without identical retry. Recovery consumes physical inputs, not Help quota, and never repeats or reconciles a Help effect. The intermediate hub must be positively recognized before opening only Speedup Help; alliance_help_hub_successor_unproven or speedup_help_successor_unproven stops without another input. Unknown target, cost, overlay, stale source, unchanged result, or unresolved request successor blocks further identical dispatch across restart. Preserve confirmed quota; use only a positively recognized safe return to canonical Home.",
   "product_policy_refs": [
     {
       "policy_id": "unknown-consequence",

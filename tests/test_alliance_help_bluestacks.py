@@ -204,7 +204,10 @@ class AllianceHelpSemanticsTests(unittest.TestCase):
                 patch.object(route, "_home_alliance_target", side_effect=lambda frame: (639, 1243, 647, 1251)
                              if runtime.snapshot(frame).state == "home" else None),
                 patch.object(route, "_alliance_menu", side_effect=lambda frame: runtime.snapshot(frame).state == "alliance"),
-                patch.object(route, "_menu_help_target", return_value=(180, 500, 300, 560)),
+                patch.object(route, "_menu_help_target", return_value=REPLAY_MENU_HELP_ROI),
+                patch.object(route, "_help_hub", side_effect=lambda frame: runtime.snapshot(frame).state == "hub"),
+                patch.object(route, "_hub_speedup_target", side_effect=lambda frame: REPLAY_HUB_SPEEDUP_ROI
+                             if runtime.snapshot(frame).state == "hub" else None),
                 patch.object(route, "_back_target", return_value=(45, 8, 160, 58)),
                 patch.object(route, "recognize_help_screen", runtime.observe),
             )
@@ -291,6 +294,10 @@ class AllianceHelpSemanticsTests(unittest.TestCase):
 
 ALLIANCE_MENU_FIXTURE = Path(__file__).parent / "fixtures" / "alliance_help_menu" / "alliance-menu-help56-0005.png"
 ALLIANCE_MENU_FIXTURE_SHA256 = "88bb1d05ec658290f3ce1b53a585e4a2b759b270fbb8c2ccc1fc51f4f48a43e2"
+HELP_HUB_FIXTURE = Path(__file__).parent / "fixtures" / "alliance_help_menu" / "alliance-help-hub-help56-0012.png"
+HELP_HUB_FIXTURE_SHA256 = "8e1241cc50850c446ca04ccb72c86db73869a45b27fcb323dd73cc8dc38e7541"
+REPLAY_MENU_HELP_ROI = (416, 1190, 546, 1280)
+REPLAY_HUB_SPEEDUP_ROI = (275, 106, 521, 167)
 
 
 def _retained(path: Path, expected_sha256: str | None = None):
@@ -338,6 +345,52 @@ class AllianceHelpRetainedNavigationTests(unittest.TestCase):
             raise RuntimeError("overlay recognizer unavailable")
 
         self.assertFalse(route._alliance_menu(menu.frame, overlay_reader=failing))
+        self.assertFalse(route._help_hub(menu.frame))
+
+    def test_retained_help_hub_is_recognized_and_binds_only_the_speedup_help_row(self):
+        hub = _retained(HELP_HUB_FIXTURE, HELP_HUB_FIXTURE_SHA256)
+        self.assertTrue(route._help_hub(hub.frame))
+        self.assertFalse(route._alliance_menu(hub.frame))
+        self.assertFalse(route._home(hub.frame))
+        self.assertNotEqual(route.recognize_help_screen(hub.frame, captured_at=10.0,
+            frame_sha256=hub.sha256, now=10.5).screen_state, SOURCE_STATE)
+        self.assertIsNotNone(route._back_target(hub.frame))
+        rows = route._help_hub_rows(hub.frame)
+        assert rows is not None
+        self.assertEqual(tuple(rows), route.HELP_HUB_ROW_LABELS)
+        target = route._hub_speedup_target(hub.frame)
+        assert target is not None
+        x0, y0, x1, y1 = target
+        center_x, center_y = (x0 + x1) // 2, (y0 + y1) // 2
+        # Speedup Help is the first row panel (about y 78..198); Transport/Reinforce rows sit below.
+        self.assertTrue(80 <= y0 < center_y < y1 <= 200, target)
+        self.assertTrue(250 <= x0 < center_x < x1 <= 560, target)
+        self.assertLess(y1, rows["transport resources"][1])
+        self.assertEqual(route._route_context(hub, now=10.5), route.ROUTE_CONTEXT_HELP_HUB)
+
+    def test_help_hub_rejects_other_title_rows_or_any_unclear_overlay(self):
+        hub = _retained(HELP_HUB_FIXTURE, HELP_HUB_FIXTURE_SHA256)
+        menu = _retained(ALLIANCE_MENU_FIXTURE, ALLIANCE_MENU_FIXTURE_SHA256)
+        other_title = hub.frame.copy()
+        other_title[0:70] = menu.frame[0:70]
+        self.assertFalse(route._help_hub(other_title))
+        duplicated_row = hub.frame.copy()
+        duplicated_row[245:300] = hub.frame[110:165]
+        self.assertIsNone(route._help_hub_rows(duplicated_row))
+        self.assertIsNone(route._hub_speedup_target(duplicated_row))
+        self.assertFalse(route._help_hub(duplicated_row))
+        reordered = hub.frame.copy()
+        reordered[110:165] = hub.frame[245:300]
+        reordered[245:300] = hub.frame[110:165]
+        self.assertIsNone(route._hub_speedup_target(reordered))
+        self.assertFalse(route._help_hub(reordered))
+        self.assertFalse(route._help_hub(hub.frame,
+            overlay_reader=lambda _frame: {"recognized": True, "state": "modal"}))
+
+        def failing(_frame):
+            raise RuntimeError("overlay recognizer unavailable")
+
+        self.assertFalse(route._help_hub(hub.frame, overlay_reader=failing))
 
     def test_retained_speedup_help_title_is_recognized_fresh_only_and_is_not_the_menu(self):
         help_source = _retained(route.HELP_SOURCE_PATH)
@@ -346,6 +399,7 @@ class AllianceHelpRetainedNavigationTests(unittest.TestCase):
         self.assertEqual(observation.screen_state, SOURCE_STATE)
         self.assertTrue(observation.overlay_clear)
         self.assertFalse(route._alliance_menu(help_source.frame))
+        self.assertFalse(route._help_hub(help_source.frame))
         self.assertEqual(route._route_context(help_source, now=10.5), route.ROUTE_CONTEXT_SPEEDUP_HELP)
         self.assertIsNone(route._route_context(help_source, now=100.0))
 
@@ -364,8 +418,8 @@ class AllianceHelpRouteContextRecoveryTests(unittest.TestCase):
         self.assertEqual(result["help_transport_calls"], 0)
         self.assertTrue(result["terminal_home_verified"])
         self.assertTrue(result["accounting_verified"])
-        # Back, open Alliance, open Help, then the two terminal Backs.
-        self.assertEqual(result["input_count"], 5)
+        # Back, open Alliance, open hub, open Speedup Help, then the three terminal Backs.
+        self.assertEqual(result["input_count"], 7)
         self.assertEqual(result["input_count"], session.input_count)
         self.assertEqual(result["input_count"], runtime.input_count)
 
@@ -374,13 +428,57 @@ class AllianceHelpRouteContextRecoveryTests(unittest.TestCase):
             result, _blocked, session, runtime = _run_replay_route(
                 Path(directory) / "help", requests=1, initial_state="help")
         self.assertEqual(result["route_context_recovery"]["verified_navigation"],
-                         ["back-speedup-help", "back-alliance-home"])
+                         ["back-speedup-help", "back-help-hub", "back-alliance-home"])
+        self.assertEqual(result["status"], "deferred")
+        self.assertEqual(result["confirmed_request_count"], 1)
+        self.assertEqual(runtime.help_taps, 1)
+        self.assertTrue(result["terminal_home_verified"])
+        self.assertEqual(result["verified_navigation"],
+                         ["back-speedup-help", "back-help-hub", "back-alliance-home"])
+        self.assertTrue(result["accounting_verified"])
+        # Three recovery Backs, three entry taps, one Help, three terminal Backs.
+        self.assertEqual(result["input_count"], 10)
+        self.assertEqual(result["input_count"], session.input_count)
+
+    def test_current_help_hub_returns_home_before_normal_entry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, _blocked, session, runtime = _run_replay_route(
+                Path(directory) / "hub", requests=1, initial_state="hub")
+        recovery = result["route_context_recovery"]
+        self.assertEqual(recovery["source_context"], route.ROUTE_CONTEXT_HELP_HUB)
+        self.assertEqual(recovery["verified_navigation"], ["back-help-hub", "back-alliance-home"])
+        self.assertTrue(recovery["home_verified"])
         self.assertEqual(result["status"], "deferred")
         self.assertEqual(result["confirmed_request_count"], 1)
         self.assertEqual(runtime.help_taps, 1)
         self.assertTrue(result["terminal_home_verified"])
         self.assertTrue(result["accounting_verified"])
-        self.assertEqual(result["input_count"], 7)
+        self.assertEqual(result["input_count"], 9)
+        self.assertEqual(result["input_count"], session.input_count)
+
+    def test_entry_requires_exact_hub_before_speedup_help_row(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, _blocked, session, runtime = _run_replay_route(
+                Path(directory) / "nohub", requests=1, menu_opens="unknown")
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["reason"], "alliance_help_hub_successor_unproven")
+        self.assertEqual(runtime.help_taps, 0)
+        self.assertNotIn("help-hub-speedup-help", {item[1] for item in runtime.frame_actions})
+        self.assertFalse(result["terminal_home_verified"])
+        self.assertEqual(result["input_count"], 2)
+        self.assertEqual(result["input_count"], session.input_count)
+        self.assertTrue(result["accounting_verified"])
+
+    def test_worst_case_recovery_entry_ten_help_and_return_fit_input_budget(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, _blocked, session, runtime = _run_replay_route(
+                Path(directory) / "worst", requests=10, initial_state="help")
+        self.assertEqual(result["status"], "complete_for_reset")
+        self.assertEqual(runtime.help_taps, DAILY_REQUEST_LIMIT)
+        self.assertTrue(result["terminal_home_verified"])
+        self.assertTrue(result["accounting_verified"])
+        self.assertEqual(result["input_count"], 19)
+        self.assertLessEqual(result["input_count"], route.MAX_INPUTS)
         self.assertEqual(result["input_count"], session.input_count)
 
     def test_unknown_start_context_sends_no_input(self):
@@ -421,6 +519,18 @@ class AllianceHelpRouteContextRecoveryTests(unittest.TestCase):
         self.assertEqual(session.input_count, 0)
         self.assertEqual(runtime.help_taps, 0)
 
+    def test_unchanged_hub_back_is_unknown_and_never_repeated(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, _blocked, session, runtime = _run_replay_route(
+                Path(directory) / "stuckhub", requests=1, initial_state="hub", ignore_back=True)
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["reason"], "alliance_help_route_context_recovery_unproven")
+        self.assertEqual(result["route_context_recovery"]["verified_navigation"], [])
+        self.assertEqual(runtime.input_count, 1)
+        self.assertEqual(session.input_count, 1)
+        self.assertEqual({item[1] for item in runtime.frame_actions}, {"alliance-help-back"})
+        self.assertEqual(runtime.help_taps, 0)
+
 
 class _ReplayClock:
     def __init__(self):
@@ -453,6 +563,7 @@ class _ReplayRuntime:
         self.pending_effect = False
         self.ignore_back = False
         self.change_before_back = False
+        self.menu_opens = "hub"
         self.frame_actions = set()
         self.frame_keys = {}
         self.snapshots = {}
@@ -466,7 +577,7 @@ class _ReplayRuntime:
         self.capture_count += 1
         timestamp = self.clock.tick()
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
-        state_code = {"home": 1, "alliance": 2, "help": 3, "unknown": 4}[self.state]
+        state_code = {"home": 1, "alliance": 2, "help": 3, "unknown": 4, "hub": 5}[self.state]
         toast = int(self.toast_remaining > 0)
         if toast:
             self.toast_remaining -= 1
@@ -502,6 +613,12 @@ class _ReplayRuntime:
         if target_identity == "home-nav-alliance":
             self.state = "alliance"
         elif target_identity == "alliance-menu-help":
+            if self.state != "alliance":
+                raise ValueError("replay Alliance Help entry is no longer current")
+            self.state = self.menu_opens
+        elif target_identity == "help-hub-speedup-help":
+            if self.state != "hub":
+                raise ValueError("replay Speedup Help row is no longer current")
             self.state = "help"
         elif target_identity == INDIVIDUAL_TARGET_IDENTITY:
             self.help_taps += 1
@@ -516,6 +633,8 @@ class _ReplayRuntime:
             if self.ignore_back:
                 pass
             elif self.state == "help":
+                self.state = "hub"
+            elif self.state == "hub":
                 self.state = "alliance"
             elif self.state == "alliance":
                 self.state = "home"
@@ -555,7 +674,8 @@ class _NativeReplayRuntime(LocalBlueStacksRuntime):
         self.scene = scene
         targets = {
             box_center((639, 1243, 647, 1251)): ("home-nav-alliance", (639, 1243, 647, 1251)),
-            box_center((180, 500, 300, 560)): ("alliance-menu-help", (180, 500, 300, 560)),
+            box_center(REPLAY_MENU_HELP_ROI): ("alliance-menu-help", REPLAY_MENU_HELP_ROI),
+            box_center(REPLAY_HUB_SPEEDUP_ROI): ("help-hub-speedup-help", REPLAY_HUB_SPEEDUP_ROI),
             box_center((550, 260, 680, 310)): (INDIVIDUAL_TARGET_IDENTITY, (550, 260, 680, 310)),
             box_center((45, 8, 160, 58)): ("alliance-help-back", (45, 8, 160, 58)),
         }
@@ -614,7 +734,8 @@ class _ReplaySession:
 def _run_replay_route(directory: Path, *, requests: int, suppress_effects: bool = False,
                       store_path: Path | None = None, native_dispatch: bool = False,
                       delayed_success: bool = False, initial_state: str = "home",
-                      ignore_back: bool = False, change_before_back: bool = False):
+                      ignore_back: bool = False, change_before_back: bool = False,
+                      menu_opens: str = "hub"):
     directory.mkdir(parents=True, exist_ok=True)
     now = 1_800_000_000.0
     identity = derive_resource_runtime_identity(resource_fixed_runtime_binding(),
@@ -635,6 +756,7 @@ def _run_replay_route(directory: Path, *, requests: int, suppress_effects: bool 
     scene.state = initial_state
     scene.ignore_back = ignore_back
     scene.change_before_back = change_before_back
+    scene.menu_opens = menu_opens
     patches = (
         patch.object(route, "_home", side_effect=lambda frame: scene.snapshot(frame).state == "home"),
         patch.object(route, "_home_alliance_target",
@@ -642,7 +764,10 @@ def _run_replay_route(directory: Path, *, requests: int, suppress_effects: bool 
                 if scene.snapshot(frame).state == "home" else None),
         patch.object(route, "_alliance_menu",
             side_effect=lambda frame: scene.snapshot(frame).state == "alliance"),
-        patch.object(route, "_menu_help_target", return_value=(180, 500, 300, 560)),
+        patch.object(route, "_menu_help_target", return_value=REPLAY_MENU_HELP_ROI),
+        patch.object(route, "_help_hub", side_effect=lambda frame: scene.snapshot(frame).state == "hub"),
+        patch.object(route, "_hub_speedup_target", side_effect=lambda frame: REPLAY_HUB_SPEEDUP_ROI
+            if scene.snapshot(frame).state == "hub" else None),
         patch.object(route, "_back_target", return_value=(45, 8, 160, 58)),
         patch.object(route, "recognize_help_screen", scene.observe),
         patch("scripts.bluestacks_native_runtime.time.monotonic", side_effect=scene.clock.now),

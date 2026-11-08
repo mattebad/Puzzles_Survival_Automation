@@ -7,5 +7,18 @@
   "height": 1280,
   "capture_kind": "byte-for-byte native source copy",
   "failed_route_context": "Alliance Help #56 native open-alliance settled successor after one Home->Alliance navigation; route stopped alliance_menu_successor_unproven with zero Help/consequential inputs.",
-  "purpose": "Historical source for Alliance menu title/overlay/bottom-bar recognition regression only. Not acceptance evidence and grants no live authority."
+  "purpose": "Historical source for Alliance menu title/overlay/bottom-bar recognition regression only. Not acceptance evidence and grants no live authority.",
+  "additional_fixtures": [
+    {
+      "fixture": "alliance-help-hub-help56-0012.png",
+      "source": ".local-captures/development-sessions/resumed-queue-20261108T014450968963Z/help56-repaired/native/ALLIANCE-HELP-TEN-FREE-REQUESTS-20261108T022839566066Z-c2123b44/alliance-help-native-20261108T022839660892Z/frames/0012-alliance-help-open-speedup-help-settled.png",
+      "source_workspace": "original development workspace, not the review worktree",
+      "transport_sha256": "8e1241cc50850c446ca04ccb72c86db73869a45b27fcb323dd73cc8dc38e7541",
+      "width": 800,
+      "height": 1280,
+      "capture_kind": "byte-for-byte native source copy",
+      "failed_route_context": "Repaired #56 native run: Alliance menu->Home recovery, Home->Alliance and bottom-bar Alliance Help navigation verified (3 navigation inputs, zero Help/effects); open-speedup-help settled on this intermediate Alliance Help hub (frame 0013 is byte-identical) and stopped speedup_help_successor_unproven.",
+      "purpose": "Historical source for Alliance Help hub title/overlay/exact-row recognition and Speedup Help row binding regression only. Not acceptance evidence and grants no live authority."
+    }
+  ]
 }
