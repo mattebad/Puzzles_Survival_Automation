@@ -261,6 +261,9 @@ Startup must verify Home; these recovery guards do not establish Research-start 
 A complete current four-resource scroll supplies its own quote; partial overlapping views still
 require matching overlap. A fully identified scrolled sheet can return Home without a cached
 recommendation identity, but starting still requires the fresh first-recommendation identity.
+Research Center level is read from its owner-bound caption and unique badge; all six glyph
+readings must agree or the prerequisite remains unknown. The separate excluded Research Now
+price is measured from its own diamond/caption band, never defaulted or substituted for START.
 Farm uses fixed runtime identity, source-bound collection/boost controls and current lease/freshness
 guards. A displayed item cost of one is
 not owned inventory; unproved inventory or premium confirmation/effects remains blocked.
