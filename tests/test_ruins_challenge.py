@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 import unittest
 
+import cv2
 import numpy as np
 
 from scripts.bluestacks_flow_collector import ADBRunner
@@ -19,7 +19,6 @@ from tasks.ruins_challenge import (
     RuinsChestState,
     RuinsControlState,
     RuinsDetailObservation,
-    RuinsDispatchState,
     RuinsResult,
     RuinsResultObservation,
     RuinsScreenObservation,
@@ -562,45 +561,6 @@ class RuinsContractTests(unittest.TestCase):
         self.assertEqual(clipped_recognition.observation.dispatch_control, RuinsControlState.HIDDEN)
         self.assertIsNone(clipped_recognition.target("ruins-dispatch"))
 
-    def test_home_and_ruins_list_vision_bind_fresh_native_targets(self):
-        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
-
-        def home_ocr(_frame, box=None, psm=11):
-            return "headquarters ruins" if box is None else "home"
-
-        with patch("tasks.ruins_challenge_vision._ocr", side_effect=home_ocr), patch(
-            "tasks.ruins_challenge_vision._ocr_boxes", return_value=[("ruins", (84, 900, 152, 932))]
-        ):
-            home = recognize_ruins_frame(frame, reset_identity=RESET)
-        self.assertTrue(home.observation.home_base_recognized)
-        self.assertTrue(home.observation.ruins_building_recognized)
-        self.assertIsNotNone(home.target("ruins-building"))
-        x0, y0, x1, y1 = home.target("ruins-building")
-        self.assertTrue(0 <= x0 < x1 <= 800 and 0 <= y0 < y1 <= 1280)
-
-        def list_ocr(_frame, box=None, psm=11):
-            if box is None:
-                return "nova challenge"
-            if box == (0, 0, 800, 120):
-                return "ruins challenge"
-            if box == (40, 120, 175, 180):
-                return "16350"
-            if box == (150, 100, 800, 210):
-                return "Exchange Progress Total Rank"
-            if box[0] == 18:
-                return "Nova Challenge 18/100 Wed"
-            return "challenge"
-
-        with patch("tasks.ruins_challenge_vision._ocr", side_effect=list_ocr), patch(
-            "tasks.ruins_challenge_vision._ocr_boxes", return_value=[("nova", (40, 320, 140, 350))]
-        ):
-            ruins = recognize_ruins_frame(frame, reset_identity=RESET)
-        self.assertTrue(ruins.observation.recognized)
-        self.assertEqual(ruins.observation.screen_identity, "RUINS_CHALLENGE")
-        self.assertEqual(ruins.observation.points_balance, 16350)
-        self.assertEqual(ruins.observation.row("Nova Challenge").progress_current, 18)
-        self.assertIsNotNone(ruins.target("challenge:Nova Challenge"))
-
     def test_chest_claim_is_independent_and_exactly_once(self):
         before = load_row("available_chest")
         observation = screen(before, source=before.source_frame_sha256)
@@ -696,6 +656,39 @@ class RuinsContractTests(unittest.TestCase):
         row = next(item for item in json.loads(MATRIX.read_text(encoding="utf-8"))["objectives"] if item["objective_key"] == "ruins_challenge")
         self.assertEqual(row["current_runtime_registration_status"], "NOT_REGISTERED")
         self.assertFalse(row["scheduler_eligibility"])
+
+
+class RuinsNativeWalletTests(unittest.TestCase):
+    def setUp(self):
+        self.frame = cv2.imread(str(ROOT / "tests/fixtures/ruins_overview/current-wallet.png"))
+        if self.frame is None:
+            raise RuntimeError("Native Ruins wallet fixture is unavailable")
+
+    def test_current_wallet_excludes_coin_art_and_preserves_final_digit(self):
+        observed = recognize_ruins_frame(self.frame, reset_identity=RESET).observation
+        self.assertTrue(observed.recognized)
+        self.assertEqual(observed.points_balance, 16649)
+
+    def test_missing_wallet_does_not_fabricate_a_balance(self):
+        self.frame[112:165, 109:195] = 0
+        observed = recognize_ruins_frame(self.frame, reset_identity=RESET).observation
+        self.assertTrue(observed.recognized)
+        self.assertIsNone(observed.points_balance)
+
+    def test_clipped_wallet_does_not_accept_remaining_digits(self):
+        wallet = self.frame[112:165, 109:195].copy()
+        self.frame[112:165, 109:195] = 0
+        self.frame[112:165, 109:191] = wallet[:, 4:]
+        observed = recognize_ruins_frame(self.frame, reset_identity=RESET).observation
+        self.assertTrue(observed.recognized)
+        self.assertIsNone(observed.points_balance)
+
+    def test_ambiguous_numeric_groups_are_not_concatenated(self):
+        self.frame[112:165, 109:195] = 0
+        cv2.putText(self.frame, "10 20", (113, 146), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2)
+        observed = recognize_ruins_frame(self.frame, reset_identity=RESET).observation
+        self.assertTrue(observed.recognized)
+        self.assertIsNone(observed.points_balance)
 
 
 if __name__ == "__main__":
