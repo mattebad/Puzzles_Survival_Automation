@@ -646,10 +646,20 @@ class HallOfWarBoundary:
                            min(step.plan.drag_start[1], step.plan.drag_end[1]),
                            max(step.plan.drag_start[0], step.plan.drag_end[0]) + 1,
                            max(step.plan.drag_start[1], step.plan.drag_end[1]) + 1)
-                self.navigation.prepare_source_safety(self._safety(captured, "HOME_BASE", pan_roi))
+                def authorize_pan(before):
+                    nonlocal before_localization
+                    localized_before = self.localizer.localize(before.frame)
+                    if (not self.vision.is_clean_home(before.frame)
+                            or not localized_before.recognized
+                            or localized_before.stale or localized_before.overlay):
+                        raise HallOfWarRouteError("hall_of_war_home_pan_source_not_current")
+                    before_localization = localized_before
+                    self.navigation.prepare_source_safety(self._safety(before, "HOME_BASE", pan_roi))
+
                 self.session.run_action(
                     action_class="navigation", label=f"hall-of-war-home-pan-{pans + 1}",
                     capture=self.runtime.capture,
+                    authorize=authorize_pan,
                     dispatch=lambda before, plan=step.plan: self.navigation.swipe(
                         before, start=plan.drag_start, end=plan.drag_end,
                         action_key=f"hall-of-war-home-pan:{before.sha256}",
