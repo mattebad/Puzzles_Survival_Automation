@@ -102,6 +102,13 @@ _NANOWEAPON_TAB_CELLS = (
 )
 _NANOWEAPON_MATERIAL_TAB_CONTROL = dict(_NANOWEAPON_TAB_CELLS)["Material Production"]
 
+# Actual selected Material Production completion, ca492a3d frame 0008:
+# single reward profile, output 24-38, one purple Claim; no visible duration,
+# timer or START quote. Counts below are semantic profile facts, not OCR counters.
+_MATERIAL_COMPLETE_CLAIM_CROP = (276, 1168, 525, 1254)
+_MATERIAL_COMPLETE_CLAIM_CONTROL = (278, 1172, 522, 1250)
+_MATERIAL_COMPLETE_PANEL = (41, 147, 759, 1254)
+
 
 @dataclass(frozen=True)
 class _Word:
@@ -256,11 +263,8 @@ def _panel_observation(captured, *, context, occurrence_key: str) -> _PanelRead:
         return _PanelRead(None, None, "material_production_tab_not_positively_selected")
     words = _ocr_words(captured.frame)
     lines = _lines(words)
-    if not _duration_proof(lines):
-        return _PanelRead(None, None, "exact_21600_second_duration_not_recognized")
+    duration = NANO_MATERIAL_PRODUCTION_DURATION_SECONDS if _duration_proof(lines) else None
     cost_known = _zero_cost_proof(lines)
-    if not cost_known:
-        return _PanelRead(None, None, "zero_resource_cost_or_other_costs_unknown")
 
     timers: list[tuple[int, str, tuple[_Word, ...]]] = []
     for line, line_words in lines:
@@ -276,10 +280,27 @@ def _panel_observation(captured, *, context, occurrence_key: str) -> _PanelRead:
     idle_markers = [row for row in lines if _normal(row[0]) in {"production idle", "idle production"}]
     complete_markers = [row for row in lines if _normal(row[0]) in {"production complete", "production completed", "completed production"}]
     one_slot = any(_normal(line) in {"production slot 1 of 1", "slots 1 of 1", "one production slot", "production slots 1 1"} for line, _ in lines)
-    if not one_slot:
+    claim_crop = _lines(_ocr_words(captured.frame, _MATERIAL_COMPLETE_CLAIM_CROP, scale=2, white_text=True))
+    output_ranges = []
+    for line, _line_words in lines:
+        output = re.fullmatch(r"produces ([1-9][0-9]*) ([1-9][0-9]*) material s at random upgrade gear", _normal(line))
+        if output is not None:
+            output_ranges.append((int(output[1]), int(output[2])))
+    complete_profile = bool(
+        len(claim_crop) == 1 and len(_phrase_lines(claim_crop, "Claim")) == 1
+        and len(output_ranges) == 1 and output_ranges[0][0] <= output_ranges[0][1]
+        and len(_phrase_lines(lines, "Factory to increase output.")) == 1
+        and not starts and not timers and len(claims) <= 1
+    )
+    if not one_slot and not complete_profile:
         return _PanelRead(None, None, "one_slot_state_not_recognized")
     control = None
-    if len(claims) == 1 and len(starts) == 0 and len(timers) == 1 and timers[0][0] == 0 and len(complete_markers) == 1:
+    if complete_profile:
+        # The approved named free-reward profile owns one completed batch, not
+        # an OCR'd START quote, timer, or literal active/completed counter.
+        production_state, active_count, completed_count, remaining, claim_visible, start_enabled = "complete", 0, 1, None, True, False
+        control, duration, cost_known = _MATERIAL_COMPLETE_CLAIM_CONTROL, None, True
+    elif len(claims) == 1 and len(starts) == 0 and len(timers) == 1 and timers[0][0] == 0 and len(complete_markers) == 1 and cost_known:
         production_state, active_count, completed_count, remaining, claim_visible, start_enabled = "complete", 0, 1, 0, True, False
         control = _word_roi(claims[0][1])
     elif len(starts) == 1 and len(claims) == 0 and len(timers) == 1 and timers[0][0] == 0 and len(idle_markers) == 1:
@@ -291,7 +312,7 @@ def _panel_observation(captured, *, context, occurrence_key: str) -> _PanelRead:
     else:
         return _PanelRead(None, None, "production_state_unknown_or_ambiguous")
     panel_words = tuple(word for _line, line_words in lines for word in line_words)
-    panel = _bounds(panel_words)
+    panel = _MATERIAL_COMPLETE_PANEL if complete_profile else _bounds(panel_words)
     if panel is None or control is None or not (panel[0] <= control[0] < control[2] <= panel[2] and panel[1] <= control[1] < control[3] <= panel[3]):
         return _PanelRead(None, None, "production_target_bounds_unknown")
     evidence_ref = _evidence_ref(captured, context.session)
@@ -301,12 +322,12 @@ def _panel_observation(captured, *, context, occurrence_key: str) -> _PanelRead:
         selected_tab=MATERIAL_PRODUCTION_TAB,
         production_state=production_state,
         active_production_count=active_count,
-        production_duration_seconds=NANO_MATERIAL_PRODUCTION_DURATION_SECONDS,
+        production_duration_seconds=duration,
         timer_seconds_remaining=remaining,
-        cost_known=True,
-        cost_type="none",
-        cost_amount=0,
-        other_costs_known=True,
+        cost_known=cost_known,
+        cost_type="none" if cost_known else "unknown",
+        cost_amount=0 if cost_known else None,
+        other_costs_known=cost_known,
         nonzero_other_costs=False,
         target_identity=NANO_MATERIAL_PRODUCTION_TARGET,
         target_roi=control,
@@ -1535,6 +1556,8 @@ def run_material_production_in_context(context, *, occurrence_key: str, return_h
                 reason=str(result["reason"]),
             )
         current = claim["successor_capture"]
+        result["last_action_evidence"] = claim.get("last_action_evidence")
+        result["zero_resource_cost_confirmed"] = True
         before = claim["successor_observation"]
         if before.production_state != "idle":
             result.update(
@@ -1555,6 +1578,26 @@ def run_material_production_in_context(context, *, occurrence_key: str, return_h
         status = "completed"
         reason = "MATERIAL_PRODUCTION_CLAIMED_THEN_RESTARTED"
     if before.production_state == "idle":
+        try:
+            material_production_start_spec(before)
+        except ValueError:
+            # A confirmed claim remains confirmed; an idle identity is not a
+            # fresh duration/cost quote and must never cause another input.
+            result.update(
+                production_state="idle", active_production_count=0, completed_batch_count=0,
+                production_duration_seconds=before.production_duration_seconds,
+                timer_seconds_remaining=before.timer_seconds_remaining,
+                zero_resource_cost_confirmed=bool(result["committed_action_count"]),
+                production_occurrence_key=occurrence_key,
+                production_target_identity=NANO_MATERIAL_PRODUCTION_TARGET,
+                production_state_frame=_retained_capture_reference(context, current),
+                production_state_observation_sha256=current.sha256,
+            )
+            return _finalize(
+                context, result, current=current, return_home=return_home,
+                occurrence_key=occurrence_key, status="blocked",
+                reason="MATERIAL_PRODUCTION_START_QUOTE_UNKNOWN",
+            )
         start = _dispatch_action(
             context,
             before_capture=current,
@@ -1598,6 +1641,7 @@ def run_material_production_in_context(context, *, occurrence_key: str, return_h
             )
         current = start["successor_capture"]
         before = start["successor_observation"]
+        result["last_action_evidence"] = start.get("last_action_evidence")
         status = "completed"
         reason = "MATERIAL_PRODUCTION_ACTIVE_21600_CONFIRMED"
     if before.production_state != "active" or not material_production_authorizeable(before):
@@ -1622,10 +1666,12 @@ def run_material_production_in_context(context, *, occurrence_key: str, return_h
         production_state="active",
         active_production_count=1,
         completed_batch_count=0,
-        production_duration_seconds=NANO_MATERIAL_PRODUCTION_DURATION_SECONDS,
+        production_duration_seconds=before.production_duration_seconds,
         timer_seconds_remaining=before.timer_seconds_remaining,
         next_eligible_at=next_due,
-        zero_resource_cost_confirmed=True,
+        # Confirmed free action specs prove performed effects, not an inferred
+        # START cost on an observed ACTIVE page.
+        zero_resource_cost_confirmed=bool(result["committed_action_count"]),
         effect_reconciliation_required=False,
         identical_retry_denied=False,
         production_occurrence_key=occurrence_key,

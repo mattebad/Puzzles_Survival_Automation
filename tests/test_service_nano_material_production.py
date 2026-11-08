@@ -68,7 +68,7 @@ def _production_outcome(
         "production_state": "active",
         "active_production_count": 1,
         "production_duration_seconds": 21_600,
-        "zero_resource_cost_confirmed": True,
+        "zero_resource_cost_confirmed": bool(calls),
         "production_transport_calls": calls,
         "committed_action_count": committed,
         "total_input_count": 999,
@@ -85,6 +85,16 @@ def _production_outcome(
             "capture_ordinal": 7,
         },
         "production_state_observation_sha256": "b" * 64,
+        "last_action_evidence": {
+            "before": {
+                "frame_path": "evidence/production-before.png", "frame_sha256": "a" * 64,
+                "observed_utc": "2026-10-29T10:00:00Z", "capture_ordinal": 6,
+            },
+            "after": {
+                "frame_path": "evidence/production-state.png", "frame_sha256": "b" * 64,
+                "observed_utc": "2026-10-29T10:00:00Z", "capture_ordinal": 7,
+            },
+        },
         "effect_reconciliation_required": False,
         "identical_retry_denied": False,
         "terminal_home_verified": True,
@@ -138,6 +148,54 @@ class NanoMaterialProductionServiceAdapterTests(unittest.TestCase):
             runtime_input_lock=self.input_lock,
             occurrence_key=SERVICE_OCCURRENCE,
         )
+
+    def test_confirmed_claim_without_start_quote_preserves_partial_progress_not_due(self):
+        outcome = _production_outcome(
+            status="blocked", calls=1, committed=1, input_count=3,
+            result_changes={
+                "reason": "MATERIAL_PRODUCTION_START_QUOTE_UNKNOWN",
+                "production_state": "idle", "active_production_count": 0, "completed_batch_count": 0,
+                "production_duration_seconds": None, "timer_seconds_remaining": None,
+                "next_eligible_at": None, "zero_resource_cost_confirmed": True,
+            },
+        )
+        with self.assertRaises(service.NanoMaterialProductionRunnerError) as caught:
+            self.run_route(self.runner(outcome))
+        partial = caught.exception.partial_result
+        self.assertEqual(partial["committed_action_count"], 1)
+        self.assertEqual(partial["production_transport_calls"], 1)
+        self.assertIsNone(partial["next_eligible_at"])
+        self.assertEqual(partial["status"], "blocked")
+        self.assertFalse(partial["effect_reconciliation_required"])
+        self.assertFalse(partial["identical_retry_denied"])
+        self.assertEqual(partial["input_count"], 3)
+        self.assertTrue(partial["terminal_home_verified"])
+
+    def test_timer_only_active_observation_schedules_without_start_quote(self):
+        outcome = _production_outcome(
+            status="deferred", calls=0, input_count=2,
+            result_changes={"production_duration_seconds": None, "zero_resource_cost_confirmed": False},
+        )
+        result = self.run_route(self.runner(outcome))
+        self.assertIsNone(result["production_duration_seconds"])
+        self.assertFalse(result["zero_resource_cost_confirmed"])
+        self.assertEqual(
+            service.nano_material_production_next_due(result, SERVICE_IDENTITY, SERVICE_NOW),
+            SERVICE_NOW + 21000,
+        )
+
+    def test_disputed_partial_claim_accounting_remains_unresolved(self):
+        outcome = _production_outcome(
+            status="blocked", calls=1, committed=1, input_count=3, session_input_count=2,
+            result_changes={
+                "reason": "MATERIAL_PRODUCTION_START_QUOTE_UNKNOWN",
+                "production_state": "idle", "active_production_count": 0, "completed_batch_count": 0,
+            },
+        )
+        with self.assertRaises(service.NanoMaterialProductionRunnerError) as caught:
+            self.run_route(self.runner(outcome))
+        self.assertEqual(caught.exception.partial_result["status"], "unresolved")
+        self.assertTrue(caught.exception.partial_result["identical_retry_denied"])
 
     def test_binding_and_flow_mismatches_fail_closed(self):
         with self.assertRaises(service.NanoMaterialProductionRunnerError) as absent:
