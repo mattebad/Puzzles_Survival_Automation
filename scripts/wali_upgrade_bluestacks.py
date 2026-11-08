@@ -31,7 +31,7 @@ from safe_action_core import (
     SafeActionExecutor,
     TransportResult,
 )
-from scripts.bounded_tesseract import call_ocr, tesseract_data
+from scripts.bounded_tesseract import OcrDeadline, call_ocr, tesseract_data
 from tasks.hero_upgrade_disabled import (
     ANTISERUM,
     EVOLUTION_SCREEN,
@@ -230,7 +230,15 @@ def _ocr_words(frame: np.ndarray) -> tuple[_Word, ...]:
         words = [word for word in words if not _overlaps(word.roi, roi)]
         words.extend(current)
 
-    replace_region((300, 10, 500, 65))
+    # The white page title over textured header art is read from its own
+    # strokes (exact caption, measured confidence, native line box).
+    field += 1
+    title_roi = (300, 10, 500, 65)
+    title_boxes = _white_line_boxes(frame, title_roi)
+    title = _read_white_line(frame, title_boxes[0]) if len(title_boxes) == 1 else None
+    words = [word for word in words if not _overlaps(word.roi, title_roi)]
+    if title is not None and _normal(title[0]) and title[1] is not None and title[1] >= 35:
+        words.append(_Word(title[0], title[1], title_boxes[0], (field * 10000, 1, 1)))
     replace_region((310, 75, 520, 125))
     replace_region((180, 210, 620, 270))
     lines = _lines(tuple(words))
@@ -252,7 +260,11 @@ def _ocr_words(frame: np.ndarray) -> tuple[_Word, ...]:
     if preview or detail:
         for x0, y0, x1, y1 in _antiserum_icons(frame):
             center = (y0 + y1) // 2
-            replace_region((x1 + 4, center - 18, min(740, x1 + 325), center + 18), numeric=True)
+            row = (x1 + 4, center - 18, min(740, x1 + 325), center + 18)
+            field += 1
+            current = _numeric_words(frame, _antiserum_pair_roi(frame, row), field=field)
+            words = [word for word in words if not _overlaps(word.roi, row)]
+            words.extend(current)
     return tuple(words)
 
 
@@ -290,6 +302,88 @@ def _matches(lines, phrase: str, *, y_min: int = 0, y_max: int = 1280):
 
 def _line_center_y(words: tuple[_Word, ...]) -> int:
     return (min(word.roi[1] for word in words) + max(word.roi[3] for word in words)) // 2
+
+# Hero roster (measured native frames): white title "Hero", selected white
+# "Hero" tab, white "Filter", and a standard four-column card grid whose
+# white hero names sit on coloured name bars.
+_WHITE_TEXT = ((0, 0, 200), (180, 50, 255))
+_ROSTER_HEADER = (((300, 10, 500, 65), "hero"), ((45, 85, 225, 150), "hero"), ((600, 170, 760, 215), "filter"))
+_ROSTER_BODY = (40, 215, 760, 1280)
+_ROSTER_COLUMN_CENTERS = (130, 305, 481, 657)
+
+
+def _white_line_boxes(frame: np.ndarray, band: tuple[int, int, int, int]) -> list[tuple[int, int, int, int]]:
+    x0, y0, x1, y1 = band
+    mask = cv2.inRange(cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2HSV), *_WHITE_TEXT)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (15, 3)))
+    count, _, stats, _ = cv2.connectedComponentsWithStats(mask)
+    return [
+        (x0 + int(left), y0 + int(top), x0 + int(left + width), y0 + int(top + height))
+        for left, top, width, height, area in stats[1:count]
+        if 12 <= height <= 34 and width >= 20 and area >= 120
+    ]
+
+
+def _read_white_line(frame: np.ndarray, box: tuple[int, int, int, int]) -> tuple[str, float | None] | None:
+    """Exact caption and minimum measured word confidence of one white line (one OCR pass)."""
+    # Read only the line's own white strokes so card art cannot alter a label.
+    x0, y0 = max(0, box[0] - 4), max(0, box[1] - 4)
+    x1, y1 = min(800, box[2] + 4), min(1280, box[3] + 4)
+    strokes = cv2.dilate(cv2.inRange(cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2HSV), *_WHITE_TEXT),
+                         cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)))
+    gray = cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2GRAY)
+    isolated = (255 - np.where(strokes > 0, gray, 0)).astype(np.uint8)
+    try:
+        data = call_ocr(tesseract_data, cv2.resize(isolated, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC),
+                        config="--psm 7", call_timeout=5.0)
+    except OcrDeadline:
+        raise
+    except (RuntimeError, OSError, ValueError):
+        return None
+    if not isinstance(data, Mapping) or any(not isinstance(data.get(name), (tuple, list)) for name in ("text", "conf")):
+        return None
+    texts: list[str] = []
+    confidences: list[float] = []
+    for raw, conf in zip(data["text"], data["conf"]):
+        text = str(raw).strip()
+        if not text:
+            continue
+        try:
+            confidences.append(float(conf))
+        except (TypeError, ValueError):
+            return None
+        texts.append(text)
+    return " ".join(texts), (min(confidences) if confidences else None)
+
+
+def _roster_names(frame: np.ndarray) -> tuple[_Word, ...] | None:
+    """Card-name words of the owned Hero roster; None unless the exact header is present."""
+    if not isinstance(frame, np.ndarray) or frame.shape != (1280, 800, 3):
+        return None
+    for band, label in _ROSTER_HEADER:
+        boxes = _white_line_boxes(frame, band)
+        read = _read_white_line(frame, boxes[0]) if len(boxes) == 1 else None
+        if read is None or read[1] is None or read[1] < 35 or _normal(read[0]) != label:
+            return None
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    bar = (hsv[..., 1] >= 90) & (hsv[..., 2] >= 60)
+    names: list[_Word] = []
+    for x0, y0, x1, y1 in _white_line_boxes(frame, _ROSTER_BODY):
+        if min(abs((x0 + x1) // 2 - center) for center in _ROSTER_COLUMN_CENTERS) > 25:
+            continue
+        # A card name sits on a solid coloured name bar directly above and below it.
+        above = bar[max(0, y0 - 4):y0 - 1, max(0, x0 - 8):x1 + 8]
+        below = bar[y1 + 1:min(1280, y1 + 4), max(0, x0 - 8):x1 + 8]
+        if not above.size or not below.size or above.mean() < 0.85 or below.mean() < 0.85:
+            continue
+        read = _read_white_line(frame, (x0, y0, x1, y1))
+        if read is None:
+            return None
+        caption, confidence = read
+        if caption and confidence is not None and confidence >= 35:
+            # Caption is the exact OCR text; confidence the weakest measured word.
+            names.append(_Word(caption, confidence, (x0, y0, x1, y1), (90000 + len(names), 1, 1)))
+    return tuple(names)
 
 def _words_for_span(text: str, words: tuple[_Word, ...], start: int, end: int) -> tuple[_Word, ...]:
     selected: list[_Word] = []
@@ -362,6 +456,17 @@ def _antiserum_icon_matches(frame: np.ndarray, pair_box: tuple[int, int, int, in
         and abs((y0 + y1) - (box[1] + box[3])) <= 40
         for box in _antiserum_icons(frame)
     ) == 1
+
+
+def _antiserum_pair_roi(frame: np.ndarray, row: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
+    """The balance/cost pair ROI, ended before a measured gold "+" add-material button."""
+    x0, y0, x1, y1 = row
+    gold = cv2.inRange(cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2HSV), (10, 80, 150), (35, 255, 255))
+    count, _, stats, _ = cv2.connectedComponentsWithStats(gold)
+    buttons = [int(left) for left, _top, width, height, area in stats[1:count]
+               if 20 <= width <= 40 and 20 <= height and area >= 250]
+    # The button is a separate control; its glyph lowers the pair's OCR confidence.
+    return (x0, y0, x0 + buttons[0] - 4, y1) if len(buttons) == 1 and buttons[0] > 40 else row
 
 
 def _load_manual_templates() -> dict[str, tuple[np.ndarray, np.ndarray, float, float, int, int]] | None:
@@ -842,14 +947,15 @@ def _view(
             result = replace(result, observation=replace(result.observation, stable_selected_state=True, evidence_refs=combined))
         return result
 
-    roster_names = [
-        (text, row_words)
-        for text, row_words in lines
-        if _normal(text) == "wali" and row_words and _line_center_y(row_words) > 180
-    ]
-    roster_target = _box(roster_names[0][1], pad=8) if len(roster_names) == 1 else None
-    if len(hero_headers) == 1:
-        result = _View("hero_roster", None, words, lines, roster_target=roster_target, reason="recognized_roster")
+    names = _roster_names(captured.frame)
+    if names is not None:
+        walis = [word for word in names if _normal(word.text) == "wali"]
+        words = (*words, *names)
+        result = _View(
+            "hero_roster", None, words, _lines(words),
+            roster_target=_box((walis[0],), pad=8) if len(walis) == 1 else None,
+            reason="recognized_roster",
+        )
         if previous is not None and _view_signature(previous) == _view_signature(result):
             result = replace(result, reason="stable_roster")
         return result
