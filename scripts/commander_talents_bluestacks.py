@@ -303,7 +303,7 @@ def _run_navigation_action(
 
     def recognize(frame: CapturedNativeFrame) -> str:
         current = _recognized_page(frame, required_preset=required_preset, ocr_engine=ocr_engine)
-        return current.page if current.recognized else UNKNOWN
+        return destination_page if current.recognized and current.page == destination_page else UNKNOWN
 
     session_result = session.run_action(
         action_class="navigation",
@@ -313,6 +313,7 @@ def _run_navigation_action(
         recognize=recognize,
         authorize=authorize,
         target_roi=None,
+        settled_successor=lambda: session_result_frame(session, runtime, label),
     )
     current = _recognized_page(session_result_frame(session, runtime, label),
                                required_preset=required_preset, ocr_engine=ocr_engine)
