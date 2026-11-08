@@ -23,6 +23,8 @@ from scripts.bluestacks_native_runtime import CapturedNativeFrame, NativeBox
 from scripts.enhancement_bluestacks import (
     NATIVE_HEIGHT,
     NATIVE_WIDTH,
+    OcrHit,
+    _region_ocr,
     _default_ocr,
     _hits,
     _normalize,
@@ -58,7 +60,40 @@ def _evidence(frame: CapturedNativeFrame) -> str:
 
 def _all_hits(frame: CapturedNativeFrame, ocr_engine: Callable | None) -> tuple[Any, ...]:
     engine = ocr_engine or _default_ocr
-    return tuple(_hits(frame.frame, FULL_FRAME, engine))
+    hits = tuple(_hits(frame.frame, FULL_FRAME, engine))
+    if ocr_engine is not None:
+        return hits
+    title_roi = (180, 0, 660, 66)
+    title_hits = _region_ocr(frame.frame, title_roi, psm=7)
+    title = " ".join(hit.text for hit in title_hits)
+    if _normalize(title) != "commander info":
+        return hits
+    # Full-frame sparse OCR loses this page's title, selected Gear tab and
+    # footer labels. Re-read the observed text bands, not guessed tap points.
+    title_bounds = (
+        min(hit.bounds[0] for hit in title_hits),
+        min(hit.bounds[1] for hit in title_hits),
+        max(hit.bounds[2] for hit in title_hits),
+        max(hit.bounds[3] for hit in title_hits),
+    )
+    replacements = (
+        (65, 80, 165, 130),
+        (210, 80, 310, 130),
+        (42, 1250, 758, 1280),
+    )
+    refined = [OcrHit(title, title_bounds, min(hit.confidence for hit in title_hits))]
+    for roi in replacements:
+        refined.extend(_region_ocr(frame.frame, roi, psm=6 if roi == replacements[-1] else 7))
+    regions = (title_roi, *replacements)
+    retained = tuple(
+        hit for hit in hits
+        if not any(
+            x0 <= hit.bounds[0] < hit.bounds[2] <= x1
+            and y0 <= hit.bounds[1] < hit.bounds[3] <= y1
+            for x0, y0, x1, y1 in regions
+        )
+    )
+    return (*retained, *refined)
 
 
 def _hit_box(hit: Any) -> NativeBox | None:
