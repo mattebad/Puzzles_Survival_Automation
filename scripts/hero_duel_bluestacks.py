@@ -82,8 +82,8 @@ class HeroDuelVision:
         self.exit_confirmed = False
         self.route_pass_balance = None
 
-    def _lines(self, frame):
-        data = call_ocr(tesseract_data, frame, call_timeout=4.0, config="--psm 11")
+    def _lines(self, frame, *, psm=11):
+        data = call_ocr(tesseract_data, frame, call_timeout=4.0, config=f"--psm {psm}")
         words = []
         for i, text in enumerate(data.get("text", ())):
             try:
@@ -132,6 +132,42 @@ class HeroDuelVision:
             return None
         x0, y0, x1, y1 = matches[0]["box"]
         return max(0, x0 - 3), max(0, y0 - 3), min(800, x1 + 3), min(1280, y1 + 3)
+
+
+    def _arena_lines(self, frame, lines):
+        """Read gold event labels separately from the illustrated Arena banners.
+
+        Scope the countdown to the measured Survival label, never the Glory card.
+        These are OCR regions only; input remains bound to the fresh label boxes.
+        """
+        if not any(self.has(line, "exchange shop") for line in lines):
+            return lines
+
+        def read_region(image, *, offset=(0, 0), psm=11):
+            rows = self._lines(cv2.resize(image, None, fx=3, fy=3), psm=psm)
+            result = []
+            for row in rows:
+                x0, y0, x1, y1 = row["box"]
+                box = (x0 // 3 + offset[0], y0 // 3 + offset[1],
+                       (x1 + 2) // 3 + offset[0], (y1 + 2) // 3 + offset[1])
+                result.append({**row, "box": box,
+                               "center": ((box[0] + box[2]) // 2, (box[1] + box[3]) // 2)})
+            return tuple(result)
+
+        header = read_region(cv2.cvtColor(frame[:150], cv2.COLOR_BGR2GRAY))
+        if not any(re.search(r"\barena\b", row["norm"]) for row in header):
+            return lines
+        gold = 255 - cv2.inRange(cv2.cvtColor(frame, cv2.COLOR_BGR2HSV),
+                                (15, 100, 230), (40, 255, 255))
+        labels = read_region(gold)
+        survival = [row for row in labels if row["norm"] == "hero duel survival"]
+        if len(survival) != 1:
+            return lines
+        x0, _, _, y1 = survival[0]["box"]
+        left, right = max(0, x0 - 8), min(frame.shape[1], x0 + 285)
+        bottom = min(frame.shape[0], y1 + 45)
+        timer = read_region(frame[y1:bottom, left:right], offset=(left, y1), psm=6)
+        return (*header, *labels, *timer)
 
     @staticmethod
     def hero_name(line):
@@ -350,6 +386,7 @@ class HeroDuelVision:
     def recognize(self, captured, *, clean_home=False, target_hint=None):
         self.checkpoint()
         lines = self._lines(captured.frame)
+        lines = self._arena_lines(captured.frame, lines)
         text = "\n".join(line["text"] for line in lines)
         norm = _norm(text)
         state = "unknown"
