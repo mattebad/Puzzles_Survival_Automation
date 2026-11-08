@@ -1306,7 +1306,7 @@ def _return_home(context: Any, *, occurrence_key: str, current: Any) -> tuple[An
         frame, reference = context.capture_reference(captured.path, captured.sha256)
     except Exception:
         return None, None
-    if not _safe_home(context, frame):
+    if not _safe_home(context, frame.frame):
         return None, None
     proof = {
         "terminal_home_state": "HOME_BASE",
