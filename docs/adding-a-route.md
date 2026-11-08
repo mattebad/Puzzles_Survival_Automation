@@ -172,6 +172,10 @@ Existing layout exceptions:
   by current stock and affordability. Preserve one tab's confirmed purchase across a later pulse.
   No current donation quota or purchase-effect live acceptance is claimed; the single donation information probe is not route
   acceptance.
+  Donation entry recognizes the centered Alliance title separately from Back/border art and
+  isolates adjacent Alliance Tech words from a shared multi-column OCR line. Known-context
+  failure recovery rebinds Back against a fresh surface; an unknown or changed source gets
+  no speculative return input. Real-pixel recognition proof is not donation-effect acceptance.
 
 * **Batch D Nano Material Production and Nanoweapon**: canonical-service-only routes with fixed
   native bindings and no operator rows. Nano Material Production uses a non-reset-scoped timer

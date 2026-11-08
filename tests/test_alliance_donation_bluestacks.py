@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+import cv2
 import numpy as np
 
 from automation_service.native_execution import NativeFrameReference
@@ -43,7 +44,7 @@ class FakeSession:
         self.runtime = runtime
         self.owner = owner
         self.input_count = 0
-        self.initial_observation = None
+        self.initial_observation: dict[str, object] | None = None
         self.terminal_status = "active"
 
     def run_action(self, *, action_class, label, capture, dispatch, recognize,
@@ -78,6 +79,9 @@ class FakeRuntime:
         self.action_keys: set[str] = set()
         self.frame_actions: set[tuple[str, str, object]] = set()
         self.captures = 0
+        self.hot_never = False
+        self.recharge_countdown = False
+        self.last_capture: CapturedNativeFrame | None = None
 
     def capture(self, _label: str) -> CapturedNativeFrame:
         self.captures += 1
@@ -94,13 +98,15 @@ class FakeRuntime:
             "DONATION_PANEL": 4,
             "UNKNOWN": 5,
         }[self.state]
-        return CapturedNativeFrame(
+        captured = CapturedNativeFrame(
             frame=frame,
             png=token,
             sha256=hashlib.sha256(token).hexdigest(),
             captured_monotonic=self._monotonic_clock(),
             path=self.session / "frames" / f"{self.captures:04d}.png",
         )
+        self.last_capture = captured
+        return captured
 
     def tap(self, source, *, target_identity, target_roi, action_key, action_class="navigation", consequential=False):
         if action_key in self.action_keys:
@@ -135,15 +141,18 @@ class FakeRuntime:
         }[self.state]
 
 
+@dataclass(frozen=True)
+class _FakeIdentity:
+    account_id: str = "synthetic-account"
+    server_id: str = "synthetic-server"
+    reset_id: str = "game-day-2023-11-14"
+
+
 class FakeContext:
     def __init__(self, directory: Path, store: SafetyStore, *, hot_never: bool = False):
         self.utc_now = 1_700_000_000.0
         self.monotonic_now = 0.0
-        self.identity = type("Identity", (), {
-            "account_id": "synthetic-account",
-            "server_id": "synthetic-server",
-            "reset_id": "game-day-2023-11-14",
-        })()
+        self.identity = _FakeIdentity()
         self.flow_id = ALLIANCE_DONATION_FLOW_ID
         self.product_id = ALLIANCE_DONATION_PRODUCT_ID
         self.product_revision = ALLIANCE_DONATION_PRODUCT_REVISION
@@ -180,6 +189,8 @@ class FakeContext:
         captured = next((frame for frame in [self.initial_frame] if frame.path == path), None)
         if captured is None:
             captured = self.runtime.last_capture
+        if captured is None:
+            raise AssertionError("fake runtime has no retained capture")
         if expected_sha256 is not None and captured.sha256 != expected_sha256:
             raise AssertionError("unexpected fake capture digest")
         reference = NativeFrameReference(
@@ -191,8 +202,9 @@ class FakeContext:
         return captured, reference
 
     def bind_initial_observation(self, frame=None, *, extra=None):
-        self.clean_home_bound = frame is self.initial_frame or frame.sha256 == self.initial_frame.sha256
-        self.session.initial_observation = {"frame_sha256": frame.sha256, **dict(extra or {})}
+        captured = self.initial_frame if frame is None else frame
+        self.clean_home_bound = captured is self.initial_frame or captured.sha256 == self.initial_frame.sha256
+        self.session.initial_observation = {"frame_sha256": captured.sha256, **dict(extra or {})}
         return self.session.initial_observation
 
 
@@ -257,21 +269,7 @@ def _surface_for(context: FakeContext, captured: CapturedNativeFrame, *, reset_i
 
 class AllianceDonationNativeSmokeTests(unittest.TestCase):
     def _context(self, directory: Path, store: SafetyStore, *, hot_never: bool = False):
-        context = FakeContext(directory, store, hot_never=hot_never)
-        context.runtime.last_capture = context.initial_frame
-        context.runtime.capture = self._capture_wrapper(context.runtime)
-        return context
-
-    @staticmethod
-    def _capture_wrapper(runtime: FakeRuntime):
-        original = FakeRuntime.capture
-
-        def capture(label):
-            result = original(runtime, label)
-            runtime.last_capture = result
-            return result
-
-        return capture
+        return FakeContext(directory, store, hot_never=hot_never)
 
     def test_canonical_fake_native_smoke_waits_for_auto_hot_and_caps_ten(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -356,6 +354,99 @@ class AllianceDonationNativeSmokeTests(unittest.TestCase):
             self.assertTrue(result["terminal_home_verified"])
             self.assertEqual(context.runtime.state, "HOME")
             store.close()
+
+    def test_failed_tech_entry_returns_from_current_alliance_context_without_effects(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SafetyStore(Path(directory) / "actions.sqlite3")
+            try:
+                context = self._context(Path(directory), store)
+                original = route._navigation_action
+
+                def navigate(*args, **kwargs):
+                    if kwargs["label"] == "open-alliance-tech":
+                        return None
+                    return original(*args, **kwargs)
+
+                with patch.object(route, "_navigation_action", side_effect=navigate), \
+                     patch.object(route, "_home_alliance_target", return_value=("home-nav:alliance", (600, 1213, 680, 1280))), \
+                     patch.object(route, "recognize_surface", side_effect=lambda captured, **kwargs: _surface_for(context, captured, **kwargs)):
+                    result = route.run_alliance_donation(context, {})
+                self.assertEqual(result["reason"], "alliance_donation_tech_entry_successor_unproven")
+                self.assertTrue(result["terminal_home_verified"])
+                self.assertEqual(context.runtime.input_count, 2)  # One entry and one safe Back.
+                self.assertEqual(context.runtime.donation_count, 0)
+            finally:
+                store.close()
+
+    def test_changed_before_back_refuses_input(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SafetyStore(Path(directory) / "actions.sqlite3")
+            try:
+                context = self._context(Path(directory), store)
+                context.runtime.state = "ALLIANCE_HOME"
+                captured = context.runtime.capture("known-menu")
+                surface = _surface_for(context, captured, reset_id=context.identity.reset_id, evidence_ref="known")
+                context.runtime.state = "UNKNOWN"
+                with patch.object(route, "recognize_surface", side_effect=lambda captured, **kwargs: _surface_for(context, captured, **kwargs)):
+                    with self.assertRaisesRegex(RuntimeError, "Back source"):
+                        route._back_action(context, surface)
+                self.assertEqual(context.runtime.input_count, 0)
+                self.assertEqual(context.session.input_count, 0)
+                self.assertEqual(context.runtime.donation_count, 0)
+            finally:
+                store.close()
+
+
+class AllianceDonationActualFrameTests(unittest.TestCase):
+    fixture = Path(__file__).parent / "fixtures" / "alliance_donation_menu" / "donation77-0004.png"
+
+    def _captured(self, frame=None):
+        png = self.fixture.read_bytes()
+        if frame is not None:
+            encoded, data = cv2.imencode(".png", frame)
+            self.assertTrue(encoded)
+            png = data.tobytes()
+        decoded_frame = cv2.imdecode(np.frombuffer(png, np.uint8), cv2.IMREAD_COLOR) if frame is None else frame
+        if decoded_frame is None:
+            raise AssertionError("donation fixture did not decode")
+        return CapturedNativeFrame(
+            frame=decoded_frame,
+            png=png, sha256=hashlib.sha256(png).hexdigest(), captured_monotonic=1.0, path=self.fixture,
+        )
+
+    def test_native_clipped_header_back_art_and_shared_war_line_bind_only_tech_row(self):
+        captured = self._captured()
+        self.assertEqual(captured.sha256, "cc2efdf9f7962daf973b99756a8c644a56528ee4984c30d1d4142c3bcf9984e9")
+        # Old body crop loses the title; full-width title OCR includes the Back/border art.
+        body = route._words(captured.frame, (0, 35, 800, 1195))
+        self.assertFalse(any(route._normalize(line.text) == "alliance" for line in route._lines(body) if line.roi[1] < 150))
+        surface = route.recognize_surface(captured, reset_id="game-day-2026-11-08", evidence_ref="fixture")
+        self.assertEqual(surface.state, "ALLIANCE_HOME")
+        self.assertEqual(surface.target_identity, "alliance:tech-entry")
+        self.assertEqual(surface.target_roi, (436, 611, 629, 659))
+        self.assertIsNone(surface.donation)
+
+    def test_body_alliance_tech_cannot_substitute_for_missing_current_header(self):
+        frame = self._captured().frame.copy()
+        frame[0:70, 200:600] = 0
+        captured = self._captured(frame)
+        surface = route.recognize_surface(captured, reset_id="d", evidence_ref="mutated")
+        self.assertEqual(surface.state, "UNKNOWN")
+        self.assertIsNone(surface.target_roi)
+
+    def test_exact_title_not_header_confusable_or_substring(self):
+        captured = self._captured()
+        for title, expected in (("Alliance Help", "UNKNOWN"), ("Alliance Tech Upgrade", "UNKNOWN"),
+                                ("Back Alliance", "UNKNOWN"), ("Alliance Tech", "TECH_TREE")):
+            with self.subTest(title=title):
+                def words(_frame, roi, **_kwargs):
+                    if roi == route.SCREEN_TITLE_ROI:
+                        return (route.TextWord(title, (280, 17, 520, 44), (1, 1, 1), 95),)
+                    return ()
+                with patch.object(route, "_words", side_effect=words):
+                    surface = route.recognize_surface(captured, reset_id="d", evidence_ref="fixture")
+                self.assertEqual(surface.state, expected)
+                self.assertIsNone(surface.target_roi)  # No invented HOT binding.
 
 
 
