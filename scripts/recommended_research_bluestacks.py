@@ -416,7 +416,51 @@ def _reread_detail_controls(
         grouped, block = _reread_line_words(controls, block)
         added.extend(grouped)
         replaced.extend(word.roi for word in grouped)
+        price = _research_now_price_word(frame, grouped, block)
+        if price is not None:
+            added.append(price)
+            block += 1
     return block
+
+
+# Actual sheet (0014/0020): the excluded premium price sits inside the Research
+# Now button, digits 1204..1221 directly above the caption top 1226, right of a
+# 343-px cyan diamond icon; Full-frame and icon-inclusive reads gave '*714'
+# 48/65, the icon-excluded white reread '714' 96.
+_RESEARCH_NOW_PRICE_BAND_HEIGHT = 28
+_RESEARCH_NOW_DIAMOND_MIN_PIXELS = 120
+
+
+def _research_now_price_word(frame: Any, controls: Sequence[ResearchWord], block: int) -> ResearchWord | None:
+    """Read the excluded Research Now diamond price anchored to its own caption."""
+
+    by_line: dict[tuple[int, int, int], list[ResearchWord]] = {}
+    for word in controls:
+        by_line.setdefault(word.line_id, []).append(word)
+    captions = [
+        line for line in by_line.values()
+        if [word.normalized for word in sorted(line, key=lambda item: item.roi[0])] == ["research", "now"]
+    ]
+    if len(captions) != 1:
+        return None
+    cx0 = min(word.roi[0] for word in captions[0])
+    cy0 = min(word.roi[1] for word in captions[0])
+    cx1 = max(word.roi[2] for word in captions[0])
+    y0, y1 = max(0, cy0 - _RESEARCH_NOW_PRICE_BAND_HEIGHT), cy0 - 1
+    if y1 - y0 < 12 or cx1 - cx0 < 40:
+        return None
+    diamond = cv2.inRange(cv2.cvtColor(frame[y0:y1, cx0:cx1], cv2.COLOR_BGR2HSV), (85, 90, 120), (125, 255, 255))
+    columns = diamond.any(axis=0).nonzero()[0]
+    if int((diamond > 0).sum()) < _RESEARCH_NOW_DIAMOND_MIN_PIXELS or not len(columns):
+        return None
+    digits_x0 = cx0 + int(columns.max()) + 4
+    if cx1 - digits_x0 < 12:
+        return None
+    read = [word for word in _prepared_crop_words(frame, (digits_x0, y0, cx1, y1), _white_ink, "--psm 7") if word.normalized]
+    if len(read) != 1 or read[0].confidence < _RESEARCH_PAGE_MIN_CONFIDENCE or not read[0].text.strip().isdecimal():
+        return None
+    word = read[0]
+    return ResearchWord(word.text, word.normalized, word.roi, word.confidence, (block, 0, 0))
 
 
 def _research_page_words(frame: Any, words: tuple[ResearchWord, ...]) -> tuple[ResearchWord, ...]:
@@ -1063,21 +1107,91 @@ def _binding_for_home(context: Any, frame: Any, localizer: BlueStacksHomeLocaliz
     )
 
 
-def _building_level_from_words(screen: ResearchScreenObservation, binding: BuildingBinding | None) -> int | None:
-    if binding is None or binding.screen_anchor is None:
+def _research_center_level(frame: Any, binding: BuildingBinding | None) -> int | None:
+    """Read the owned Research Center's level badge through its own caption.
+
+    Actual Home (0008, binding roi (320,230,462,394)): the caption "Research
+    Center" sits on the binding's lower edge and every building's level badge
+    is one dark plate up-right of its caption (measured caption-right to
+    plate-left 18..32 px, plate bottom 19..23 px above the caption top on
+    Research Center, Warehouse and Hall of War). A nearest Home number is not
+    owner evidence; only the plate bound to this caption is read.
+
+    The plate's 8-px digits are read like the existing material labels: the
+    neutral white glyphs only, 15% padding, 6x cubic, and every reading must
+    agree. Measured on actual Homes 0008/0027 (16 plates), this gave Research
+    Center 24, Warehouse 24, Gear Factory 24 and Pit 22 exactly; Rider Camp,
+    Hall of War and one Supply Depot read disagreed and stayed unknown, and no
+    plate produced an agreed wrong value. Tesseract confidence was not usable
+    (Research Center '24' at 19..65).
+    """
+
+    if binding is None or binding.ambiguous_overlap or binding.overlay_intersects:
         return None
-    ax, ay = binding.screen_anchor
-    candidates = []
-    for word in screen.words:
-        if not word.normalized.isdecimal():
-            continue
-        x, y = word.center
-        if x < ax or y < ay - 24 or y > ay + 100:
-            continue
-        value = _integer(word.text)
-        if value is not None and 1 <= value <= 99:
-            candidates.append((math.hypot(x - ax, y - ay), value))
-    return min(candidates)[1] if candidates else None
+    from scripts.bounded_tesseract import call_ocr, tesseract_string
+
+    height, width = frame.shape[:2]
+    tx0, _ty0, tx1, ty1 = (int(round(value)) for value in binding.target_roi)
+    band = (max(0, tx0 - 60), max(0, ty1 - 24), min(width, tx1 + 60), min(height, ty1 + 40))
+    if band[2] - band[0] < 24 or band[3] - band[1] < 12:
+        return None
+    words = [word for word in _prepared_crop_words(frame, band, _gray, "--psm 6") if word.normalized]
+    captions = [
+        (first, second) for first in words for second in words
+        if first.normalized == "research" and second.normalized == "center"
+        and first.confidence >= _RESEARCH_PAGE_MIN_CONFIDENCE and second.confidence >= 60
+        and 0 <= second.roi[0] - first.roi[2] <= 12
+        and abs(first.center[1] - second.center[1]) <= 6
+    ]
+    if len(captions) != 1:
+        return None
+    first, second = captions[0]
+    cx0, cy0, cx1 = first.roi[0], min(first.roi[1], second.roi[1]), second.roi[2]
+    if not tx0 <= (cx0 + cx1) / 2 <= tx1:
+        return None
+    wx0, wy0, wx1, wy1 = cx1, max(0, cy0 - 50), min(width, cx1 + 80), cy0
+    if wx1 - wx0 < 30 or wy1 - wy0 < 20:
+        return None
+    window = frame[wy0:wy1, wx0:wx1]
+    dark = (cv2.cvtColor(window, cv2.COLOR_BGR2HSV)[:, :, 2] < 70).astype("uint8")
+    dark = cv2.morphologyEx(dark, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5)))
+    count, _labels, stats, _centroids = cv2.connectedComponentsWithStats(dark, connectivity=8)
+    plates = [
+        tuple(int(value) for value in stats[index][:4]) for index in range(1, count)
+        if 18 <= stats[index][2] <= 44 and 10 <= stats[index][3] <= 20
+        and stats[index][4] >= 0.6 * stats[index][2] * stats[index][3]
+        and 10 <= stats[index][0] <= 40
+        and 15 <= wy1 - wy0 - (stats[index][1] + stats[index][3]) <= 30
+    ]
+    if len(plates) != 1:
+        return None
+    px, py, pw, ph = plates[0]
+    plate = cv2.cvtColor(window[py + 1:py + ph - 1, px + 1:px + pw - 1], cv2.COLOR_BGR2HSV)
+    readings = []
+    for minimum_value in _RESEARCH_CENTER_PLATE_INK_VALUES:
+        ink = ((plate[:, :, 2] >= minimum_value) & (plate[:, :, 1] <= 60)).astype("uint8") * 255
+        rows, columns = ink.nonzero()
+        if not len(rows):
+            return None
+        glyphs = 255 - ink[rows.min():rows.max() + 1, columns.min():columns.max() + 1]
+        padding = max(1, round((rows.max() - rows.min() + 1) * .15))
+        glyphs = cv2.copyMakeBorder(glyphs, padding, padding, padding, padding, cv2.BORDER_CONSTANT, value=255)
+        glyphs = cv2.resize(glyphs, None, fx=6, fy=6, interpolation=cv2.INTER_CUBIC)
+        glyphs = cv2.copyMakeBorder(glyphs, 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=255)
+        readings.extend(
+            re.sub(r"\s+", "", str(call_ocr(
+                tesseract_string, glyphs,
+                config=f"--psm {mode} -c tessedit_char_whitelist=0123456789", call_timeout=5.0,
+            )))
+            for mode in (7, 8, 13)
+        )
+    if len(set(readings)) != 1 or not re.fullmatch(r"[1-9][0-9]?", readings[0]):
+        return None
+    return int(readings[0])
+
+
+# Two neutral-ink cuts of the same plate; all six readings must agree.
+_RESEARCH_CENTER_PLATE_INK_VALUES = (110, 140)
 
 
 def _list_observation(screen: ResearchScreenObservation, context: Any) -> RecommendedResearchListObservation | None:
@@ -1221,7 +1335,7 @@ def _fresh_start_detail(
         or screen.selected_technology_identity != fresh_listing.first_recommendation_identity
     ):
         return None
-    context._recommended_research_center_level = _building_level_from_words(home_screen, home_binding)
+    context._recommended_research_center_level = _research_center_level(home.frame, home_binding)
     context._recommended_research_queue1_state = home_screen.queue1_state
     context._recommended_research_queue1_remaining = queue_remaining
     fresh_quote = _source_screen(
@@ -1951,7 +2065,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                     terminal_home_verified=home_screen.screen_state == "HOME_BASE" and home_screen.recognized,
                 )
         home = entry_home
-        center_level = _building_level_from_words(home_screen, binding)
+        center_level = _research_center_level(home.frame, binding)
         context._recommended_research_center_level = center_level
         context._recommended_research_queue1_state = queue_state
         context._recommended_research_queue1_remaining = queue_remaining

@@ -9,10 +9,8 @@ import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
-import time
 
 from safe_action_core import CentralPolicy, SafetyStore
-from scripts.bluestacks_native_runtime import captured_native_frame_from_png
 
 import cv2
 import numpy as np
@@ -486,7 +484,15 @@ class ResearchFinalFenceRegressionTests(unittest.TestCase):
                 _recommended_research_queue1_remaining=None,
             )
             binding = SimpleNamespace(screen_anchor=(400, 580))
-            with patch.object(route, "_read_words", side_effect=lambda frame, _data=None: route._ocr_words(rows[int(frame[0, 0, 0])])):
+            def model_center_level(frame, _binding):
+                words = route._ocr_words(rows[int(frame[0, 0, 0])])
+                levels = [int(word.text) for word in words if word.text.isdecimal()]
+                return levels[0] if len(levels) == 1 else None
+
+            with (
+                patch.object(route, "_read_words", side_effect=lambda frame, _data=None: route._ocr_words(rows[int(frame[0, 0, 0])])),
+                patch.object(route, "_research_center_level", side_effect=model_center_level),
+            ):
                 listing = route._list_observation(route._source_screen(context, captures[2]), context)
                 quote = route._source_screen(context, captures[3], expected_detail_identity=listing.first_recommendation_identity)
                 top = route._source_screen(context, captures[4], expected_detail_identity=listing.first_recommendation_identity)
