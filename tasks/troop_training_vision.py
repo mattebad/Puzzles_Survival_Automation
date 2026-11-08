@@ -794,7 +794,6 @@ def recognize_training(frame: np.ndarray) -> TrainingScreenObservation:
     selected_quantity = parse_quantity(quantity_values[0]) if quantity_values else None
     quantity_maximum = parse_quantity(quantity_values[1]) if len(quantity_values) > 1 else None
     selected = _selected_tier(frame, full_text)
-    tiers = _tier_observations(frame, full_text, selected)
     resource_row = _ocr(frame, (35, 940, 780, 1040), psm=6)
     resource_pairs = re.findall(
         r"([0-9][0-9,.]*(?:\.[0-9]+)?\s*[KMB]?)\s*/\s*([0-9][0-9,.]*(?:\.[0-9]+)?\s*[KMB]?)",
@@ -896,6 +895,24 @@ def recognize_training(frame: np.ndarray) -> TrainingScreenObservation:
         # provide a positive bounded training-screen successor without authorizing any premium UI.
         or (normal_color_target is not None and duration is not None and not queue_match)
     )
+    queue_active = bool(
+        not completion_banner
+        and duration is not None
+        and duration > 0
+        and queue_match is not None
+    )
+    # The carousel scan is the expensive part of recognition (hundreds of bounded
+    # card OCR variants).  Run it only when the final ``recognized`` predicate can
+    # still hold: title, facility, selected tier, and the Master Trainer or active
+    # queue signal.  When ``selected`` is bound, ``_tier_observations`` always
+    # contains that selected tier, so these are exactly the predicate's
+    # prerequisites.  Incidental Home text such as a "Rider Camp" label must not
+    # launch the carousel scan on a screen that cannot be recognized.
+    tiers = (
+        _tier_observations(frame, full_text, selected)
+        if troop_type and facility and selected is not None and (master_trainer_signal or queue_active)
+        else ()
+    )
     if normal_color_target is not None and not queue_match:
         tiers = tuple(
             replace(tier, unlocked=True)
@@ -905,12 +922,6 @@ def recognize_training(frame: np.ndarray) -> TrainingScreenObservation:
         )
     normal_target = normal_box if normal_color_target is not None else (_expanded(normal_box, x_pad=95, y_pad=55) if normal_box is not None else None)
     train_now_target = train_now_box if train_now_color_target is not None else (_expanded(train_now_box, x_pad=95, y_pad=55) if train_now_box is not None else None)
-    queue_active = bool(
-        not completion_banner
-        and duration is not None
-        and duration > 0
-        and queue_match is not None
-    )
     active_queue_companion = bool(
         queue_active
         and troop_type
