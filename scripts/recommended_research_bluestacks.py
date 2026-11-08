@@ -1170,14 +1170,21 @@ def _source_screen(
 
 
 def _binding_for_home(context: Any, frame: Any, localizer: BlueStacksHomeLocalizer, building: Any) -> BuildingBinding | None:
+    pixels = hashlib.sha256(frame.tobytes()).hexdigest()
     if not context.is_clean_home(frame):
         return None
     localization = localizer.localize(frame, home_recognized=True)
+    # Binding re-asks for clean Home on the same frame. This exact unchanged
+    # array was just classified; any other or mutated frame is classified anew.
+    # A repeated ~1.5 s classification here pushed the SDK immediate-before
+    # source past the 5 s dispatch age (retained research76 221908 run).
     return bind_visible_building(
         frame,
         localization,
         building,
-        home_is_clean=context.is_clean_home,
+        home_is_clean=lambda candidate: (
+            candidate is frame and hashlib.sha256(candidate.tobytes()).hexdigest() == pixels
+        ) or context.is_clean_home(candidate),
     )
 
 
@@ -2277,11 +2284,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 home_recognized=True,
             )
             pixels = hashlib.sha256(captured.frame.tobytes()).hexdigest()
-            current_level = (
-                visit["center_level"]
-                if visit.get("home_source") == (captured.sha256, captured.captured_monotonic) and visit.get("home_pixels") == pixels
-                else _research_center_level(captured.frame, current_binding)
-            )
+            current_level = _research_center_level(captured.frame, current_binding)
             used_at = context.monotonic_clock()
             if (
                 not 0 <= used_at - captured.captured_monotonic <= 10.0
@@ -2310,9 +2313,39 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 "RECOMMENDED_RESEARCH_OPEN_CENTER",
             )
 
+        def entry_dispatch_plan(captured: Any) -> _ActionPlan | None:
+            # SDK immediate-before revalidation on its own actual capture:
+            # clean Home plus the Atlas-bound Research Center target, nothing
+            # cached. The queue/level phase proof stays bound to the entry-phase
+            # capture with its original timestamps and is not re-dated onto
+            # this frame. Re-running that OCR here measured 5.8 s offline on
+            # the retained 221908 frames, past the 5 s dispatch age (STALE_FRAME).
+            proof = getattr(context, "_recommended_research_visit", None)
+            if proof is not visit or visit.get("home_source") != (home.sha256, home.captured_monotonic):
+                return None
+            current_binding = _binding_for_home(context, captured.frame, localizer, building)
+            used_at = context.monotonic_clock()
+            if (
+                current_binding is None
+                or current_binding.building_id != RESEARCH_CENTER_ID
+                or not 0 <= used_at - captured.captured_monotonic <= 10.0
+                or not _research_visit_valid(context)
+            ):
+                return None
+            owner_binding["value"] = current_binding
+            x0, y0, x1, y1 = current_binding.target_roi
+            return _ActionPlan(
+                RESEARCH_CENTER_ID,
+                (x0, y0, x1, y1),
+                "HOME_BASE",
+                "GO",
+                "RESEARCH_RADIAL",
+                "RECOMMENDED_RESEARCH_OPEN_CENTER",
+            )
+
         # A real new capture after Atlas planning, not a re-dated source. The
-        # immediate entry authorization repeats phase-use proof on its own
-        # capture and preserves that exact original timestamp.
+        # full phase proof (binding, queue idle, center level) is decoded once
+        # here; the SDK immediate-before capture then rebinds only the target.
         home = context.session.observe(context.runtime.capture, label="recommended-research-entry-phase-source")
         entry_plan = building_plan(home)
         if entry_plan is None:
@@ -2349,7 +2382,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 game_day_id=game_day_id,
                 occurrence_key=occurrence,
                 action_key=_navigation_key(context, occurrence, "open-center"),
-                plan_builder=building_plan,
+                plan_builder=entry_dispatch_plan,
                 recognizes_successor=radial_successor,
                 initial_plan=entry_plan,
             )
