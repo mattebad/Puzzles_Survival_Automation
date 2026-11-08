@@ -1,0 +1,11 @@
+{
+  "fixture": "alliance-menu-help56-0005.png",
+  "source": ".local-captures/development-sessions/resumed-queue-20261108T014450968963Z/help56/native/ALLIANCE-HELP-TEN-FREE-REQUESTS-20261108T015639231662Z-15aa4d21/alliance-help-native-20261108T015639338965Z/frames/0005-alliance-help-open-alliance-settled.png",
+  "source_workspace": "original development workspace, not the review worktree",
+  "transport_sha256": "88bb1d05ec658290f3ce1b53a585e4a2b759b270fbb8c2ccc1fc51f4f48a43e2",
+  "width": 800,
+  "height": 1280,
+  "capture_kind": "byte-for-byte native source copy",
+  "failed_route_context": "Alliance Help #56 native open-alliance settled successor after one Home->Alliance navigation; route stopped alliance_menu_successor_unproven with zero Help/consequential inputs.",
+  "purpose": "Historical source for Alliance menu title/overlay/bottom-bar recognition regression only. Not acceptance evidence and grants no live authority."
+}
