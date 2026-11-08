@@ -79,7 +79,7 @@ def _all_hits(frame: CapturedNativeFrame, ocr_engine: Callable | None) -> tuple[
     title_roi = (180, 0, 660, 66)
     title_hits = _region_ocr(frame.frame, title_roi, psm=7)
     title = _joined_ocr_hit(title_hits)
-    if title is None or _normalize(title.text) not in {"commander info", "cmdr talent"}:
+    if title is None or _normalize(title.text) not in {"commander info", "cmdr talent", "talent memory"}:
         return hits
     refined = [title]
     if _normalize(title.text) == "commander info":
@@ -87,7 +87,7 @@ def _all_hits(frame: CapturedNativeFrame, ocr_engine: Callable | None) -> tuple[
         replacements = ((65, 80, 165, 130), (210, 80, 310, 130), (42, 1250, 758, 1280))
         for roi in replacements:
             refined.extend(_region_ocr(frame.frame, roi, psm=6 if roi == replacements[-1] else 7))
-    else:
+    elif _normalize(title.text) == "cmdr talent":
         replacements = (
             (438, 95, 578, 148), (590, 95, 730, 148),
             (42, 164, 278, 218), (279, 164, 520, 218), (521, 164, 758, 218),
@@ -107,6 +107,10 @@ def _all_hits(frame: CapturedNativeFrame, ocr_engine: Callable | None) -> tuple[
                 caption = _normalize(hit.text)
                 if caption in {"economy:", "military:", "balance:"}:
                     refined.append(OcrHit(caption[:-1], hit.bounds, hit.confidence))
+    else:
+        replacements = ((562, 108, 736, 167), (562, 212, 736, 270), (562, 317, 736, 375))
+        for roi in replacements:
+            refined.extend(_region_ocr(frame.frame, roi, psm=7))
     regions = (title_roi, *replacements)
     retained = tuple(
         hit for hit in hits
