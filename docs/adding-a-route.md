@@ -176,6 +176,15 @@ Existing layout exceptions:
   isolates adjacent Alliance Tech words from a shared multi-column OCR line. Known-context
   failure recovery rebinds Back against a fresh surface; an unknown or changed source gets
   no speculative return input. Real-pixel recognition proof is not donation-effect acceptance.
+  Donation's tree recognizer also reads exact HOT text inside measured red ribbons through
+  the bottom of the native viewport. A uniquely recognized clipped HOT with no visible
+  identity permits at most one 500 ms upward navigation-only drag (at most 320 native
+  pixels), rebound to the fresh marker and exact tree tabs. The successor must be
+  re-read for the current HOT and full identity before opening any panel; no inferred
+  technology, resource, or donation is authorized by the clipped badge. Missing,
+  ambiguous, changed-context, or still-clipped evidence stops without speculative effects.
+  The retained `donation77-0028-clipped-hot.png` provenance identifies the immutable
+  native source; negative image mutations are test-only, not live acceptance.
 
 * **Batch D Nano Material Production and Nanoweapon**: canonical-service-only routes with fixed
   native bindings and no operator rows. Nano Material Production uses a non-reset-scoped timer
