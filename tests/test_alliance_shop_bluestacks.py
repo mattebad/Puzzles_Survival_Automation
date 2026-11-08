@@ -8,6 +8,7 @@ import tempfile
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import cv2
 import numpy as np
 
 from safe_action_core import SafetyStore
@@ -308,6 +309,119 @@ class AllianceShopEntryPixelTests(unittest.TestCase):
         with patch.object(port, "_capture", return_value=captured), \
              patch.object(port, "_page", return_value=("unknown", ())):
             self.assertFalse(port._back())
+
+
+class AllianceShopInventoryPixelTests(unittest.TestCase):
+    def captured(self, name):
+        from scripts.bluestacks_native_runtime import captured_native_frame_from_png
+        path = ENTRY_FIXTURES / name
+        return captured_native_frame_from_png(path.read_bytes(), captured_monotonic=1, path=path)
+
+    def inventory_frame(self, ordinal=1):
+        name = ("0011-alliance-shop-weekly-scan-1.png" if ordinal == 1
+                else "0013-alliance-shop-weekly-scan-2.png")
+        return self.captured(f"inventory-repaired-entry/{name}")
+
+    def changed(self, captured, change):
+        frame = captured.frame.copy()
+        change(frame)
+        valid, encoded = cv2.imencode(".png", frame)
+        self.assertTrue(valid)
+        png = encoded.tobytes()
+        return replace(captured, frame=frame, png=png, sha256=hashlib.sha256(png).hexdigest())
+
+    def port(self, frames):
+        remaining = iter(frames)
+        last = frames[-1]
+        swipes = []
+        runtime = SimpleNamespace(
+            capture=lambda _label: next(remaining, last),
+            swipe=lambda captured, **kwargs: swipes.append((captured, kwargs)),
+        )
+        context = SimpleNamespace(
+            runtime=runtime, checkpoint=lambda: None,
+            session=SimpleNamespace(observe=lambda capture, *, label: capture(label)),
+            identity=SimpleNamespace(reset_id="inventory-pixel-reset"),
+        )
+        port = native.AllianceShopLivePort(context, settle_seconds=0)
+        port.current_tab = "weekly"
+        return port, swipes
+
+    def test_actual_inventory_selects_exact_quote_without_scroll_or_buy(self):
+        source = self.inventory_frame()
+        port, swipes = self.port([source])
+        scan = port.scan_weekly_offers()
+        self.assertTrue(scan.complete, scan)
+        self.assertEqual(len(scan.offers), 1)
+        selected = AllianceShopPurchaseRoute._choice(scan)
+        self.assertEqual(selected.status, "selected")
+        row = scan.offers[0]
+        self.assertEqual(row.item_identity, "Bioenhance Scheme")
+        self.assertEqual((row.unit_price, row.balance, row.stock, row.item_quantity),
+                         (80000, 1464257, 5, 29))
+        self.assertEqual(row.currency_identity, ALLIANCE_CURRENCY)
+        self.assertTrue(row.recognized)
+        self.assertEqual(swipes, [])
+        self.assertEqual(port.offer_evidence[row.item_identity].sha256, source.sha256)
+        buy = port._outer_buy_roi(source, row)
+        self.assertTrue(548 <= buy[0] < buy[2] <= 720)
+        self.assertTrue(663 <= buy[1] < buy[3] <= 692)
+
+    def test_unknown_owned_is_not_complete_or_preferred_absence(self):
+        def hide_owned(frame):
+            frame[710:746, 60:200] = 0
+        before = self.changed(self.inventory_frame(), hide_owned)
+        after = self.changed(self.inventory_frame(2), hide_owned)
+        port, swipes = self.port([before, after])
+        scan = port.scan_weekly_offers()
+        self.assertFalse(scan.complete)
+        self.assertEqual(scan.reason, "WEEKLY_OFFER_FIELDS_UNRESOLVED")
+        self.assertEqual(len(scan.offers), 1)
+        self.assertFalse(scan.offers[0].recognized)
+        self.assertIsNone(scan.offers[0].item_quantity)
+        self.assertEqual(len(scan.evidence_frame_sha256s), 2)
+        self.assertEqual(len(swipes), 1)
+        _source, gesture = swipes[0]
+        buttons = native._offer_buttons(before)
+        self.assertLess(gesture["start"][0], min(roi[0] for roi in buttons))
+        self.assertEqual(gesture["start"][0], gesture["end"][0])
+        self.assertGreater(gesture["start"][1], gesture["end"][1])
+
+    def test_actual_refresh_tick_is_not_offer_list_progress(self):
+        before, after = self.inventory_frame(), self.inventory_frame(2)
+        self.assertNotEqual(before.sha256, after.sha256)
+        self.assertTrue(native._same_offer_view(before, after))
+        self.assertFalse(native._same_offer_view(before, self.captured("weekly-lower.png")))
+
+    def test_native_diamond_currency_is_not_an_alliance_coin_quote(self):
+        source = self.inventory_frame()
+        def replace_coin(frame):
+            frame[636:662, 582:608] = cv2.resize(frame[465:489, 598:624], (26, 26))
+        altered = self.changed(source, replace_coin)
+        port, _swipes = self.port([altered])
+        row = port._read_offer(altered, "Bioenhance Scheme", ALLIANCE_WEEKLY_SHOP, None)
+        self.assertIsNotNone(row)
+        self.assertFalse(row.recognized)
+        self.assertEqual(row.currency_identity, "UNKNOWN")
+        self.assertIsNone(row.balance)
+
+    def test_exact_native_other_quote_remains_the_only_unaffordable_preferred_fallback(self):
+        port, _swipes = self.port([self.inventory_frame()])
+        weekly = port._read_offer(self.inventory_frame(), "Bioenhance Scheme", ALLIANCE_WEEKLY_SHOP, None)
+        fallback = port._read_offer(self.captured("other.png"), ALLIANCE_FALLBACK_ITEM, ALLIANCE_OTHER_SHOP, 1)
+        self.assertIsNotNone(weekly)
+        self.assertIsNotNone(fallback)
+        self.assertTrue(fallback.recognized)
+        self.assertEqual((fallback.unit_price, fallback.stock, fallback.item_quantity), (1000, 10055, 11052))
+        replay = ReplayAllianceShopPort(
+            weekly=(replace(weekly, balance=weekly.unit_price - 1),), fallback=fallback,
+        )
+        result = AllianceShopPurchaseRoute(replay, action_key="native-quote-fallback").run()
+        self.assertEqual(result.status, "completed", result.to_mapping())
+        self.assertTrue(replay.other_entered)
+        self.assertEqual(len(replay.purchases), 1)
+        self.assertEqual(replay.purchases[0][0].item_identity, ALLIANCE_FALLBACK_ITEM)
+        self.assertEqual(result.selected_offer["quantity"], 1)
 
 
 class AllianceShopNativeReplayTests(unittest.TestCase):

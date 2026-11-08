@@ -356,7 +356,7 @@ class _OcrWord:
 
 
 def _norm(value: str) -> str:
-    return re.sub(r"[^0-9a-z★]+", "", value.casefold())
+    return re.sub(r"[^0-9a-z★]+", "", value.casefold().replace("*", "★"))
 
 
 def _ocr_words(captured, roi=None, *, psm=6) -> tuple[_OcrWord, ...]:
@@ -430,6 +430,71 @@ def _icon_matches(a, b):
     second -= float(second.mean())
     norm = float(np.linalg.norm(first) * np.linalg.norm(second))
     return norm > 1e-6 and float(np.sum(first * second) / norm) >= 0.86
+
+
+def _offer_buttons(captured):
+    """Measured gold offer controls, excluding item art and red Use controls."""
+    hsv = cv2.cvtColor(captured.frame, cv2.COLOR_BGR2HSV)
+    mask = cv2.inRange(hsv, np.array((10, 75, 100), dtype=np.uint8),
+                       np.array((40, 255, 255), dtype=np.uint8))
+    contours, _hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    buttons = []
+    for contour in contours:
+        x, y, width, height = cv2.boundingRect(contour)
+        if (530 <= x and 230 <= y and 120 <= width <= 220 and 45 <= height <= 80
+                and cv2.contourArea(contour) >= width * height * 0.8):
+            buttons.append((x, y, x + width, y + height))
+    return tuple(sorted(buttons, key=lambda roi: roi[1]))
+
+
+def _offer_button(captured, item):
+    matches = []
+    for button in _offer_buttons(captured):
+        x0, y0, _x1, _y1 = button
+        title_words = _ocr_words(captured, (200, max(230, y0 - 100), x0 - 8, y0))
+        if len(_hits(title_words, item)) == 1:
+            matches.append(button)
+    return matches[0] if len(matches) == 1 else None
+
+
+def _alliance_coin_box(captured, roi):
+    """Locate the header Alliance Coin inside ``roi``; diamonds and unknown icons fail."""
+    # The native balance coin has a + overlay at its lower right. Match its
+    # unobscured interior at current scale, retaining the existing 0.86 gate.
+    reference = cv2.cvtColor(captured.frame[14:58, 560:604], cv2.COLOR_BGR2GRAY)
+    left, top, right, bottom = roi
+    search = cv2.cvtColor(captured.frame[top:bottom, left:right], cv2.COLOR_BGR2GRAY)
+    best_score, best_box = -1.0, None
+    for size in range(22, 33):
+        if search.shape[0] < size or search.shape[1] < size:
+            continue
+        yy, xx = np.indices((size, size))
+        mask = (((xx - size / 2) ** 2 + (yy - size / 2) ** 2 < (size * 0.42) ** 2)
+                & ~((xx >= size * 0.45) & (yy >= size * 0.45))).astype(np.uint8) * 255
+        scores = cv2.matchTemplate(
+            search, cv2.resize(reference, (size, size)), cv2.TM_CCOEFF_NORMED, mask=mask,
+        )
+        scores = np.where(np.isfinite(scores), scores, -1.0)
+        _low, score, _low_at, (x, y) = cv2.minMaxLoc(scores)
+        if score > best_score:
+            best_score = score
+            best_box = (left + x, top + y, left + x + size, top + y + size)
+    return best_box if best_score >= 0.86 else None
+
+
+def _offer_field(captured, roi, label):
+    values = []
+    for line in _lines(_ocr_words(captured, roi)):
+        text = " ".join(word.text for word in line)
+        match = re.fullmatch(rf"{label}\s*:\s*(\d+(?:,\d{{3}})*)", text, re.IGNORECASE)
+        if match:
+            values.append(int(match.group(1).replace(",", "")))
+    return values[0] if len(values) == 1 else None
+
+
+def _same_offer_view(before, after):
+    # The refresh countdown above the cards is deliberately not list state.
+    return np.array_equal(before.frame[230:1280, 40:760], after.frame[230:1280, 40:760])
 
 
 def _selected_tab(captured, label, roi):
@@ -692,72 +757,59 @@ class AllianceShopLivePort:
         return True
 
     def _read_offer(self, captured, item, shop, rarity):
-        words = self._words(captured)
-        item_hits = _hits(words, item)
-        if len(item_hits) != 1:
+        button = _offer_button(captured, item)
+        if button is None:
             return None
-        item_roi = item_hits[0]
-        item_y = (item_roi[1] + item_roi[3]) / 2
-        price_lines = []
-        for line in _lines(words):
-            text = " ".join(word.text for word in line).casefold()
-            if any(token in text for token in ("owned", "stock", "remaining", "refresh", "total")):
-                continue
-            values = [entry for entry in _numbers(line) if entry[0] > 0]
-            distance = abs(sum((word.roi[1] + word.roi[3]) / 2 for word in line) / len(line) - item_y)
-            if len(values) == 1 and distance <= 125:
-                price_lines.append((distance, values[0]))
-        price_lines.sort(key=lambda row: row[0])
-        price = price_lines[0][1] if price_lines and (
-            len(price_lines) == 1 or price_lines[0][0] != price_lines[1][0]
-        ) else None
-        stock_fields = []
-        owned_fields = []
-        for line in _lines(words):
-            text = " ".join(word.text for word in line).casefold()
-            distance = abs(sum((word.roi[1] + word.roi[3]) / 2 for word in line) / len(line) - item_y)
-            values = _numbers(line)
-            if distance <= 160 and len(values) == 1:
-                if "remaining" in text or "stock" in text:
-                    stock_fields.append(values[0][0])
-                if "owned" in text:
-                    owned_fields.append(values[0][0])
-        stock = stock_fields[0] if len(stock_fields) == 1 else None
-        owned = owned_fields[0] if len(owned_fields) == 1 else None
-        balance = None
-        if price is not None:
-            price_icon = _icon(captured, price[1])
-            balances = []
-            for line in _lines(words):
-                for amount, word in _numbers(line):
-                    if word.roi[1] <= 220 and _icon_matches(price_icon, _icon(captured, word)):
-                        balances.append(amount)
-            if len(balances) == 1:
-                balance = balances[0]
-            if price_icon is not None:
-                self.currency_icons[f"{shop}:{item}"] = price_icon
+        x0, y0, x1, y1 = button
+        mid = (y0 + y1) // 2
+        buy_words = _ocr_words(captured, (x0 + 2, mid, x1 - 2, y1 - 1), psm=7)
+        coin = _alliance_coin_box(captured, (x0 + 2, max(0, y0 - 6), x1 - 2, mid + 4))
+        price = None
+        if coin is not None and _has(buy_words, "Buy"):
+            # OCR only the quote right of the matched coin; coin art is not a digit.
+            amount_words = _ocr_words(captured, (coin[2] + 1, y0, x1 - 2, mid + 2), psm=7)
+            amounts = [(value, word) for line in _lines(amount_words) for value, word in _numbers(line)]
+            price = amounts[0] if len(amounts) == 1 else None
+        footer_top, footer_bottom = max(230, y1 - 20), min(1280, y1 + 60)
+        owned = _offer_field(captured, (60, footer_top, 200, footer_bottom), "Owned")
+        stock = _offer_field(
+            captured, (205, footer_top, x0 - 8, footer_bottom),
+            "Remaining Qty" if shop == "Weekly Offers" else "Stock",
+        )
+        balance_words = _ocr_words(captured, (610, 12, 750, 58), psm=7)
+        balances = [value for line in _lines(balance_words) for value, _word in _numbers(line)]
+        coin_known = price is not None
+        balance = balances[0] if len(balances) == 1 and coin_known else None
+        if price is not None and coin_known:
+            self.currency_icons[f"{shop}:{item}"] = _icon(captured, price[1])
         return ShopOffer(
             shop_identity=shop,
             item_identity=item,
-            currency_identity="Alliance Coins",
+            currency_identity="Alliance Coins" if coin_known else "UNKNOWN",
             unit_price=price[0] if price else None,
             balance=balance,
             stock=stock,
             item_quantity=owned,
             rarity=rarity,
             available=(stock > 0 if stock is not None else None),
-            recognized=True,
+            recognized=bool(coin_known and balance is not None and price is not None
+                            and stock is not None and owned is not None),
             offer_identity=f"{shop}:{item}",
         )
 
-    def _scroll(self, captured, words, page):
-        buttons = _hits(words, "Buy")
+    def _scroll(self, captured, page):
+        buttons = _offer_buttons(captured)
         if len(buttons) < 2:
             return None
-        top = min(buttons, key=lambda roi: roi[1])
-        bottom = max(buttons, key=lambda roi: roi[1])
-        start = ((top[0] + top[2]) // 2, (bottom[1] + bottom[3]) // 2)
-        end = ((top[0] + top[2]) // 2, (top[1] + top[3]) // 2)
+        top, bottom = buttons[0], buttons[-1]
+        for button in (top, bottom):
+            x0, y0, x1, y1 = button
+            if not _has(_ocr_words(captured, (x0 + 2, (y0 + y1) // 2, x1 - 2, y1 - 1), psm=7), "Buy"):
+                return None
+        # Drag the measured description gutter, never a Buy control.
+        x = (200 + min(button[0] for button in buttons)) // 2
+        start = (x, (bottom[1] + bottom[3]) // 2)
+        end = (x, (top[1] + top[3]) // 2)
         if start[1] - end[1] < 80:
             return None
         self.context.checkpoint()
@@ -768,6 +820,8 @@ class AllianceShopLivePort:
             action_key=f"alliance-shop:{page}-scroll:{captured.sha256}",
             target_identity=f"alliance-shop:{page}-offer-list-scroll",
         )
+        if self.settle_seconds:
+            time.sleep(self.settle_seconds)
         settled = self._capture(f"alliance-shop-{page}-scroll-successor")
         if self._page(settled)[0] != page:
             return None
@@ -795,15 +849,20 @@ class AllianceShopLivePort:
                     offers[item] = offer
                     self.offer_evidence[item] = captured
             if any(
-                row.available is True and row.stock and row.balance is not None
+                row.recognized and row.currency_identity == "Alliance Coins"
+                and row.item_quantity is not None and row.available is True
+                and row.stock and row.balance is not None
                 and row.unit_price is not None and row.balance >= row.unit_price
                 for row in offers.values()
             ):
                 return scan_result(True)
-            successor = self._scroll(captured, self._words(captured), "weekly")
+            successor = self._scroll(captured, "weekly")
             if successor is None:
                 return scan_result(False, "WEEKLY_LIST_END_NOT_PROVEN")
-            if successor.sha256 == captured.sha256:
+            scanned.append(successor)
+            if _same_offer_view(successor, captured):
+                if any(not row.recognized for row in offers.values()):
+                    return scan_result(False, "WEEKLY_OFFER_FIELDS_UNRESOLVED")
                 return scan_result(True)
         return scan_result(False, "WEEKLY_SCAN_BOUND_REACHED")
 
@@ -825,24 +884,29 @@ class AllianceShopLivePort:
             if offer is not None:
                 self.offer_evidence[offer.item_identity] = captured
                 return offer, True, ""
-            successor = self._scroll(captured, self._words(captured), "other")
+            successor = self._scroll(captured, "other")
             if successor is None:
                 return None, False, "OTHER_LIST_END_NOT_PROVEN"
-            if successor.sha256 == captured.sha256:
+            scanned.append(successor)
+            self.last_other_scan_evidence = {
+                "frame_refs": tuple(str(frame.path) for frame in scanned),
+                "frame_sha256s": tuple(frame.sha256 for frame in scanned),
+            }
+            if _same_offer_view(successor, captured):
                 return None, True, "EXACT_FALLBACK_NOT_PRESENT"
             captured = successor
         return None, False, "OTHER_SCAN_BOUND_REACHED"
 
     def _outer_buy_roi(self, captured, offer):
-        words = self._words(captured)
-        items, buys = _hits(words, offer.item_identity), _hits(words, "Buy")
-        if len(items) != 1 or not buys:
-            raise ValueError("Alliance offer row or Buy target is ambiguous")
-        y = (items[0][1] + items[0][3]) / 2
-        ranked = sorted((abs((roi[1] + roi[3]) / 2 - y), roi) for roi in buys)
-        if ranked[0][0] > 140 or (len(ranked) > 1 and ranked[0][0] == ranked[1][0]):
+        button = _offer_button(captured, offer.item_identity)
+        if button is None:
+            raise ValueError("Alliance offer row is ambiguous")
+        x0, y0, x1, y1 = button
+        words = _ocr_words(captured, (x0 + 2, (y0 + y1) // 2, x1 - 2, y1 - 1), psm=7)
+        buys = _hits(words, "Buy")
+        if len(buys) != 1:
             raise ValueError("Alliance outer Buy is not bound to the exact offer")
-        return ranked[0][1]
+        return buys[0]
 
     def _quantity_dialog(self, captured, offer):
         words = self._words(captured)

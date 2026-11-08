@@ -1,0 +1,18 @@
+{
+  "ticket": 73,
+  "scope": "Failed Weekly inventory fields and unchanged offer viewport despite ticking header; no purchase effect or live acceptance.",
+  "frames": [
+    {
+      "fixture": "0011-alliance-shop-weekly-scan-1.png",
+      "source": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\restart-resume-20261108T035832132346Z\\alliance-shop73-repaired-entry\\native\\ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE-20261108T053310492835Z-d0d453d0\\alliance-shop-native-20261108T053310574480Z\\frames\\0011-alliance-shop-weekly-scan-1.png",
+      "sha256": "ccec8fa4da553334512ea42be4af7702dd3e296fdcef49c090ba8e0303593553",
+      "kind": "unaltered native 800x1280 immutable Original capture"
+    },
+    {
+      "fixture": "0013-alliance-shop-weekly-scan-2.png",
+      "source": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\restart-resume-20261108T035832132346Z\\alliance-shop73-repaired-entry\\native\\ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE-20261108T053310492835Z-d0d453d0\\alliance-shop-native-20261108T053310574480Z\\frames\\0013-alliance-shop-weekly-scan-2.png",
+      "sha256": "2d02bfeb7606b70e4cfdc4dad8235e63e0426dc1f0b577010ae347ce1eac0b49",
+      "kind": "unaltered native 800x1280 immutable Original capture"
+    }
+  ]
+}
