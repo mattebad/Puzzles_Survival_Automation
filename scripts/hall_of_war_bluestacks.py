@@ -435,14 +435,15 @@ class HallOfWarVision:
             self._attack_button(frame, footer),
         )
 
-    def _attack_button(self, frame: np.ndarray, footer: tuple[OCRToken, ...]) -> BoundTarget | None:
-        # Target is the measured gold button that contains the one exact
-        # "Attack" label, not a fixed coordinate.
-        labels = [line.roi for line in footer if line.text == "attack"]
+    def _gold_button(self, frame: np.ndarray, band: tuple[int, int, int, int], lines: tuple[OCRToken, ...],
+                     label: str) -> tuple[int, int, int, int] | None:
+        # The measured gold button that contains the one exact label line,
+        # not a fixed coordinate.
+        labels = [line.roi for line in lines if line.text == label]
         if len(labels) != 1:
             return None
         lx0, ly0, lx1, ly1 = labels[0]
-        x0, y0, x1, y1 = self._MENU_FOOTER_BAND
+        x0, y0, x1, y1 = band
         gold = cv2.inRange(cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2HSV), (8, 120, 120), (30, 255, 255))
         count, _, stats, _ = cv2.connectedComponentsWithStats(gold)
         buttons = [
@@ -451,7 +452,11 @@ class HallOfWarVision:
             if area >= 2000
         ]
         containing = [box for box in buttons if box[0] <= lx0 and box[1] <= ly0 and lx1 <= box[2] and ly1 <= box[3]]
-        return BoundTarget(ATTACK_TARGET, containing[0]) if len(containing) == 1 else None
+        return containing[0] if len(containing) == 1 else None
+
+    def _attack_button(self, frame: np.ndarray, footer: tuple[OCRToken, ...]) -> BoundTarget | None:
+        button = self._gold_button(frame, self._MENU_FOOTER_BAND, footer, "attack")
+        return None if button is None else BoundTarget(ATTACK_TARGET, button)
 
     def zombie_zero_page(self, frame: np.ndarray) -> bool:
         return self.zombie_zero_menu(frame) is not None
@@ -478,32 +483,47 @@ class HallOfWarVision:
             return AttemptState.UNAVAILABLE
         return AttemptState.UNKNOWN
 
+    _DISPATCH_FOOTER_BAND = (40, 1140, 760, NATIVE_HEIGHT)
+
+    def _quick_select_button(self, frame: np.ndarray) -> tuple[int, int, int, int] | None:
+        # Formation page: exact "Dispatch" header plus the measured gold
+        # button holding the exact "Quick Select" label.
+        title = self._text_lines(frame, self._MENU_TITLE_BAND, self._WHITE_TEXT)
+        if len([line for line in title or () if line.text == "dispatch"]) != 1:
+            return None
+        footer = self._text_lines(frame, self._DISPATCH_FOOTER_BAND, self._WHITE_TEXT)
+        return None if footer is None else self._gold_button(frame, self._DISPATCH_FOOTER_BAND, footer, "quick select")
+
     def dispatch_page(self, frame: np.ndarray) -> bool:
-        text = self.text(frame)
-        return self._contains(text, "Dispatch") and self._contains(text, "Quick Select")
+        return self._quick_select_button(frame) is not None
 
     def bind_attack(self, frame: np.ndarray) -> BoundTarget | None:
         menu = self.zombie_zero_menu(frame)
         return None if menu is None else self._ready_attack(menu)
 
     def bind_formation_arrow(self, frame: np.ndarray) -> BoundTarget | None:
-        if not self.dispatch_page(frame):
+        # The selector is the one measured round chevron button immediately
+        # left of the current Quick Select button, on the same row.
+        button = self._quick_select_button(frame)
+        if button is None:
             return None
-        quick = self._phrase_boxes(frame, "Quick Select")
-        if len(quick) != 1:
+        bx0, by0, _bx1, by1 = button
+        x0, y0, x1, y1 = max(0, bx0 - 130), by0, bx0, by1
+        if x1 - x0 < 40:
             return None
-        qx0, qy0, qx1, qy1 = quick[0]
-        center_x, center_y = (qx0 + qx1) // 2, (qy0 + qy1) // 2
-        x = center_x - 170
-        roi = (x - 25, center_y - 25, x + 26, center_y + 26)
-        if not (0 <= roi[0] < roi[2] <= NATIVE_WIDTH and 0 <= roi[1] < roi[3] <= NATIVE_HEIGHT):
+        gray = cv2.medianBlur(cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2GRAY), 3)
+        circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, 1.2, 30, param1=120, param2=25, minRadius=15, maxRadius=35)
+        if circles is None or len(circles[0]) != 1:
             return None
-        patch = frame[roi[1]:roi[3], roi[0]:roi[2]]
-        gray = cv2.cvtColor(patch, cv2.COLOR_BGR2GRAY)
-        edges = cv2.Canny(gray, 55, 150)
-        if float(np.count_nonzero(edges)) / edges.size < 0.055:
+        cx, cy, radius = (int(round(float(value))) for value in circles[0][0])
+        roi = (x0 + cx - radius, y0 + cy - radius, x0 + cx + radius + 1, y0 + cy + radius + 1)
+        if not (x0 <= roi[0] < roi[2] <= x1 and y0 <= roi[1] < roi[3] <= y1):
             return None
-        # The text anchor is Quick Select; the bound selector is explicitly to its left.
+        disc = np.zeros(gray.shape, dtype=np.uint8)
+        cv2.circle(disc, (cx, cy), max(1, radius - 4), 255, -1)
+        chevron = cv2.inRange(cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2HSV), (10, 90, 140), (30, 220, 255))
+        if np.count_nonzero(cv2.bitwise_and(chevron, disc)) < 60:
+            return None
         return BoundTarget(FORMATION_ARROW_TARGET, roi)
 
     def troop_set_selector(self, frame: np.ndarray) -> bool:
@@ -523,13 +543,38 @@ class HallOfWarVision:
             return None
         return target
 
+    _HERO_BAND = (0, 100, NATIVE_WIDTH, 300)
+
+    def _empty_hero_slot_centres(self, frame: np.ndarray) -> tuple[tuple[int, int], ...]:
+        # Empty Dispatch hero slots show one glowing yellow "+" placeholder.
+        x0, y0, x1, y1 = self._HERO_BAND
+        yellow = cv2.inRange(cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2HSV), (18, 90, 170), (40, 255, 255))
+        count, labels, stats, _ = cv2.connectedComponentsWithStats(yellow)
+        centres: list[tuple[int, int]] = []
+        for index in range(1, count):
+            left, top, width, height, area = (int(value) for value in stats[index])
+            if not (30 <= width <= 55 and 30 <= height <= 55 and abs(width - height) <= 8):
+                continue
+            if not 0.25 <= area / float(width * height) <= 0.55:
+                continue
+            shape = labels[top:top + height, left:left + width] == index
+            corner = max(4, min(width, height) // 4)
+            corners = (shape[:corner, :corner], shape[:corner, -corner:], shape[-corner:, :corner], shape[-corner:, -corner:])
+            if not shape[height // 2, width // 2] or any(float(part.mean()) > 0.15 for part in corners):
+                continue
+            centres.append((x0 + left + width // 2, y0 + top + height // 2))
+        return tuple(centres)
+
     def hero_count(self, frame: np.ndarray) -> int:
         if not self._native(frame):
             return 0
+        empty = self._empty_hero_slot_centres(frame)
         count = 0
         for x0, y0, x1, y1 in self._HERO_RECTS:
             patch = frame[y0:y1, x0:x1]
             if patch.shape[:2] != (y1 - y0, x1 - x0):
+                continue
+            if any(x0 <= cx < x1 and y0 <= cy < y1 for cx, cy in empty):
                 continue
             gray = cv2.cvtColor(patch, cv2.COLOR_BGR2GRAY)
             edge_ratio = float(np.count_nonzero(cv2.Canny(gray, 60, 160))) / gray.size
