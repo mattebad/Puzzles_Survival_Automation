@@ -74,15 +74,33 @@ _DURATION_RE = re.compile(r"\b(?:duration|production time)\s*[:=-]?\s*(21600\s*(
 # label "Gear"/"Factory" (315, 820, 387, 866)).
 _GEAR_FACTORY_RADIAL_CONTROL_OFFSET = (137, 95, 225, 209)
 
-# Full-page Gear Factory hub crops measured on the actual 2026-11-08 hub
-# (material70-native-pixel-repair frames 0010-0013).  Native-scale OCR misses
-# the white title; the 2x bright-glyph crop reads "Gear Factory" (300, 20,
-# 501, 49) and the tile label "Nanoweapon" (468, 714, 666, 740) without its
-# notification badge.  The control is the measured label plate (452, 700,
-# 690, 746) clipped to the shared safe interaction box.
-_GEAR_FACTORY_HUB_TITLE_ROI = (160, 0, 700, 70)
+# Full-page title band shared by the Gear Factory hub and the Nanoweapon page;
+# native-scale OCR misses both white titles.  Measured on the actual
+# 2026-11-08 pages, the 2x bright-glyph crop reads "Gear Factory" (300, 20,
+# 501, 49) and "Nanoweapon" (294, 26, 506, 56).
+_PAGE_TITLE_ROI = (160, 0, 700, 70)
+
+# Gear Factory hub (material70-native-pixel-repair frames 0010-0013): the tile
+# label "Nanoweapon" (468, 714, 666, 740) reads without its notification badge.
+# The control is the measured label plate (452, 700, 690, 746) clipped to the
+# shared safe interaction box.
 _GEAR_FACTORY_HUB_NANOWEAPON_LABEL_ROI = (440, 690, 720, 760)
 _GEAR_FACTORY_HUB_NANOWEAPON_CONTROL = (452, 700, 650, 746)
+
+# Nanoweapon page top tab row (material70-actual-hub-continuation frames
+# 0005-0008): row y 79-146, x 41-759, four equal cells, each inset 2 px from
+# its measured edge.  At glyph threshold 80 every label reads, including gray
+# two-line "Material"/"Production"; at the default white threshold only the
+# selected tab's label reads (red-selected "Craft Weapon").  A notification
+# dot reads as a non-alphanumeric glyph and is ignored.
+_NANOWEAPON_TAB_LABEL_THRESHOLD = 80
+_NANOWEAPON_TAB_CELLS = (
+    ("Craft Weapon", (42, 80, 217, 145)),
+    ("Material Production", (221, 80, 397, 145)),
+    ("Nanoweapon", (401, 80, 577, 145)),
+    ("Inherit Weapon", (581, 80, 757, 145)),
+)
+_NANOWEAPON_MATERIAL_TAB_CONTROL = dict(_NANOWEAPON_TAB_CELLS)["Material Production"]
 
 
 @dataclass(frozen=True)
@@ -111,7 +129,7 @@ def _normal(text: str) -> str:
     return " ".join(re.findall(r"[a-z0-9]+", text.casefold(), re.ASCII))
 
 
-def _ocr_words(frame: np.ndarray, roi=None, *, scale: int = 1, white_text: bool = False) -> tuple[_Word, ...]:
+def _ocr_words(frame: np.ndarray, roi=None, *, scale: int = 1, white_text: bool = False, glyph_threshold: int = 200) -> tuple[_Word, ...]:
     if not isinstance(frame, np.ndarray) or frame.ndim != 3 or frame.shape != (1280, 800, 3):
         return ()
     if type(scale) is not int or scale < 1:
@@ -125,8 +143,9 @@ def _ocr_words(frame: np.ndarray, roi=None, *, scale: int = 1, white_text: bool 
     if scale != 1:
         image = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
     if white_text:
-        # Bright radial labels over dark buttons become dark glyphs on white.
-        image = cv2.threshold(image, 200, 255, cv2.THRESH_BINARY_INV)[1]
+        # Bright labels over dark controls become dark glyphs on white.  The
+        # default admits only white glyphs; measured gray tab labels pass 80.
+        image = cv2.threshold(image, glyph_threshold, 255, cv2.THRESH_BINARY_INV)[1]
     try:
         data = call_ocr(tesseract_data, image, config="--psm 11", call_timeout=5.0)
     except Exception:
@@ -231,12 +250,12 @@ def _duration_proof(lines) -> bool:
 
 
 def _panel_observation(captured, *, context, occurrence_key: str) -> _PanelRead:
+    # Production Claim/Start belongs only to the positively selected Material
+    # Production tab; Craft Weapon's own Claim must never be read as material.
+    if _nanoweapon_selected_tab(captured.frame) != "Material Production":
+        return _PanelRead(None, None, "material_production_tab_not_positively_selected")
     words = _ocr_words(captured.frame)
     lines = _lines(words)
-    if len(_phrase_lines(lines, "Nanoweapon")) != 1:
-        return _PanelRead(None, None, "nanoweapon_title_not_uniquely_recognized")
-    if len(_phrase_lines(lines, "Material Production")) != 1:
-        return _PanelRead(None, None, "material_production_tab_not_uniquely_recognized")
     if not _duration_proof(lines):
         return _PanelRead(None, None, "exact_21600_second_duration_not_recognized")
     cost_known = _zero_cost_proof(lines)
@@ -645,7 +664,7 @@ def _safe_nav_roi(roi) -> bool:
     )
 
 
-def _same_bound_target(planned, fresh) -> bool:
+def _same_bound_target(planned, fresh, safe_target: Callable[[Any], bool] = _safe_nav_roi) -> bool:
     """Prove the planned tap still lands on the dispatch frame's own binding.
 
     Fresh Atlas localization of an animated Home may round a mapped hit ROI
@@ -653,7 +672,7 @@ def _same_bound_target(planned, fresh) -> bool:
     the transport target only when every corresponding edge differs by at most
     one native pixel and each binding's tap point lies inside the other.
     """
-    if not _safe_nav_roi(planned) or not _safe_nav_roi(fresh):
+    if not safe_target(planned) or not safe_target(fresh):
         return False
     if planned == fresh:
         return True
@@ -669,23 +688,47 @@ def _same_bound_target(planned, fresh) -> bool:
     return inside(center(planned), fresh) and inside(center(fresh), planned)
 
 
-def _line_target(frame: np.ndarray, phrase: str) -> tuple[int, int, int, int] | None:
-    hits = _phrase_lines(_lines(_ocr_words(frame)), phrase)
-    return _word_roi(hits[0][1]) if len(hits) == 1 else None
+def _crop_label(words: tuple[_Word, ...]) -> str:
+    ordered = sorted(words, key=lambda word: (word.line, word.roi[0]))
+    return " ".join(token for word in ordered if (token := _normal(word.text)))
+
+
+def _nanoweapon_selected_tab(frame: np.ndarray) -> str | None:
+    """Return the one selected top tab of a positively titled Nanoweapon page."""
+    title = _lines(_ocr_words(frame, _PAGE_TITLE_ROI, scale=2, white_text=True))
+    if len(title) != 1 or len(_phrase_lines(title, "Nanoweapon")) != 1:
+        return None
+    selected = []
+    for label, cell in _NANOWEAPON_TAB_CELLS:
+        expected = _normal(label)
+        visible = _ocr_words(frame, cell, scale=2, white_text=True, glyph_threshold=_NANOWEAPON_TAB_LABEL_THRESHOLD)
+        if _crop_label(visible) != expected:
+            return None
+        white = _crop_label(_ocr_words(frame, cell, scale=2, white_text=True))
+        if white == expected:
+            selected.append(label)
+        elif white:
+            return None
+    return selected[0] if len(selected) == 1 else None
 
 
 def _is_nanoweapon_page(frame: np.ndarray) -> bool:
-    lines = _lines(_ocr_words(frame))
-    return bool(
-        len(_phrase_lines(lines, "Nanoweapon")) == 1
-        and len(_phrase_lines(lines, "Craft Weapon")) == 1
-        and len(_phrase_lines(lines, "Material Production")) == 1
-    )
+    return _nanoweapon_selected_tab(frame) is not None
+
+
+def _is_nanoweapon_material_tab_control(roi) -> bool:
+    # Page tab row is route-owned panel chrome, outside the Home interaction box.
+    return roi == _NANOWEAPON_MATERIAL_TAB_CONTROL
+
+
+def _nanoweapon_material_tab_target(frame: np.ndarray) -> tuple[int, int, int, int] | None:
+    selected = _nanoweapon_selected_tab(frame)
+    return _NANOWEAPON_MATERIAL_TAB_CONTROL if selected is not None and selected != "Material Production" else None
 
 
 def _gear_factory_hub_nanoweapon_target(frame: np.ndarray) -> tuple[int, int, int, int] | None:
     """Bind the hub's Nanoweapon tile only on a positively titled Gear Factory hub."""
-    title = _lines(_ocr_words(frame, _GEAR_FACTORY_HUB_TITLE_ROI, scale=2, white_text=True))
+    title = _lines(_ocr_words(frame, _PAGE_TITLE_ROI, scale=2, white_text=True))
     if len(title) != 1 or len(_phrase_lines(title, "Gear Factory")) != 1:
         return None
     labels = [
@@ -784,15 +827,16 @@ def _navigation_action(
     recognize: Callable[[Any], str | None],
     allowed_successors: tuple[str, ...],
     dispatch: Callable[[Any, str, tuple[int, int, int, int] | None], None],
+    safe_target: Callable[[Any], bool] = _safe_nav_roi,
 ) -> bool:
     runtime, session, store = context.runtime, context.session, context.action_store
     planning = _capture(context, f"{label}-planning")
     if not source_recognize(planning.frame):
         return False
     planned_roi = bind(planning.frame)
-    if control_class == "GO" and not _safe_nav_roi(planned_roi):
+    if control_class == "GO" and not safe_target(planned_roi):
         return False
-    if control_class != "GO" and planned_roi is not None and not _safe_nav_roi(planned_roi):
+    if control_class != "GO" and planned_roi is not None and not safe_target(planned_roi):
         return False
     proposal = _route_observation(
         context,
@@ -845,7 +889,7 @@ def _navigation_action(
         if not source_recognize(before.frame):
             raise RuntimeError("navigation source is not positively recognized")
         roi = bind(before.frame)
-        if roi is None or not _same_bound_target(planned_roi, roi):
+        if roi is None or not _same_bound_target(planned_roi, roi, safe_target):
             raise RuntimeError("navigation target changed before dispatch")
         # Home animation may change pixels without moving the mapped anchor.
         # Bind capability and transport to this very same native capture, at
@@ -956,6 +1000,7 @@ def _navigation_tap(
     source_recognize: Callable[[Any], bool],
     recognize: Callable[[Any], str | None],
     allowed_successors: tuple[str, ...],
+    safe_target: Callable[[Any], bool] = _safe_nav_roi,
 ) -> bool:
     return _navigation_action(
         context,
@@ -968,6 +1013,7 @@ def _navigation_tap(
         source_recognize=source_recognize,
         recognize=recognize,
         allowed_successors=allowed_successors,
+        safe_target=safe_target,
         dispatch=lambda before, action_key, roi: context.runtime.tap(
             before,
             target_identity=target_identity,
@@ -1076,15 +1122,9 @@ def _navigate_to_panel(context, *, occurrence_key: str, current) -> tuple[Any | 
 
 
 def _select_material_tab(context, *, occurrence_key: str, captured) -> tuple[Any | None, _PanelRead | None]:
-    panel = _panel_observation(captured, context=context, occurrence_key=occurrence_key)
-    if panel.observation is not None:
-        return captured, panel
-    frame = captured.frame
-    lines = _lines(_ocr_words(frame))
-    if not _is_nanoweapon_page(frame):
-        return None, None
-    roi = _word_roi(_phrase_lines(lines, "Material Production")[0][1]) if len(_phrase_lines(lines, "Material Production")) == 1 else None
-    if not _safe_nav_roi(roi):
+    if _nanoweapon_selected_tab(captured.frame) == "Material Production":
+        return captured, _panel_observation(captured, context=context, occurrence_key=occurrence_key)
+    if _nanoweapon_material_tab_target(captured.frame) is None:
         return None, None
     if not _navigation_tap(
         context,
@@ -1092,15 +1132,15 @@ def _select_material_tab(context, *, occurrence_key: str, captured) -> tuple[Any
         target_identity="nanoweapon:material-production-tab",
         source_state="NANOWEAPON",
         expected_postcondition="MATERIAL_PRODUCTION_PANEL",
-        bind=lambda frame: _line_target(frame, "Material Production"),
-        source_recognize=_is_nanoweapon_page,
-        recognize=lambda after: "MATERIAL_PRODUCTION" if _panel_observation(after, context=context, occurrence_key=occurrence_key).observation is not None else None,
+        bind=_nanoweapon_material_tab_target,
+        source_recognize=lambda frame: _nanoweapon_material_tab_target(frame) is not None,
+        recognize=lambda after: "MATERIAL_PRODUCTION" if _nanoweapon_selected_tab(after.frame) == "Material Production" else None,
         allowed_successors=("MATERIAL_PRODUCTION",),
+        safe_target=_is_nanoweapon_material_tab_control,
     ):
         return None, None
     current = _capture(context, "nano-material-production-panel")
-    result = _panel_observation(current, context=context, occurrence_key=occurrence_key)
-    return (current, result) if result.observation is not None else (None, result)
+    return current, _panel_observation(current, context=context, occurrence_key=occurrence_key)
 
 
 def _return_home(context, *, occurrence_key: str, current) -> tuple[bool, Any | None]:
@@ -1435,11 +1475,11 @@ def run_material_production_in_context(context, *, occurrence_key: str, return_h
             # Navigation helpers discard their source on refusal; prove the actual terminal screen afresh.
             terminal_source = _capture(context, "nano-material-production-navigation-blocked-source")
             return _finalize(context, result, current=terminal_source, return_home=return_home, occurrence_key=occurrence_key, status="blocked", reason=f"NANO_MATERIAL_PRODUCTION_{page_kind.upper()}")
-        before_tab_selection = current
         current, panel_read = _select_material_tab(context, occurrence_key=occurrence_key, captured=current)
-        if current is None and context.is_clean_home(before_tab_selection.frame):
-            current = before_tab_selection
-        if current is None or panel_read is None or panel_read.observation is None:
+        if current is None:
+            # A refused tab selection keeps no source; prove the actual terminal screen afresh.
+            current = _capture(context, "nano-material-production-tab-blocked-source")
+        if panel_read is None or panel_read.observation is None:
             return _finalize(context, result, current=current, return_home=return_home, occurrence_key=occurrence_key, status="blocked", reason="NANO_MATERIAL_PRODUCTION_PANEL_NOT_POSITIVELY_RECOGNIZED")
     before = panel_read.observation
     if not material_production_authorizeable(before):
