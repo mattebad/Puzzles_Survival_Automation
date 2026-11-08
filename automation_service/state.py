@@ -12,6 +12,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
 import hashlib
+import json
 import os
 from pathlib import Path
 import re
@@ -164,6 +165,51 @@ class FlowState:
     next_revision_within_reset: int | None = None
     last_ready_batch_id: str | None = None
     last_revision_within_reset: int | None = None
+    inspected_failure_baseline: int = 0
+
+    @property
+    def retry_window_failures(self) -> int:
+        """Failures counted against ``max_attempts`` in the current retry window.
+
+        ``consecutive_failures`` keeps every failure since the last success; an
+        audited zero-effect inspection only moves the persisted baseline.
+        """
+
+        return self.consecutive_failures - self.inspected_failure_baseline
+
+
+@dataclass(frozen=True)
+class FlowInspection:
+    """Immutable audit record of one inspected zero-effect retry rearm."""
+
+    inspection_id: str
+    flow_id: str
+    inspected_at_utc: float
+    flow_generation: int
+    prior_row_version: int
+    consecutive_failures: int
+    prior_failure_baseline: int
+    failure_baseline: int
+    max_attempts: int
+    prior_blocked_reason: str | None
+    last_attempt_seq: int | None
+    attested_untracked_failures: int
+    window_summary: dict[str, Any]
+    reason: str
+    evidence_reference: str
+    evidence_sha256: str
+
+
+@dataclass(frozen=True)
+class FlowInspectionReview:
+    """Read-only eligibility facts for an inspected zero-effect rearm."""
+
+    flow: FlowState | None
+    eligible: bool
+    reason: str
+    last_attempt_seq: int | None
+    untracked_failures: int | None
+    window_summary: dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -304,6 +350,16 @@ class TerminalProjectionError(StateTransitionError):
         super().__init__(reason)
 
 
+class FlowInspectionDenied(StateError):
+    """An inspected retry rearm failed closed; nothing was changed."""
+
+    retryable = False
+
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+        super().__init__(reason)
+
+
 class FlowIdMigrationConflict(StateError):
     """A renamed flow id has persisted rows under both its old and new id."""
 
@@ -315,6 +371,20 @@ class FlowIdMigrationConflict(StateError):
 RENAMED_FLOW_IDS: tuple[tuple[str, str], ...] = (
     ("CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY", "CAMPAIGN-AP-AUTO-BATTLE"),
 )
+
+
+def _inspection_history_ids(flow_id: str) -> tuple[str, ...]:
+    """Return the canonical id plus any retired ids the rename migration moved onto it.
+
+    Append-only inspection records keep the flow id they were written under.
+    This resolves that retained history only; it never admits a live alias.
+    """
+
+    return (flow_id, *(old for old, new in RENAMED_FLOW_IDS if new == flow_id))
+
+
+def _id_placeholders(values: tuple[str, ...]) -> str:
+    return ", ".join("?" for _ in values)
 
 
 def _flow_id_row_count(db: sqlite3.Connection, flow_id: str) -> int:
@@ -512,6 +582,38 @@ def resolve_state_path(
     return candidate.resolve()
 
 
+# Persisted terminal outcomes that leave an effect uncertain; never rearmed.
+_INSPECTION_UNCERTAIN_OUTCOMES = frozenset({"unknown", "unresolved", "reconciliation_required"})
+
+
+def _inspection_evidence(path: str | os.PathLike[str]) -> tuple[str, str]:
+    """Return the repository-relative reference and SHA-256 of retained evidence.
+
+    Inspection evidence must be one existing, non-empty regular file retained
+    inside this repository (for example under ``.local-captures``).  Links and
+    paths outside the repository are rejected rather than followed.
+    """
+
+    raw = os.fspath(path) if isinstance(path, (str, os.PathLike)) else ""
+    if not raw.strip():
+        raise FlowInspectionDenied("EVIDENCE_REQUIRED")
+    candidate = Path(raw).expanduser()
+    if not candidate.is_absolute():
+        candidate = REPOSITORY_ROOT / candidate
+    if candidate.is_symlink():
+        raise FlowInspectionDenied("EVIDENCE_LINK_REJECTED")
+    try:
+        resolved = candidate.resolve(strict=True)
+        reference = resolved.relative_to(REPOSITORY_ROOT).as_posix()
+        if not resolved.is_file() or resolved.stat().st_size == 0:
+            raise FlowInspectionDenied("EVIDENCE_NOT_RETAINED")
+        digest = hashlib.sha256()
+        with resolved.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1 << 20), b""):
+                digest.update(chunk)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise FlowInspectionDenied("EVIDENCE_NOT_RETAINED") from exc
+    return reference, digest.hexdigest()
 
 
 def _binding_fingerprint(
@@ -772,6 +874,10 @@ class BotStateManager:
                     last_outcome TEXT,
                     last_accepted_projection_key TEXT,
                     consecutive_failures INTEGER NOT NULL CHECK (consecutive_failures >= 0),
+                    inspected_failure_baseline INTEGER NOT NULL DEFAULT 0 CHECK (
+                        inspected_failure_baseline >= 0
+                        AND inspected_failure_baseline <= consecutive_failures
+                    ),
                     row_version INTEGER NOT NULL CHECK (row_version >= 0)
                 );
 
@@ -886,6 +992,65 @@ class BotStateManager:
                 CREATE UNIQUE INDEX IF NOT EXISTS runtime_recovery_episodes_one_active_idx
                     ON runtime_recovery_episodes(scope_key)
                     WHERE status <> 'RECOVERED';
+
+                -- Append-only terminal attempt history.  A retried occurrence
+                -- reuses its run row, so this ledger retains each attempt's
+                -- terminal facts and counters that the next claim resets.
+                CREATE TABLE IF NOT EXISTS flow_attempts (
+                    attempt_seq INTEGER PRIMARY KEY AUTOINCREMENT,
+                    flow_id TEXT NOT NULL,
+                    run_id TEXT NOT NULL REFERENCES runs(run_id),
+                    occurrence_key TEXT NOT NULL,
+                    reset_id TEXT NOT NULL,
+                    mode TEXT NOT NULL,
+                    attempt_state TEXT NOT NULL CHECK (attempt_state IN (
+                        'SUCCEEDED', 'DEFERRED', 'BLOCKED', 'FAILED', 'ABANDONED'
+                    )),
+                    occurrence_disposition TEXT NOT NULL,
+                    terminal_outcome TEXT,
+                    terminal_reason TEXT,
+                    consumed_inputs INTEGER NOT NULL CHECK (consumed_inputs >= 0),
+                    consumed_actions INTEGER NOT NULL CHECK (consumed_actions >= 0),
+                    claimed_at_utc REAL NOT NULL,
+                    terminal_at_utc REAL NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS flow_attempts_run_idx
+                    ON flow_attempts(run_id, attempt_seq);
+                CREATE TRIGGER IF NOT EXISTS flow_attempts_append_only_update
+                    BEFORE UPDATE ON flow_attempts
+                    BEGIN SELECT RAISE(ABORT, 'flow_attempts is append-only'); END;
+                CREATE TRIGGER IF NOT EXISTS flow_attempts_append_only_delete
+                    BEFORE DELETE ON flow_attempts
+                    BEGIN SELECT RAISE(ABORT, 'flow_attempts is append-only'); END;
+
+                -- Immutable audit of inspected zero-effect retry rearms.
+                CREATE TABLE IF NOT EXISTS flow_inspections (
+                    inspection_id TEXT PRIMARY KEY,
+                    flow_id TEXT NOT NULL,
+                    inspected_at_utc REAL NOT NULL CHECK (inspected_at_utc >= 0),
+                    flow_generation INTEGER NOT NULL CHECK (flow_generation >= 0),
+                    prior_row_version INTEGER NOT NULL CHECK (prior_row_version >= 0),
+                    consecutive_failures INTEGER NOT NULL CHECK (consecutive_failures >= 1),
+                    prior_failure_baseline INTEGER NOT NULL CHECK (prior_failure_baseline >= 0),
+                    failure_baseline INTEGER NOT NULL CHECK (failure_baseline = consecutive_failures),
+                    max_attempts INTEGER NOT NULL CHECK (max_attempts >= 1),
+                    prior_blocked_reason TEXT,
+                    last_attempt_seq INTEGER REFERENCES flow_attempts(attempt_seq),
+                    attested_untracked_failures INTEGER NOT NULL CHECK (attested_untracked_failures >= 0),
+                    window_summary TEXT NOT NULL,
+                    reason TEXT NOT NULL CHECK (length(reason) > 0),
+                    evidence_reference TEXT NOT NULL CHECK (length(evidence_reference) > 0),
+                    evidence_sha256 TEXT NOT NULL CHECK (length(evidence_sha256) = 64),
+                    UNIQUE (flow_id, evidence_sha256)
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS flow_inspections_one_per_window_idx
+                    ON flow_inspections(flow_id, consecutive_failures, COALESCE(last_attempt_seq, 0));
+                CREATE TRIGGER IF NOT EXISTS flow_inspections_append_only_update
+                    BEFORE UPDATE ON flow_inspections
+                    BEGIN SELECT RAISE(ABORT, 'flow_inspections is append-only'); END;
+                CREATE TRIGGER IF NOT EXISTS flow_inspections_append_only_delete
+                    BEFORE DELETE ON flow_inspections
+                    BEGIN SELECT RAISE(ABORT, 'flow_inspections is append-only'); END;
                 """
             )
             existing = {
@@ -923,6 +1088,11 @@ class BotStateManager:
                 ("next_revision_within_reset", "INTEGER"),
                 ("last_ready_batch_id", "TEXT"),
                 ("last_revision_within_reset", "INTEGER"),
+                (
+                    "inspected_failure_baseline",
+                    "INTEGER NOT NULL DEFAULT 0 CHECK (inspected_failure_baseline >= 0 "
+                    "AND inspected_failure_baseline <= consecutive_failures)",
+                ),
             ):
                 if column not in existing_flows:
                     db.execute(f"ALTER TABLE flow_state ADD COLUMN {column} {declaration}")
@@ -1170,6 +1340,7 @@ class BotStateManager:
             _row_value(row, "next_revision_within_reset"),
             _row_value(row, "last_ready_batch_id"),
             _row_value(row, "last_revision_within_reset"),
+            int(_row_value(row, "inspected_failure_baseline", 0) or 0),
         )
 
     @staticmethod
@@ -1648,6 +1819,361 @@ class BotStateManager:
             db.execute("UPDATE flow_state SET blocked = 0, blocked_reason = NULL, row_version = row_version + 1 WHERE flow_id = ?", (flow_id,))
             return self._flow(db.execute("SELECT * FROM flow_state WHERE flow_id = ?", (flow_id,)).fetchone())
 
+    @staticmethod
+    def _table_exists(db: sqlite3.Connection, name: str) -> bool:
+        return db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (name,)
+        ).fetchone() is not None
+
+    @staticmethod
+    def _inspection_attempt_denial(
+        state: str, outcome: str | None, reason: str | None, consumed_actions: int
+    ) -> str | None:
+        """Classify one terminal attempt that cannot be rearmed without effect review."""
+
+        # The scheduler records an exhausted unresolved/reconciliation result
+        # as BLOCKED with reason RETRY_EXHAUSTED, so that reason is uncertain too.
+        if (
+            state == RunState.FAILED.value
+            or (outcome or "").strip().casefold() in _INSPECTION_UNCERTAIN_OUTCOMES
+            or (reason or "").strip() == "RETRY_EXHAUSTED"
+        ):
+            return "UNCERTAIN_OUTCOME"
+        if consumed_actions != 0:
+            return "CONSEQUENTIAL_ATTEMPT"
+        if state == RunState.ABANDONED.value:
+            return "ATTEMPT_UNACCOUNTED"
+        if "accounting" in (reason or "").casefold():
+            return "ACCOUNTING_UNVERIFIED"
+        return None
+
+    def _inspection_review(
+        self,
+        db: sqlite3.Connection,
+        flow: sqlite3.Row,
+        *,
+        now: float,
+        attested_untracked_failures: int,
+    ) -> FlowInspectionReview:
+        """Evaluate every canonical fact required for a zero-effect rearm."""
+
+        flow_id = flow["flow_id"]
+        state = self._flow(flow)
+        summary: dict[str, Any] = {
+            "window_failures": state.retry_window_failures,
+            "max_attempts": state.max_attempts,
+            "runs": [],
+            "attempts": [],
+            "tracked_failures": None,
+            "untracked_failures": None,
+            "previously_attested_untracked_failures": None,
+        }
+        last_seq: int | None = None
+        required: int | None = None
+
+        def deny(reason: str) -> FlowInspectionReview:
+            return FlowInspectionReview(state, False, reason, last_seq, required, summary)
+
+        clock = db.execute("SELECT high_water_utc FROM clock_state WHERE singleton_id = 1").fetchone()
+        service = db.execute("SELECT enabled FROM service_control WHERE singleton_id = 1").fetchone()
+        lease = db.execute("SELECT owner_instance_id, expires_at_utc FROM service_lease WHERE singleton_id = 1").fetchone()
+        if clock is None or service is None or lease is None:
+            return deny("STATE_INCOMPLETE")
+        if float(clock["high_water_utc"]) > now:
+            return deny("CLOCK_ROLLBACK")
+        if bool(service["enabled"]):
+            return deny("SERVICE_ENABLED")
+        if (
+            lease["owner_instance_id"] is not None
+            and lease["expires_at_utc"] is not None
+            and float(lease["expires_at_utc"]) > now
+        ):
+            return deny("SERVICE_OWNER_ACTIVE")
+        if db.execute(
+            "SELECT 1 FROM runs WHERE state IN ('CLAIMED', 'RUNNING', 'STOP_REQUESTED', 'RECOVERING') LIMIT 1"
+        ).fetchone() is not None:
+            return deny("ACTIVE_RUN")
+        if self._table_exists(db, "runtime_recovery_episodes") and db.execute(
+            "SELECT 1 FROM runtime_recovery_episodes WHERE status <> 'RECOVERED' LIMIT 1"
+        ).fetchone() is not None:
+            return deny("NETWORK_RECOVERY_UNRESOLVED")
+        if state.enabled:
+            return deny("FLOW_ENABLED")
+        if not state.blocked:
+            return deny("FLOW_NOT_BLOCKED")
+        if (state.blocked_reason or "").startswith("EXECUTOR_INTERRUPTED_REQUIRES_INSPECTION"):
+            return deny("EXECUTOR_INTERRUPTED")
+        if state.retry_window_failures < state.max_attempts:
+            return deny("RETRY_NOT_EXHAUSTED")
+        if db.execute(
+            """SELECT 1 FROM actions JOIN runs ON runs.run_id = actions.run_id
+               WHERE runs.flow_id = ? AND actions.state IN ('RESERVED', 'DISPATCHING', 'UNKNOWN')
+               LIMIT 1""",
+            (flow_id,),
+        ).fetchone() is not None:
+            return deny("UNRESOLVED_ACTION")
+
+        # The current window starts after the latest consumed success/deferral;
+        # earlier inspections in this window already moved only the baseline.
+        runs = db.execute(
+            "SELECT * FROM runs WHERE flow_id = ? ORDER BY claimed_at_utc, rowid", (flow_id,)
+        ).fetchall()
+        advanced_at = max(
+            (
+                float(run["terminal_at_utc"])
+                for run in runs
+                if run["state"] in {RunState.SUCCEEDED.value, RunState.DEFERRED.value}
+                and (_row_value(run, "occurrence_disposition") or "consume") == "consume"
+                and run["terminal_at_utc"] is not None
+            ),
+            default=None,
+        )
+        window_runs = [
+            run for run in runs
+            if advanced_at is None or float(run["claimed_at_utc"]) > advanced_at
+        ]
+        summary["runs"] = [
+            {
+                "run_id": run["run_id"],
+                "occurrence_key": run["occurrence_key"],
+                "state": run["state"],
+                "terminal_outcome": run["terminal_outcome"],
+                "terminal_reason": run["terminal_reason"],
+                "consumed_inputs": int(run["consumed_inputs"]),
+                "consumed_actions": int(run["consumed_actions"]),
+                "terminal_at_utc": run["terminal_at_utc"],
+            }
+            for run in window_runs
+        ]
+        for run in window_runs:
+            denial = self._inspection_attempt_denial(
+                run["state"], run["terminal_outcome"], run["terminal_reason"], int(run["consumed_actions"])
+            )
+            if denial is not None:
+                return deny(denial)
+            # Canonical actions survive a reclaim; any dispatch is consequential.
+            if db.execute(
+                """SELECT 1 FROM actions WHERE run_id = ?
+                   AND (dispatching_at_utc IS NOT NULL OR state NOT IN ('CANCELLED', 'BLOCKED'))
+                   LIMIT 1""",
+                (run["run_id"],),
+            ).fetchone() is not None:
+                return deny("CONSEQUENTIAL_ATTEMPT")
+        if not any(run["state"] in {RunState.BLOCKED.value, RunState.FAILED.value} for run in window_runs):
+            return deny("FAILURE_HISTORY_MISMATCH")
+
+        attempts: list[sqlite3.Row] = []
+        if self._table_exists(db, "flow_attempts"):
+            # Ledger rows keep the flow id they were written under; membership
+            # follows the immutable run id to the canonical, migrated runs row.
+            ledger = db.execute(
+                """SELECT flow_attempts.* FROM flow_attempts
+                   JOIN runs ON runs.run_id = flow_attempts.run_id
+                   WHERE runs.flow_id = ? ORDER BY flow_attempts.attempt_seq""",
+                (flow_id,),
+            ).fetchall()
+            if ledger:
+                last_seq = int(ledger[-1]["attempt_seq"])
+            start = 0
+            for index, attempt in enumerate(ledger):
+                if (
+                    attempt["attempt_state"] in {RunState.SUCCEEDED.value, RunState.DEFERRED.value}
+                    and attempt["occurrence_disposition"] == OccurrenceDisposition.CONSUME.value
+                ):
+                    start = index + 1
+            attempts = ledger[start:]
+        summary["attempts"] = [
+            {
+                "attempt_seq": int(attempt["attempt_seq"]),
+                "run_id": attempt["run_id"],
+                "recorded_flow_id": attempt["flow_id"],
+                "attempt_state": attempt["attempt_state"],
+                "terminal_outcome": attempt["terminal_outcome"],
+                "terminal_reason": attempt["terminal_reason"],
+                "consumed_inputs": int(attempt["consumed_inputs"]),
+                "consumed_actions": int(attempt["consumed_actions"]),
+                "terminal_at_utc": float(attempt["terminal_at_utc"]),
+            }
+            for attempt in attempts
+        ]
+        for attempt in attempts:
+            denial = self._inspection_attempt_denial(
+                attempt["attempt_state"], attempt["terminal_outcome"],
+                attempt["terminal_reason"], int(attempt["consumed_actions"]),
+            )
+            if denial is not None:
+                return deny(denial)
+        tracked = sum(
+            1 for attempt in attempts
+            if attempt["attempt_state"] in {RunState.BLOCKED.value, RunState.FAILED.value}
+        )
+        untracked = state.consecutive_failures - tracked
+        # Failures from before the attempt ledger existed have no retained
+        # canonical counters.  They are admitted only by an exact, audited
+        # operator attestation, once per window, never by implicit backfill.
+        previously_attested = 0
+        history_ids = _inspection_history_ids(flow_id)
+        in_history = f"flow_id IN ({_id_placeholders(history_ids)})"
+        has_inspections = self._table_exists(db, "flow_inspections")
+        if has_inspections:
+            previously_attested = int(db.execute(
+                f"""SELECT COALESCE(SUM(attested_untracked_failures), 0) FROM flow_inspections
+                   WHERE {in_history} AND (? IS NULL OR inspected_at_utc > ?)""",
+                (*history_ids, advanced_at, advanced_at),
+            ).fetchone()[0])
+        required = untracked - previously_attested
+        summary["tracked_failures"] = tracked
+        summary["untracked_failures"] = untracked
+        summary["previously_attested_untracked_failures"] = previously_attested
+        if untracked < 0 or required < 0:
+            return deny("FAILURE_HISTORY_MISMATCH")
+        if attested_untracked_failures != required:
+            return deny("UNTRACKED_FAILURE_ATTESTATION_MISMATCH")
+        if has_inspections and db.execute(
+            f"""SELECT 1 FROM flow_inspections WHERE {in_history} AND consecutive_failures = ?
+               AND COALESCE(last_attempt_seq, 0) = COALESCE(?, 0) LIMIT 1""",
+            (*history_ids, state.consecutive_failures, last_seq),
+        ).fetchone() is not None:
+            return deny("DUPLICATE_INSPECTION")
+        return FlowInspectionReview(state, True, "ELIGIBLE", last_seq, required, summary)
+
+    def review_flow_inspection(
+        self,
+        flow_id: str,
+        *,
+        attested_untracked_failures: int = 0,
+        now_utc_epoch: float | None = None,
+    ) -> FlowInspectionReview:
+        """Read-only preview of :meth:`inspect_rearm_flow` eligibility; never mutates."""
+
+        flow_id = _text(flow_id, "flow_id")
+        _nonnegative_int(attested_untracked_failures, "attested_untracked_failures")
+        now = _epoch(_now() if now_utc_epoch is None else now_utc_epoch, "now", allow_none=False)
+        assert now is not None
+        with self._lock:
+            flow = self._db.execute("SELECT * FROM flow_state WHERE flow_id = ?", (flow_id,)).fetchone()
+            if flow is None:
+                return FlowInspectionReview(None, False, "FLOW_NOT_FOUND", None, None, {})
+            return self._inspection_review(
+                self._db, flow, now=now, attested_untracked_failures=attested_untracked_failures
+            )
+
+    def inspect_rearm_flow(
+        self,
+        flow_id: str,
+        *,
+        expected_generation: int,
+        expected_row_version: int,
+        expected_consecutive_failures: int,
+        reason: str,
+        evidence_path: str | os.PathLike[str],
+        attested_untracked_failures: int = 0,
+        now_utc_epoch: float | None = None,
+    ) -> FlowInspection:
+        """Rearm one exhausted, zero-effect, operator-inspected blocked flow.
+
+        The flow stays disabled; generation, max attempts, run/action rows,
+        occurrence and reset identity are unchanged.  The stored failure count
+        is retained and becomes the inspected baseline, so the next window is
+        exactly ``max_attempts`` failures.  Every failed check raises
+        :class:`FlowInspectionDenied` without changing state.
+        """
+
+        flow_id = _text(flow_id, "flow_id")
+        for value, name in (
+            (expected_generation, "expected_generation"),
+            (expected_row_version, "expected_row_version"),
+            (expected_consecutive_failures, "expected_consecutive_failures"),
+            (attested_untracked_failures, "attested_untracked_failures"),
+        ):
+            _nonnegative_int(value, name)
+        reason = _text(reason, "reason")
+        now = _epoch(_now() if now_utc_epoch is None else now_utc_epoch, "now", allow_none=False)
+        assert now is not None
+        evidence_reference, evidence_sha256 = _inspection_evidence(evidence_path)
+        with self._transaction() as db:
+            flow = db.execute("SELECT * FROM flow_state WHERE flow_id = ?", (flow_id,)).fetchone()
+            if flow is None:
+                raise FlowInspectionDenied("FLOW_NOT_FOUND")
+            if (
+                int(flow["generation"]) != expected_generation
+                or int(flow["row_version"]) != expected_row_version
+                or int(flow["consecutive_failures"]) != expected_consecutive_failures
+            ):
+                raise FlowInspectionDenied("STALE_FLOW_STATE")
+            review = self._inspection_review(
+                db, flow, now=now, attested_untracked_failures=attested_untracked_failures
+            )
+            if not review.eligible:
+                raise FlowInspectionDenied(review.reason)
+            history_ids = _inspection_history_ids(flow_id)
+            if db.execute(
+                f"""SELECT 1 FROM flow_inspections
+                   WHERE flow_id IN ({_id_placeholders(history_ids)}) AND evidence_sha256 = ? LIMIT 1""",
+                (*history_ids, evidence_sha256),
+            ).fetchone() is not None:
+                raise FlowInspectionDenied("EVIDENCE_ALREADY_USED")
+            inspection = FlowInspection(
+                uuid4().hex, flow_id, now, int(flow["generation"]), int(flow["row_version"]),
+                int(flow["consecutive_failures"]), int(flow["inspected_failure_baseline"]),
+                int(flow["consecutive_failures"]), int(flow["max_attempts"]),
+                flow["blocked_reason"], review.last_attempt_seq, attested_untracked_failures,
+                review.window_summary, reason, evidence_reference, evidence_sha256,
+            )
+            db.execute(
+                """INSERT INTO flow_inspections
+                   (inspection_id, flow_id, inspected_at_utc, flow_generation, prior_row_version,
+                    consecutive_failures, prior_failure_baseline, failure_baseline, max_attempts,
+                    prior_blocked_reason, last_attempt_seq, attested_untracked_failures,
+                    window_summary, reason, evidence_reference, evidence_sha256)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    inspection.inspection_id, flow_id, now, inspection.flow_generation,
+                    inspection.prior_row_version, inspection.consecutive_failures,
+                    inspection.prior_failure_baseline, inspection.failure_baseline,
+                    inspection.max_attempts, inspection.prior_blocked_reason,
+                    inspection.last_attempt_seq, attested_untracked_failures,
+                    json.dumps(review.window_summary, sort_keys=True), reason,
+                    evidence_reference, evidence_sha256,
+                ),
+            )
+            updated = db.execute(
+                """UPDATE flow_state SET blocked = 0, blocked_reason = NULL,
+                   inspected_failure_baseline = consecutive_failures, row_version = row_version + 1
+                   WHERE flow_id = ? AND enabled = 0 AND blocked = 1 AND generation = ?
+                     AND row_version = ? AND consecutive_failures = ?""",
+                (flow_id, expected_generation, expected_row_version, expected_consecutive_failures),
+            )
+            if updated.rowcount != 1:
+                raise FlowInspectionDenied("STALE_FLOW_STATE")
+            return inspection
+
+    def list_flow_inspections(self, flow_id: str) -> tuple[FlowInspection, ...]:
+        """Read one flow's immutable inspection audit records, oldest first."""
+
+        flow_id = _text(flow_id, "flow_id")
+        with self._lock:
+            if not self._table_exists(self._db, "flow_inspections"):
+                return ()
+            history_ids = _inspection_history_ids(flow_id)
+            rows = self._db.execute(
+                f"""SELECT * FROM flow_inspections WHERE flow_id IN ({_id_placeholders(history_ids)})
+                   ORDER BY inspected_at_utc, rowid""",
+                history_ids,
+            ).fetchall()
+        return tuple(
+            FlowInspection(
+                row["inspection_id"], row["flow_id"], float(row["inspected_at_utc"]),
+                int(row["flow_generation"]), int(row["prior_row_version"]),
+                int(row["consecutive_failures"]), int(row["prior_failure_baseline"]),
+                int(row["failure_baseline"]), int(row["max_attempts"]), row["prior_blocked_reason"],
+                None if row["last_attempt_seq"] is None else int(row["last_attempt_seq"]),
+                int(row["attested_untracked_failures"]), json.loads(row["window_summary"]),
+                row["reason"], row["evidence_reference"], row["evidence_sha256"],
+            )
+            for row in rows
+        )
+
     def update_schedule(
         self,
         flow_id: str,
@@ -1807,6 +2333,10 @@ class BotStateManager:
             if value is not _UNSET:
                 changes.append(f"{column} = ?")
                 values.append(value)
+        if consecutive_failures is not _UNSET:
+            # The inspected baseline never exceeds the retained failure count.
+            changes.append("inspected_failure_baseline = MIN(inspected_failure_baseline, ?)")
+            values.append(consecutive_failures)
         if not changes:
             return self.get_flow(flow_id)
         values.append(flow_id)
@@ -1980,7 +2510,7 @@ class BotStateManager:
             if flow["retry_not_before_utc"] is not None and float(flow["retry_not_before_utc"]) > now:
                 release_claim_lease(db)
                 return None
-            if int(flow["consecutive_failures"]) >= int(flow["max_attempts"]):
+            if int(flow["consecutive_failures"]) - int(flow["inspected_failure_baseline"]) >= int(flow["max_attempts"]):
                 db.execute(
                     "UPDATE flow_state SET blocked = 1, blocked_reason = COALESCE(blocked_reason, 'RETRY_EXHAUSTED'), row_version = row_version + 1 WHERE flow_id = ?",
                     (flow_id,),
@@ -2373,15 +2903,17 @@ class BotStateManager:
         flow_outcome = outcome or target.value
         failure = target in {RunState.BLOCKED, RunState.FAILED}
         advance = target in {RunState.SUCCEEDED, RunState.DEFERRED} and not preserve
-        failure_count = int(flow["consecutive_failures"]) + (1 if failure else 0)
-        exhausted = failure and failure_count >= int(flow["max_attempts"])
+        # Exhaustion and backoff use the current retry window; an inspected
+        # rearm moves only the baseline and retains the stored failure count.
+        window_failures = int(flow["consecutive_failures"]) - int(flow["inspected_failure_baseline"])
+        exhausted = failure and window_failures + 1 >= int(flow["max_attempts"])
         if retry_not_before_utc is _UNSET:
             retry_value: float | None = (
                 now
                 + min(
                     3_600.0,
                     max(2.0, float(flow["retry_backoff_seconds"] or 2.0))
-                    * 2 ** min(int(flow["consecutive_failures"]), 10),
+                    * 2 ** min(window_failures, 10),
                 )
                 if failure and not exhausted
                 else None
@@ -2449,6 +2981,7 @@ class BotStateManager:
                retry_not_before_utc = ?, last_completed_at_utc = CASE WHEN ? THEN last_completed_at_utc ELSE ? END, last_outcome = ?,
                last_accepted_projection_key = CASE WHEN ? THEN ? ELSE last_accepted_projection_key END,
                consecutive_failures = CASE WHEN ? THEN 0 ELSE consecutive_failures + ? END,
+               inspected_failure_baseline = CASE WHEN ? THEN 0 ELSE inspected_failure_baseline END,
                blocked = CASE WHEN ? THEN 1 ELSE blocked END,
                blocked_reason = CASE WHEN ? THEN 'RETRY_EXHAUSTED' ELSE blocked_reason END,
                row_version = row_version + 1 WHERE flow_id = ? AND row_version = ?""",
@@ -2474,6 +3007,7 @@ class BotStateManager:
                 None if accepted_projection_key is _UNSET else accepted_projection_key,
                 int(advance),
                 int(failure),
+                int(advance),
                 int(exhausted),
                 int(exhausted),
                 row["flow_id"],
@@ -2482,6 +3016,19 @@ class BotStateManager:
         )
         if flow_result.rowcount != 1:
             raise TerminalProjectionError("TERMINAL_CAS_FAILED")
+        db.execute(
+            """INSERT INTO flow_attempts
+               (flow_id, run_id, occurrence_key, reset_id, mode, attempt_state,
+                occurrence_disposition, terminal_outcome, terminal_reason,
+                consumed_inputs, consumed_actions, claimed_at_utc, terminal_at_utc)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                row["flow_id"], row["run_id"], row["occurrence_key"], row["reset_id"], row["mode"],
+                target.value, occurrence_disposition.value, outcome, reason,
+                int(row["consumed_inputs"]), int(row["consumed_actions"]),
+                float(row["claimed_at_utc"]), now,
+            ),
+        )
         return self._run(db.execute("SELECT * FROM runs WHERE run_id = ?", (row["run_id"],)).fetchone())
 
     def project_terminal(
@@ -3986,6 +4533,9 @@ __all__ = [
     "NetworkRecoveryStep",
     "NetworkRecoveryTransportStatus",
     "FlowIdMigrationConflict",
+    "FlowInspection",
+    "FlowInspectionDenied",
+    "FlowInspectionReview",
     "FlowState",
     "RENAMED_FLOW_IDS",
     "RunRecord",
