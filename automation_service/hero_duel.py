@@ -274,7 +274,10 @@ class HeroDuelRunner:
         try:
             duel, entry, flee, save, selection = _counts(native_result)
             if native_result.get("status") not in {"complete_for_reset", "already_complete", "deferred"}:
-                raise ValueError("Hero Duel native route has no accepted terminal disposition")
+                raise ValueError(
+                    "Hero Duel native route has no accepted terminal disposition: "
+                    f"{native_result.get('reason') or native_result.get('status')}"
+                )
             if native_result.get("effect_reconciliation_required") is not False or native_result.get("identical_retry_denied") is not False:
                 raise ValueError("Hero Duel effect state requires reconciliation or prohibits retry")
             _verified_terminal_home(native_result)
