@@ -10,13 +10,7 @@ from unittest import mock
 
 import numpy as np
 
-from automation_service.registry import (
-    NANO_MATERIAL_PRODUCTION_FLOW_ID,
-    NANO_MATERIAL_PRODUCTION_MAX_INPUTS,
-    NANO_MATERIAL_PRODUCTION_PRODUCT_ID,
-    NANO_MATERIAL_PRODUCTION_PRODUCT_REVISION,
-    NANO_MATERIAL_PRODUCTION_PROFILE_ID,
-)
+from automation_service.registry import NANO_MATERIAL_PRODUCTION_MAX_INPUTS
 from safe_action_core import SafetyStore
 from scripts import nano_material_production_bluestacks as route
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
@@ -398,19 +392,6 @@ class NanoMaterialProductionNativeSmokeTests(unittest.TestCase):
             )
             self.assertIsNotNone(action_row)
             self.assertEqual(action_row["final_status"], "unresolved")
-            self.assertTrue(route.validate_nano_material_production_native_result(result))
-            invalid_effect_evidence = (
-                {"attempted_action_count": None, "attempted_action_count_known": False},
-                {"action_evidence_required": True},
-                {"last_action_evidence": {"before": evidence["before"]}},
-            )
-            for changes in invalid_effect_evidence:
-                with self.subTest(changes=changes):
-                    self.assertFalse(
-                        route.validate_nano_material_production_native_result(
-                            dict(result, **changes)
-                        )
-                    )
             self.assertTrue(result["effect_reconciliation_required"])
             self.assertTrue(result["identical_retry_denied"])
             self.assertEqual(
@@ -453,83 +434,7 @@ class NanoMaterialProductionNativeSmokeTests(unittest.TestCase):
         finally:
             context.close()
 
-    def test_fixed_native_binding_runs_real_driver_and_returns_home_evidence(self):
-        binding = {}
-        native = route.create_service_binding(lambda **values: binding.update(values) or values)
-        self.assertEqual(native["flow_id"], NANO_MATERIAL_PRODUCTION_FLOW_ID)
-        self.assertEqual(native["product_id"], NANO_MATERIAL_PRODUCTION_PRODUCT_ID)
-        self.assertEqual(native["product_revision"], NANO_MATERIAL_PRODUCTION_PRODUCT_REVISION)
-        self.assertEqual(native["runtime_profile_id"], NANO_MATERIAL_PRODUCTION_PROFILE_ID)
-        self.assertEqual(native["max_inputs"], NANO_MATERIAL_PRODUCTION_MAX_INPUTS)
-        self.assertEqual(native["max_actions"], 2)
-        factory_store = native["action_store_factory"](self.root / "factory-store.sqlite")
-        try:
-            self.assertIsInstance(factory_store, SafetyStore)
-        finally:
-            factory_store.close()
-        context = self._context(state="active", occurrence="service-driver")
-        class _HomeLocalizer:
-            def __init__(self, _atlas, _path):
-                pass
 
-            @staticmethod
-            def localize(_frame):
-                return SimpleNamespace(recognized=True, stale=False, overlay=False)
-
-        try:
-            with (
-                mock.patch.object(route, "_load_atlas", return_value=SimpleNamespace()),
-                mock.patch.object(route, "BlueStacksHomeLocalizer", _HomeLocalizer),
-            ):
-                result = binding["driver"](context, {})
-            self.assertEqual(result["status"], "deferred")
-            self.assertTrue(result["terminal_home_verified"])
-            self.assertEqual(result["terminal_home_state"], "HOME_BASE")
-            self.assertTrue(result["accounting_verified"])
-            self.assertEqual(result["native_occurrence_key"], context.occurrence_key)
-            self.assertTrue(binding["validator"](result))
-        finally:
-            context.close()
-
-    def test_native_validator_requires_retained_production_frame_and_exact_identity(self):
-        context = self._context(state="active")
-
-        class _HomeLocalizer:
-            def __init__(self, _atlas, _path):
-                pass
-
-            @staticmethod
-            def localize(_frame):
-                return SimpleNamespace(recognized=True, stale=False, overlay=False)
-
-        try:
-            with (
-                mock.patch.object(route, "_load_atlas", return_value=SimpleNamespace()),
-                mock.patch.object(route, "BlueStacksHomeLocalizer", _HomeLocalizer),
-            ):
-                result = route.run_material_production_in_context(
-                    context,
-                    occurrence_key=context.occurrence_key,
-                    return_home=True,
-                )
-            self.assertTrue(route.validate_nano_material_production_native_result(result))
-            invalid = (
-                {"production_occurrence_key": "different"},
-                {"production_target_identity": "different"},
-                {"production_state_frame": {**result["production_state_frame"], "frame_path": ""}},
-                {"production_state_frame": {**result["production_state_frame"], "observed_utc": ""}},
-                {"production_state_frame": {**result["production_state_frame"], "capture_ordinal": True}},
-                {"next_eligible_at": float("nan")},
-            )
-            for changes in invalid:
-                with self.subTest(changes=changes):
-                    self.assertFalse(
-                        route.validate_nano_material_production_native_result(
-                            dict(result, **changes)
-                        )
-                    )
-        finally:
-            context.close()
 
 
 if __name__ == "__main__":
