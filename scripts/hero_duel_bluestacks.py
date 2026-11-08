@@ -76,6 +76,7 @@ class HeroDuelVision:
         self.current_event_valid = False
         self.event_identity: str | None = None
         self.excluded: tuple[str, ...] | None = None
+        self.exclusion_portrait_refs: tuple[dict[str, object], ...] = ()
         self.free_opponent_selected = False
         self.defense_saved = False
         self.battle_loaded = False
@@ -395,6 +396,50 @@ class HeroDuelVision:
                 horizontal.add(round((int(y0) + int(y1)) / 16))
         return len(vertical) >= 5 and len(horizontal) >= 5
 
+    def _emergency_portrait_evidence(self, captured, lines):
+        """Retain the four unnamed tiles as evidence, not invented hero identities."""
+        anchors = [row for row in lines if self.has(row, "some support heroes cannot be deployed")]
+        if len(anchors) != 1:
+            return (), lines
+        frame = captured.frame
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        contours, _ = cv2.findContours(cv2.inRange(hsv, (0, 100, 90), (179, 255, 255)),
+                                      cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        floor = anchors[0]["box"][3]
+        tiles = sorted((x, y, x + w, y + h) for contour in contours
+                       for x, y, w, h in [cv2.boundingRect(contour)]
+                       if 80 <= w <= 140 and 80 <= h <= 140
+                       and abs(w - h) <= 5 and floor < y < floor + 80)
+        if (len(tiles) != 4 or max(box[1] for box in tiles) - min(box[1] for box in tiles) > 5
+                or any(left[2] >= right[0] for left, right in zip(tiles, tiles[1:]))):
+            return (), lines
+        references = tuple({
+            "ordinal": index, "roi": box, "crop_pixel_sha256": _roi_hash(frame, box),
+            "source_path": str(captured.path), "source_frame_sha256": captured.sha256,
+            "reset_id": self.reset_id, "event_identity": self.event_identity,
+        } for index, box in enumerate(tiles, 1))
+        # The measured gold control must independently read Confirm.
+        controls, _ = cv2.findContours(cv2.inRange(hsv, (10, 80, 90), (40, 255, 255)),
+                                      cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        confirm = []
+        for contour in controls:
+            x, y, w, h = cv2.boundingRect(contour)
+            if not (150 < w < 400 and 40 < h < 110 and y > max(box[3] for box in tiles)):
+                continue
+            crop = frame[y + 5:y + h - 5, x + 5:x + w - 5]
+            white = 255 - cv2.inRange(crop, (175, 175, 175), (255, 255, 255))
+            rows = self._lines(cv2.resize(white, None, fx=3, fy=3), psm=7, scale=3)
+            if len(rows) == 1 and rows[0]["norm"] == "confirm":
+                x0, y0, x1, y1 = rows[0]["box"]
+                box = (x + 5 + x0 // 3, y + 5 + y0 // 3,
+                       x + 5 + (x1 + 2) // 3, y + 5 + (y1 + 2) // 3)
+                confirm.append({**rows[0], "box": box,
+                                "center": ((box[0] + box[2]) // 2, (box[1] + box[3]) // 2),
+                                "word_boxes": ()})
+        if len(confirm) == 1 and not any(row["norm"] == "confirm" for row in lines):
+            lines = (*lines, confirm[0])
+        return references, lines
+
     def recognize(self, captured, *, clean_home=False, target_hint=None):
         self.checkpoint()
         lines = self._lines(captured.frame)
@@ -479,6 +524,7 @@ class HeroDuelVision:
             event_active = self.event_identity is not None and self.current_event_valid
         excluded = self.excluded
         if state == "emergency_details":
+            self.exclusion_portrait_refs, lines = self._emergency_portrait_evidence(captured, lines)
             anchors = [line for line in lines if self.has(line, "excluded", "cannot use")]
             if len(anchors) == 1:
                 anchor = anchors[0]
@@ -526,6 +572,11 @@ class HeroDuelVision:
                         x0, y0, x1, y1 = boxes[0]
                         target_roi = (400 + x0 // 3, 150 + y0 // 3,
                                       400 + (x1 + 2) // 3, 150 + (y1 + 2) // 3)
+            elif target_hint == ("hero-duel-defense-open", "defense") and state == "hero_duel_overview":
+                boxes = [box for row in lines for word, box in row["word_boxes"]
+                         if _norm(word) == "defense"]
+                if len(boxes) == 1:
+                    target_roi = boxes[0]
             elif target_hint == ("hero-duel-opponents-close", "close"):
                 target_roi = self.panel_close_x_roi(lines, "challenge opponent")
             elif target_hint == ("hero-duel-battle-exit", "exit") and state == "active_battle":
@@ -543,6 +594,7 @@ class HeroDuelVision:
             "event_timer_visible": event_timer_visible,
             "event_active": event_active, "free_entries_remaining": self.free_counter(lines),
             "pass_balance": observed_pass, "excluded_hero_ids": excluded,
+            "excluded_portrait_refs": self.exclusion_portrait_refs,
             "displayed_hero_ids": displayed, "defense_hero_ids": defense,
             "defense_save_acknowledged": self.defense_saved, "attack_hero_ids": attack,
             "attack_slots_populated": len(attack) if state == "attack_formation" else None,
@@ -1008,10 +1060,14 @@ class HeroDuelNativeFlow:
     def _inspect_exclusions(self, page):
         if page["screen_state"] == "emergency_details":
             if page["excluded_hero_ids"] is None:
-                self.result["reason"] = "evidence_required:emergency_details_portrait_exclusions_unresolved"
-                return None
-            self.vision.excluded = tuple(page["excluded_hero_ids"])
-            self.result["excluded_hero_ids"] = list(self.vision.excluded)
+                references = page.get("excluded_portrait_refs", ())
+                if len(references) != 4 or not self.event_identity:
+                    self.result["reason"] = "evidence_required:emergency_details_portrait_exclusions_unresolved"
+                    return None
+                self.result["excluded_portrait_refs"] = list(references)
+            else:
+                self.vision.excluded = tuple(page["excluded_hero_ids"])
+                self.result["excluded_hero_ids"] = list(self.vision.excluded)
             exact_controls = [
                 phrase for phrase in ("confirm", "close", "got it", "understood", "ok")
                 if sum(_norm(line["text"]) == _norm(phrase) for line in page["lines"]) == 1
@@ -1043,11 +1099,19 @@ class HeroDuelNativeFlow:
             if step is None:
                 return None
             page = step["page"]
-        if page["screen_state"] != "defense_formation" or self.vision.excluded is None:
+        if page["screen_state"] != "defense_formation":
             self.result["reason"] = "defense_formation_or_exclusions_unknown"
             return None
         captured = self.capture("hero-duel-defense-source")
         page = self.observe(captured)
+        if self.vision.excluded is None:
+            self.result["defense_roster_observation"] = {
+                "source_path": str(captured.path), "source_frame_sha256": captured.sha256,
+                "reset_id": self.reset_id, "event_identity": self.event_identity,
+                "screen_state": page["screen_state"], "selection_authorized": False,
+            }
+            self.result["reason"] = "evidence_required:defense_roster_portrait_eligibility_unproven"
+            return None
         expected = hero_duel_first_five_eligible(self._observation(captured, page, 1))
         if expected is None:
             self.result["reason"] = "evidence_required:first_five_eligible_defense_roster_identities_unbound"
