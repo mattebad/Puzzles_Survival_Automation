@@ -1087,7 +1087,7 @@ class HeroDuelNativeFlow:
                 lease_valid=self.store.lease_valid_for(self.session.owner, self.context.utc_clock()),
                 unresolved_action=self.store.has_action_block(), duplicate_action_key=self.store.action_key_exists(key),
                 game_day_id=self.reset_id, action_class=ActionClass.ZERO_COST_CONSEQUENTIAL,
-                action_kind=kind, subject=None, maximum_cost=0, free_only=True,
+                action_kind=kind, subject=None, resource_or_currency="none", maximum_cost=0, free_only=True,
                 semantic_preconditions=preconditions, semantic_postconditions=(postcondition,),
                 runtime_session_id=str(self.runtime.session))
         self.context.validate_identity()
