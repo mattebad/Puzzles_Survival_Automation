@@ -83,8 +83,11 @@ class HeroDuelVision:
         self.exit_confirmed = False
         self.route_pass_balance = None
 
-    def _lines(self, frame, *, psm=11, scale=1):
-        data = call_ocr(tesseract_data, frame, call_timeout=4.0, config=f"--psm {psm}")
+    def _lines(self, frame, *, psm=11, scale=1, whitelist=None):
+        config = f"--psm {psm}"
+        if whitelist is not None:
+            config += f" -c tessedit_char_whitelist={whitelist}"
+        data = call_ocr(tesseract_data, frame, call_timeout=4.0, config=config)
         words = []
         for i, text in enumerate(data.get("text", ())):
             try:
@@ -144,8 +147,8 @@ class HeroDuelVision:
         if not any(self.has(line, "exchange shop") for line in lines):
             return lines
 
-        def read_region(image, *, offset=(0, 0), psm=11):
-            rows = self._lines(cv2.resize(image, None, fx=3, fy=3), psm=psm, scale=3)
+        def read_region(image, *, offset=(0, 0), psm=11, whitelist=None):
+            rows = self._lines(cv2.resize(image, None, fx=3, fy=3), psm=psm, scale=3, whitelist=whitelist)
             result = []
             for row in rows:
                 x0, y0, x1, y1 = row["box"]
@@ -176,10 +179,21 @@ class HeroDuelVision:
             survival = [row for row in labels if row["norm"] == "hero duel survival"]
             if len(survival) != 1:
                 return lines
-        x0, _, _, y1 = survival[0]["box"]
-        left, right = max(0, x0 - 8), min(frame.shape[1], x0 + 285)
-        bottom = min(frame.shape[0], y1 + 45)
-        timer = read_region(frame[y1:bottom, left:right], offset=(left, y1), psm=6)
+        heading_bottom = survival[0]["box"][3]
+        time_words = [box for row in lines for word, box in row["word_boxes"]
+                      if _norm(word) == "time" and heading_bottom < box[1] < heading_bottom + 100]
+        if not time_words:
+            return (*header, *labels)
+        x0, y0, _, y1 = min(time_words, key=lambda box: box[1])
+        left, right = x0, min(frame.shape[1], x0 + 285)
+        top, bottom = max(0, y0 - 8), min(frame.shape[0], y1 + 8)
+        # Isolate the cyan countdown from the banner art; the latter caused
+        # valid :28/:26 glyphs to OCR as impossible :78/:76 and change the event.
+        timer_image = 255 - cv2.inRange(
+            cv2.cvtColor(frame[top:bottom, left:right], cv2.COLOR_BGR2HSV),
+            (80, 80, 130), (115, 255, 255),
+        )
+        timer = read_region(timer_image, offset=(left, top), psm=7, whitelist="0123456789:")
         return (*header, *labels, *timer)
 
     @staticmethod
@@ -590,6 +604,8 @@ class HeroDuelVision:
             if match:
                 days = int(match.group(1) or 0)
                 hours, minutes, seconds = int(match.group(2)), int(match.group(3)), int(match.group(4) or 0)
+                if minutes >= 60 or seconds >= 60:
+                    continue
                 total = days * 86400 + hours * 3600 + minutes * 60 + seconds
                 if total > 0:
                     timers.append(total)
