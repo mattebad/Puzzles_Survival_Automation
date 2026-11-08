@@ -515,13 +515,74 @@ def _home_research_hud_words(frame: Any, words: tuple[ResearchWord, ...]) -> tup
     block = max((word.line_id[0] for word in words), default=0) + 1
     retained = tuple(word for word in words
                      if not (left <= word.center[0] <= right and top <= word.center[1] <= bottom))
-    translated = tuple(
+    clocks = tuple(
         ResearchWord(word.text, word.normalized, word.roi, word.confidence, (block, word.line_id[1], word.line_id[2]))
         for word in _scaled_crop_words(frame, (left, top, right, bottom), "--psm 6")
-        if _LEVEL_RE.fullmatch(word.text) or _CLOCK_RE.fullmatch(word.text)
+        if _CLOCK_RE.fullmatch(word.text)
     )
     label = ResearchWord(anchor.text, anchor.normalized, anchor.roi, anchor.confidence, (block, 0, 0))
-    return (*retained, label, *translated)
+    fraction_band = (left, anchor.roi[3] + 3, right, min(hud[3], anchor.roi[3] + _HUD_FRACTION_BAND_BELOW_LABEL))
+    fraction = _hud_queue_fraction_word(frame, fraction_band, (block + 1, 0, 0))
+    return (*retained, label, *((fraction,) if fraction is not None else ()), *clocks)
+
+
+# Actual Homes (prerequisite-native 0001/0002, parent-chain 0008): the HUD
+# "(0/1)" strokes are dim neutral white (V 150..180) over changing map art.
+# Whole-crop OCR dropped it on 0002 and a white-ink cut misread it as (3/7);
+# the isolated neutral glyphs at 6x read (0/1) identically in psm 7/8/13 on
+# all three frames. The label OCR bottom varies 406..410 while the fraction
+# spans y 416..431, so the band reaches 28 px below the label bottom and a
+# glyph touching the band edge is treated as clipped.
+_HUD_FRACTION_INK_MIN_VALUE = 150
+_HUD_FRACTION_INK_MAX_SATURATION = 50
+_HUD_FRACTION_BAND_BELOW_LABEL = 28
+
+
+def _hud_queue_fraction_word(
+    frame: Any, band: tuple[int, int, int, int], line_id: tuple[int, int, int],
+) -> ResearchWord | None:
+    """Read the queue fraction glyphs below the HUD label; every mode must agree.
+
+    Agreement of the three string reads selects the text; the returned word
+    keeps the actual TSV confidence of a psm 7 data read of the same crop,
+    which must report exactly that text at the page confidence floor.
+    """
+
+    from scripts.bounded_tesseract import call_ocr, tesseract_data, tesseract_string
+
+    x0, y0, x1, y1 = band
+    if x1 - x0 < 12 or y1 - y0 < 8:
+        return None
+    hsv = cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2HSV)
+    ink = ((hsv[:, :, 2] >= _HUD_FRACTION_INK_MIN_VALUE) & (hsv[:, :, 1] <= _HUD_FRACTION_INK_MAX_SATURATION)).astype("uint8") * 255
+    count, labels, stats, _centroids = cv2.connectedComponentsWithStats(ink, connectivity=8)
+    glyph_mask = ((labels > 0) & (stats[labels, cv2.CC_STAT_HEIGHT] >= 6)).astype("uint8") * 255 if count > 1 else ink * 0
+    rows, columns = glyph_mask.nonzero()
+    if not len(rows):
+        return None
+    gx0, gy0, gx1, gy1 = int(columns.min()), int(rows.min()), int(columns.max()), int(rows.max())
+    if gy0 == 0 or gy1 == y1 - y0 - 1 or gx0 == 0 or gx1 == x1 - x0 - 1:
+        return None
+    glyphs = 255 - glyph_mask[gy0:gy1 + 1, gx0:gx1 + 1]
+    padding = max(1, round((gy1 - gy0 + 1) * .15))
+    glyphs = cv2.copyMakeBorder(glyphs, padding, padding, padding, padding, cv2.BORDER_CONSTANT, value=255)
+    glyphs = cv2.resize(glyphs, None, fx=6, fy=6, interpolation=cv2.INTER_CUBIC)
+    glyphs = cv2.copyMakeBorder(glyphs, 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=255)
+    whitelist = "-c tessedit_char_whitelist=0123456789/()"
+    readings = {
+        re.sub(r"\s+", "", str(call_ocr(tesseract_string, glyphs, config=f"--psm {mode} {whitelist}", call_timeout=5.0)))
+        for mode in (7, 8, 13)
+    }
+    if len(readings) != 1:
+        return None
+    text = readings.pop()
+    if not re.fullmatch(r"\([0-9]/[0-9]\)", text):
+        return None
+    data = call_ocr(tesseract_data, glyphs, config=f"--psm 7 {whitelist}", call_timeout=5.0)
+    read = _ocr_words(data) if isinstance(data, Mapping) else ()
+    if len(read) != 1 or read[0].text != text or read[0].confidence < _RESEARCH_PAGE_MIN_CONFIDENCE:
+        return None
+    return ResearchWord(text, _normalize(text), (x0 + gx0, y0 + gy0, x0 + gx1 + 1, y0 + gy1 + 1), read[0].confidence, line_id)
 
 
 def _phrase_lines(lines: Sequence[tuple[ResearchWord, ...]], phrase: str) -> tuple[tuple[ResearchWord, ...], ...]:
