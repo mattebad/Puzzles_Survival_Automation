@@ -615,7 +615,7 @@ class HallOfWarBoundary:
             if step.disposition in {HomeDriverDisposition.COMPLETE, HomeDriverDisposition.BIND}:
                 binding = step.binding
                 if (binding is None or binding.building_id != HALL_OF_WAR_ATLAS_BUILDING_ID
-                        or binding.frame_sha256 != captured.sha256 or binding.overlay_intersects or binding.ambiguous_overlap):
+                        or binding.frame_sha256 != step.source_frame_sha256 or binding.overlay_intersects or binding.ambiguous_overlap):
                     raise HallOfWarRouteError("hall_of_war_home_atlas_binding_not_current_or_unambiguous")
                 return captured, binding
             if step.disposition is HomeDriverDisposition.BLOCKED:
