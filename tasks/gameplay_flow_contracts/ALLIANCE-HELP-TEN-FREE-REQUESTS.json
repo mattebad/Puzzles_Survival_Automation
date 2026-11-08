@@ -31,6 +31,43 @@
   ],
   "transition_contracts": [
     {
+      "transition_id": "recover-alliance-context-before-normal-entry",
+      "from": "alliance_screen",
+      "to": "home_canonical",
+      "planner": "scripts/alliance_help_bluestacks.py",
+      "permitted_input": "safe_return_to_canonical_home",
+      "postconditions": [
+        "exact current Alliance title, bottom-bar labels and clear overlay are rebound before Back",
+        "changed canonical Home successor is positively recognized before normal Home entry",
+        "navigation consumes physical inputs only and grants no Help request credit"
+      ],
+      "terminal_outcomes": ["blocked", "manual_required"]
+    },
+    {
+      "transition_id": "recover-help-context-to-alliance-before-normal-entry",
+      "from": "help_source_fresh",
+      "to": "alliance_screen",
+      "planner": "scripts/alliance_help_bluestacks.py",
+      "permitted_input": "safe_return_to_canonical_home",
+      "postconditions": [
+        "fresh clear Speedup Help source and current Back are rebound",
+        "changed exact Alliance menu successor is positively recognized without repeating Help"
+      ],
+      "terminal_outcomes": ["blocked", "manual_required"]
+    },
+    {
+      "transition_id": "recover-help-context-directly-home-before-normal-entry",
+      "from": "help_source_fresh",
+      "to": "home_canonical",
+      "planner": "scripts/alliance_help_bluestacks.py",
+      "permitted_input": "safe_return_to_canonical_home",
+      "postconditions": [
+        "fresh clear Speedup Help source and current Back are rebound",
+        "changed canonical Home successor is positively recognized before normal Home entry"
+      ],
+      "terminal_outcomes": ["blocked", "manual_required"]
+    },
+    {
       "transition_id": "open-alliance",
       "from": "home_canonical",
       "to": "alliance_screen",
@@ -270,7 +307,7 @@
     "manual_required"
   ],
   "cooldown_deferred_behavior": "Cooldown pulses are reset-scoped. Preserve confirmed partial request quota across restart within the same daily reset; stop at ten actual successful requests or when free Help disappears. A later pulse resumes only the remaining verified quota.",
-  "bounded_recovery_behavior": "Unknown target, cost, overlay, stale source, unchanged result, or unresolved request successor blocks further identical dispatch across restart. Preserve confirmed quota; use only a positively recognized safe return to canonical Home.",
+  "bounded_recovery_behavior": "A positively recognized existing Alliance menu or fresh clear Speedup Help source may use at most two route-owned Back steps to reach fresh canonical Home before normal entry. Each immediate source and changed expected successor is verified; unknown, changed or unchanged sources/successors stop without identical retry. Recovery consumes physical inputs, not Help quota, and never repeats or reconciles a Help effect. Unknown target, cost, overlay, stale source, unchanged result, or unresolved request successor blocks further identical dispatch across restart. Preserve confirmed quota; use only a positively recognized safe return to canonical Home.",
   "product_policy_refs": [
     {
       "policy_id": "unknown-consequence",

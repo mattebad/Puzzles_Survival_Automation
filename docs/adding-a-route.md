@@ -153,7 +153,10 @@ Existing layout exceptions:
   are `evidence_required`, with no current native live acceptance claimed. Ruins attempts the current
   zero-cost challenge first, then independent green-ready overview chests even if it is unavailable;
   Help counts actual successful free requests, preserves partial quota, and uses Help All only when
-  the exact request count is known.
+  the exact request count is known. Help recognizes the Alliance menu by its centered title,
+  exact bottom-bar labels and clear overlay, and binds the bottom-bar Alliance Help target.
+  A positively recognized Alliance/Speedup Help starting context first returns to fresh Home
+  through rebound Back controls before normal entry; unknown sources send no input.
 * **Batch C Alliance Donation, Alliance Shop, and Daily Shops**: canonical-service-only routes with
   fixed native bindings; they add no legacy operator registry entries. `REGISTERED` describes code
   composition only; production posture and SQLite runtime controls remain disabled, and current
