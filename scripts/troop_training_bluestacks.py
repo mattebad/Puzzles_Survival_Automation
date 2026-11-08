@@ -122,6 +122,12 @@ class _TroopTrainingInputBudgetRuntime:
                 raise RuntimeError("troop-training native input count is unavailable")
             action_key = str(kwargs.get("action_key", ""))
             returning_home = name == "back" and "return-home" in action_key
+            expected_talent_page = kwargs.pop("expected_talent_page", None)
+            if expected_talent_page is not None and (
+                not returning_home
+                or expected_talent_page not in {TALENT_MEMORY, COMMANDER_TALENT, TALENT_PROFILE}
+            ):
+                raise ValueError("expected talent page requires an owned preset Back transition")
             limit = self._max_inputs if returning_home else self._max_inputs - 1
             if current >= limit:
                 raise RuntimeError(
@@ -140,7 +146,13 @@ class _TroopTrainingInputBudgetRuntime:
                 if callable(self._checkpoint):
                     self._checkpoint()
                 if before.sha256 != source.sha256:
-                    raise RuntimeError("troop-training navigation frame changed before input")
+                    if expected_talent_page is None:
+                        raise RuntimeError("troop-training navigation frame changed before input")
+                    # Background animation is not a context change. Rebind only
+                    # these owned Back transitions to the fresh, exact page.
+                    observed = recognize_commander_talent_page(before, required_preset="Training")
+                    if not observed.recognized or observed.page != expected_talent_page:
+                        raise RuntimeError("commander-talent page changed before Back")
 
             def dispatch(before):
                 value(before, *args[1:], **kwargs)
@@ -2585,6 +2597,7 @@ def _training_return_to_home_after_preset(context, runtime) -> tuple[Any | None,
         runtime.back(
             captured,
             action_key=f"training:preset:return-home:{page.page}:{captured.sha256}",
+            expected_talent_page=page.page,
         )
         context.checkpoint()
         successor = context.runtime.capture("training-preset-return-home-after")
