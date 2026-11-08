@@ -175,6 +175,9 @@ Existing layout exceptions:
   seconds; Exclusive Craft, Daily/D02 ownership, and points attribution are prohibited. Code
   registration remains separate from production posture and SQLite controls: both routes stay
   runtime-disabled with live acceptance `evidence_required`; no live acceptance is claimed.
+  Native factory validators inspect requests, not result mappings; production result/effect
+  validation remains separate from request admission. Offline startup exercises the actual
+  fixed binding with a held temporary runtime lock and device-free transport.
 
 * **Batch E Hero Duel, Recommended Research, and Food Farm Boost**: canonical-service-only routes
   with fixed native bindings and no operator rows. E retained the twelve existing legacy operator

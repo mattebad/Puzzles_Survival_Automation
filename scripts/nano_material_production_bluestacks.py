@@ -1,10 +1,9 @@
-from __future__ import annotations
-
 """Canonical native route for zero-resource Nano Material Production."""
+
+from __future__ import annotations
 
 from dataclasses import dataclass, replace
 import hashlib
-import math
 from pathlib import Path
 import re
 import time
@@ -881,7 +880,6 @@ def _navigation_tap(
 
 
 def _navigate_to_panel(context, *, occurrence_key: str, current) -> tuple[Any | None, _PanelRead | None, str]:
-    runtime = context.runtime
     initial = current
     panel = _panel_observation(current, context=context, occurrence_key=occurrence_key)
     if panel.observation is not None:
@@ -1000,13 +998,16 @@ def _return_home(context, *, occurrence_key: str, current) -> tuple[bool, Any | 
             return True, frame
         panel = _panel_observation(frame, context=context, occurrence_key=occurrence_key)
         if panel.observation is not None:
-            source_recognize = lambda before: _panel_observation(
-                before, context=context, occurrence_key=occurrence_key,
-            ).observation is not None
+            def source_recognize(before):
+                return _panel_observation(
+                    before, context=context, occurrence_key=occurrence_key,
+                ).observation is not None
         elif _is_nanoweapon_page(frame.frame):
-            source_recognize = lambda before: _is_nanoweapon_page(before.frame)
+            def source_recognize(before):
+                return _is_nanoweapon_page(before.frame)
         elif _is_gear_factory_menu(frame.frame):
-            source_recognize = lambda before: _is_gear_factory_menu(before.frame)
+            def source_recognize(before):
+                return _is_gear_factory_menu(before.frame)
         else:
             return False, None
 
@@ -1430,115 +1431,6 @@ def run_nano_material_production_native(context, arguments: Mapping[str, object]
     )
 
 
-def validate_nano_material_production_native_result(result: Mapping[str, object]) -> bool:
-    calls, committed = result.get("production_transport_calls"), result.get("committed_action_count")
-    status = result.get("status")
-    effect_reconciliation = result.get("effect_reconciliation_required")
-    retry_denied = result.get("identical_retry_denied")
-    if (
-        type(calls) is not int
-        or not 0 <= calls <= MAX_ACTIONS
-        or type(committed) is not int
-        or not 0 <= committed <= calls
-    ):
-        return False
-    if status == "unresolved":
-        if calls and (effect_reconciliation is not True or retry_denied is not True):
-            return False
-        if not calls and (committed or effect_reconciliation is not False or retry_denied is not False):
-            return False
-        if calls and (
-            type(result.get("native_occurrence_key")) is not str
-            or not result.get("native_occurrence_key")
-            or result.get("native_occurrence_key") != result.get("occurrence_key")
-        ):
-            return False
-    elif status in {"completed", "deferred", "blocked"}:
-        if committed != calls or effect_reconciliation is not False or retry_denied is not False:
-            return False
-    else:
-        return False
-    if result.get("accounting_verified") is not True:
-        return False
-    if status == "unresolved" and result.get("terminal_home_verified") is False:
-        evidence = result.get("last_action_evidence")
-        if (
-            calls == 0
-            or type(result.get("attempted_action_count")) is not int
-            or result.get("attempted_action_count") != calls
-            or result.get("attempted_action_count_known") is not True
-            or result.get("action_evidence_required") is not False
-            or effect_reconciliation is not True
-            or retry_denied is not True
-            or type(result.get("native_occurrence_key")) is not str
-            or not result.get("native_occurrence_key")
-            or result.get("native_occurrence_key") != result.get("occurrence_key")
-            or not isinstance(evidence, Mapping)
-        ):
-            return False
-        for phase in ("before", "after"):
-            frame = evidence.get(phase)
-            if (
-                not isinstance(frame, Mapping)
-                or type(frame.get("frame_path")) is not str
-                or not frame["frame_path"]
-                or type(frame.get("frame_sha256")) is not str
-                or re.fullmatch(r"[0-9a-f]{64}", frame["frame_sha256"]) is None
-                or type(frame.get("observed_utc")) is not str
-                or not frame["observed_utc"]
-                or type(frame.get("capture_ordinal")) is not int
-                or frame["capture_ordinal"] <= 0
-            ):
-                return False
-        return True
-    if result.get("terminal_home_verified") is not True:
-        return False
-    home_frame = result.get("terminal_home_frame")
-    if (
-        not isinstance(home_frame, Mapping)
-        or type(home_frame.get("frame_path")) is not str
-        or not home_frame.get("frame_path")
-        or type(home_frame.get("frame_sha256")) is not str
-        or re.fullmatch(r"[0-9a-f]{64}", home_frame["frame_sha256"]) is None
-    ):
-        return False
-    if status not in {"completed", "deferred"}:
-        return True
-    timer = result.get("timer_seconds_remaining")
-    due = result.get("next_eligible_at")
-    state_frame = result.get("production_state_frame")
-    if not isinstance(state_frame, Mapping):
-        return False
-    frame_path = state_frame.get("frame_path")
-    frame_digest = state_frame.get("frame_sha256")
-    observed_utc = state_frame.get("observed_utc")
-    capture_ordinal = state_frame.get("capture_ordinal")
-    due_valid = bool(
-        type(due) in (int, float)
-        and 0 < due <= 1e308
-        and math.isfinite(due)
-    )
-    return bool(
-        result.get("production_state") == "active"
-        and type(result.get("active_production_count")) is int
-        and result.get("active_production_count") == 1
-        and type(result.get("production_duration_seconds")) is int
-        and result.get("production_duration_seconds") == NANO_MATERIAL_PRODUCTION_DURATION_SECONDS
-        and type(timer) is int and 0 < timer <= NANO_MATERIAL_PRODUCTION_DURATION_SECONDS
-        and result.get("zero_resource_cost_confirmed") is True
-        and type(result.get("native_occurrence_key")) is str
-        and result.get("native_occurrence_key") == result.get("occurrence_key")
-        and bool(result.get("native_occurrence_key"))
-        and result.get("production_occurrence_key") == result.get("native_occurrence_key")
-        and result.get("production_target_identity") == NANO_MATERIAL_PRODUCTION_TARGET
-        and due_valid
-        and type(frame_path) is str and bool(frame_path)
-        and type(frame_digest) is str
-        and re.fullmatch(r"[0-9a-f]{64}", frame_digest) is not None
-        and type(observed_utc) is str and bool(observed_utc)
-        and type(capture_ordinal) is int and capture_ordinal > 0
-        and result.get("production_state_observation_sha256") == frame_digest
-    )
 
 
 def create_service_binding(make_native_route_binding):
@@ -1553,6 +1445,5 @@ def create_service_binding(make_native_route_binding):
         max_inputs=MAX_INPUTS,
         max_actions=MAX_ACTIONS,
         driver=run_nano_material_production_native,
-        validator=validate_nano_material_production_native_result,
         action_store_factory=lambda path: SafetyStore(path),
     )
