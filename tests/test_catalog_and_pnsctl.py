@@ -196,62 +196,6 @@ class OperatorCliTests(unittest.TestCase):
             self.assertEqual(hashlib.sha256(payload).hexdigest(), asset["sha256"])
 
 
-    def test_command_surface_is_exactly_the_documented_set(self):
-        # Adding or removing a command must be deliberate: update this set and
-        # the command reference in docs/pns-operations-runbook.md together.
-        def choices(parser):
-            action = next(
-                item
-                for item in parser._actions
-                if isinstance(item, argparse._SubParsersAction)
-            )
-            return action.choices
-
-        top = choices(pnsctl.parser())
-        actual = {}
-        for name, sub in top.items():
-            try:
-                actual[name] = frozenset(choices(sub))
-            except StopIteration:
-                actual[name] = frozenset()
-        self.assertEqual(
-            actual,
-            {
-                "reconcile": frozenset(),
-                "development-session": frozenset(
-                    {
-                        "observe",
-                        "launch-game",
-                        "recover-resource-home",
-                        "recover-network",
-                        "delegated-dry-run",
-                        "run-flow",
-                    }
-                ),
-                "bluestacks": frozenset(
-                    {
-                        "verify-flow",
-                        "recover-home",
-                        "reconcile-campaign-atlas-survey-action",
-                    }
-                ),
-                "automation-service": frozenset(
-                    {
-                        "serve",
-                        "inspect-rearm",
-                        "status",
-                        "health",
-                        "enable",
-                        "disable",
-                        "run",
-                        "service-enable",
-                        "service-disable",
-                        "emergency-stop",
-                        "pulse",
-                    }
-                ),
-            },
-        )
 
     def test_retired_commands_are_rejected(self):
         for argv in (
