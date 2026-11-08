@@ -20,6 +20,7 @@ from scripts import navigation_development_boundary as sdk
 from scripts import wali_upgrade_bluestacks as route
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
 from tasks.hero_upgrade_disabled import ANTISERUM
+from tasks.home_nav_recognition import NAV_BUTTON_TAP_POINTS, NAV_STRIP_BOX, _load_template
 from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 
 
@@ -194,6 +195,9 @@ class _WaliModel:
                     int(self.bulk_mode == "clear"))
         for index, value in enumerate(snapshot):
             frame[0, index, 0] = value
+        if self.page == 1:
+            x0, y0, x1, y1 = NAV_STRIP_BOX
+            frame[y0:y1, x0:x1] = _load_template()
         if self.page == 4 or (self.page == 3 and (not self.bulk or self.bulk_mode == "clear")):
             template = route._ANTISERUM_TEMPLATES[0 if self.page == 3 else 1][0]
             x, y = (245, 1100) if self.page == 3 else (285, 792)
@@ -209,7 +213,7 @@ class _WaliModel:
         self.inputs.append(("tap", self.page, point))
         x, y = point
         if self.page == 1:
-            assert 650 <= x <= 740 and 1150 <= y <= 1200
+            assert (x, y) == NAV_BUTTON_TAP_POINTS["hero"]
             self.page = 2
         elif self.page == 2:
             assert 90 <= x <= 220 and 290 <= y <= 340
@@ -294,6 +298,13 @@ def _model_words(frame: np.ndarray) -> tuple[route._Word, ...]:
     return tuple(rows)
 
 
+def _model_roster_names(frame: np.ndarray) -> tuple[route._Word, ...] | None:
+    """Roster card-name port: the exact header and Wali's card name exist only on the roster page."""
+    if int(frame[0, 0, 0]) != 2:
+        return None
+    return (route._Word("Wali", 99.0, (100, 300, 200, 318), (90000, 1, 1)),)
+
+
 def _run_native_model(model: _WaliModel, store_path: Path, out: Path, day: str, previous: str | None = None):
     runtimes = []
     tick = count(1000.0, 0.001)
@@ -326,6 +337,7 @@ def _run_native_model(model: _WaliModel, store_path: Path, out: Path, day: str, 
                 patch.object(boundary.LocalBlueStacksRuntime, "connect", side_effect=connect),
                 patch.object(boundary, "is_clean_home_frame", lambda frame: int(frame[0, 0, 0]) == 1),
                 patch.object(route, "_ocr_words", side_effect=_model_words),
+                patch.object(route, "_roster_names", side_effect=_model_roster_names),
                 patch.object(route, "_MIN_SETTLE_SECONDS", 0),
                 patch("scripts.bluestacks_native_runtime.time.monotonic", clock),
             ):
