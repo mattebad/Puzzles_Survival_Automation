@@ -155,8 +155,11 @@ Existing layout exceptions:
   Help counts actual successful free requests, preserves partial quota, and uses Help All only when
   the exact request count is known. Help recognizes the Alliance menu by its centered title,
   exact bottom-bar labels and clear overlay, and binds the bottom-bar Alliance Help target.
-  A positively recognized Alliance/Speedup Help starting context first returns to fresh Home
-  through rebound Back controls before normal entry; unknown sources send no input.
+  That opens the distinct Alliance Help hub; only its current recognized Speedup Help row
+  may be opened, never Transport Resources or Reinforce Allies. A positively recognized
+  Alliance menu, Help hub or Speedup Help starting context first returns to fresh Home
+  through at most three distinct rebound Back controls before normal entry; unknown or
+  unchanged sources/successors send no repeated input. Native effect acceptance remains separate.
 * **Batch C Alliance Donation, Alliance Shop, and Daily Shops**: canonical-service-only routes with
   fixed native bindings; they add no legacy operator registry entries. `REGISTERED` describes code
   composition only; production posture and SQLite runtime controls remain disabled, and current
