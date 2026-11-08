@@ -417,7 +417,11 @@ class WaliUpgradeRunner:
                 accounting_verified=True, native_execution_verified=True,
                 effect_reconciliation_required=result["unknown_action_sent"],
                 started_at_utc=started, completed_at_utc=completed, time_basis="utc",
-                session_directory=outcome.session_directory, startup_recovery=outcome.startup_recovery,
+                session_directory=outcome.session_directory,
+                startup_recovery=(
+                    outcome.startup_recovery.to_mapping()
+                    if outcome.startup_recovery is not None else None
+                ),
             )
             return result
         except Exception as exc:

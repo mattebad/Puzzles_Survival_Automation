@@ -948,7 +948,7 @@ def _view(
         return result
 
     names = _roster_names(captured.frame)
-    if names is not None:
+    if names is not None and not reset_text and overlay_state == "none_observed":
         walis = [word for word in names if _normal(word.text) == "wali"]
         words = (*words, *names)
         result = _View(
@@ -2345,12 +2345,30 @@ def run_wali_upgrade_service_route(
         if context.is_clean_home(context.initial_frame.frame):
             context.bind_initial_observation(context.initial_frame)
         else:
-            context.prepare_startup(
-                source_context="wali_upgrade_canonical_startup",
-                recognize_successor=lambda captured: context.is_clean_home(captured.frame),
-                action_key=f"wali-upgrade-startup:{context.invocation_id}",
-                settle_seconds=context.settle_seconds,
+            entry = _view(
+                context.initial_frame, game_day_id=game_day_id,
+                confirmed_upgrades=confirmed_upgrades, context=context,
             )
+            owned_detail = (
+                entry.page == "hero_detail"
+                and entry.observation is not None
+                and entry.observation.recognized
+                and entry.observation.hero_identity == HERO_IDENTITY
+                and entry.observation.hero_selected
+                and entry.observation.overlay_state == "none_observed"
+                and entry.bulk_target is None
+            )
+            if entry.page == "hero_roster" or owned_detail:
+                context.bind_initial_observation(
+                    context.initial_frame, extra={"wali_entry_page": entry.page},
+                )
+            else:
+                context.prepare_startup(
+                    source_context="wali_upgrade_canonical_startup",
+                    recognize_successor=lambda captured: context.is_clean_home(captured.frame),
+                    action_key=f"wali-upgrade-startup:{context.invocation_id}",
+                    settle_seconds=context.settle_seconds,
+                )
         home = _HomeEvidence()
         current_capture = _capture(context, state, "wali-upgrade-initial")
         current_view = _route_page(
