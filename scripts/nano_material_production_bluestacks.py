@@ -807,7 +807,7 @@ def _navigation_action(
             transport, lambda: proposal, post_observe, reconcile,
             wall_clock=lambda: float(context.utc_clock()),
             max_pre_dispatch_attempts=1,
-        ).execute(capability_request, issued.capability)
+        ).execute(request, issued.capability)
 
     try:
         result = session.run_action(
