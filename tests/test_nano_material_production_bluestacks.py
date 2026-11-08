@@ -97,7 +97,9 @@ class _Runtime:
         state_code = _STATE_CODE[self.state]
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         frame[0, 0, 0] = state_code
-        digest = hashlib.sha256(self.state.encode("ascii")).hexdigest()
+        # Animation changes captured pixels without changing the selected control.
+        frame[0, 1, 0] = self.ordinal % 256
+        digest = hashlib.sha256(frame.tobytes()).hexdigest()
         path = self.session / "frames" / f"{self.ordinal:04d}-{label}.png"
         captured = _Capture(frame, digest, path, 100.0 + self.ordinal / 1000.0, self.ordinal)
         self.captures[str(path)] = captured

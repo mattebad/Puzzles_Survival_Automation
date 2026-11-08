@@ -230,6 +230,9 @@ Navigation recognition remains read-only; craft-instance state is bound after ve
 Gear Factory radial recognition derives its control from the fresh Atlas mapped screen anchor and
 measured caption evidence, never the left/top of a clipped owner tap ROI. An open radial is not
 terminal Home. Return uses the native runtime's supported `BACK`, not desktop `Escape`.
+Material Claim/Start re-proves the same slot, exact quote and occurrence on the SDK immediate-before
+capture, then binds Core capability and transport to that capture. Background animation alone is
+not a selector change. The completed output caption is read in its measured crop, not full-page OCR.
 The full-page Gear Factory hub is recognized only from its measured 2x bright-glyph title crop
 ("Gear Factory") plus the measured Nanoweapon label crop; the Nanoweapon tap is that tile's measured
 label plate within the shared safe box. A run that starts on this recognized hub continues from it.
