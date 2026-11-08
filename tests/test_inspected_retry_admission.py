@@ -437,6 +437,67 @@ class InspectedRetryAdmissionTests(unittest.TestCase):
         self.assertEqual(run.consumed_actions, 0)
         self.assert_denied("CONSEQUENTIAL_ATTEMPT", lambda: inspect(self.state, 1_400.0))
 
+    def test_unverified_accounting_needs_exact_per_attempt_zero_gameplay_attestation(self) -> None:
+        accounting = AttemptSpec(reason=NAVIGATION_BLOCK + "; accounting_rejected:CONSUMPTION_ACCOUNTING_MISSING")
+        exhaust(self.state, 1_000.0, third=accounting)
+        seqs = [int(row[0]) for row in ledger(self.path)]
+        self.assertEqual(len(seqs), 3)
+        for attested, reason in (
+            ((), "ACCOUNTING_UNVERIFIED"),
+            ((seqs[0],), "ACCOUNTING_UNVERIFIED"),
+            ((seqs[0], seqs[2]), "ACCOUNTING_ATTESTATION_MISMATCH"),
+        ):
+            with self.subTest(attested=attested):
+                review = self.state.review_flow_inspection(
+                    FLOW, attested_zero_gameplay_attempts=attested, now_utc_epoch=1_400.0
+                )
+                self.assertEqual((review.eligible, review.reason), (False, reason))
+        with self.assertRaises(ValueError):
+            self.state.review_flow_inspection(
+                FLOW, attested_zero_gameplay_attempts=(seqs[2], seqs[2]), now_utc_epoch=1_400.0
+            )
+
+        before = flow_of(self.state)
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = cli_main([
+                "--state-path", str(self.path), "inspect-rearm", FLOW,
+                "--expected-generation", str(before.generation),
+                "--expected-row-version", str(before.row_version),
+                "--expected-consecutive-failures", str(before.consecutive_failures),
+                "--attest-zero-gameplay-attempt", str(seqs[2]),
+                "--evidence", str(EVIDENCE[0]), "--reason", INSPECTION_REASON,
+                "--now-utc-epoch", "1400",
+            ])
+        result = json_object(json.loads(output.getvalue().strip().splitlines()[-1]))
+        self.assertEqual((code, result["status"]), (0, "rearmed"))
+        (audit,) = self.state.list_flow_inspections(FLOW)
+        self.assertEqual(audit.window_summary["attested_zero_gameplay_attempts"], [seqs[2]])
+        self.assertEqual(audit.attested_untracked_failures, 0)
+        flow = flow_of(self.state)
+        self.assertEqual((flow.consecutive_failures, flow.inspected_failure_baseline), (3, 3))
+        self.assertEqual((flow.enabled, flow.blocked), (False, False))
+
+    def test_zero_gameplay_attestation_never_clears_dispatched_or_unknown_effects(self) -> None:
+        cases = {
+            "UNRESOLVED_ACTION": AttemptSpec(unknown_action=True, reason=NAVIGATION_BLOCK + "; accounting_rejected:x"),
+            "CONSEQUENTIAL_ATTEMPT": AttemptSpec(inputs=3, actions=1, reason=NAVIGATION_BLOCK + "; accounting_rejected:x"),
+        }
+        for reason, third in cases.items():
+            with self.subTest(reason=reason):
+                self.state.close()
+                self.path = self.folder / f"attested-{reason}.sqlite3"
+                self.state = open_state(self.path)
+                exhaust(self.state, 1_000.0, third=third)
+                third_seq = int(ledger(self.path)[-1][0])
+                self.assert_denied(reason, lambda: self.state.inspect_rearm_flow(
+                    FLOW, expected_generation=flow_of(self.state).generation,
+                    expected_row_version=flow_of(self.state).row_version,
+                    expected_consecutive_failures=3, reason=INSPECTION_REASON,
+                    evidence_path=EVIDENCE[0], attested_zero_gameplay_attempts=(third_seq,),
+                    now_utc_epoch=1_400.0,
+                ))
+
     def test_pre_ledger_failures_require_exact_audited_attestation(self) -> None:
         exhaust(self.state, 1_000.0)
         self.state.close()
