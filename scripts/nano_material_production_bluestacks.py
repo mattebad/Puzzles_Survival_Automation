@@ -9,6 +9,7 @@ import re
 import time
 from typing import Any, Callable, Mapping
 
+import cv2
 import numpy as np
 
 from automation_service.registry import (
@@ -68,6 +69,11 @@ GEAR_FACTORY_ID = "home.building.gear_factory"
 _TIMER_RE = re.compile(r"(?<![0-9])([0-9]{1,2}):([0-5][0-9]):([0-5][0-9])(?![0-9])", re.ASCII)
 _DURATION_RE = re.compile(r"\b(?:duration|production time)\s*[:=-]?\s*(21600\s*(?:seconds?|s)|6\s*(?:hours?|hrs?)|06:00:00)\b", re.IGNORECASE | re.ASCII)
 
+# Owner-ROI-relative "Gear Factory" radial control measured on the actual
+# 2026-11-08 radial (owner (170, 662, 291, 815); circle centre (352, 796), r 36;
+# label "Gear"/"Factory" (315, 820, 387, 866)).
+_GEAR_FACTORY_RADIAL_CONTROL_OFFSET = (137, 95, 225, 209)
+
 
 @dataclass(frozen=True)
 class _Word:
@@ -95,11 +101,24 @@ def _normal(text: str) -> str:
     return " ".join(re.findall(r"[a-z0-9]+", text.casefold(), re.ASCII))
 
 
-def _ocr_words(frame: np.ndarray) -> tuple[_Word, ...]:
+def _ocr_words(frame: np.ndarray, roi=None, *, scale: int = 1, white_text: bool = False) -> tuple[_Word, ...]:
     if not isinstance(frame, np.ndarray) or frame.ndim != 3 or frame.shape != (1280, 800, 3):
         return ()
+    if type(scale) is not int or scale < 1:
+        return ()
+    ox, oy = (0, 0) if roi is None else (roi[0], roi[1])
+    image = frame if roi is None else frame[roi[1]:roi[3], roi[0]:roi[2]]
+    if image.size == 0:
+        return ()
+    if white_text:
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    if scale != 1:
+        image = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+    if white_text:
+        # Bright radial labels over dark buttons become dark glyphs on white.
+        image = cv2.threshold(image, 200, 255, cv2.THRESH_BINARY_INV)[1]
     try:
-        data = call_ocr(tesseract_data, frame, config="--psm 11", call_timeout=5.0)
+        data = call_ocr(tesseract_data, image, config="--psm 11", call_timeout=5.0)
     except Exception:
         return ()
     if not isinstance(data, Mapping):
@@ -115,8 +134,10 @@ def _ocr_words(frame: np.ndarray) -> tuple[_Word, ...]:
             continue
         try:
             confidence = float(data["conf"][index])
-            x, y = int(data["left"][index]), int(data["top"][index])
-            width, height = int(data["width"][index]), int(data["height"][index])
+            x = ox + round(int(data["left"][index]) / scale)
+            y = oy + round(int(data["top"][index]) / scale)
+            width = round(int(data["width"][index]) / scale)
+            height = round(int(data["height"][index]) / scale)
             line = (int(data["block_num"][index]), int(data["par_num"][index]), int(data["line_num"][index]))
         except (TypeError, ValueError, OverflowError):
             continue
@@ -635,6 +656,52 @@ def _is_gear_factory_menu(frame: np.ndarray) -> bool:
         and len(_phrase_lines(lines, "Nanoweapon")) == 1
     )
 
+def _gear_factory_radial_target(frame: np.ndarray, atlas=None, localizer=None):
+    if atlas is None or localizer is None:
+        atlas = _load_atlas(DEFAULT_ATLAS)
+        localizer = BlueStacksHomeLocalizer(atlas, DEFAULT_ATLAS)
+    owner = _home_binding(frame, atlas, localizer)
+    if owner is None:
+        return None
+    x0, y0, x1, y1 = owner.target_roi
+    anchor = ((x0 + x1) / 2, (y0 + y1) / 2)
+    # Reuse the established Farm radial's owner-relative menu envelope.
+    envelope = (max(0, int(anchor[0] - 280)), max(0, int(anchor[1] - 220)),
+                min(800, int(anchor[0] + 280)), min(1280, int(anchor[1] + 220)))
+    # White radial labels over dark circles are unreliable at native scale; read
+    # the owner envelope as isolated bright glyphs at the Hall of War radial's 2x.
+    words = _ocr_words(frame, envelope, scale=2, white_text=True)
+    labels = {
+        label: [word for word in words if _normal(word.text) == label]
+        for label in ("details", "upgrade", "gear", "factory")
+    }
+    if len(labels["details"]) != 1 or len(labels["upgrade"]) != 1:
+        return None
+    # Measured "Gear Factory" action circle plus stacked label, relative to the
+    # atlas-bound owner ROI; stable across captures, unlike OCR word boxes.
+    dx0, dy0, dx1, dy1 = _GEAR_FACTORY_RADIAL_CONTROL_OFFSET
+    control = (x0 + dx0, y0 + dy0, x0 + dx1, y0 + dy1)
+    if not _safe_nav_roi(control):
+        return None
+    candidates = []
+    for gear in labels["gear"]:
+        for factory in labels["factory"]:
+            # A vertically stacked action label, not the Home building label.
+            if (
+                gear.roi[3] <= factory.roi[1]
+                and factory.roi[1] - gear.roi[3] <= 2 * (factory.roi[3] - factory.roi[1])
+                and max(gear.roi[0], factory.roi[0]) < min(gear.roi[2], factory.roi[2])
+                and all(word.roi[2] < gear.roi[0] for word in (labels["details"][0], labels["upgrade"][0]))
+                and all(
+                    control[0] <= word.roi[0] < word.roi[2] <= control[2]
+                    and control[1] <= word.roi[1] < word.roi[3] <= control[3]
+                    for word in (gear, factory)
+                )
+            ):
+                candidates.append((gear, factory))
+    return control if len(candidates) == 1 else None
+
+
 
 def _home_binding(frame: np.ndarray, atlas, localizer):
     if not is_clean_home_frame(frame):
@@ -870,6 +937,8 @@ def _navigate_to_panel(context, *, occurrence_key: str, current) -> tuple[Any | 
         return current, None, "nanoweapon"
     if _is_gear_factory_menu(current.frame):
         kind = "gear_factory"
+    elif _gear_factory_radial_target(current.frame) is not None:
+        kind = "gear_factory_radial"
     elif context.is_clean_home(current.frame):
         try:
             atlas = _load_atlas(DEFAULT_ATLAS)
@@ -888,7 +957,7 @@ def _navigate_to_panel(context, *, occurrence_key: str, current) -> tuple[Any | 
             label=f"nano-material-open-gear-factory-{context.session.invocation_id}",
             target_identity=GEAR_FACTORY_ID,
             source_state="HOME_BASE",
-            expected_postcondition="GEAR_FACTORY_MENU_OR_NANOWEAPON",
+            expected_postcondition="GEAR_FACTORY_RADIAL_OR_MENU_OR_NANOWEAPON",
             bind=lambda frame: (lambda value: tuple(value.target_roi) if value is not None and value.building_id == GEAR_FACTORY_ID and value.frame_sha256 == frame_digest(frame) and _safe_nav_roi(value.target_roi) else None)(_home_binding(frame, atlas, localizer)),
             source_recognize=lambda frame: bool(
                 context.is_clean_home(frame)
@@ -896,18 +965,41 @@ def _navigate_to_panel(context, *, occurrence_key: str, current) -> tuple[Any | 
                 and not localization.stale
                 and not localization.overlay
             ),
-            recognize=lambda after: "NANOWEAPON" if _is_nanoweapon_page(after.frame) else "GEAR_FACTORY" if _is_gear_factory_menu(after.frame) else None,
-            allowed_successors=("GEAR_FACTORY", "NANOWEAPON"),
+            recognize=lambda after: "GEAR_FACTORY_RADIAL" if _gear_factory_radial_target(after.frame, atlas, localizer) is not None else "NANOWEAPON" if _is_nanoweapon_page(after.frame) else "GEAR_FACTORY" if _is_gear_factory_menu(after.frame) else None,
+            allowed_successors=("GEAR_FACTORY_RADIAL", "GEAR_FACTORY", "NANOWEAPON"),
         ):
             return None, None, "gear_factory_atlas_navigation_not_verified"
         current = _capture(context, "nano-material-gear-factory-menu")
         if _is_nanoweapon_page(current.frame):
             return current, None, "nanoweapon"
-        if not _is_gear_factory_menu(current.frame):
+        if _gear_factory_radial_target(current.frame, atlas, localizer) is not None:
+            kind = "gear_factory_radial"
+        elif _is_gear_factory_menu(current.frame):
+            kind = "gear_factory"
+        else:
             return None, None, "gear_factory_successor_unknown"
-        kind = "gear_factory"
     else:
         return None, None, panel.reason
+
+    if kind == "gear_factory_radial":
+        if not _navigation_tap(
+            context,
+            label=f"nano-material-open-gear-factory-radial-{context.session.invocation_id}",
+            target_identity="gear-factory:radial-open",
+            source_state="GEAR_FACTORY_RADIAL",
+            expected_postcondition="GEAR_FACTORY_MENU_OR_NANOWEAPON",
+            bind=_gear_factory_radial_target,
+            source_recognize=lambda frame: _gear_factory_radial_target(frame) is not None,
+            recognize=lambda after: "NANOWEAPON" if _is_nanoweapon_page(after.frame) else "GEAR_FACTORY" if _is_gear_factory_menu(after.frame) else None,
+            allowed_successors=("GEAR_FACTORY", "NANOWEAPON"),
+        ):
+            return None, None, "gear_factory_radial_navigation_not_verified"
+        current = _capture(context, "nano-material-gear-factory-screen")
+        if _is_nanoweapon_page(current.frame):
+            return current, None, "nanoweapon"
+        if not _is_gear_factory_menu(current.frame):
+            return None, None, "gear_factory_screen_unknown"
+        kind = "gear_factory"
 
     if kind == "gear_factory":
         roi = _line_target(current.frame, "Nanoweapon")
@@ -969,7 +1061,7 @@ def _return_home(context, *, occurrence_key: str, current) -> tuple[bool, Any | 
         return False, None
 
     def recognized_home(captured) -> bool:
-        if not context.is_clean_home(captured.frame):
+        if not context.is_clean_home(captured.frame) or _gear_factory_radial_target(captured.frame, atlas, localizer) is not None:
             return False
         localization = localizer.localize(captured.frame)
         return bool(localization.recognized and not localization.stale and not localization.overlay)
@@ -978,7 +1070,7 @@ def _return_home(context, *, occurrence_key: str, current) -> tuple[bool, Any | 
     for ordinal in range(3):
         if recognized_home(frame):
             return True, frame
-        if context.is_clean_home(frame.frame):
+        if context.is_clean_home(frame.frame) and _gear_factory_radial_target(frame.frame, atlas, localizer) is None:
             normalized = _normalize_home_source(context, frame)
             return (True, normalized) if normalized is not None and recognized_home(normalized) else (False, None)
         panel = _panel_observation(frame, context=context, occurrence_key=occurrence_key)
@@ -993,6 +1085,9 @@ def _return_home(context, *, occurrence_key: str, current) -> tuple[bool, Any | 
         elif _is_gear_factory_menu(frame.frame):
             def source_recognize(before):
                 return _is_gear_factory_menu(before.frame)
+        elif _gear_factory_radial_target(frame.frame, atlas, localizer) is not None:
+            def source_recognize(before):
+                return _gear_factory_radial_target(before.frame, atlas, localizer) is not None
         else:
             return False, None
 
@@ -1005,14 +1100,14 @@ def _return_home(context, *, occurrence_key: str, current) -> tuple[bool, Any | 
             context.validate_identity()
             runtime.press_key(
                 before,
-                key="Escape",
+                key="BACK",
                 action_key=f"{PRODUCT_ID}|{occurrence_key}|return-home:{session.invocation_id}:{ordinal}",
             )
 
         def recognize(after):
             if recognized_home(after):
                 return "HOME_BASE"
-            if context.is_clean_home(after.frame):
+            if context.is_clean_home(after.frame) and _gear_factory_radial_target(after.frame, atlas, localizer) is None:
                 return "HOME_BASE_PENDING_ATLAS"
             if _is_nanoweapon_page(after.frame):
                 return "NANOWEAPON"
@@ -1068,7 +1163,7 @@ def _accounting(context) -> dict[str, object]:
 
 def _home_proof(context, captured) -> dict[str, object]:
     frame, reference = context.capture_reference(captured.path, captured.sha256)
-    if not context.is_clean_home(frame.frame):
+    if not context.is_clean_home(frame.frame) or _gear_factory_radial_target(frame.frame) is not None:
         raise ValueError("terminal frame is not positively recognized canonical Home")
     return {
         "terminal_home_state": "HOME_BASE",
@@ -1172,6 +1267,8 @@ def _recognized_home(context, frame: np.ndarray, atlas_path: Path = DEFAULT_ATLA
 
 def _normalize_home_source(context, current):
     """Use the shared simultaneous-pointer recovery, never sequential zoom input."""
+    if _gear_factory_radial_target(current.frame) is not None:
+        return None
     if _recognized_home(context, current.frame):
         return current
     if not context.is_clean_home(current.frame):
@@ -1194,6 +1291,10 @@ def _normalize_home_source(context, current):
 
 
 def _prepare_route_source(context, current, occurrence_key: str):
+    if _gear_factory_radial_target(current.frame) is not None:
+        if getattr(context.session, "initial_observation", None) is None:
+            context.bind_initial_observation(current)
+        return current
     if context.is_clean_home(current.frame):
         if getattr(context.session, "initial_observation", None) is None:
             context.bind_initial_observation(current)

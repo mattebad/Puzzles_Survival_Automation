@@ -159,6 +159,9 @@ Normal Craft completion claims bind to the unique outstanding confirmed craft-st
 not a reusable reset-only claim key. A completed older craft can therefore be claimed before
 the current reset's one permitted start without suppressing a distinct future completion.
 Navigation recognition remains read-only; craft-instance state is bound after verified arrival.
+Gear Factory radial recognition derives its control from a fresh Atlas building binding and
+measured caption evidence; an open radial is not terminal Home. Return uses the native runtime's
+supported `BACK` input, not an unsupported desktop `Escape` key.
 Native/Core replay covers completed claim, current start, durable duplicate prevention and
 fresh Home return. This offline proof is not live timer or completion acceptance.
 
