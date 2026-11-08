@@ -605,6 +605,62 @@ def _dialog_quantity(captured, top, bottom):
     return selected[0], int(maximum.group(1))
 
 
+ALLIANCE_PURCHASE_SUBJECTS = {
+    "Joy Coin": "joy_coin",
+    "Timed Recruit Coin": "timed_recruit_coin",
+    "Bioenhance Scheme": "bioenhance_scheme",
+    ALLIANCE_FALLBACK_ITEM: "one_star_gear_enhance_material",
+}
+
+
+def _purchase_request_terms(action, request, reset_id):
+    """Exact allowlisted ordinary quantity-one request terms, or None."""
+    preconditions = tuple(request["semantic_preconditions"])
+    if len(preconditions) != 12:
+        return None
+    shop = preconditions[0].removeprefix("shop=")
+    subject = preconditions[1].removeprefix("item=")
+    price = int(preconditions[3].removeprefix("unit_price="))
+    stock = int(preconditions[4].removeprefix("stock="))
+    balance = int(preconditions[5].removeprefix("balance="))
+    quantity = int(preconditions[6].removeprefix("quantity="))
+    total = int(preconditions[7].removeprefix("total="))
+    source = (
+        "ALLIANCE_SHOP_WEEKLY_QUANTITY_DIALOG" if shop == "weekly_offers"
+        else "ALLIANCE_SHOP_OTHER_QUANTITY_DIALOG" if shop == "other" else None
+    )
+    expected_preconditions = (
+        f"shop={shop}", f"item={subject}", "currency=ALLIANCE_COINS",
+        f"unit_price={price}", f"stock={stock}", f"balance={balance}",
+        "quantity=1", f"total={price}",
+        f"alliance_shop_reset_id={reset_id}",
+        "alliance_shop_action_ordinal=1", "alliance_shop_action_count_before=0",
+        "alliance_shop_action_limit=1",
+    )
+    allowed_subject = (
+        shop == "weekly_offers" and subject in {"joy_coin", "timed_recruit_coin", "bioenhance_scheme"}
+    ) or (shop == "other" and subject == "one_star_gear_enhance_material")
+    if (
+        source is None or not allowed_subject or quantity != 1 or total != price
+        or stock < 1 or balance < price
+        or action.get("cost_amount") != price
+        or request.get("task_id") != FLOW_ID
+        or request.get("task_mode") != "supervised_validation"
+        or request.get("action_kind") != "alliance_shop_purchase-v2"
+        or request.get("semantic_action") != "PURCHASE_ALLIANCE_SHOP_OFFER"
+        or request.get("subject") != subject
+        or request.get("resource_or_currency") != "ALLIANCE_COINS"
+        or request.get("maximum_cost") != price
+        or request.get("free_only") is not False
+        or request.get("semantic_preconditions") != list(expected_preconditions)
+        or request.get("semantic_postconditions") != ["ALLIANCE_SHOP_PURCHASE_RECONCILED"]
+        or request.get("allowed_confirmation_dialogs") != [source]
+    ):
+        return None
+    return {"shop": shop, "subject": subject, "unit_price": price, "stock": stock, "balance": balance}
+
+
+
 class AllianceShopLivePort:
     """Fresh native OCR and current-frame taps for the observed Alliance Shop path."""
 
@@ -688,49 +744,12 @@ class AllianceShopLivePort:
         try:
             request = json.loads(action["policy_request_json"])
             proof = json.loads(action["reconciliation_result_json"])
-            preconditions = tuple(request["semantic_preconditions"])
+            terms = _purchase_request_terms(action, request, self.context.identity.reset_id)
             references = tuple(Path(value) for value in proof["evidence_refs"])
-            if len(preconditions) != 12:
-                return "unresolved"
-            shop = preconditions[0].removeprefix("shop=")
-            subject = preconditions[1].removeprefix("item=")
-            price = int(preconditions[3].removeprefix("unit_price="))
-            stock = int(preconditions[4].removeprefix("stock="))
-            balance = int(preconditions[5].removeprefix("balance="))
-            quantity = int(preconditions[6].removeprefix("quantity="))
-            total = int(preconditions[7].removeprefix("total="))
-            source = (
-                "ALLIANCE_SHOP_WEEKLY_QUANTITY_DIALOG" if shop == "weekly_offers"
-                else "ALLIANCE_SHOP_OTHER_QUANTITY_DIALOG" if shop == "other" else None
-            )
-            expected_preconditions = (
-                f"shop={shop}", f"item={subject}", "currency=ALLIANCE_COINS",
-                f"unit_price={price}", f"stock={stock}", f"balance={balance}",
-                "quantity=1", f"total={price}",
-                f"alliance_shop_reset_id={self.context.identity.reset_id}",
-                "alliance_shop_action_ordinal=1", "alliance_shop_action_count_before=0",
-                "alliance_shop_action_limit=1",
-            )
-            allowed_subject = (
-                shop == "weekly_offers" and subject in {"joy_coin", "timed_recruit_coin", "bioenhance_scheme"}
-            ) or (shop == "other" and subject == "one_star_gear_enhance_material")
             digest = proof["frame_sha256"]
             root = Path(request["runtime_session_id"]).resolve(strict=True)
             if (
-                source is None or not allowed_subject or quantity != 1 or total != price
-                or stock < 1 or balance < price
-                or action.get("cost_amount") != price
-                or request.get("task_id") != FLOW_ID
-                or request.get("task_mode") != "supervised_validation"
-                or request.get("action_kind") != "alliance_shop_purchase-v2"
-                or request.get("semantic_action") != "PURCHASE_ALLIANCE_SHOP_OFFER"
-                or request.get("subject") != subject
-                or request.get("resource_or_currency") != "ALLIANCE_COINS"
-                or request.get("maximum_cost") != price
-                or request.get("free_only") is not False
-                or request.get("semantic_preconditions") != list(expected_preconditions)
-                or request.get("semantic_postconditions") != ["ALLIANCE_SHOP_PURCHASE_RECONCILED"]
-                or request.get("allowed_confirmation_dialogs") != [source]
+                terms is None
                 or proof.get("confirmed") is not True
                 or not isinstance(digest, str) or len(digest) != 64
                 or len(references) < 4
@@ -1120,12 +1139,7 @@ def _purchase_alliance_offer(context, port, offer, dialog, action_key, *, settle
     from safe_action_core import ActionClass, CentralPolicy, Observation, PolicyRequest, SafeActionExecutor, TransportResult
     from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
-    subject = {
-        "Joy Coin": "joy_coin",
-        "Timed Recruit Coin": "timed_recruit_coin",
-        "Bioenhance Scheme": "bioenhance_scheme",
-        ALLIANCE_FALLBACK_ITEM: "one_star_gear_enhance_material",
-    }.get(offer.item_identity)
+    subject = ALLIANCE_PURCHASE_SUBJECTS.get(offer.item_identity)
     shop = "weekly_offers" if offer.shop_identity == "Weekly Offers" else "other"
     source_state = (
         "ALLIANCE_SHOP_WEEKLY_QUANTITY_DIALOG"
@@ -1517,3 +1531,387 @@ def create_service_binding(make_native_route_binding):
         driver=_service_driver,
         lease_seconds=3600.0,
     )
+
+
+INSPECTION_DEADLINE_SECONDS = 120.0
+INSPECTION_OWNER = "pnsctl-development-session:alliance-shop-purchase-inspection"
+INSPECTION_REASON = "ALLIANCE_SHOP_DISPATCHED_PURCHASE_INSPECTED"
+
+
+class PurchaseInspectionRejected(RuntimeError):
+    """Retained proof, controls or Core admission is not exact; nothing was sent or changed."""
+
+
+@dataclass
+class _InspectionContext:
+    identity: Any
+    runtime_profile_id: str
+    checkpoint: Any
+    session: Any = None
+    runtime: Any = None
+    action_store: Any = None
+
+
+def _inspection_identity(reset_id):
+    from tasks.runtime_identity import resource_fixed_runtime_binding
+    from tasks.scheduler_task_result import SchedulerIdentity
+
+    binding = resource_fixed_runtime_binding()
+    return SchedulerIdentity(binding.account_id, binding.server_id, reset_id, PRODUCT_ID)
+
+
+def _canonical_action_view(action_id):
+    """Read-only canonical Core row plus every globally blocking consequential action."""
+    import sqlite3
+    from scripts import navigation_development_boundary as boundary
+
+    path = boundary.require_fixed_orchestrator_path(
+        None, boundary.CANONICAL_ACTION_STORE_PATH, "canonical action store",
+    )
+    if not path.is_file():
+        raise PurchaseInspectionRejected("canonical action history is missing")
+    connection = sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)
+    connection.row_factory = sqlite3.Row
+    try:
+        row = connection.execute("SELECT * FROM actions WHERE action_id=?", (action_id,)).fetchone()
+        blockers = sorted(str(item[0]) for item in connection.execute(
+            "SELECT action_id FROM actions WHERE consequential=1 "
+            "AND final_status IN ('prepared','input_sent','unresolved')"
+        ))
+    finally:
+        connection.close()
+    return (dict(row) if row is not None else None), blockers
+
+
+def _controls_snapshot(state):
+    """Service/route controls, lease and run snapshot; every control must be off."""
+    db = state._db
+    service = db.execute("SELECT * FROM service_control WHERE singleton_id=1").fetchone()
+    lease = db.execute("SELECT * FROM service_lease WHERE singleton_id=1").fetchone()
+    snapshot = {
+        "service": dict(service) if service is not None else {},
+        "lease": dict(lease) if lease is not None else {},
+        "flows": [dict(row) for row in db.execute("SELECT * FROM flow_state ORDER BY flow_id")],
+        "active_runs": int(db.execute(
+            "SELECT COUNT(*) FROM runs WHERE state IN ('CLAIMED','RUNNING','STOP_REQUESTED','RECOVERING')"
+        ).fetchone()[0]),
+    }
+    if (
+        snapshot["service"].get("enabled") or any(flow["enabled"] for flow in snapshot["flows"])
+        or snapshot["lease"].get("owner_instance_id") is not None or snapshot["active_runs"]
+    ):
+        raise PurchaseInspectionRejected("inspection requires disabled service/route controls and no operator")
+    return snapshot
+
+
+def _retained_purchase_proof(action, before, after, reset_id):
+    """Prove one dispatched quantity-one purchase from immutable original records only."""
+    import hashlib
+    import json
+    from datetime import datetime
+    from pathlib import Path
+    from scripts.bluestacks_native_runtime import captured_native_frame_from_png
+    from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
+    from tasks.purchases_disabled import canonical_purchase_action_key
+
+    def reject(reason):
+        raise PurchaseInspectionRejected(reason)
+
+    if action is None:
+        reject("selected Core action is missing")
+    key = canonical_purchase_action_key(FLOW_ID, PRODUCT_ID, _inspection_identity(reset_id), "alliance_shop")
+    expected = {
+        "action_key": key,
+        "action_id": hashlib.sha256(f"{key}:alliance-shop".encode()).hexdigest(),
+        "task_id": FLOW_ID,
+        "semantic_action": "PURCHASE_ALLIANCE_SHOP_OFFER",
+        "target_identity": "alliance-shop:inner-buy",
+        "game_day_id": reset_id,
+        "expected_postcondition": "ALLIANCE_SHOP_PURCHASE_RECONCILED",
+        "cost_type": "ALLIANCE_COINS",
+        "quantity": 1,
+        "consequential": 1,
+        "runtime_profile_id": ACTIVE_RUNTIME_PROFILE_ID,
+        "policy_decision": "authorize",
+        "final_status": "unresolved",
+    }
+    if any(action.get(field) != value for field, value in expected.items()):
+        reject("selected Core action is not this reset's exact unresolved Alliance Shop purchase")
+    try:
+        request = json.loads(action["policy_request_json"])
+        transport = json.loads(action["transport_result_json"] or "null")
+        target_roi = list(json.loads(action["target_roi_json"]))
+        terms = _purchase_request_terms(action, request, reset_id)
+        root_value = Path(request["runtime_session_id"])
+    except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+        terms = None
+    if (
+        terms is None or request.get("action_id") != action["action_id"]
+        or request.get("action_key") != key or request.get("game_day_id") != reset_id
+        or not isinstance(transport, dict) or transport.get("dispatched") is not True
+        or transport.get("transport_code") != "ALLIANCE_INNER_BUY_DISPATCHED"
+    ):
+        reject("original policy request or dispatched transport receipt is not exact")
+    if not root_value.is_absolute() or root_value.is_symlink() or not root_value.is_dir():
+        reject("original runtime session directory is not retained")
+    root = root_value.resolve(strict=True)
+
+    def retained(value):
+        path = Path(value)
+        if not path.is_absolute() or path.is_symlink() or not path.is_file():
+            reject(f"retained evidence is missing, relative or a link: {value}")
+        resolved = path.resolve(strict=True)
+        if not resolved.is_relative_to(root):
+            reject(f"retained evidence is outside the original session: {value}")
+        return resolved
+
+    before_path, after_path = retained(before), retained(after)
+    if before_path.parent.name != "frames" or after_path.parent != before_path.parent:
+        reject("paired frames are not from one original native journal")
+    journal = retained(before_path.parent.parent / "events.jsonl")
+    records = [json.loads(line) for line in journal.read_text(encoding="utf-8").splitlines() if line.strip()]
+    dispatches = [index for index, record in enumerate(records)
+                  if record.get("type") == "dispatch" and record.get("consequential") is True]
+    if len(dispatches) != 1:
+        reject("original journal does not hold exactly one consequential dispatch")
+    index = dispatches[0]
+    dispatch = records[index]
+    if (
+        dispatch.get("action_key") != key or dispatch.get("target_identity") != "alliance-shop:inner-buy"
+        or dispatch.get("source_sha256") != action["source_frame_sha256"]
+        or dispatch.get("execute") is not True or list(dispatch.get("target_roi") or ()) != target_roi
+    ):
+        reject("journal dispatch is not this action's inner Buy")
+    captures = [(position, record) for position, record in enumerate(records) if record.get("type") == "capture"]
+
+    def capture_record(path):
+        matches = [item for item in captures if Path(str(item[1].get("path", ""))).resolve() == path]
+        if len(matches) != 1:
+            reject(f"frame is not exactly one original journal capture: {path}")
+        return matches[0]
+
+    weekly = terms["shop"] == "weekly_offers"
+
+    def offer_label(label):
+        if weekly:
+            return label.startswith("alliance-shop-weekly-scan-")
+        return label in {"alliance-shop-other-fallback-source", "alliance-shop-other-scroll-successor"}
+
+    before_at, before_record = capture_record(before_path)
+    after_at, after_record = capture_record(after_path)
+    preceding = [item for item in captures if item[0] < index]
+    offer_sources = [position for position, record in preceding if offer_label(str(record.get("label")))]
+    if (
+        not preceding or not offer_sources or offer_sources[-1] != before_at
+        or preceding[-1][1].get("label") != "alliance-shop-inner-buy-immediate-before"
+        or preceding[-1][1].get("sha256") != dispatch.get("source_sha256")
+        or after_at < index or not re.fullmatch(r"alliance-shop-purchase-post-[1-3]", str(after_record.get("label")))
+        or any(record.get("type") == "dispatch" for record in records[index + 1:after_at])
+    ):
+        reject("frames are not the latest offer source and a post-Buy successor of the one dispatch")
+    immediate_record = preceding[-1][1]
+    stamps = [datetime.fromisoformat(record["timestamp"]).timestamp()
+              for record in (before_record, dispatch, after_record)]
+    if not (stamps[0] < stamps[1] < stamps[2]
+            and float(action["prepared_at"]) <= stamps[1] <= float(action["input_attempt_at"])):
+        reject("original journal timestamps do not bind the dispatched action")
+
+    def frame(path, record):
+        try:
+            captured = captured_native_frame_from_png(path.read_bytes(), captured_monotonic=0.0, path=path)
+        except RuntimeError:
+            reject(f"retained frame is not native 800x1280: {path}")
+        if captured.sha256 != record.get("sha256"):
+            reject(f"retained frame bytes differ from the original journal: {path}")
+        return captured
+
+    immediate_path = retained(str(immediate_record.get("path")))
+    offer_frame = frame(before_path, before_record)
+    immediate_frame = frame(immediate_path, immediate_record)
+    successor_frame = frame(after_path, after_record)
+    port = AllianceShopLivePort(
+        _InspectionContext(_inspection_identity(reset_id), ACTIVE_RUNTIME_PROFILE_ID, lambda: None),
+        settle_seconds=0,
+    )
+    item = next(name for name, value in ALLIANCE_PURCHASE_SUBJECTS.items() if value == terms["subject"])
+    tab, shop, rarity = ("weekly", "Weekly Offers", None) if weekly else ("other", "Other", 1)
+    price, stock, balance = terms["unit_price"], terms["stock"], terms["balance"]
+    offer = port._read_offer(offer_frame, item, shop, rarity) if port._page(offer_frame)[0] == tab else None
+    if (
+        offer is None or not offer.recognized or offer.currency_identity != "Alliance Coins"
+        or offer.unit_price != price or offer.stock != stock or offer.balance != balance
+        or offer.item_quantity is None
+    ):
+        reject("retained offer source does not show the exact original quote")
+    dialog = port._quantity_dialog(immediate_frame, offer)
+    if (
+        dialog is None or not dialog.recognized or dialog.selected_quantity != 1
+        or dialog.total != price or list(dialog.inner_buy_roi or ()) != target_roi
+    ):
+        reject("immediate-before frame is not the exact quantity-one dialog")
+    after_offer = (port._read_offer(successor_frame, item, shop, rarity)
+                   if port._page(successor_frame)[0] == tab else None)
+    if (
+        after_offer is None or after_offer.currency_identity != "Alliance Coins"
+        or after_offer.balance != balance - price or after_offer.stock != stock - 1
+        or after_offer.item_quantity != offer.item_quantity + 1
+    ):
+        reject("retained successor does not prove exactly one paired purchase effect")
+
+    def ref(path, record):
+        return {"path": str(path), "sha256": record["sha256"], "timestamp": record["timestamp"]}
+
+    return {
+        "action_id": action["action_id"], "action_key": key, "reset_id": reset_id,
+        "runtime_session_id": str(root), "item": item, "shop": shop, "currency": "ALLIANCE_COINS",
+        "unit_price": price, "quantity": 1,
+        "owned": [offer.item_quantity, after_offer.item_quantity],
+        "stock": [stock, after_offer.stock], "balance": [balance, after_offer.balance],
+        "offer_source": ref(before_path, before_record),
+        "immediate_before": ref(immediate_path, immediate_record),
+        "successor": ref(after_path, after_record),
+        "journal": {"path": str(journal), "sha256": hashlib.sha256(journal.read_bytes()).hexdigest(),
+                    "dispatch_timestamp": dispatch["timestamp"]},
+    }
+
+
+def inspect_dispatched_alliance_purchase(action_id, before, after, *, live=False):
+    """One-off inspection of one already-dispatched purchase; never a Buy or its replay.
+
+    Offline (default) verifies immutable retained proof with zero inputs. ``live`` adds at
+    most one Back from a positively recognized Alliance menu (zero from clean Home), a fresh
+    Home capture and existing ``SafetyStore.reconcile_confirmed`` under the singleton input
+    lock, without an execution lease.
+    """
+    import json
+    from datetime import datetime, timezone
+    from pathlib import Path
+    from automation_service.recruitment import recruitment_reset
+    from automation_service.state import BotStateManager
+    from scripts import navigation_development_boundary as boundary
+    from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+    from scripts.startup_recovery import require_network_clear
+    from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
+    from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_PACKAGE, BLUESTACKS_SERIAL
+
+    deadline = time.monotonic() + INSPECTION_DEADLINE_SECONDS
+    reset_id = recruitment_reset(time.time())
+    state_path = BotStateManager.DEFAULT_DB_PATH
+    if not state_path.is_file():
+        raise PurchaseInspectionRejected("canonical service state is missing")
+    with BotStateManager(state_path, read_only=True) as state:
+        controls = _controls_snapshot(state)
+        action, blockers = _canonical_action_view(action_id)
+        if blockers != [action_id]:
+            raise PurchaseInspectionRejected("selected action must be the sole globally blocking consequential action")
+        proof = _retained_purchase_proof(action, before, after, reset_id)
+        result = {"status": "verified_offline", "action_id": action_id, "input_count": 0,
+                  "core_mutated": False, "retained_proof": proof}
+        if not live:
+            return result
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        invocation_id = f"alliance-shop-purchase-inspection-{stamp}"
+        with boundary.RuntimeInputLock(owner=INSPECTION_OWNER, invocation_id=invocation_id) as lock:
+            def checkpoint():
+                lock.assert_held(INSPECTION_OWNER, invocation_id)
+                if time.monotonic() > deadline:
+                    raise RuntimeError("inspection deadline expired")
+                if _controls_snapshot(state) != controls:
+                    raise RuntimeError("service/route controls changed during inspection")
+
+            def require_unchanged():
+                checkpoint()
+                current, current_blockers = _canonical_action_view(action_id)
+                if current != action or current_blockers != [action_id] or recruitment_reset(time.time()) != reset_id:
+                    raise RuntimeError("canonical action, blockers or reset changed during inspection")
+
+            require_unchanged()
+            session = boundary.DevelopmentSession(
+                owner=INSPECTION_OWNER, invocation_id=invocation_id,
+                session_directory=Path(proof["runtime_session_id"]) / invocation_id,
+                max_inputs=1, runtime_input_lock=lock, checkpoint=checkpoint,
+            )
+            with session:
+                runtime = LocalBlueStacksRuntime.connect(
+                    adb=str(BLUESTACKS_ADB), serial=BLUESTACKS_SERIAL,
+                    output_directory=session.session_directory,
+                    workflow="alliance-shop-purchase-inspection", execute=True,
+                )
+                runtime.max_inputs = 1
+                runtime.checkpoint = checkpoint
+                runtime.observation_guard = require_network_clear
+                context = _InspectionContext(
+                    _inspection_identity(reset_id), ACTIVE_RUNTIME_PROFILE_ID, checkpoint, session, runtime,
+                )
+                port = AllianceShopLivePort(context, settle_seconds=1.0)
+                home, reason = None, ""
+                try:
+                    page = port._page(port._capture("alliance-shop-inspection-source"))[0]
+                    if page == "alliance_menu":
+                        port.return_home(phase="startup")
+                    elif page != "home":
+                        reason = f"ALLIANCE_SHOP_INSPECTION_SOURCE_NOT_ALLIANCE_MENU_OR_HOME:{page}"
+                    if not reason:
+                        fresh = port._capture("alliance-shop-inspection-fresh-home")
+                        if (port._home(fresh) and runtime.measure_device_state() == "device"
+                                and runtime.measure_foreground_package() == BLUESTACKS_PACKAGE):
+                            home = fresh
+                        else:
+                            reason = "ALLIANCE_SHOP_INSPECTION_FRESH_HOME_NOT_VERIFIED"
+                except Exception as exc:
+                    reason = f"ALLIANCE_SHOP_INSPECTION_STOPPED:{type(exc).__name__}:{exc}"
+                finally:
+                    session.adopt_retained_transport_count(runtime.input_count, source=str(runtime.events))
+                result.update(input_count=runtime.input_count, inspection_session=str(session.session_directory),
+                              runtime_events=str(runtime.events))
+                if home is None:
+                    session.terminal_status, session.blocker = "blocked", reason
+                    result.update(status="evidence_required", reason=reason)
+                    return result
+                require_unchanged()
+                record = session.session_directory / "inspection-proof.json"
+                evidence = {
+                    "confirmed": True,
+                    "frame_sha256": home.sha256,
+                    "evidence_refs": [
+                        proof["offer_source"]["path"], proof["immediate_before"]["path"],
+                        proof["journal"]["path"], proof["successor"]["path"], str(home.path), str(record),
+                    ],
+                    "reason": INSPECTION_REASON,
+                    "original_canary_accepted": False,
+                    "original_failure": {
+                        "final_reason": action["final_reason"],
+                        "reconciliation_result": json.loads(action["reconciliation_result_json"] or "null"),
+                    },
+                    "paired_effect": {name: proof[name] for name in (
+                        "item", "shop", "currency", "unit_price", "quantity", "owned", "stock", "balance",
+                    )},
+                    "inspection": {
+                        "invocation_id": invocation_id, "owner": INSPECTION_OWNER,
+                        "authorization": "Current owner authorized live; parent sole operator; one known "
+                                         "Alliance-menu Back maximum, no Buy replay, no history rewrite.",
+                        "input_count": runtime.input_count, "max_inputs": 1,
+                        "deadline_seconds": INSPECTION_DEADLINE_SECONDS,
+                        "fresh_home": {"path": str(home.path), "sha256": home.sha256},
+                        "runtime_events": str(runtime.events),
+                    },
+                }
+                with record.open("x", encoding="utf-8") as stream:
+                    json.dump(evidence, stream, indent=2, sort_keys=True)
+                    stream.write("\n")
+                store = boundary.open_canonical_action_store()
+                try:
+                    store.reconcile_confirmed(action_id, time.time(), evidence)
+                    store.audit(FLOW_ID, "operator_alliance_shop_purchase_inspection", time.time(), {
+                        "action_id": action_id, "reason": INSPECTION_REASON,
+                        "evidence": str(record), "original_canary_accepted": False,
+                    }, action_id)
+                    context.action_store = store
+                    reader = port.action_status(proof["action_key"])
+                finally:
+                    store.close()
+                session.terminal_status = "navigation_complete"
+                result.update(status="confirmed" if reader == "confirmed" else "confirmed_reader_rejected",
+                              core_mutated=True, strict_reader=reader, fresh_home_sha256=home.sha256,
+                              inspection_proof=str(record))
+                return result
