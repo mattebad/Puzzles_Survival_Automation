@@ -84,7 +84,11 @@ def _all_hits(frame: CapturedNativeFrame, ocr_engine: Callable | None) -> tuple[
     refined = [title]
     if _normalize(title.text) == "commander info":
         # Re-read observed text bands, not guessed tap points.
-        replacements = ((65, 80, 165, 130), (210, 80, 310, 130), (42, 1250, 758, 1280))
+        replacements = (
+            (65, 80, 165, 130), (210, 80, 310, 130),
+            (333, 80, 465, 130), (476, 80, 605, 130), (614, 80, 758, 130),
+            (42, 1250, 758, 1280),
+        )
         for roi in replacements:
             refined.extend(_region_ocr(frame.frame, roi, psm=6 if roi == replacements[-1] else 7))
     elif _normalize(title.text) == "cmdr talent":
