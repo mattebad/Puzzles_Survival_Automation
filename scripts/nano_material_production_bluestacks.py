@@ -74,6 +74,16 @@ _DURATION_RE = re.compile(r"\b(?:duration|production time)\s*[:=-]?\s*(21600\s*(
 # label "Gear"/"Factory" (315, 820, 387, 866)).
 _GEAR_FACTORY_RADIAL_CONTROL_OFFSET = (137, 95, 225, 209)
 
+# Full-page Gear Factory hub crops measured on the actual 2026-11-08 hub
+# (material70-native-pixel-repair frames 0010-0013).  Native-scale OCR misses
+# the white title; the 2x bright-glyph crop reads "Gear Factory" (300, 20,
+# 501, 49) and the tile label "Nanoweapon" (468, 714, 666, 740) without its
+# notification badge.  The control is the measured label plate (452, 700,
+# 690, 746) clipped to the shared safe interaction box.
+_GEAR_FACTORY_HUB_TITLE_ROI = (160, 0, 700, 70)
+_GEAR_FACTORY_HUB_NANOWEAPON_LABEL_ROI = (440, 690, 720, 760)
+_GEAR_FACTORY_HUB_NANOWEAPON_CONTROL = (452, 700, 650, 746)
+
 
 @dataclass(frozen=True)
 class _Word:
@@ -673,12 +683,28 @@ def _is_nanoweapon_page(frame: np.ndarray) -> bool:
     )
 
 
+def _gear_factory_hub_nanoweapon_target(frame: np.ndarray) -> tuple[int, int, int, int] | None:
+    """Bind the hub's Nanoweapon tile only on a positively titled Gear Factory hub."""
+    title = _lines(_ocr_words(frame, _GEAR_FACTORY_HUB_TITLE_ROI, scale=2, white_text=True))
+    if len(title) != 1 or len(_phrase_lines(title, "Gear Factory")) != 1:
+        return None
+    labels = [
+        word
+        for word in _ocr_words(frame, _GEAR_FACTORY_HUB_NANOWEAPON_LABEL_ROI, scale=2, white_text=True)
+        if _normal(word.text) == "nanoweapon"
+    ]
+    if len(labels) != 1:
+        return None
+    control = _GEAR_FACTORY_HUB_NANOWEAPON_CONTROL
+    x0, y0, x1, y1 = labels[0].roi
+    cx, cy = (x0 + x1) // 2, (y0 + y1) // 2
+    if not (control[0] <= cx < control[2] and control[1] <= cy < control[3]) or not _safe_nav_roi(control):
+        return None
+    return control
+
+
 def _is_gear_factory_menu(frame: np.ndarray) -> bool:
-    lines = _lines(_ocr_words(frame))
-    return bool(
-        len(_phrase_lines(lines, "Gear Factory")) == 1
-        and len(_phrase_lines(lines, "Nanoweapon")) == 1
-    )
+    return _gear_factory_hub_nanoweapon_target(frame) is not None
 
 def _gear_factory_radial_target(frame: np.ndarray, atlas=None, localizer=None):
     if atlas is None or localizer is None:
@@ -1027,7 +1053,7 @@ def _navigate_to_panel(context, *, occurrence_key: str, current) -> tuple[Any | 
         kind = "gear_factory"
 
     if kind == "gear_factory":
-        roi = _line_target(current.frame, "Nanoweapon")
+        roi = _gear_factory_hub_nanoweapon_target(current.frame)
         if not _safe_nav_roi(roi):
             return None, None, "nanoweapon_factory_control_unknown"
         if not _navigation_tap(
@@ -1036,7 +1062,7 @@ def _navigate_to_panel(context, *, occurrence_key: str, current) -> tuple[Any | 
             target_identity="gear-factory:nanoweapon",
             source_state="GEAR_FACTORY",
             expected_postcondition="NANOWEAPON_PAGE",
-            bind=lambda frame: _line_target(frame, "Nanoweapon") if _is_gear_factory_menu(frame) else None,
+            bind=_gear_factory_hub_nanoweapon_target,
             source_recognize=_is_gear_factory_menu,
             recognize=lambda after: "NANOWEAPON" if _is_nanoweapon_page(after.frame) else None,
             allowed_successors=("NANOWEAPON",),

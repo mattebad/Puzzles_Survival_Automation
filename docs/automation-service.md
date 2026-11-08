@@ -162,6 +162,9 @@ Navigation recognition remains read-only; craft-instance state is bound after ve
 Gear Factory radial recognition derives its control from a fresh Atlas building binding and
 measured caption evidence; an open radial is not terminal Home. Return uses the native runtime's
 supported `BACK` input, not an unsupported desktop `Escape` key.
+The full-page Gear Factory hub is recognized only from its measured 2x bright-glyph title crop
+("Gear Factory") plus the measured Nanoweapon label crop; the Nanoweapon tap is that tile's measured
+label plate within the shared safe box. A run that starts on this recognized hub continues from it.
 Each Gear Factory/Nanoweapon navigation tap rebinds on its immediate pre-dispatch capture. Only
 native-pixel ROI quantization is admitted: every planned/fresh ROI edge may differ by at most one
 pixel, with each tap point inside the other ROI; the transport keeps the planned, capability-bound target.
