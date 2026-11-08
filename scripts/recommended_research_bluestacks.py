@@ -203,12 +203,7 @@ def _read_words(frame: Any, ocr_data: Mapping[str, object] | None = None) -> tup
     return _ocr_words(ocr_data)
 
 
-def _scaled_crop_words(frame: Any, roi: tuple[int, int, int, int], config: str) -> tuple[ResearchWord, ...]:
-    from scripts.bounded_tesseract import call_ocr, tesseract_data
-
-    x0, y0, x1, y1 = roi
-    crop = cv2.resize(cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2GRAY), None, fx=3, fy=3)
-    data = call_ocr(tesseract_data, crop, config=config, call_timeout=5.0)
+def _translated_words(data: object, x0: int, y0: int) -> tuple[ResearchWord, ...]:
     if not isinstance(data, Mapping):
         return ()
     try:
@@ -222,6 +217,38 @@ def _scaled_crop_words(frame: Any, roi: tuple[int, int, int, int], config: str) 
     except (KeyError, TypeError, ValueError, OverflowError):
         return ()
     return _ocr_words(data)
+
+
+def _scaled_crop_words(frame: Any, roi: tuple[int, int, int, int], config: str) -> tuple[ResearchWord, ...]:
+    from scripts.bounded_tesseract import call_ocr, tesseract_data
+
+    x0, y0, x1, y1 = roi
+    crop = cv2.resize(cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2GRAY), None, fx=3, fy=3)
+    return _translated_words(call_ocr(tesseract_data, crop, config=config, call_timeout=5.0), x0, y0)
+
+
+def _radial_caption_words(frame: Any, anchor: tuple[float, float]) -> tuple[ResearchWord, ...]:
+    """Read the white radial captions beneath a freshly bound owner anchor.
+
+    Full-frame OCR merges the small outlined captions with the city art, so
+    only white strokes in the owner's caption band are kept, darkened onto a
+    blank page and read sparse at 3x.
+    """
+    from scripts.bounded_tesseract import call_ocr, tesseract_data
+
+    height, width = frame.shape[:2]
+    ax, ay = (int(round(value)) for value in anchor)
+    x0, y0 = max(0, ax - 240), max(0, ay + 40)
+    x1, y1 = min(width, ax + 240), min(height, ay + 210)
+    if x1 - x0 < 24 or y1 - y0 < 24:
+        return ()
+    crop = frame[y0:y1, x0:x1]
+    white = cv2.inRange(cv2.cvtColor(crop, cv2.COLOR_BGR2HSV), (0, 0, 180), (179, 80, 255))
+    strokes = cv2.dilate(white, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)))
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    ink = cv2.bitwise_not(cv2.bitwise_and(gray, gray, mask=strokes))
+    scaled = cv2.resize(ink, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
+    return _translated_words(call_ocr(tesseract_data, scaled, config="--psm 11", call_timeout=5.0), x0, y0)
 
 
 def _home_research_hud_words(frame: Any, words: tuple[ResearchWord, ...]) -> tuple[ResearchWord, ...]:
@@ -645,6 +672,11 @@ def recognize_research_screen(
     return ResearchScreenObservation("UNKNOWN", source_frame_sha256, refs, text, words, recognized=False)
 
 
+# Measured actual radial captions read 92-96; lower reads are not owner evidence.
+_RADIAL_CAPTION_MIN_CONFIDENCE = 80.0
+_RADIAL_CAPTIONS = ("details", "upgrade", "research")
+
+
 def recognize_research_radial(
     frame: Any,
     *,
@@ -657,11 +689,23 @@ def recognize_research_radial(
     """Bind radial Research near a freshly localized owner, not the Home HUD label."""
 
     if (
-        not home_recognized
+        not native_frame_guard(frame)
+        or not _DIGEST_RE.fullmatch(source_frame_sha256 or "")
+        or not home_recognized
         or building_binding.building_id != RESEARCH_CENTER_ID
         or building_binding.screen_anchor is None
     ):
         return None
+    ax, ay = building_binding.screen_anchor
+    captions: list[ResearchWord] = []
+    if ocr_data is None:
+        # Native frames: the owner's complete Details/Upgrade/Research caption set.
+        captions = [
+            word for word in _radial_caption_words(frame, (ax, ay))
+            if word.confidence >= _RADIAL_CAPTION_MIN_CONFIDENCE
+        ]
+        if any(sum(word.normalized == name for word in captions) != 1 for name in _RADIAL_CAPTIONS):
+            return None
     page = recognize_research_screen(
         frame,
         source_frame_sha256=source_frame_sha256,
@@ -671,13 +715,15 @@ def recognize_research_radial(
     )
     if page.screen_state in {LIST_SCREEN, DETAIL_SCREEN, ACTIVE_SCREEN}:
         return None
-    ax, ay = building_binding.screen_anchor
-    research_words = (
-        word
-        for line in _line_groups(page.words)
-        if _normalize(_line_text(line)) == "research"
-        for word in line
-    )
+    if ocr_data is None:
+        research_words = (word for word in captions if word.normalized == "research")
+    else:
+        research_words = (
+            word
+            for line in _line_groups(page.words)
+            if _normalize(_line_text(line)) == "research"
+            for word in line
+        )
     choices = [
         word for word in research_words
         if word.normalized == "research"
@@ -1616,20 +1662,27 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             radial_state["value"] = screen
             return screen is not None
 
-        result, after, verified = _guarded_action(
-            context,
-            policy,
-            captured=home,
-            game_day_id=game_day_id,
-            occurrence_key=occurrence,
-            action_key=f"{occurrence}:recommended-research:open-center",
-            plan_builder=building_plan,
-            recognizes_successor=radial_successor,
-        )
-        step += 1
-        if not verified or after is None or radial_state["value"] is None:
-            return _normal_result(context, status="blocked", reason="research_center_radial_successor_unverified", game_day_id=game_day_id, route_steps=step)
+        if radial_successor(home):
+            # Restart on this owner's already-open radial: resume from the same
+            # fresh capture that bound the Atlas owner instead of re-tapping it.
+            after = home
+        else:
+            result, after, verified = _guarded_action(
+                context,
+                policy,
+                captured=home,
+                game_day_id=game_day_id,
+                occurrence_key=occurrence,
+                action_key=f"{occurrence}:recommended-research:open-center",
+                plan_builder=building_plan,
+                recognizes_successor=radial_successor,
+            )
+            step += 1
+            if not verified or after is None or radial_state["value"] is None:
+                return _normal_result(context, status="blocked", reason="research_center_radial_successor_unverified", game_day_id=game_day_id, route_steps=step)
         radial = radial_state["value"]
+        if radial is None:
+            return _normal_result(context, status="blocked", reason="research_center_radial_successor_unverified", game_day_id=game_day_id, route_steps=step)
         radial_target = radial.list_research_target_roi
         if radial_target is None:
             return _normal_result(context, status="blocked", reason="radial_research_control_unavailable", game_day_id=game_day_id, route_steps=step)
