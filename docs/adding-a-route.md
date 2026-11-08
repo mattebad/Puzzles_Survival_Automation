@@ -179,11 +179,12 @@ Existing layout exceptions:
   uses original-workspace-relative paths; native pixels and source hashes are preserved.
   Alliance Shop rebinds the fresh Home footer through the shared recognizer and distinguishes
   the actual Alliance title and red-selected Shop tabs from incidental navigation labels.
-  Daily Shops normalizes positively recognized zoomed Home with at most two accounted
-  zoom inputs, then uses shared bounded calculated pans, fresh mapped Ruins binding and
-  route-owned Ruins/Exchange successors. Unknown or unchanged navigation stops; an absent
-  action-store lease dispatches nothing. These are offline-proven entry guards, not purchase
-  effect or route-level live acceptance.
+  Daily Shops reuses canonical Atlas startup normalization and its scrcpy simultaneous-pointer
+  transport for at most two accounted zoom inputs; the sequential virtual-touch pinch is not
+  a substitute for an observed camera transition. It then uses shared bounded calculated pans,
+  fresh mapped Ruins binding and route-owned Ruins/Exchange successors. Unknown or unchanged
+  navigation stops; an absent action-store lease dispatches nothing. These are offline-proven
+  entry guards, not purchase-effect or route-level live acceptance.
 
 * **Batch D Nano Material Production and Nanoweapon**: canonical-service-only routes with fixed
   native bindings and no operator rows. Nano Material Production uses a non-reset-scoped timer

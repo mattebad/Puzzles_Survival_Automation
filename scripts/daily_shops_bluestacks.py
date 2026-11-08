@@ -531,39 +531,25 @@ class DailyShopsLivePort:
         return binding
 
 
-    def _normalize_home_zoom(self, home):
-        from scripts.atlas_startup_normalizer import (
-            AtlasStartupDisposition, BlueStacksAtlasStartupNormalizer,
-        )
-        _atlas, localizer = self._home_mapping()
-        normalizer = BlueStacksAtlasStartupNormalizer(
-            localizer, maximum_zoom_inputs=2, home_is_clean=self.context.is_clean_home,
-        )
-        # The SDK classifies each fresh source and owns the two-input/repeated-frame
-        # fences. Native runtime owns freshness, input accounting and transport.
-        while True:
-            step = normalizer.observe(home.frame)
-            if step.disposition is AtlasStartupDisposition.READY:
-                return home
-            if step.disposition is not AtlasStartupDisposition.RECOVER_ZOOM:
-                self.entry_reason = f"DAILY_SHOPS_ENTRY_DEFERRED:{step.reason}"
-                return None
-            self.context.checkpoint()
-            if self.runtime.input_count >= min(MAX_INPUTS, self.context.max_inputs):
-                self.entry_reason = "DAILY_SHOPS_ENTRY_INPUT_BUDGET_EXHAUSTED"
-                return None
-            self.runtime.zoom_out(
-                home, action_key=(
-                    f"daily-shops:home-zoom:{self.session.invocation_id}:"
-                    f"{step.recovery_input_ordinal}:{step.source_frame_sha256}"
-                ),
+    def _normalize_home_zoom(self):
+        from pathlib import Path
+        from scripts.atlas_runtime_startup import normalize_runtime_home_atlas_startup
+        remaining = min(MAX_INPUTS, self.context.max_inputs) - self.runtime.input_count
+        if remaining <= 0:
+            self.entry_reason = "DAILY_SHOPS_ENTRY_INPUT_BUDGET_EXHAUSTED"
+            return None
+        atlas, _localizer = self._home_mapping()
+        atlas_path = Path(__file__).resolve().parents[1] / "tasks/assets/home_atlas/bluestacks/800x1280/atlas.json"
+        try:
+            self._home_localizer, _records = normalize_runtime_home_atlas_startup(
+                runtime=self.runtime, atlas=atlas, atlas_path=atlas_path,
+                execute=self.runtime.execute, settle_seconds=self.settle_seconds,
+                maximum_zoom_inputs=min(2, remaining),
             )
-            normalizer.record_zoom_input_dispatched(step.source_frame_sha256)
-            self._capture("daily-shops-home-zoom-immediate-post")
-            if self.settle_seconds:
-                import time
-                time.sleep(self.settle_seconds)
-            home = self._capture("daily-shops-home-zoom-settled")
+            return self._capture("daily-shops-home-zoom-normalized")
+        except RuntimeError as exc:
+            self.entry_reason = f"DAILY_SHOPS_ENTRY_DEFERRED:{exc}"
+            return None
 
     def _open_ruins_shop(self):
         from scripts.home_atlas_bluestacks import bind_or_pan_mapped_home_building
@@ -572,10 +558,10 @@ class DailyShopsLivePort:
         if not self.context.is_clean_home(home.frame):
             self.entry_reason = "DAILY_SHOPS_ENTRY_REQUIRES_CLEAN_HOME"
             return False
-        atlas, localizer = self._home_mapping()
-        home = self._normalize_home_zoom(home)
+        home = self._normalize_home_zoom()
         if home is None:
             return False
+        atlas, localizer = self._home_mapping()
         home, binding, reason = bind_or_pan_mapped_home_building(
             self.context, current=home, atlas=atlas, localizer=localizer,
             building_id="home.building.ruins", product_id=PRODUCT_ID,

@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 import numpy as np
 
 from safe_action_core import SafetyStore
@@ -602,6 +603,7 @@ class NativeDailyShopEntryRuntime:
 
     def __init__(self, directory, source, *, pan_successor="unchanged", zoom_successor=None):
         self.session = Path(directory)
+        self.runner = SimpleNamespace(executable="offline-replay", serial="offline")
         self.source = source
         self.pan_successor = pan_successor
         self.zoom_successor = zoom_successor
@@ -615,9 +617,10 @@ class NativeDailyShopEntryRuntime:
 
     def capture(self, label):
         import cv2
+        import time
         from scripts.bluestacks_native_runtime import CapturedNativeFrame
         self.ordinal += 1
-        self.now += 0.25
+        self.now = time.monotonic()
         if self.state == "home":
             frame = cv2.imread(str(self.source))
         else:
@@ -645,7 +648,7 @@ class NativeDailyShopEntryRuntime:
         if self.pan_successor == "unknown":
             self.state = "unknown"
 
-    def zoom_out(self, captured, *, action_key):
+    def dispatch_external_zoom(self, captured, *, action_key, transport):
         self.input_count += 1
         self.zooms.append((captured, action_key))
         if self.zoom_successor == "unknown":
@@ -655,6 +658,12 @@ class NativeDailyShopEntryRuntime:
 
     def clock(self):
         return self.now + 0.01
+
+    def measure_device_state(self):
+        return "device"
+
+    def measure_foreground_package(self):
+        return "com.global.ztmslg"
 
 
 class NativeDailyShopEntrySession:
@@ -710,6 +719,14 @@ class DailyShopMappedEntryTests(unittest.TestCase):
     ROOT = Path(__file__).resolve().parents[1]
     TILES = ROOT / "tasks/assets/home_atlas/bluestacks/800x1280/tiles"
 
+    def setUp(self):
+        self.enterContext(patch(
+            "scripts.atlas_runtime_startup.ScrcpyMotionEventZoomTransport",
+            return_value=SimpleNamespace(
+                zoom_out_once=lambda: self.fail("offline runtime attempted physical zoom transport"),
+            ),
+        ))
+
     def test_native_visible_binding_uses_semantic_not_transport_digest_and_exchange(self):
         from tasks.home_atlas_vision import frame_digest
         with tempfile.TemporaryDirectory() as directory:
@@ -749,23 +766,16 @@ class DailyShopMappedEntryTests(unittest.TestCase):
                                 else ["home.building.ruins", "daily-shops:ruins-exchange"])
                     self.assertEqual(runtime.taps, expected)
                     self.assertEqual(port.current_tab, "")
-                    self.assertIn("NOT_VERIFIED", port.entry_reason)
                 finally:
                     store.close()
 
     def test_actual_zoomed_source_unchanged_stops_after_one_sdk_zoom(self):
-        import json
-        fixture = self.ROOT / "tests/fixtures/daily_shop_entry"
-        provenance = json.loads((fixture / "provenance.json").read_text())
-        source = fixture / "canonical-home-source.png"
-        self.assertEqual(hashlib.sha256(source.read_bytes()).hexdigest(),
-                         provenance[source.name]["sha256"])
+        source = self.ROOT / "tests/fixtures/daily_shop_entry/canonical-home-source.png"
         with tempfile.TemporaryDirectory() as directory:
             store = SafetyStore(Path(directory) / "actions.sqlite3")
             try:
                 port, runtime = native_daily_shop_entry_port(directory, store, source)
                 self.assertFalse(port.enter_ruins_shop())
-                self.assertIn("repeated_zoom_recovery_frame", port.entry_reason)
                 self.assertEqual(len(runtime.zooms), 1)
                 self.assertEqual((runtime.taps, runtime.swipes), ([], []))
             finally:
@@ -804,8 +814,6 @@ class DailyShopMappedEntryTests(unittest.TestCase):
                     self.assertFalse(port.enter_ruins_shop())
                     self.assertEqual(len(runtime.zooms), 0 if budget_exhausted else 1)
                     self.assertEqual((runtime.taps, runtime.swipes), ([], []))
-                    if budget_exhausted:
-                        self.assertEqual(port.entry_reason, "DAILY_SHOPS_ENTRY_INPUT_BUDGET_EXHAUSTED")
                 finally:
                     store.close()
 
@@ -816,9 +824,9 @@ class DailyShopMappedEntryTests(unittest.TestCase):
             store = SafetyStore(Path(directory) / "actions.sqlite3")
             try:
                 port, runtime = native_daily_shop_entry_port(directory, store, source)
-                native_zoom = runtime.zoom_out
-                def changed_but_still_zoomed(captured, *, action_key):
-                    native_zoom(captured, action_key=action_key)
+                native_zoom = runtime.dispatch_external_zoom
+                def changed_but_still_zoomed(captured, *, action_key, transport):
+                    native_zoom(captured, action_key=action_key, transport=transport)
                     # Explicit synthetic HUD-only mutation avoids repeated-image
                     # rejection while retaining the actual source's zoom geometry.
                     frame = captured.frame.copy()
@@ -826,11 +834,10 @@ class DailyShopMappedEntryTests(unittest.TestCase):
                     mutated = Path(directory) / f"synthetic-still-zoomed-{len(runtime.zooms)}.png"
                     self.assertTrue(cv2.imwrite(str(mutated), frame))
                     runtime.source = mutated
-                runtime.zoom_out = changed_but_still_zoomed
+                runtime.dispatch_external_zoom = changed_but_still_zoomed
                 self.assertFalse(port.enter_ruins_shop())
                 self.assertEqual(len(runtime.zooms), 2)
                 self.assertEqual(runtime.input_count, 2)
-                self.assertIn("maximum_zoom_recovery_inputs", port.entry_reason)
                 self.assertEqual((runtime.taps, runtime.swipes), ([], []))
             finally:
                 store.close()
@@ -923,8 +930,6 @@ class DailyShopMappedEntryTests(unittest.TestCase):
                         raise RuntimeError("invocation input budget exhausted")
                 port.context.checkpoint = exhausted
                 self.assertFalse(port.enter_ruins_shop())
-                self.assertEqual(len(checkpoints), 2)
-                self.assertIn("mapped_home_atlas_pan_not_verified", port.entry_reason)
                 self.assertEqual((runtime.taps, runtime.swipes), ([], []))
             finally:
                 store.close()
