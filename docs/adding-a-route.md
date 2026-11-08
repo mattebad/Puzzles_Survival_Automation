@@ -243,6 +243,13 @@ Existing layout exceptions:
   Native factory validators inspect requests, not result mappings; production result/effect
   validation remains separate from request admission. Offline startup exercises the actual
   fixed binding with a held temporary runtime lock and device-free transport.
+  Production reuses the canonical scrcpy Atlas normalizer for zoomed Home entry and
+  terminal normalization. Each physical zoom belongs to the existing DevelopmentSession
+  through run_action; no cumulative external-count adoption is mixed with session-owned
+  route inputs. Unknown or unchanged zoom results receive no identical input, and input
+  budgets and source fences still apply. Direct-runtime consumers retain their existing
+  final cumulative adoption. Real-session replay proves these paths offline, not live
+  production acceptance.
 
 * **Batch E Hero Duel, Recommended Research, and Food Farm Boost**: canonical-service-only routes
   with fixed native bindings and no operator rows. E retained the twelve existing legacy operator

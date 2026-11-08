@@ -28,6 +28,7 @@ from safe_action_core import (
     SafetyStore,
     TransportResult,
 )
+from scripts.atlas_runtime_startup import normalize_runtime_home_atlas_startup
 from scripts.bounded_tesseract import call_ocr, tesseract_data
 from scripts.home_atlas_bluestacks import (
     HOME_ATLAS_NAVIGATION_TASK_ID,
@@ -996,6 +997,9 @@ def _return_home(context, *, occurrence_key: str, current) -> tuple[bool, Any | 
     for ordinal in range(3):
         if recognized_home(frame):
             return True, frame
+        if context.is_clean_home(frame.frame):
+            normalized = _normalize_home_source(context, frame)
+            return (True, normalized) if normalized is not None and recognized_home(normalized) else (False, None)
         panel = _panel_observation(frame, context=context, occurrence_key=occurrence_key)
         if panel.observation is not None:
             def source_recognize(before):
@@ -1027,6 +1031,8 @@ def _return_home(context, *, occurrence_key: str, current) -> tuple[bool, Any | 
         def recognize(after):
             if recognized_home(after):
                 return "HOME_BASE"
+            if context.is_clean_home(after.frame):
+                return "HOME_BASE_PENDING_ATLAS"
             if _is_nanoweapon_page(after.frame):
                 return "NANOWEAPON"
             if _is_gear_factory_menu(after.frame):
@@ -1052,9 +1058,13 @@ def _return_home(context, *, occurrence_key: str, current) -> tuple[bool, Any | 
             )
         except Exception:
             return False, None
-        if result.status != "completed" or result.state not in {"HOME_BASE", "NANOWEAPON", "GEAR_FACTORY"}:
+        if result.status != "completed" or result.state not in {"HOME_BASE", "HOME_BASE_PENDING_ATLAS", "NANOWEAPON", "GEAR_FACTORY"}:
             return False, None
         frame = _capture(context, f"nano-material-return-home-current-{ordinal}")
+    if context.is_clean_home(frame.frame) and not recognized_home(frame):
+        frame = _normalize_home_source(context, frame)
+        if frame is None:
+            return False, None
     return (True, frame) if recognized_home(frame) else (False, None)
 
 
@@ -1179,7 +1189,34 @@ def _recognized_home(context, frame: np.ndarray, atlas_path: Path = DEFAULT_ATLA
     return bool(localization.recognized and not localization.stale and not localization.overlay)
 
 
+def _normalize_home_source(context, current):
+    """Use the shared simultaneous-pointer recovery, never sequential zoom input."""
+    if _recognized_home(context, current.frame):
+        return current
+    if not context.is_clean_home(current.frame):
+        return None
+    context.checkpoint()
+    context.validate_identity()
+    try:
+        atlas = _load_atlas(DEFAULT_ATLAS)
+        # Each physical zoom is a session-owned run_action input, so route inputs
+        # before or after normalization keep one exact session/runtime count.
+        normalize_runtime_home_atlas_startup(
+            runtime=context.runtime, atlas=atlas, atlas_path=DEFAULT_ATLAS,
+            execute=context.runtime.execute, settle_seconds=float(context.settle_seconds),
+            maximum_zoom_inputs=2, session=context.session,
+        )
+    except Exception:
+        return None
+    normalized = _capture(context, "nano-material-production-atlas-ready")
+    return normalized if _recognized_home(context, normalized.frame) else None
+
+
 def _prepare_route_source(context, current, occurrence_key: str):
+    if context.is_clean_home(current.frame):
+        if getattr(context.session, "initial_observation", None) is None:
+            context.bind_initial_observation(current)
+        return _normalize_home_source(context, current)
     if getattr(context.session, "initial_observation", None) is not None:
         return current
     panel = _panel_observation(current, context=context, occurrence_key=occurrence_key)
@@ -1207,7 +1244,7 @@ def _prepare_route_source(context, current, occurrence_key: str):
     except Exception:
         return None
     recovered = _capture(context, "nano-material-production-startup-home")
-    return recovered if _recognized_home(context, recovered.frame) else None
+    return _normalize_home_source(context, recovered) if context.is_clean_home(recovered.frame) else None
 
 
 
