@@ -296,7 +296,12 @@ def run_commander_talent_preset(
     owner, invocation_id = _validate_boundary(
         session, runtime, checkpoint=checkpoint, runtime_input_lock=runtime_input_lock,
     )
-    if source_generation != invocation_id:
+    # A borrowed service lock identifies the outer operator, not this native
+    # session. Keep its ownership fence above; bind preset proof to the session.
+    session_invocation_id = getattr(session, "invocation_id", None)
+    if type(session_invocation_id) is not str or not session_invocation_id:
+        raise RuntimeError("commander talent helper native session identity is missing")
+    if source_generation != session_invocation_id:
         raise ValueError("source_generation must match the held native session invocation")
     start_count = int(getattr(session, "input_count", 0))
 
