@@ -19,6 +19,7 @@ if str(ROOT) not in sys.path:
 
 from safe_action_core import ActionClass, ActionStatus, CentralPolicy, Observation, PolicyRequest, SafeActionExecutor, TransportResult
 from scripts.bounded_tesseract import call_ocr, tesseract_data
+from scripts.home_atlas_bluestacks import bind_or_pan_mapped_home_building
 from scripts.startup_normalization import is_clean_home_frame
 from tasks.home_atlas import load_home_atlas
 from tasks.home_atlas_vision import BLUESTACKS_SAFE_INTERACTION_BOX, HUD_MASK_RECTS, BlueStacksHomeLocalizer, bind_visible_building, frame_digest
@@ -685,6 +686,36 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
     binding = bind_reachable_farm(
         farm_capture.frame, atlas, localizer, localization=home_localization
     )
+    farm_ids = _farm_ids(atlas)
+    if binding is None and farm_ids:
+        # A clean, localized Home need not have a Farm in its safe viewport.
+        # Approach an approved mapped Farm through the existing verified pan
+        # authority; stop as soon as our normal fresh Farm binder owns a target.
+        farm_capture, binding, approach_reason = bind_or_pan_mapped_home_building(
+            context, current=farm_capture, atlas=atlas, localizer=localizer,
+            building_id=farm_ids[0], product_id=PRODUCT_ID,
+            binding_for_frame=lambda frame: bind_reachable_farm(frame, atlas, localizer),
+            maximum_pans=8,
+        )
+        if farm_capture is None or binding is None:
+            # A refused/unknown pan must not reuse the pre-pan Home as terminal
+            # evidence or continue to a collection/boost input.
+            terminal = session.observe(runtime.capture, label="food-farm-approach-blocked-source")
+            terminal_home = False
+            if is_clean_home_frame(terminal.frame):
+                terminal_localization = localizer.localize(terminal.frame)
+                terminal_home = bool(
+                    terminal_localization.recognized
+                    and not terminal_localization.stale and not terminal_localization.overlay
+                )
+            return {
+                "status": "blocked", "reason": f"FOOD_FARM_APPROACH_NOT_VERIFIED:{approach_reason}",
+                "boost_transport_calls": 0, "collection_transport_calls": 0,
+                "collection_count": 0, "collection_effect_accounted": False,
+                "food_farm_dispatch_count": 0, "terminal_home_verified": terminal_home,
+                "terminal_home_frame_sha256": terminal.sha256 if terminal_home else None,
+                "effect_reconciliation_required": False, "identical_retry_denied": True,
+            }
     if binding is None:
         return {"status": "deferred", "reason": "NO_FRESH_REACHABLE_MAPPED_FARM", "boost_transport_calls": 0,
                 "collection_transport_calls": 0, "collection_count": 0, "collection_effect_accounted": False,
