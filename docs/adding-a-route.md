@@ -106,9 +106,10 @@ history and actual recovery input charges while permitting a fresh run/token for
 the same gameplay occurrence. Route results cannot use it to refund gameplay.
 Unknown effects still block; a later occurrence never authorizes repeating them.
 
-Renaming a flow id is a migration, not a find-and-replace: keep the old id in a migration constant
-(`RENAMED_FLOW_IDS`, `RENAMED_TASK_IDS`), retained evidence and historical queue records, and list each
-file in `OLD_CAMPAIGN_ID_FILES`-style allowlists in the consistency test.
+Renaming a flow id is a migration, not a find-and-replace: keep the old id in the
+migration tables (`RENAMED_FLOW_IDS`, `RENAMED_TASK_IDS`), retained evidence and
+historical queue records. Verify persisted limits migrate and retired ids cannot
+select an active canonical handler; do not scan or rewrite historical evidence.
 
 ## Layer layout and intentional exceptions
 
