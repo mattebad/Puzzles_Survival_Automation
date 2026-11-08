@@ -39,7 +39,6 @@ from tasks.world_stamina import (
 FLOW_ID = "WORLD-MAP-NAVIGATION-FOUNDATION"
 RUNNER_ID = "world_map_navigation_foundation_runner"
 VALIDATOR_ID = "world_map_navigation_foundation_evidence"
-RECOVERY_ID = "world_map_navigation_foundation_recovery"
 PACKAGE_ID = "com.global.ztmslg"
 MAX_ROUTE_INPUTS = 20
 MAX_SAFE_POPUP_INPUTS = 4

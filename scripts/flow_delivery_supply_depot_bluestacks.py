@@ -17,7 +17,6 @@ from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 FLOW_ID = SUPPLY_FLOW_ID
 RUNNER_ID = "supply_depot_bluestacks_runner"
 VALIDATOR_ID = "supply_depot_bluestacks_evidence"
-RECOVERY_ID = "supply_depot_bluestacks_recovery"
 MAX_INPUTS = SUPPLY_MAX_INPUTS
 MAX_HOLD_TRANSPORT_CALLS = 1
 
@@ -417,29 +416,9 @@ def verify_supply_depot(
     }
 
 
-def recover_supply_depot(
-    queue: Mapping[str, Any],
-    lease: Mapping[str, Any],
-) -> str:
-    del queue, lease
-    return json.dumps(
-        {
-            "status": "blocked",
-            "flow_id": FLOW_ID,
-            "dispatch": False,
-            "reason": "safe no-op recovery; use a fresh recognized conduct session",
-            "production_registration": "NOT_REGISTERED",
-            "scheduler_enabled": False,
-        },
-        sort_keys=True,
-    )
-
-
 def register(
     runners: dict[str, Any],
     validators: dict[str, Any],
-    handlers: dict[str, Any],
 ) -> None:
     runners[RUNNER_ID] = run_supply_depot
     validators[VALIDATOR_ID] = verify_supply_depot
-    handlers[RECOVERY_ID] = recover_supply_depot

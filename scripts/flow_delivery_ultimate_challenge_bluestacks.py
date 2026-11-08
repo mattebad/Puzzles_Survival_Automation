@@ -32,17 +32,15 @@ from tasks.ultimate_challenge_daily import (
     save_reset_window_state,
 )
 from scripts.startup_normalization import is_clean_home_frame
-from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_PACKAGE, BLUESTACKS_SERIAL
+from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FLOW_ID = ULTIMATE_FLOW_ID
 MAX_TOTAL_INPUTS = ULTIMATE_MAX_INPUTS
 UC_RUNNER_ID = "ultimate_challenge_navigation_only_runner"
 UC_EVIDENCE_VALIDATOR_ID = "ultimate_challenge_navigation_only_evidence"
-UC_RECOVERY_HANDLER_ID = "ultimate_challenge_navigation_only_recovery"
 UC_DAILY_RUNNER_ID = "ultimate_challenge_daily_runner"
 UC_DAILY_EVIDENCE_VALIDATOR_ID = "ultimate_challenge_daily_evidence"
-UC_DAILY_RECOVERY_HANDLER_ID = "ultimate_challenge_daily_recovery"
 DAILY_PROOF_TOPOLOGY = "continuous"
 
 
@@ -890,32 +888,6 @@ def verify_ultimate_challenge_navigation_only(
     }
 
 
-def recover_ultimate_challenge_navigation_only(
-    queue: Mapping[str, Any], lease: Mapping[str, Any]
-) -> str:
-    pnsctl = _pnsctl()
-    del queue, lease
-    state = str(pnsctl._run_fixed_bluestacks_adb("get-state")).strip()
-    if state != "device":
-        raise pnsctl.OperatorError("approved BlueStacks serial is not in device state")
-    focus = str(pnsctl._run_fixed_bluestacks_adb("shell", "dumpsys", "window"))
-    package = pnsctl._focused_package(focus)
-    if package != BLUESTACKS_PACKAGE:
-        raise pnsctl.OperatorError(
-            "Puzzles & Survival is not the foreground package during recovery"
-        )
-    return json.dumps(
-        {
-            "status": "recovered_or_already_safe",
-            "flow_id": FLOW_ID,
-            "foreground_package": package,
-            "dispatch": False,
-            "recovery": "observe_only_no_android_back",
-        },
-        sort_keys=True,
-    )
-
-
 def verify_ultimate_challenge_daily(
     structure: Mapping[str, Any], queue: Mapping[str, Any], lease: Mapping[str, Any]
 ) -> dict[str, Any]:
@@ -1035,18 +1007,11 @@ def verify_ultimate_challenge_daily(
     }
 
 
-def recover_ultimate_challenge_daily(queue: Mapping[str, Any], lease: Mapping[str, Any]) -> str:
-    return recover_ultimate_challenge_navigation_only(queue, lease)
-
-
 def register(
     runners: dict[str, Any],
     validators: dict[str, Any],
-    handlers: dict[str, Any],
 ) -> None:
     runners[UC_RUNNER_ID] = run_ultimate_challenge_navigation_only
     validators[UC_EVIDENCE_VALIDATOR_ID] = verify_ultimate_challenge_navigation_only
-    handlers[UC_RECOVERY_HANDLER_ID] = recover_ultimate_challenge_navigation_only
     runners[UC_DAILY_RUNNER_ID] = run_ultimate_challenge_daily
     validators[UC_DAILY_EVIDENCE_VALIDATOR_ID] = verify_ultimate_challenge_daily
-    handlers[UC_DAILY_RECOVERY_HANDLER_ID] = recover_ultimate_challenge_daily

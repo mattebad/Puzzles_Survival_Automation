@@ -55,15 +55,17 @@ successors fail closed; an unresolved Training action is never retried or inferr
 
 ## Manual Home recovery
 
-`python scripts/pnsctl.py bluestacks recover-home` is a manual, navigation-only operation for an
-admitted Training queue. A released-session recovery reacquires the existing singleton runtime
-input lock, rechecks the current flow-delivery stage, and uses the canonical SQLite action/resource
-history rather than retained receipts, artifacts, or event text. It runs only the retained native
-`TroopTrainingReturnHomeRoute` with the canonical 32-input ceiling, requires exact current queue
-recognition and canonical Home Atlas proof, and preserves startup-source evidence. It never runs
-the Training service runner, confirms or clears an action, retries a dispatch, changes counters,
-claims a reward, or enables a control. A Home recovery result is navigation evidence only, not
-Training completion.
+`python scripts/pnsctl.py bluestacks recover-home` is a manual, navigation-only operation. Its
+admission is the canonical SQLite Training action/resource history, not a flow-delivery queue,
+lease, retained receipt, artifact, or event text: the history must name a pending or
+confirmed-queue Training candidate and prove no unrelated unresolved effect or blocking Resource
+effect. The command acquires the existing singleton runtime input lock itself (an executing service
+pass or any other owner blocks it) and rereads the unchanged history under that lock before
+connecting. It runs only the retained native `TroopTrainingReturnHomeRoute` within the canonical
+Training input ceiling, requires exact current queue recognition and canonical Home Atlas proof, and
+preserves startup-source evidence. It never runs the Training service runner, confirms or clears an
+action, retries a dispatch, changes counters, claims a reward, or enables a control. A Home
+recovery result is navigation evidence only, not Training completion.
 
 ## Historical manual observations — not native acceptance
 

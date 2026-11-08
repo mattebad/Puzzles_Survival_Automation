@@ -36,7 +36,6 @@ from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 FLOW_ID = PERSONAL_MIGHT_FLOW_ID
 RUNNER_ID = "personal_might_bluestacks_runner"
 VALIDATOR_ID = "personal_might_bluestacks_evidence"
-RECOVERY_ID = "personal_might_bluestacks_recovery"
 MAX_INPUTS = PERSONAL_MIGHT_MAX_INPUTS
 MAX_PRAISE_INPUTS = 1
 
@@ -515,12 +514,6 @@ def verify_personal_might(structure, queue, lease):
     return report
 
 
-def recover_personal_might(queue, lease):
-    del queue, lease
-    return json.dumps({"status": "blocked", "flow_id": FLOW_ID, "dispatch": False, "reason": "Personal Might recovery requires a positively bound native surface"})
-
-
-def register(runners, validators, handlers):
+def register(runners, validators):
     runners[RUNNER_ID] = run_personal_might
     validators[VALIDATOR_ID] = verify_personal_might
-    handlers[RECOVERY_ID] = recover_personal_might

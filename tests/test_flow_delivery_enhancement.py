@@ -1430,11 +1430,6 @@ class ContractAndReservationTests(unittest.TestCase):
             structure = _prepare_family_fixture(family_verifier_structure(session))
             with (
                 patch.object(pnsctl, "REPO_ROOT", root),
-                patch.object(
-                    pnsctl,
-                    "_load_flow_delivery_state",
-                    side_effect=pnsctl.OperatorError("no active delivery"),
-                ),
                 _family_replay_patches(structure),
             ):
                 verdict = json.loads(pnsctl.bluestacks_verify_flow(session))

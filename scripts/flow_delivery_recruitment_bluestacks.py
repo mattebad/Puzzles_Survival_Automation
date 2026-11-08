@@ -17,7 +17,6 @@ from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 FLOW_ID = RECRUITMENT_FLOW_ID
 RUNNER_ID = "recruitment_bluestacks_runner"
 VALIDATOR_ID = "recruitment_bluestacks_evidence"
-RECOVERY_ID = "recruitment_bluestacks_recovery"
 MAX_INPUTS = RECRUITMENT_MAX_INPUTS
 MAX_CONTINUATION_INPUTS = 4
 MAX_RECRUITMENT_ACTIONS = 3
@@ -785,29 +784,9 @@ def verify_recruitment(
     }
 
 
-def recover_recruitment(
-    queue: Mapping[str, Any],
-    lease: Mapping[str, Any],
-) -> str:
-    del queue, lease
-    return json.dumps(
-        {
-            "status": "blocked",
-            "flow_id": FLOW_ID,
-            "dispatch": False,
-            "reason": "Recruitment recovery is a safe no-op; use a fresh conduct session",
-            "production_registration": "NOT_REGISTERED",
-            "scheduler_enabled": False,
-        },
-        sort_keys=True,
-    )
-
-
 def register(
     runners: dict[str, Any],
     validators: dict[str, Any],
-    handlers: dict[str, Any],
 ) -> None:
     runners[RUNNER_ID] = run_recruitment
     validators[VALIDATOR_ID] = verify_recruitment
-    handlers[RECOVERY_ID] = recover_recruitment
