@@ -459,13 +459,15 @@ def recognize_surface(
         hot_word = _tree_hot_marker(frame, ocr_reader=ocr_reader)
         tech_line = _tree_hot_label(tree_words, hot_word) if hot_word else None
         tech_slug = _slug(tech_line.text) if tech_line else None
-        target_roi = _union([hot_word.roi, tech_line.roi], pad_x=18, pad_y=12) if hot_word and tech_line else None
+        target_roi = (_union([hot_word.roi] + ([tech_line.roi] if tech_line else []),
+                             pad_x=18, pad_y=12) if hot_word else None)
+        # The unique current HOT widget authorizes navigation only. A clipped
+        # tree label never supplies a guessed identity or donation authority.
+        target_identity = f"alliance-tech:hot:{tech_slug or 'current-selected-node'}" if hot_word else None
         return DonationSurface("TECH_TREE", digest, evidence_ref,
-                               f"alliance-tech:hot:{tech_slug}" if tech_slug else None,
-                               target_roi, tech_line.text.strip() if tech_line else None,
+                               target_identity, target_roi, tech_line.text.strip() if tech_line else None,
                                tech_slug, hot_roi=hot_word.roi if hot_word else None,
                                reason=("current_hot_bound" if target_roi else
-                                       "clipped_hot_requires_reveal" if hot_word and hot_word.roi[3] >= 1150 else
                                        "waiting_for_auto_hot_scroll"))
     if header == "alliance" and _alliance_menu_clear(frame):
         target_roi = _alliance_tech_entry(words)
@@ -658,6 +660,10 @@ def _navigation_action(
         pending["after"] = (captured, surface)
         if surface.state != destination_state:
             return "unknown"
+        if destination_state == "DONATION_PANEL" and (
+                surface.donation is None or not surface.donation.recognized
+                or not surface.donation.auto_hot_marker or not surface.tech_slug):
+            return "unknown"
         if expected_tech_slug is not None and surface.tech_slug != expected_tech_slug:
             return "unknown"
         return destination_state
@@ -693,55 +699,6 @@ def _bind_surface_target(_captured: CapturedNativeFrame, surface: DonationSurfac
     return surface.target_identity, surface.target_roi
 
 
-def _reveal_clipped_hot(context: Any, source: DonationSurface):
-    """One navigation-only upward drag; never select an unidentified clipped node."""
-    pending: dict[str, Any] = {}
-
-    def authorize(before):
-        captured, surface = _capture_surface(context, before)
-        if (surface.state != "TECH_TREE" or surface.reason != "clipped_hot_requires_reveal"
-                or surface.hot_roi != source.hot_roi or surface.hot_roi is None):
-            raise RuntimeError("Alliance donation clipped HOT reveal source changed")
-        tabs = tuple(_normalize(" ".join(word.text for word in _words(captured.frame, roi)))
-                     for roi in ((50, 175, 270, 220), (290, 175, 515, 220), (530, 175, 750, 220)))
-        if tabs != ("economy", "military", "alliance skill"):
-            raise RuntimeError("Alliance donation scrollable tree context is unproven")
-        x0, y0, x1, y1 = surface.hot_roi
-        start = ((x0 + x1) // 2, (y0 + y1) // 2)
-        distance = min(320, (start[1] - 235) // 3)
-        pending.update(digest=captured.sha256, start=start, end=(start[0], start[1] - distance))
-
-    def dispatch(before):
-        if before.sha256 != pending.get("digest"):
-            raise RuntimeError("Alliance donation clipped HOT reveal was not authorized")
-        context.checkpoint()
-        context.validate_identity()
-        key = f"alliance-donation-reveal:{context.occurrence_key}:{before.sha256[:16]}"
-        pending["action_key"] = key
-        context.runtime.swipe(before, start=pending["start"], end=pending["end"],
-                              action_key=key, target_identity="alliance-tech:reveal-current-clipped-hot",
-                              duration_ms=500)
-
-    def recognize(after):
-        captured, surface = _capture_surface(context, after)
-        pending["after"] = (captured, surface)
-        return ("TECH_TREE" if surface.state == "TECH_TREE" and surface.target_roi is not None
-                and surface.tech_slug is not None else "unknown")
-
-    def settled():
-        time.sleep(max(0.0, float(context.settle_seconds)))
-        context.checkpoint()
-        return context.runtime.capture("alliance-donation-reveal-hot-settled")
-
-    outcome = context.session.run_action(
-        action_class="navigation", label="alliance-donation-reveal-clipped-hot",
-        capture=context.runtime.capture, authorize=authorize, dispatch=dispatch,
-        recognize=recognize, settled_successor=settled, consequence_class="navigation_only")
-    post = pending.get("after")
-    if pending.get("action_key") and post is not None and callable(getattr(context.runtime, "reconcile", None)):
-        context.runtime.reconcile(pending["action_key"], "confirmed" if outcome.status == "completed" else "unresolved",
-                                  post[0], outcome.reason)
-    return post if outcome.status == "completed" else None
 
 
 def _back_action(context: Any, surface: DonationSurface) -> tuple[CapturedNativeFrame, DonationSurface] | None:
@@ -1095,27 +1052,14 @@ def run_alliance_donation(context: Any, arguments: Mapping[str, object]) -> Mapp
         current = menu
 
         hot_deadline = float(context.monotonic_clock()) + MAX_AUTO_HOT_WAIT_SECONDS
-        reveal_attempted = False
         while current is not None and current[1].state == "TECH_TREE" and current[1].target_roi is None:
-            if current[1].reason == "clipped_hot_requires_reveal":
-                if reveal_attempted:
-                    result["reason"] = "alliance_donation_clipped_hot_identity_unproven"
-                    return _finish(context, result, current, committed_this_run)
-                reveal_attempted = True
-                revealed = _reveal_clipped_hot(context, current[1])
-                if revealed is None:
-                    result["reason"] = "alliance_donation_hot_reveal_successor_unproven"
-                    current = _capture(context, "alliance-donation-after-hot-reveal")
-                    return _finish(context, result, current, committed_this_run)
-                current = revealed
-                continue
             if float(context.monotonic_clock()) >= hot_deadline:
                 result["reason"] = "alliance_donation_auto_hot_marker_not_visible"
                 return _finish(context, result, current, committed_this_run)
             context.checkpoint()
             time.sleep(min(0.5, max(0.05, float(context.settle_seconds))))
             current = _capture(context, "alliance-donation-wait-auto-hot")
-        if current is None or current[1].state != "TECH_TREE" or current[1].target_roi is None or current[1].tech_slug is None:
+        if current is None or current[1].state != "TECH_TREE" or current[1].target_roi is None:
             result["reason"] = "alliance_donation_auto_hot_tree_unrecognized"
             return _finish(context, result, current, committed_this_run)
         tree_slug = current[1].tech_slug
