@@ -15,19 +15,24 @@ Current owner direction and planning live in [tracker #53](https://github.com/ma
   missing exact offer/in-shop Owned evidence; the one bounded Rare Earth selector
   reveal did not prove that tab's successor. Both per-tab results were retained.
   The route is implemented but purchase acceptance remains `evidence_required`.
-- **Latest #73 native visit:** the current affordable allowlisted Weekly Bioenhance
-  Scheme now reaches its actual quantity dialog: three accounted navigation inputs,
-  zero inner Buy/effects. The retained dialog shows quantity one and Total 80,000;
-  these are examples, not policy constants. Strict dialog recognition and route-owned
-  modal dismissal need repair. Terminal Home was not verified; the current retained
-  context is this unpurchased dialog, not a reason to cold restart the game.
-- **Other concrete repairs:** #77 reached the current HOT donation panel but sent zero
-  donations; panel identity and resource evidence remain unproven. #70's request/result
-  validator mix-up is repaired, but zoomed-Home entry and terminal normalization are
-  being corrected to use real session accounting, not a permissive fake counter.
-  Ruins wallet recognition must exclude currency artwork and clipped digits before
-  the next #69 native visit. No further gameplay effect is inferred from navigation.
-- **Remaining scenarios:** #69/#56 and #77/#73/#72 still need qualifying effects;
+- **Latest #73 native visit:** source `ffbc99f` dispatched exactly one ordinary Weekly
+  Bioenhance Scheme Buy: Owned 29 to 30, stock 5 to 4, Alliance Coins 1464257 to
+  1384257 (80000 debit). These are historical observations, not runtime constants.
+  Terminal return reached Alliance Menu but hit a duplicate navigation identity.
+  Runtime/session totals were both eight; the boundary reported accounting unverified.
+  Core action `b93d1fe8da73cfef9f89badf72993417cd5f40d2213ad44cc568540c9f3e4181`
+  remains unresolved after postcondition observation failure. **Do not buy again.**
+  Current context is Alliance Menu. Next is exact retained-effect inspection, one
+  bounded known-menu Home recovery and audited reconciliation, not clearing counters,
+  cold restarting or relabelling the original failed canary accepted.
+- **Other concrete repairs:** #77's actual HOT modal now recognizes offline, but exact
+  ordinary-resource balance/debit evidence remains absent (abbreviated Home HUD,
+  blurred modal). It must not donate on guessed balances. #70's real-session zoom
+  accounting repair passed 43 focused checks and Ruff; its native qualification remains
+  open. Ruins wallet/header repair `5bd88fc` passed 47 focused/Home checks and a direct
+  actual-pixel observer smoke; no new #69 challenge or chest is inferred.
+- **Remaining scenarios:** #69/#56 and #77/#72 still need qualifying effects;
+  #73 needs reconciliation and later finished-route acceptance without replaying today's Buy.
   #70/#71, #75/#76/#78 and #95/#96/#67 still need finished-route native qualification.
   Prior manual Duel/Farm/Hall effects and restart-invalidated preset state remain
   reconciliation inputs, not permission to repeat effects. #74 uses baseline/final
