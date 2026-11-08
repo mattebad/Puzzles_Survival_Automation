@@ -616,6 +616,8 @@ def _merge_top_and_scrolled_resource_rows(
     top_pairs: Sequence[tuple[int, int]],
     scrolled_pairs: Sequence[tuple[int, int]],
 ) -> tuple[ResearchResourceRow, ...]:
+    if len(scrolled_pairs) == len(RESEARCH_RESOURCES):
+        return _resource_rows_from_pairs(scrolled_pairs)
     if len(top_pairs) == len(RESEARCH_RESOURCES):
         return _resource_rows_from_pairs(top_pairs)
     if (
@@ -663,6 +665,10 @@ def recognize_research_screen(
         line for line in _phrase_lines(lines, "Research Center")
         if _line_bounds(line)[1] < 180
     )
+    categories = [
+        line for line in lines
+        if _line_bounds(line)[3] < 90 and _normalize(_line_text(line)) in _RESEARCH_TREE_CATEGORIES
+    ]
     recommendation_lines = tuple(
         line for line in lines
         if "recomd" in _normalize(_line_text(line)) or "recommended" in _normalize(_line_text(line))
@@ -816,8 +822,12 @@ def recognize_research_screen(
             and detail_button_roi is not None
         )
         scrolled_detail = bool(
-            expected_detail_identity is not None
-            and selected_identity == expected_detail_identity
+            selected_identity is not None
+            and (
+                selected_identity == expected_detail_identity
+                if expected_detail_identity is not None
+                else len(categories) == 1 and len(pairs) == len(RESEARCH_RESOURCES)
+            )
             and now_bounds is not None
             and detail_button_roi is not None
             and len(pairs) >= 2
@@ -888,10 +898,6 @@ def recognize_research_screen(
         and not time_original_lines
         and not research_now_lines
     ):
-        categories = [
-            line for line in lines
-            if _line_bounds(line)[3] < 90 and _normalize(_line_text(line)) in _RESEARCH_TREE_CATEGORIES
-        ]
         if len(categories) == 1:
             return ResearchScreenObservation(
                 screen_state=TREE_SCREEN,
