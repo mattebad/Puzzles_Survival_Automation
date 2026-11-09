@@ -600,6 +600,60 @@ class ResourceItemAuthorizationTests(unittest.TestCase):
         with self.assertRaises(authorization.ResourceAuthorizationWindowError):
             window.require_current(datetime(2026, 8, 20, 10, 0, 1))
 
+    def test_last_item_zero_requires_attributable_consumption_of_the_pre_use_card(self):
+        card_roi = (70, 440, 730, 620)
+        before = resource_route.ResourceItemRecognition(
+            resource_route.RESOURCE_ITEM_STATE,
+            True,
+            target_identity=resource_route.ITEM_TARGET_IDENTITY,
+            target_roi=card_roi,
+            item_name="1K Food",
+            owned_quantity=1,
+            inventory_quantity=1,
+            quantity=1,
+        )
+        consumed = resource_route.ResourceItemRecognition(
+            resource_route.LAST_ITEM_CONSUMED_STATE,
+            True,
+            target_identity=resource_route.ITEM_TARGET_IDENTITY,
+            item_name="1K Food",
+            owned_quantity=0,
+            inventory_quantity=0,
+            quantity=1,
+            visual_evidence={
+                "last_item_consumed": True,
+                "consumed_item_card": {"proven": True},
+                "consumed_item_card_bounds": list(card_roi),
+            },
+        )
+        self.assertTrue(authorization._same_item_successor_proven(before, consumed, 0))
+        disappeared = resource_route.ResourceItemRecognition(
+            resource_route.RESOURCE_ITEM_STATE,
+            False,
+            item_name="1K Food",
+            owned_quantity=0,
+            inventory_quantity=0,
+            visual_evidence={},
+        )
+        unattributed = replace(
+            consumed,
+            visual_evidence={"last_item_consumed": True, "consumed_item_card_bounds": list(card_roi)},
+        )
+        other_card = replace(
+            consumed,
+            visual_evidence={**consumed.visual_evidence, "consumed_item_card_bounds": [70, 640, 730, 820]},
+        )
+        for label, candidate_before, after in (
+            ("arbitrary_disappearance", before, disappeared),
+            ("unproven_consumed_card", before, unattributed),
+            ("different_card", before, other_card),
+            ("not_last_item", replace(before, owned_quantity=2, inventory_quantity=2), consumed),
+        ):
+            with self.subTest(label=label):
+                self.assertFalse(
+                    authorization._same_item_successor_proven(candidate_before, after, 0)
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

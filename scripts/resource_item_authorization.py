@@ -18,10 +18,13 @@ import numpy as np
 
 from scripts.bluestacks_native_runtime import CapturedNativeFrame, LocalBlueStacksRuntime, NativeBox
 from scripts.daily_resource_item_bluestacks import (
+    ITEM_TARGET_IDENTITY,
     ITEM_USE_ACTION_KEY,
+    LAST_ITEM_CONSUMED_STATE,
     USE_TARGET_IDENTITY,
     _recognize_home,
     _resource_delta_verified,
+    recognize_food_item_after_use,
     recognize_food_item_in_resources,
     resource_item_authorizeable,
 )
@@ -986,6 +989,35 @@ def _as_int(value: object) -> int | None:
     return value if type(value) is int else None
 
 
+def _same_item_successor_proven(before: Any, after: Any, after_count: int | None) -> bool:
+    """Bind the after-Use observation to the item identified before the Use.
+
+    A still-visible card must be the proven 1K Food card. The last-item 1->0
+    branch has no visible card; it is accepted only from the native attributable
+    consumption successor that carries the pre-Use card identity, never from an
+    item that merely disappeared.
+    """
+    visual = after.visual_evidence if isinstance(after.visual_evidence, Mapping) else {}
+    if after.state != LAST_ITEM_CONSUMED_STATE:
+        card = visual.get("item_card")
+        return isinstance(card, Mapping) and card.get("proven") is True
+    consumed = visual.get("consumed_item_card")
+    before_count = _as_int(
+        before.inventory_quantity if before.inventory_quantity is not None else before.owned_quantity
+    )
+    return bool(
+        after.recognized is True
+        and before_count == 1
+        and after_count == 0
+        and "item_card" not in visual
+        and visual.get("last_item_consumed") is True
+        and isinstance(consumed, Mapping)
+        and consumed.get("proven") is True
+        and before.target_roi is not None
+        and tuple(visual.get("consumed_item_card_bounds") or ()) == tuple(before.target_roi)
+    )
+
+
 def semantic_from_result(result: Mapping[str, Any]) -> dict[str, Any]:
     semantic = result.get("semantic_evidence")
     if isinstance(semantic, Mapping) and semantic:
@@ -1137,17 +1169,14 @@ def reconcile_resource_route(
         _, after_image = after_loaded
         try:
             before_item = recognize_food_item_in_resources(before_image)
-            after_item = recognize_food_item_in_resources(after_image)
+            after_item = recognize_food_item_after_use(after_image, before=before_item)
             before_count = _as_int(before_item.inventory_quantity if before_item.inventory_quantity is not None else before_item.owned_quantity)
             after_count = _as_int(after_item.inventory_quantity if after_item.inventory_quantity is not None else after_item.owned_quantity)
-            after_visual = after_item.visual_evidence if isinstance(after_item.visual_evidence, Mapping) else {}
-            after_card = after_visual.get("item_card")
             confirmed = bool(
                 resource_item_authorizeable(before_item)
                 and after_item.item_name == "1K Food"
-                and after_item.target_identity == "daily-resource-item:1k-food"
-                and isinstance(after_card, Mapping)
-                and after_card.get("proven") is True
+                and after_item.target_identity == ITEM_TARGET_IDENTITY
+                and _same_item_successor_proven(before_item, after_item, after_count)
                 and after_count is not None
                 and before_count == _as_int(semantic.get("before_owned_quantity"))
                 and after_count == _as_int(semantic.get("after_owned_quantity"))

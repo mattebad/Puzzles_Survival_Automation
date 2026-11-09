@@ -104,8 +104,9 @@
       "planner": "scripts/daily_row_claim_bluestacks.py",
       "permitted_input": null,
       "postconditions": [
-        "current aggregate Claim is absent or not actionable",
+        "current aggregate Claim is absent, not actionable, or blocked by residual/ambiguous ordinary Claim controls",
         "no Claim input is dispatched",
+        "residual or ambiguous ordinary Claim controls block only the aggregate Claim and never suppress independently ready chests",
         "continue to inspect current ready milestone chests"
       ],
       "terminal_outcomes": [
@@ -225,7 +226,8 @@
       "permitted_input": null,
       "postconditions": [
         "no individually glowing current ready free chest remains actionable",
-        "no locked or static chest is treated as a successor or action target"
+        "no locked or static chest is treated as a successor or action target",
+        "no all-chests-static closure, complete ordinary zero-Claim scan, or points threshold is required before Home return"
       ],
       "terminal_outcomes": [
         "action_performed",
@@ -335,7 +337,10 @@
     "one route pass is bound to the current reset identity",
     "aggregate ordinary Claim is dispatched at most once for the exact current ready batch in this pass",
     "a distinct later ready batch may be claimed on a later pass in the same reset",
-    "no objective-row inventory, per-objective attribution, or 150-point minimum is required",
+    "no objective-row inventory, per-objective attribution, D02 dependency, positive-points gate, or 150-point minimum is required",
+    "independently glowing ready chests are collected whether or not an aggregate Claim was actionable; residual ordinary Claim controls never suppress them",
+    "no complete ordinary zero-Claim scan or all-chests-static proof is required before chest collection or Home return",
+    "a sent aggregate Claim with an UNKNOWN successor stops through effect reconciliation before any chest input",
     "each individually ready chest is dispatched once per chest identity and reset only after exact current-frame binding",
     "each chest requires its same-chest ready-to-claimed/opened/removed successor",
     "canonical Home is positively recognized before terminal completion"
@@ -355,7 +360,7 @@
     "blocked",
     "manual_required"
   ],
-  "cooldown_deferred_behavior": "If the aggregate Claim is absent or not actionable, dispatch none and still inspect ready chests; if no ready chest remains, defer without input. Unknown, stale, clipped, non-free, contradictory, or ambiguous batch/chest state blocks without dispatch.",
+  "cooldown_deferred_behavior": "If the aggregate Claim is absent, not actionable, or blocked by residual or ambiguous ordinary Claim controls, dispatch no Claim and still inspect ready chests; residual ordinary controls never suppress an independently glowing ready chest. If no ready chest remains, defer without input. Unknown, stale, clipped, non-free, contradictory, or ambiguous batch state blocks only the aggregate Claim; the same conditions on a chest block that chest without dispatch.",
   "bounded_recovery_behavior": "A dispatch-bearing unknown aggregate or chest successor becomes effect_reconciliation_required, vetoes completion, and denies identical retry. Observe only for reconciliation. Return to canonical Home only after all dispatched aggregate/chest effects are semantically verified and every current ready chest has been resolved.",
   "evidence_requirements": [
     "current native Home-to-Quest-to-selected-Daily route recognition",
@@ -563,11 +568,11 @@
   "registration_state": "disabled",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r21",
-    "product_authority_digest": "8f94146b377ca6475291d9a998dddcf595629c82b890b38ca8db62d089d68a98",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r22",
+    "product_authority_digest": "4b92219529520ecd699b3d78b0a34f9efa00db085ee30d86fbf2599ad2cd7f3a",
     "product_record_id": "aggregate_daily_claim",
-    "product_record_revision": "aggregate_daily_claim-v2",
-    "product_record_digest": "8bb66915374705f2ce436906e14db9d1986ae0133729e525fc6d8cfbd7e7ba33",
+    "product_record_revision": "aggregate_daily_claim-v3",
+    "product_record_digest": "f4fac4fdfe98e820343909ac559d28328148a49f1b72a8423455168db0b21643",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",

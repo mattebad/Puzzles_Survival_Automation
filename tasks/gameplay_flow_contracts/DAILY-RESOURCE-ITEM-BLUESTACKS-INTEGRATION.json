@@ -104,7 +104,9 @@
       "planner": "scripts/daily_resource_item_bluestacks.py",
       "permitted_input": null,
       "postconditions": [
-        "owned 1K Food decrement of one"
+        "owned 1K Food decrement of one",
+        "the consumed item is the 1K Food card bound by the pre-Use observation",
+        "a last-item 1-to-0 decrement is verified only from the attributable consumed-last-item successor of that bound card, never from arbitrary disappearance"
       ],
       "terminal_outcomes": [
         "action_performed",
@@ -153,7 +155,8 @@
     "exact quantity one is bound",
     "the 1K Food anchor, owned count, quantity-one evidence, and exactly one Use ROI are fully inside one measured current-frame Resources card",
     "exactly one daily-resource-item:use-1k-food event is dispatched",
-    "owned 1K Food count decreases by exactly one",
+    "owned 1K Food count decreases by exactly one, including the last item from one to zero",
+    "a one-to-zero result is attributed to the pre-Use-bound card through the consumed-last-item successor; unattributed disappearance is not consumption",
     "verified Home is the terminal state"
   ],
   "consequential_action_class": "owned_item_non_idempotent",
@@ -176,7 +179,8 @@
   "evidence_requirements": [
     "fresh native verified Home source",
     "current-frame measured Resources card fully containing the exact 1K Food anchor, explicit owned count, quantity-one evidence, and exactly one Use ROI",
-    "immediate-post exact owned-count decrement of one",
+    "immediate-post exact owned-count decrement of one bound to the pre-Use item identity",
+    "for the last item, an immediate-post attributable consumed-last-item successor of the pre-Use-bound card proving owned count zero",
     "verified Home terminal evidence"
   ],
   "evidence_gates": [
@@ -278,11 +282,11 @@
   "registration_state": "disabled",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r21",
-    "product_authority_digest": "8f94146b377ca6475291d9a998dddcf595629c82b890b38ca8db62d089d68a98",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r22",
+    "product_authority_digest": "4b92219529520ecd699b3d78b0a34f9efa00db085ee30d86fbf2599ad2cd7f3a",
     "product_record_id": "use_resource_item",
-    "product_record_revision": "use_resource_item-v2",
-    "product_record_digest": "a51835d61c2df201fa748b7cd79b61534fabbf09bc83edc90a7053a7f1cb0ea3",
+    "product_record_revision": "use_resource_item-v3",
+    "product_record_digest": "c7e1811fb7cb2690e3c8e2cb4ac3e43f8e0254bd1312b5ae367abf898aa9b95c",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",

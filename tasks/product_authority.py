@@ -21,7 +21,7 @@ DEFAULT_AUTHORITY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.jso
 DEFAULT_POLICY_PATH = DEFAULT_AUTHORITY_PATH
 AUTHORITY_SCHEMA_VERSION = 2
 AUTHORITY_REGISTRY_KIND = "flow_delivery_product_policy"
-AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r21"
+AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r22"
 PRODUCT_AUTHORITY_SCHEMA_VERSION = AUTHORITY_SCHEMA_VERSION
 PRODUCT_AUTHORITY_REVISION = AUTHORITY_REVISION
 PRODUCT_RECORDS_FIELD = "product_records"
@@ -482,6 +482,15 @@ def _validate_resource_record(record: Mapping[str, Any]) -> None:
         raise ProductAuthorityError(
             "resource record must not require Food-balance OCR"
         )
+    if (
+        effect.get("last_item_one_to_zero_included") is not True
+        or effect.get("consumed_item_identity_bound_to_pre_use_observation") is not True
+        or effect.get("zero_after_requires_attributable_last_item_consumption_successor")
+        is not True
+    ):
+        raise ProductAuthorityError(
+            "resource record must include the attributable last-item 1-to-0 decrement"
+        )
     if record["terminal_requirement"].get("return_required") is not True:
         raise ProductAuthorityError(
             "resource record must require a canonical Home return"
@@ -491,6 +500,10 @@ def _validate_resource_record(record: Mapping[str, Any]) -> None:
     if "daily navigation" not in forbidden_lower or "selected-daily" not in forbidden_lower:
         raise ProductAuthorityError(
             "resource record must forbid Daily navigation and selected-Daily prerequisites"
+        )
+    if "unattributed item disappearance" not in forbidden_lower:
+        raise ProductAuthorityError(
+            "resource record must forbid unattributed item disappearance as consumption"
         )
 
 
@@ -674,6 +687,18 @@ def _validate_aggregate_daily_claim_record(record: Mapping[str, Any]) -> None:
         raise ProductAuthorityError(
             "aggregate Daily Claim requires batch-scoped dispatch and the optional-points action success trigger"
         )
+    if (
+        effect.get("ready_chests_independent_of_aggregate_claim_and_residual_ordinary_controls")
+        is not True
+        or effect.get("complete_zero_claim_control_scan_required") is not False
+        or effect.get("all_chests_static_closure_required") is not False
+        or effect.get("points_threshold_required") is not False
+        or effect.get("d02_prerequisite") is not False
+        or effect.get("sent_unknown_aggregate_claim_retains_runtime_stop") is not True
+    ):
+        raise ProductAuthorityError(
+            "aggregate Daily Claim must keep ready chests independent of residual ordinary controls without scan, static-closure, points, or D02 gates"
+        )
     ownership = record["daily_ownership"]
     if (
         ownership.get("daily_owner") != "aggregate_daily_claim"
@@ -697,6 +722,9 @@ def _validate_aggregate_daily_claim_record(record: Mapping[str, Any]) -> None:
         "150-point threshold prerequisite",
         "Daily objective-row inventory",
         "per-objective Daily attribution",
+        "D02 prerequisite",
+        "complete zero-Claim scan prerequisite",
+        "all-chests-static closure prerequisite",
     ):
         if marker.casefold() not in forbidden_lower:
             raise ProductAuthorityError(

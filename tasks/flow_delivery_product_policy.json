@@ -548,14 +548,14 @@
       "policy_id": "aggregate-daily-claim",
       "scope": "daily_claim.selected_daily",
       "status": "supervised_consequential_validation",
-      "decision": "On the selected Daily surface, dispatch the aggregate ordinary free Claim at most once for the exact current ready-batch identity in each route pass; a later distinct ready batch remains eligible during the same reset. Verify positive current points and exhaustion of the aggregate Claim control, without scanning objective rows, attributing objectives to routes, or requiring a 150-point threshold.",
+      "decision": "On the selected Daily surface, dispatch the aggregate ordinary free Claim at most once for the exact current ready-batch identity in each route pass; a later distinct ready batch remains eligible during the same reset. The exact free aggregate Claim plus source-bound clearing of that batch's ordinary Claim controls establishes success; points are optional diagnostics only. No objective-row scan, objective attribution, D02 dependency, positive-points gate, or 150-point threshold.",
       "source": "execution_matrix"
     },
     {
       "policy_id": "daily-milestone-claim",
       "scope": "daily_claim.milestone",
       "status": "supervised_consequential_validation",
-      "decision": "After the aggregate Claim, collect each individually recognized current ready, fully visible, free milestone chest one at a time. Bind every attempt to its exact chest and reset; require that same chest to transition from ready to claimed, opened, or removed. Points-only change is not chest success; unknown or ambiguous state fails closed.",
+      "decision": "Whether or not an aggregate Claim was actionable, and after any sent aggregate Claim is verified, collect each individually recognized current ready (glowing), fully visible, free milestone chest one at a time. Residual or ambiguous ordinary Claim controls block only the aggregate Claim and never suppress an independently ready chest; no 150-point total, complete zero-Claim scan, or all-chests-static proof is required to collect chests or return Home. Bind every attempt to its exact chest and reset; require that same chest to transition from ready to claimed, opened, or removed. Points-only change is not chest success; unknown chest state or a dispatch-bearing UNKNOWN fails closed without identical retry.",
       "source": "execution_matrix"
     },
     {
@@ -637,7 +637,7 @@
     {"policy_id": "daily-control-cost-boundary", "scope": "global.daily_control_costs", "status": "explicitly_approved", "decision": "Universal Daily control safety boundary: premium/cash purchases, paid or ambiguous controls, refills, 10x controls, and item-backed substitutes are prohibited. Route-approved resource, AP, and stamina effects remain governed by their own R/P ticket and are not globally forbidden.", "prohibited_controls": ["premium_purchase", "cash_purchase", "paid_control", "ambiguous_control", "refill", "10x", "item_backed_substitute"], "premium_allowed": false, "cash_allowed": false, "paid_allowed": false, "ambiguous_allowed": false, "refill_allowed": false, "ten_x_allowed": false, "item_backed_substitute_allowed": false, "unknown_cost_allowed": false, "route_owned_effects_globally_forbidden": false, "route_owner_ticket_required": true, "governing_owner_ticket_families": ["REC-R*", "REC-P*"], "dispatch_authority": null, "source": "REC-D01_explicit_cost_boundary"},
     {"policy_id": "current-positive-completion-postcondition", "scope": "global.completion_semantics", "status": "explicitly_approved", "decision": "Training and march completion require a current positive postcondition. Queue, timer, outbound, return, or other projected state alone never proves completion.", "applies_to": ["training", "march"], "current_positive_postcondition_required": true, "queue_projection_is_completion": false, "timer_projection_is_completion": false, "outbound_projection_is_completion": false, "return_projection_is_completion": false, "dispatch_is_completion": false, "source": "REC-D01_explicit_completion_boundary"}
   ],
-  "authority_revision": "flow-delivery-product-authority-v2-r21",
+  "authority_revision": "flow-delivery-product-authority-v2-r22",
   "product_records": [
     {
       "record_id": "use_resource_item",
@@ -676,7 +676,10 @@
         "effect_ordinal": 1,
         "owned_inventory_delta": -1,
         "resource_delta_is_not_a_substitute": true,
-        "food_balance_ocr_required": false
+        "food_balance_ocr_required": false,
+        "last_item_one_to_zero_included": true,
+        "consumed_item_identity_bound_to_pre_use_observation": true,
+        "zero_after_requires_attributable_last_item_consumption_successor": true
       },
       "forbidden_actions": [
         "Daily navigation",
@@ -686,7 +689,8 @@
         "premium substitution",
         "unknown item",
         "second Use",
-        "real-money confirmation"
+        "real-money confirmation",
+        "unattributed item disappearance as consumption"
       ],
       "terminal_requirement": {
         "home_authority": "HOME_CANONICAL",
@@ -711,8 +715,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "use_resource_item-v2",
-      "record_digest": "a51835d61c2df201fa748b7cd79b61534fabbf09bc83edc90a7053a7f1cb0ea3"
+      "record_revision": "use_resource_item-v3",
+      "record_digest": "c7e1811fb7cb2690e3c8e2cb4ac3e43f8e0254bd1312b5ae367abf898aa9b95c"
     },
     {
       "record_id": "enhancement_family",
@@ -885,7 +889,7 @@
     {
       "record_id": "aggregate_daily_claim",
       "record_type": "aggregate_daily_claim",
-      "purpose": "Claim the current ready Daily reward batch once through its aggregate ordinary free Claim control, then collect each individually ready free milestone chest.",
+      "purpose": "Claim the current ready Daily reward batch at most once per pass through its aggregate ordinary free Claim control, and collect each independently glowing ready free milestone chest whether or not an aggregate Claim was actionable.",
       "recurrence": "daily_reset_scoped",
       "semantic_entry_route": {
         "source_home_authorities": [
@@ -943,7 +947,13 @@
         "points_are_not_a_success_gate_or_ownership_grant": true,
         "objective_identity_not_authorization_input": true,
         "daily_objective_row_inventory_required": false,
-        "dispatch_is_not_success_proof": true
+        "dispatch_is_not_success_proof": true,
+        "ready_chests_independent_of_aggregate_claim_and_residual_ordinary_controls": true,
+        "complete_zero_claim_control_scan_required": false,
+        "all_chests_static_closure_required": false,
+        "points_threshold_required": false,
+        "d02_prerequisite": false,
+        "sent_unknown_aggregate_claim_retains_runtime_stop": true
       },
       "forbidden_actions": [
         "milestone chest Claim",
@@ -957,7 +967,10 @@
         "real-money confirmation",
         "150-point threshold prerequisite",
         "Daily objective-row inventory",
-        "per-objective Daily attribution"
+        "per-objective Daily attribution",
+        "D02 prerequisite",
+        "complete zero-Claim scan prerequisite for ready chests",
+        "all-chests-static closure prerequisite"
       ],
       "terminal_requirement": {
         "home_authority": "HOME_CANONICAL",
@@ -980,8 +993,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "aggregate_daily_claim-v2",
-      "record_digest": "8bb66915374705f2ce436906e14db9d1986ae0133729e525fc6d8cfbd7e7ba33"
+      "record_revision": "aggregate_daily_claim-v3",
+      "record_digest": "f4fac4fdfe98e820343909ac559d28328148a49f1b72a8423455168db0b21643"
     },
     {
       "record_id": "activity_milestone_claim",
@@ -3607,5 +3620,5 @@
       "record_digest": "3ed8f746336bfa3a0544591b42e8cea832ee3a0b10d10dda54cedcf390c57d78"
     }
   ],
-  "authority_digest": "8f94146b377ca6475291d9a998dddcf595629c82b890b38ca8db62d089d68a98"
+  "authority_digest": "4b92219529520ecd699b3d78b0a34f9efa00db085ee30d86fbf2599ad2cd7f3a"
 }

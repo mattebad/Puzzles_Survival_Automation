@@ -1039,7 +1039,7 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(binding["product_record_id"], "aggregate_daily_claim")
         self.assertEqual(
             binding["product_record_revision"],
-            "aggregate_daily_claim-v2",
+            "aggregate_daily_claim-v3",
         )
         self.assertEqual(contract["cost_quantity_requirements"]["maximum_cost"], 0)
         self.assertEqual(contract["cost_quantity_requirements"]["quantity"], 1)

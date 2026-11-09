@@ -258,8 +258,8 @@
   "supervised_live_proof_state": "evidence_required",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r21",
-    "product_authority_digest": "8f94146b377ca6475291d9a998dddcf595629c82b890b38ca8db62d089d68a98",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r22",
+    "product_authority_digest": "4b92219529520ecd699b3d78b0a34f9efa00db085ee30d86fbf2599ad2cd7f3a",
     "product_record_id": "activity_milestone_claim",
     "product_record_revision": "activity_milestone_claim-v2",
     "product_record_digest": "bdb7a90ddc79810f4080a913dc98fd40d3af63645e94c5dcfb38677a90d8c62a",

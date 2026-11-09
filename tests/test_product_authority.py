@@ -123,7 +123,7 @@ class ProductAuthorityTests(unittest.TestCase):
     def test_aggregate_daily_claim_is_batch_scoped_and_the_only_selected_daily_owner(self) -> None:
         record = self.records["aggregate_daily_claim"]
         self.assertEqual(record["record_type"], "aggregate_daily_claim")
-        self.assertEqual(record["record_revision"], "aggregate_daily_claim-v2")
+        self.assertEqual(record["record_revision"], "aggregate_daily_claim-v3")
         self.assertEqual(record["recurrence"], "daily_reset_scoped")
         self.assertEqual(record["semantic_entry_route"]["target"], "DAILY")
         self.assertTrue(record["target"]["selected_daily"])
@@ -142,6 +142,11 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertTrue(effect["points_are_diagnostic_or_corroborative_only"])
         self.assertTrue(effect["points_are_not_a_success_gate_or_ownership_grant"])
         self.assertNotIn("positive_points_delta_required", effect)
+        self.assertTrue(effect["ready_chests_independent_of_aggregate_claim_and_residual_ordinary_controls"])
+        self.assertFalse(effect["complete_zero_claim_control_scan_required"])
+        self.assertFalse(effect["all_chests_static_closure_required"])
+        self.assertFalse(effect["points_threshold_required"])
+        self.assertTrue(effect["sent_unknown_aggregate_claim_retains_runtime_stop"])
         self.assertEqual(
             record["aggregate_success_trigger"],
             {
@@ -1406,6 +1411,24 @@ class ProductAuthorityTests(unittest.TestCase):
                     "positive_points_delta_required", True
                 ),
             ),
+            (
+                "zero_claim_scan_gate",
+                lambda record: record["semantic_effect"].__setitem__(
+                    "complete_zero_claim_control_scan_required", True
+                ),
+            ),
+            (
+                "static_closure_gate",
+                lambda record: record["semantic_effect"].__setitem__(
+                    "all_chests_static_closure_required", True
+                ),
+            ),
+            (
+                "chests_suppressed_by_residual_controls",
+                lambda record: record["semantic_effect"].__setitem__(
+                    "ready_chests_independent_of_aggregate_claim_and_residual_ordinary_controls", False
+                ),
+            ),
         )
         for field, mutate in mutations:
             changed = deepcopy(self.authority)
@@ -1593,7 +1616,7 @@ class ProductAuthorityTests(unittest.TestCase):
 
     def test_resource_semantics_are_direct_owned_one_item(self) -> None:
         record = self.records["use_resource_item"]
-        self.assertEqual(record["record_revision"], "use_resource_item-v2")
+        self.assertEqual(record["record_revision"], "use_resource_item-v3")
         self.assertEqual(record["objective"], "use_resource_item")
         self.assertEqual(
             record["semantic_entry_route"]["source_home_authorities"],
@@ -1609,6 +1632,11 @@ class ProductAuthorityTests(unittest.TestCase):
             -1,
         )
         self.assertFalse(record["semantic_effect"]["food_balance_ocr_required"])
+        self.assertTrue(record["semantic_effect"]["last_item_one_to_zero_included"])
+        self.assertTrue(record["semantic_effect"]["consumed_item_identity_bound_to_pre_use_observation"])
+        self.assertTrue(
+            record["semantic_effect"]["zero_after_requires_attributable_last_item_consumption_successor"]
+        )
         self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
         self.assertIsNone(record["daily_ownership"]["daily_owner"])
         self.assertIsNone(record["daily_ownership"]["point_credit_trigger"])
@@ -1627,6 +1655,13 @@ class ProductAuthorityTests(unittest.TestCase):
         invalid_ocr["record_digest"] = record_digest(invalid_ocr)
         with self.assertRaisesRegex(ProductAuthorityError, "Food-balance OCR"):
             validate_product_record(invalid_ocr)
+        unattributed_zero = deepcopy(record)
+        unattributed_zero["semantic_effect"][
+            "zero_after_requires_attributable_last_item_consumption_successor"
+        ] = False
+        unattributed_zero["record_digest"] = record_digest(unattributed_zero)
+        with self.assertRaisesRegex(ProductAuthorityError, "attributable last-item"):
+            validate_product_record(unattributed_zero)
 
     def test_enhancement_semantics_separate_use_and_confirm(self) -> None:
         record = self.records["enhancement_family"]
