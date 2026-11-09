@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "flow_id": "HALL-OF-WAR-ZOMBIE-ZERO-BLUESTACKS-INTEGRATION",
-  "product_purpose": "Under the current daily reset identity, verify the already Applied Military preset, navigate Hall of War to Zombie Zero, revalidate current availability and explicit zero cost, apply only saved Troop Set 1 with five heroes and full numeric troop capacity, issue at most one dispatch, reconcile its same-reset result, then tap at most once on its own glowing ready reward row and verify the claimed successor.",
+  "product_purpose": "Under the current reset identity, verify or apply saved Military, navigate Hall of War to exact Zombie Zero, revalidate current availability, apply populated saved Troop Set 1 with five heroes and positive troops, dispatch once, reconcile its result, claim its own ready daily reward row once and verify Claimed, then return Home. Fixed zero-resource, zero-loss mechanics require no literal disclosure, full capacity, Sets 2/3 labels or Today Damage zero. The three-effect visit budget includes optional preset switch, dispatch and reward without expanding reset quotas.",
   "trigger_cadence_type": "daily_once",
   "reset_scope": "one_dispatch_and_one_own_reward_row_claim_per_daily_reset_identity",
   "required_starting_context": [
@@ -36,10 +36,10 @@
       "from": "home_canonical",
       "to": "military_preset_verified",
       "planner": "ProductBoundedNativeFlow",
-      "permitted_input": null,
+      "permitted_input": "verify_or_apply_saved_military_preset",
       "postconditions": [
-        "The already Applied saved commander preset is exactly Military.",
-        "Only verify an already applied preset; preset switching is forbidden without route-specific approved cost evidence."
+        "The saved commander preset is exactly Military Applied; reuse valid bound proof when already Applied.",
+        "If needed, apply the exact saved Military row through its authorized consumer at fixed zero cost and no cooldown; acknowledge only an actual recognized free confirmation, then verify Applied."
       ],
       "terminal_outcomes": [
         "blocked",
@@ -90,9 +90,9 @@
       "planner": "ProductBoundedNativeFlow",
       "permitted_input": null,
       "postconditions": [
-        "Current reset identity, attempt ordinal 1, durable attempt-versus-confirmed state, current availability/cooldown, and exact dispatch cost are freshly revalidated.",
+        "Current reset identity, attempt ordinal 1, durable attempt-versus-confirmed state, current availability/cooldown, are freshly revalidated.",
         "Only a positively recognized ready state with unused ordinal 1 may continue; busy or unavailable yields no dispatch and defers, while unknown blocks.",
-        "Dispatch requires exact current explicit zero cost; unknown or nonzero cost blocks, premium/refill is forbidden, and availability/cooldown is never hardcoded."
+        "Exact Zombie Zero is owner-fixed zero-resource and zero-loss; no literal cost/loss disclosure or Today Damage zero gate. Premium/refill remains forbidden and availability/cooldown is not hardcoded."
       ],
       "terminal_outcomes": [
         "deferred",
@@ -110,7 +110,7 @@
       "permitted_input": "select_and_apply_saved_troop_set_one",
       "postconditions": [
         "Proceed only from the freshly revalidated ready state with unused ordinal 1 and no prior attempt; otherwise do not select or apply a formation.",
-        "Select and apply only saved Troop Set 1; positively verify all five heroes and numeric positive current troop capacity with current troops equal to capacity.",
+        "Select and apply only saved Troop Set 1; positively verify five populated heroes and positive numeric current troops; full capacity and readable Sets 2/3 labels are not required.",
         "Quick Select, formation edits, and Troop Set 2/3 are forbidden."
       ],
       "terminal_outcomes": [
@@ -126,7 +126,7 @@
       "planner": "ProductBoundedNativeFlow",
       "permitted_input": "dispatch_one_zombie_zero",
       "postconditions": [
-        "Immediately recheck Military, attempt ordinal/availability, explicitly zero cost, approved known troop-loss effect, and complete saved Troop Set 1.",
+        "Immediately recheck Military, attempt ordinal/availability, the exact fixed zero-resource/zero-loss Zombie Zero action and populated saved Troop Set 1.",
         "Issue at most one dispatch under this daily reset identity; persist attempt before input and do not retry an uncertain dispatch."
       ],
       "terminal_outcomes": [
@@ -244,6 +244,7 @@
     }
   ],
   "permitted_inputs": [
+    "verify_or_apply_saved_military_preset",
     "navigate_to_hall_of_war",
     "open_zombie_zero",
     "select_and_apply_saved_troop_set_one",
@@ -257,7 +258,7 @@
     "maximum_cost": 0,
     "quantity": 1,
     "resource_or_currency": "NO_RESOURCE_OR_CURRENCY_SPEND",
-    "notes": "One dispatch is permitted only with current exact explicit zero cost and an approved known troop-loss effect. Premium/refill is forbidden. The separate own reward claim is one row tap and is not inferred from dispatch."
+    "notes": "One exact Zombie Zero dispatch uses the owner-fixed zero-resource, zero-loss mechanic. No disclosure gates. Premium/refill is forbidden; own reward is one separate row claim. Three visit effects include an optional preset switch without extra reset allowance."
   },
   "completion_identity": "hall-zombie-zero:dispatch-result-and-own-reward-row:daily-reset-identity",
   "terminal_outcomes": [
@@ -269,9 +270,9 @@
     "manual_required"
   ],
   "cooldown_deferred_behavior": "Defer if current attempt state is busy or unavailable, the daily ordinal was already used, or the own reward is unavailable/already claimed; do not hardcode attempt availability or cooldown.",
-  "bounded_recovery_behavior": "Persist attempt before dispatch and confirmed result/claim separately. Revalidate prior canonical attempt/result evidence without redispatch; any ambiguous or unresolved attempt, cost, loss, formation, result, reward row, claimed checkmark, reset identity, or Home blocks/manual-requires and never retries.",
+  "bounded_recovery_behavior": "Persist attempt before dispatch and confirmed result/claim separately. Revalidate prior canonical attempt/result evidence without redispatch; any ambiguous or unresolved attempt, formation, result, reward row, claimed checkmark, reset identity, or Home blocks/manual-requires and never retries.",
   "evidence_requirements": [
-    "Current native source-bound sequence for already Applied Military preset, Hall of War→Zombie Zero identity, current reset/attempt ordinal/state/availability/cooldown, exact explicit zero dispatch cost, approved troop-loss effect, saved Troop Set 1 selected and applied with five heroes and exact full positive current troop capacity, one dispatch, same-reset history/high result, own glowing reward row and one tap, current claimed-row checkmarks, separate durable attempt/confirmed dispatch and claim counts, prior-attempt no-redispatch revalidation, and canonical Home.",
+    "Current native source-bound sequence for verified or applied saved Military preset, Hall of War→Zombie Zero identity, current reset/attempt ordinal/state/availability/cooldown, fixed zero-resource/zero-loss exact action, saved Troop Set 1 selected and applied with five heroes and positive current troops, one dispatch, same-reset history/high result, own glowing reward row and one tap, current claimed-row checkmarks, separate durable attempt/confirmed dispatch and claim counts, prior-attempt no-redispatch revalidation, and canonical Home.",
     "No win requirement or minimum damage threshold is inferred. No native acceptance, capture identifier, or live readiness is asserted."
   ],
   "replay_fixture_requirements": [
@@ -287,18 +288,14 @@
     "unknown reset identity or attempt ordinal",
     "busy or unavailable attempt",
     "unknown/hardcoded attempt availability or cooldown",
-    "unknown or nonzero dispatch cost",
     "premium or refill prompt",
-    "unknown or unapproved troop loss",
-    "Military preset not already applied or unverifiable",
-    "preset switch",
+    "Military Applied state unverifiable or unsupported preset switch",
     "missing or ambiguous Troop Set 1",
     "Quick Select",
     "formation edit",
     "Troop Set 2 or Troop Set 3",
     "fewer than five heroes",
-    "unknown or nonpositive troop capacity",
-    "current troops below or different from capacity",
+    "unknown or nonpositive troop count",
     "uncertain dispatch or unresolved result",
     "unknown same-reset participation",
     "reward row not glowing/ready",
@@ -398,10 +395,10 @@
       "HOME_CANONICAL"
     ],
     "selected_daily_prerequisite": false,
-    "product_authority_revision": "flow-delivery-product-authority-v2-r26",
-    "product_authority_digest": "a7874167f0d4bbbcb7d1ab451df969d3cd1946a29824817f5e9f802379260f50",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r27",
+    "product_authority_digest": "b0b24bb5e184ecf72a614d35db20bbcbde16c1e274aff7d8e418e0f18105df78",
     "product_record_id": "hall_of_war_zombie_zero",
-    "product_record_revision": "hall_of_war_zombie_zero-v1",
-    "product_record_digest": "09d9a89d729a75866ab432f353218b5cc2edcbfdcf6642fb72053ec90ea67fd1"
+    "product_record_revision": "hall_of_war_zombie_zero-v2",
+    "product_record_digest": "05d88d0cf184c00c321f93f6327f370cb22cf61ce891ed460948746e104240a0"
   }
 }

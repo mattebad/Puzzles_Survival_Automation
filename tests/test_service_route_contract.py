@@ -312,7 +312,7 @@ class BorrowedOwnerTests(unittest.TestCase):
                                 ALLIANCE_DONATION_FLOW_ID: 10, ALLIANCE_SHOP_FLOW_ID: 1,
                                 DAILY_SHOPS_FLOW_ID: 2, NANO_MATERIAL_PRODUCTION_FLOW_ID: 2,
                                 NANOWEAPON_FLOW_ID: 4,
-                                HALL_OF_WAR_FLOW_ID: 2, TROOP_TRAINING_FLOW_ID: 12,
+                                HALL_OF_WAR_FLOW_ID: 3, TROOP_TRAINING_FLOW_ID: 12,
                                 WALI_UPGRADE_FLOW_ID: 6,
                             }
                             self.assertEqual(run.max_actions, action_budgets[flow_id])
@@ -1625,7 +1625,7 @@ class BatchFSemanticContractTests(unittest.TestCase):
                     result["troop_set_one"]["current_troops"],
                     result["troop_set_one"]["troop_capacity"],
                 ),
-                (5, 160_200, 160_200),
+                (5, 160_200, None),
             )
             self.assertEqual(result["reward_result_frame"]["frame_sha256"], "c" * 64)
             self.assertTrue(result["terminal_home_verified"])
@@ -1688,6 +1688,33 @@ class BatchFSemanticContractTests(unittest.TestCase):
             self.assertFalse(result["effect_reconciliation_required"])
             self.assertFalse(result["identical_retry_denied"])
 
+    def test_hall_optional_preset_switch_preserves_single_dispatch_and_reward_across_restart(self):
+        from automation_service.hall_of_war import _counts
+
+        with RouteRig(self, ROUTES[HALL_OF_WAR_FLOW_ID]) as rig:
+            rig.runner.hall_mode = "switched"
+            rig.runner.input_count = 20
+            report, = rig.once()
+            run, = rig.runs()
+            result = rig.runner.last_result
+            self.assertEqual(report["status"], "completed")
+            self.assertEqual(run.max_actions, 3)
+            self.assertEqual((run.consumed_inputs, run.consumed_actions), (20, 3))
+            self.assertEqual(_counts(result), (1, 1, 1, 3, 3))
+            self.assertEqual(result["military_preset_verification"]["status"], "switched")
+            self.assertEqual((rig.runner.actions, rig.runner.effects), (3, 3))
+            for field in (
+                "dispatch_transport_calls", "reward_claim_transport_calls",
+                "talent_switch_transport_calls",
+            ):
+                with self.subTest(field=field), self.assertRaises(ValueError):
+                    _counts({**result, field: 2, "hall_of_war_dispatch_count": 4})
+            inputs = list(rig.runner.inputs)
+            with BotStateManager(rig.path) as restarted:
+                self.assertEqual(rig.once(state=restarted), [])
+            self.assertEqual(len(rig.runner.calls), 1)
+            self.assertEqual(rig.runner.inputs, inputs)
+
     def test_training_resource_and_timer_transitions_match_native_actions(self):
         with RouteRig(self, ROUTES[TROOP_TRAINING_FLOW_ID]) as rig:
             report, = rig.once()
@@ -1738,6 +1765,10 @@ class BatchFSemanticContractTests(unittest.TestCase):
                         row["expected_completion_timestamp"].replace("Z", "+00:00"),
                     ).timestamp()
                     self.assertGreater(completion, rig.stop.now)
+                    dispatched = datetime.fromisoformat(row["dispatch_timestamp"])
+                    self.assertEqual(dispatched.tzinfo, timezone.utc)
+                    self.assertEqual(dispatched.timestamp(), rig.stop.now)
+                    self.assertEqual(completion, dispatched.timestamp() + 3_600)
                     resolved = result["resolved_config"][row["troop_type"]]
                     self.assertEqual(resolved["per_reset_variant_start_count"], 1)
                     self.assertEqual(
@@ -1796,6 +1827,7 @@ class BatchFSemanticContractTests(unittest.TestCase):
                 )
                 self.assertEqual(result["resource_box_approvals"], [])
                 self.assertEqual(result["warehouse_approvals"], [])
+                self.assertEqual(result["completed_claims"], [])
                 self.assertEqual(result["training"][0]["queue_state"], "empty")
                 self.assertEqual(result["training"][0]["status"], "deferred_resource_shortage")
                 self.assertFalse(result["effect_reconciliation_required"])
@@ -1807,6 +1839,9 @@ class BatchFSemanticContractTests(unittest.TestCase):
             first, = rig.runs()
             due = rig.state.get_flow(TROOP_TRAINING_FLOW_ID).next_due_at_utc
             first_inputs = list(rig.runner.inputs)
+            prior_quantities = {
+                row["troop_type"]: row["quantity"] for row in rig.runner.last_result["training"]
+            }
             self.assertEqual(report["status"], "completed")
             with BotStateManager(rig.path) as restarted:
                 self.assertEqual(rig.once(state=restarted), [])
@@ -1815,6 +1850,7 @@ class BatchFSemanticContractTests(unittest.TestCase):
 
             rig.stop.now = due
             rig.runner.input_count = 0
+            rig.runner.current_maximum_delta = 137
             with BotStateManager(rig.path) as restarted:
                 second_report, = rig.once(state=restarted)
             second, = rig.runs()[1:]
@@ -1830,6 +1866,18 @@ class BatchFSemanticContractTests(unittest.TestCase):
             )
             self.assertEqual(len(result["training"]), 4)
             self.assertTrue(all(row["queue_state"] == "active" for row in result["training"]))
+            for row in result["training"]:
+                troop = row["troop_type"]
+                self.assertEqual(row["quantity"], prior_quantities[troop])
+                self.assertEqual(row["queue_quantity"], prior_quantities[troop])
+                self.assertEqual(row["authorized_batch_quantity"], prior_quantities[troop])
+                self.assertEqual(
+                    result["resolved_config"][troop]["resolved_quantity"],
+                    prior_quantities[troop],
+                )
+                self.assertNotIn("dispatch_timestamp", row)
+                if row["quantity_mode"] == "current_max":
+                    self.assertNotEqual(row["quantity_maximum"], row["quantity"])
             self.assertTrue(all(
                 datetime.fromisoformat(row["expected_completion_timestamp"].replace("Z", "+00:00"))
                 > datetime.fromtimestamp(due, timezone.utc)

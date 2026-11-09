@@ -3122,7 +3122,7 @@ def _hall_of_war_native_result(identity, stop, input_count: int, *, mode: str):
             "applied_toast_verified": True,
             "hero_count": 5,
             "current_troops": 160_200,
-            "troop_capacity": 160_200,
+            "troop_capacity": None,
             "source_frame_sha256": "b" * 64,
         },
         "challenge_attempt_state": "ready",
@@ -3155,7 +3155,18 @@ def _hall_of_war_native_result(identity, stop, input_count: int, *, mode: str):
             "return-home",
         ],
     }
-    if mode == "unresolved_dispatch":
+    if mode == "switched":
+        result["military_preset_verification"].update(
+            status="switched",
+            switch_transport_attempted=True,
+            switch_action_key="commander-talent-switch:military:offline-hall-of-war",
+        )
+        result.update(
+            talent_switch_transport_calls=1,
+            hall_of_war_dispatch_count=3,
+            committed_action_count=3,
+        )
+    elif mode == "unresolved_dispatch":
         result.update(
             status="unresolved",
             reason="dispatch_effect_unresolved",
@@ -3410,7 +3421,7 @@ def _troop_training_native_result(identity, stop, input_count: int, *, mode: str
     if mode == "unresolved":
         result.update(
             status="unresolved",
-            reason="training start successor unknown after a confirmed resource-effect prefix",
+            reason="training start successor unknown after a confirmed training-start prefix",
             training=training_rows[:1],
             training_dispatch_count=2,
             training_start_transport_calls=2,
@@ -3439,7 +3450,7 @@ def _troop_training_native_result(identity, stop, input_count: int, *, mode: str
     elif mode == "box_deferred":
         result.update(
             status="deferred",
-            reason="exact resource-box identity/effect proof unavailable; continuation deferred",
+            reason="evidence_required: exact resource-box identity/effect proof unavailable; continuation deferred",
             training=[{
                 "troop_type": "fighter",
                 "queue_state": "empty",
@@ -3481,6 +3492,28 @@ def _troop_training_result_builder(identity, stop, input_count, *, explicit_part
     result = _troop_training_native_result(identity, stop, input_count, mode=mode)
     if mode == "completed":
         owner.completed_resets.add(identity.reset_id)
+        owner.prior_batches[identity.reset_id] = {
+            row["troop_type"]: dict(row) for row in result["training"]
+        }
+    elif mode == "occupied":
+        prior = owner.prior_batches.get(identity.reset_id, {})
+        for row in result["training"]:
+            troop_type = row["troop_type"]
+            batch = prior.get(troop_type)
+            if batch is None:
+                continue
+            row.update(
+                quantity=batch["quantity"],
+                queue_quantity=batch["quantity"],
+                authorized_batch_quantity=batch["quantity"],
+                quantity_maximum=row["quantity_maximum"] + owner.current_maximum_delta,
+                completion_policy="read_only_existing_queue",
+                resources_before=batch["resources_after"],
+                resources_after=batch["resources_after"],
+            )
+            row.pop("dispatch_timestamp", None)
+            row.pop("maximum_equality_proven", None)
+            result["resolved_config"][troop_type]["resolved_quantity"] = batch["quantity"]
     return result
 
 
@@ -3516,6 +3549,8 @@ class GuardedTroopTrainingRunner(_GuardedEAdapterRunner):
         )
         self.training_mode = "completed"
         self.completed_resets = set()
+        self.prior_batches = {}
+        self.current_maximum_delta = 0
 
 
 def _wali_observation(game_day_id, *, level, cap, confirmed, balance, phase):

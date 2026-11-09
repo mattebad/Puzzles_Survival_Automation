@@ -21,7 +21,7 @@ DEFAULT_AUTHORITY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.jso
 DEFAULT_POLICY_PATH = DEFAULT_AUTHORITY_PATH
 AUTHORITY_SCHEMA_VERSION = 2
 AUTHORITY_REGISTRY_KIND = "flow_delivery_product_policy"
-AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r26"
+AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r27"
 PRODUCT_AUTHORITY_SCHEMA_VERSION = AUTHORITY_SCHEMA_VERSION
 PRODUCT_AUTHORITY_REVISION = AUTHORITY_REVISION
 PRODUCT_RECORDS_FIELD = "product_records"
@@ -1163,8 +1163,8 @@ def _validate_troop_training_record(record: Mapping[str, Any]) -> None:
         raise ProductAuthorityError(
             "Troop Training recurrence must be queue_slot_and_daily_reset"
         )
-    if record.get("record_revision") != "troop_training-v3":
-        raise ProductAuthorityError("Troop Training record revision must be troop_training-v3")
+    if record.get("record_revision") != "troop_training-v4":
+        raise ProductAuthorityError("Troop Training record revision must be troop_training-v4")
     route = record["semantic_entry_route"]
     if route.get("source_home_authorities") != ["HOME_CANONICAL"] or route.get(
         "route"
@@ -1225,7 +1225,7 @@ def _validate_troop_training_record(record: Mapping[str, Any]) -> None:
         "policy_id": "commander-talent-preset-helper",
         "required_preset": "Training",
         "verification_before_each_start": True,
-        "switch_cost_allowance": "explicitly_observed_zero_cost_only",
+        "switch_cost_allowance": "owner_fixed_free_no_cooldown",
         "route_approval_required": True,
     }:
         raise ProductAuthorityError("Troop Training must verify the saved Training preset")
@@ -1237,6 +1237,9 @@ def _validate_troop_training_record(record: Mapping[str, Any]) -> None:
         "warehouse_only_rejected": True,
         "effect_authority_required_before_consumption": True,
         "shooter_or_rider_allowed": False,
+        "implementation_status": 'evidence_required',
+        "missing_native_evidence": ['exact_popup_box_identity', 'owned_quantity', 'consumption_count'],
+        "consumption_allowed_without_exact_box_evidence": False,
     }:
         raise ProductAuthorityError("Troop Training resource boxes must stay on the exact approved continuation")
     quantity_cost = record.get("quantity_cost")
@@ -1269,6 +1272,8 @@ def _validate_troop_training_record(record: Mapping[str, Any]) -> None:
         "once_daily_reset_identity_bound": True,
         "current_max_numeric_value_must_be_observed_each_start": True,
         "historical_numeric_maxima_are_not_policy": True,
+        "existing_batch_retains_start_quantity": True,
+        "same_visit_bound_training_preset_proof_reusable": True,
         "commander_talent_preset_verified_before_start": True,
         "resource_box_continuation_requires_exact_configured_branch": True,
         "resource_box_consumption_requires_effect_authority": True,
@@ -1760,7 +1765,7 @@ def _validate_food_farm_output_boost_record(record: Mapping[str, Any]) -> None:
             raise ProductAuthorityError(f"Food Farm boost must forbid {marker}")
 
 def _validate_hall_of_war_zombie_zero_record(record: Mapping[str, Any]) -> None:
-    """Validate one exact-cost, saved-formation Zombie Zero visit and row claim."""
+    """Validate one fixed-free, populated saved-formation Zombie Zero visit and row claim."""
 
     if (
         record["objective"] != "hall_of_war_zombie_zero_dispatch_and_reward"
@@ -1781,29 +1786,31 @@ def _validate_hall_of_war_zombie_zero_record(record: Mapping[str, Any]) -> None:
         "page_identity": "ZOMBIE_ZERO",
         "dispatch_page_identity": "ZOMBIE_ZERO_DISPATCH",
         "maximum_dispatches_per_reset": 1,
+        "maximum_consequential_actions_per_visit": 3,
+        "visit_budget_includes": ['optional_preset_switch', 'dispatch', 'reward_claim'],
+        "visit_budget_changes_reset_quotas": False,
         "attempt_ordinal": 1,
         "attempt_state_must_be_current": True,
         "attempt_state_values": ["ready", "busy", "unavailable", "unknown"],
         "busy_or_unavailable_no_dispatch": True,
         "attempt_availability_or_cooldown_is_not_hardcoded": True,
-        "dispatch_cost_state_values": ["explicit_zero", "nonzero", "unknown"],
-        "dispatch_requires_current_explicit_zero_cost": True,
-        "unknown_or_nonzero_cost_blocks": True,
+        "literal_cost_or_loss_disclosure_required": False,
+        "today_damage_zero_required": False,
         "premium_or_refill_allowed": False,
-        "current_troop_loss_effect_must_be_known_and_approved": True,
+        "owner_fixed_zero_loss_mechanic": True,
         "loss_free_behavior_assumed": False,
         "commander_talent_requirement": {
             "policy_id": "commander-talent-preset-helper",
             "required_preset": "Military",
             "verification_before_dispatch": True,
-            "switch_policy": "verify_only_without_route_cost_approval",
+            "switch_policy": "owner_fixed_free_no_cooldown",
             "route_approval_required": True,
         },
         "saved_troop_set_identity": "Troop Set 1",
         "saved_troop_set_must_be_selected_and_applied": True,
         "five_heroes_must_be_populated": True,
-        "current_troop_capacity_must_be_numeric_and_positive": True,
-        "current_troops_must_equal_current_capacity": True,
+        "current_troop_count_must_be_numeric_and_positive": True,
+        "full_capacity_or_sets_two_and_three_labels_required": False,
         "quick_select_allowed": False,
         "formation_edit_allowed": False,
         "positive_result_identity": "HALL_OF_WAR_ZOMBIE_ZERO_HISTORY_HIGH_RESULT",
@@ -1825,26 +1832,29 @@ def _validate_hall_of_war_zombie_zero_record(record: Mapping[str, Any]) -> None:
     if (
         quantity_cost.get("quantity") != 1
         or not isinstance(cost, Mapping)
-        or cost.get("kind") != "current_explicit_zero_only"
+        or cost.get("kind") != "owner_fixed_zero_resource"
         or cost.get("amount") != 0
         or cost.get("unit") != "resource_or_currency"
         or cost.get("free_only") is not True
     ):
-        raise ProductAuthorityError("Zombie Zero dispatch must require current observed zero cost")
+        raise ProductAuthorityError("Zombie Zero dispatch must preserve its fixed zero-resource mechanic")
     effect = record["semantic_effect"]
     required_effects = {
         "maximum_dispatches_per_reset": 1,
+        "maximum_consequential_actions_per_visit": 3,
+        "visit_budget_includes": ['optional_preset_switch', 'dispatch', 'reward_claim'],
+        "visit_budget_changes_reset_quotas": False,
         "current_attempt_state_and_ordinal_required": True,
         "busy_or_unavailable_is_no_input": True,
         "daily_attempt_limit_and_cooldown_not_hardcoded": True,
-        "exact_current_zero_cost_source_required": True,
-        "no_cost_inferred_from_missing_price_label": True,
+        "literal_cost_or_loss_disclosure_required": False,
+        "fixed_zero_resource_mechanic": True,
         "premium_or_changed_confirmation_blocks": True,
-        "current_troop_loss_effect_must_be_known_and_approved": True,
+        "owner_fixed_zero_loss_mechanic": True,
         "loss_free_behavior_assumed": False,
         "saved_commander_talent_preset_verified_before_dispatch": True,
         "saved_troop_set_one_must_be_applied": True,
-        "five_heroes_and_full_current_troop_capacity_required": True,
+        "five_heroes_and_positive_current_troop_count_required": True,
         "history_high_result_successor_required": True,
         "minimum_damage_threshold": None,
         "daily_reward_is_a_separate_effect": True,
@@ -1877,11 +1887,11 @@ def _validate_hall_of_war_zombie_zero_record(record: Mapping[str, Any]) -> None:
     ) is not True:
         raise ProductAuthorityError("Hall of War must return to canonical Home")
 
-    if record.get("record_revision") != "hall_of_war_zombie_zero-v1":
+    if record.get("record_revision") != "hall_of_war_zombie_zero-v2":
         raise ProductAuthorityError("Hall of War record revision is not the current product version")
     forbidden = json.dumps(record.get("forbidden_actions", ()), sort_keys=True).casefold()
     for marker in (
-        "unknown or nonzero dispatch cost",
+        "noncanonical paid dispatch action",
         "premium or refill",
         "unapproved troop loss",
         "quick select",
@@ -3861,8 +3871,12 @@ def _validate_f_product_decision_policies(payload: Mapping[str, Any]) -> None:
                 "generation_change",
                 "relevant_context_loss",
             ],
-            "switch_requires_current_bound_control_and_cost_confirmation_cooldown": True,
-            "switch_cost_allowance": "explicitly_observed_zero_cost_only",
+            "switch_requires_current_bound_apply_control": True,
+            "switch_cooldown_seconds": 0,
+            "optional_actual_confirmation_only": True,
+            "consumer_restrictions": {'Military': 'existing_hall_of_war_consumer', 'Training': 'existing_troop_training_consumer', 'Economy': 'no_existing_authorized_consumer_switch_acceptance_unproven'},
+            "generic_free_strategic_action_allowed": False,
+            "switch_cost_allowance": "owner_fixed_free_no_cooldown",
             "route_approval_required": True,
             "changed_or_unknown_switch_facts": "defer",
             "positive_successor": "same_named_preset_row_applied",
@@ -3874,11 +3888,14 @@ def _validate_f_product_decision_policies(payload: Mapping[str, Any]) -> None:
         "hall-of-war-zombie-zero-policy": {
             "status": "explicitly_approved",
             "maximum_dispatches_per_reset": 1,
+            "maximum_consequential_actions_per_visit": 3,
+            "visit_budget_includes": ['optional_preset_switch', 'dispatch', 'reward_claim'],
+            "visit_budget_changes_reset_quotas": False,
             "attempt_state_must_be_current": True,
             "busy_or_unavailable_attempt_must_not_dispatch": True,
-            "dispatch_cost_allowance": "current_explicit_zero_only",
+            "dispatch_cost_allowance": "owner_fixed_zero_resource",
             "premium_or_refill_allowed": False,
-            "current_troop_loss_effect_must_be_known_and_approved": True,
+            "owner_fixed_zero_loss_mechanic": True,
             "saved_commander_talent_preset": "Military",
             "saved_troop_set": "Troop Set 1",
             "maximum_reward_claims_per_reset": 1,
@@ -3892,6 +3909,8 @@ def _validate_f_product_decision_policies(payload: Mapping[str, Any]) -> None:
             "status": "explicitly_approved",
             "current_max_requires_current_numeric_maximum": True,
             "historical_numeric_maxima_are_not_policy": True,
+            "existing_batch_retains_start_quantity": True,
+            "same_visit_bound_training_preset_proof_reusable": True,
             "resource_box_continuation": {
                 "allowed_types": ["fighter", "vehicle"],
                 "requires_exact_configured_training_context": True,
@@ -3900,6 +3919,9 @@ def _validate_f_product_decision_policies(payload: Mapping[str, Any]) -> None:
                 "warehouse_only_rejected": True,
                 "effect_authority_required_before_consumption": True,
                 "shooter_or_rider_allowed": False,
+                "implementation_status": 'evidence_required',
+                "missing_native_evidence": ['exact_popup_box_identity', 'owned_quantity', 'consumption_count'],
+                "consumption_allowed_without_exact_box_evidence": False,
             },
             "scheduler_eligibility": False,
             "daily_quest_inheritance": "prohibited",

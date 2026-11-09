@@ -447,7 +447,12 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(contract["schema_version"], 2)
         self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(binding["product_record_id"], "troop_training")
-        self.assertEqual(binding["product_record_revision"], "troop_training-v3")
+        self.assertEqual(binding["product_record_revision"], "troop_training-v4")
+        self.assertNotIn("Fighter_or_Vehicle_resource_box_confirmation", contract["permitted_inputs"])
+        box_gate = next(gate for gate in contract["evidence_gates"] if gate["gate_id"] == "troop_training_exact_resource_box_continuation")
+        self.assertEqual(box_gate["status"], "evidence_required")
+        self.assertEqual(box_gate["permitted_inputs"], [])
+        self.assertTrue(any("prior_batch_quantities" in item for item in contract["required_postconditions"]))
         self.assertIn(
             "commander-talent-preset-helper",
             [ref["policy_id"] for ref in contract["product_policy_refs"]],
@@ -652,12 +657,13 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(contract["trigger_cadence_type"], "daily_once")
         self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(binding["product_record_id"], "hall_of_war_zombie_zero")
-        self.assertEqual(binding["product_record_revision"], "hall_of_war_zombie_zero-v1")
+        self.assertEqual(binding["product_record_revision"], "hall_of_war_zombie_zero-v2")
         self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
         self.assertFalse(binding["selected_daily_prerequisite"])
         self.assertEqual(
             set(contract["permitted_inputs"]),
             {
+                "verify_or_apply_saved_military_preset",
                 "navigate_to_hall_of_war",
                 "open_zombie_zero",
                 "select_and_apply_saved_troop_set_one",

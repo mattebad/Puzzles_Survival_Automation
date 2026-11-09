@@ -241,6 +241,8 @@
       },
       "current_max_requires_current_numeric_maximum": true,
       "historical_numeric_maxima_are_not_policy": true,
+      "existing_batch_retains_start_quantity": true,
+      "same_visit_bound_training_preset_proof_reusable": true,
       "resource_box_continuation": {
         "allowed_types": [
           "fighter",
@@ -251,7 +253,10 @@
         "requires_observed_shortage_and_sufficient_post_box_balances": true,
         "warehouse_only_rejected": true,
         "effect_authority_required_before_consumption": true,
-        "shooter_or_rider_allowed": false
+        "shooter_or_rider_allowed": false,
+        "implementation_status": "evidence_required",
+        "missing_native_evidence": ["exact_popup_box_identity", "owned_quantity", "consumption_count"],
+        "consumption_allowed_without_exact_box_evidence": false
       }
     },
     {
@@ -353,7 +358,7 @@
       "policy_id": "commander-talent-preset-helper",
       "scope": "commander_talents.saved_preset_precondition",
       "status": "explicitly_approved",
-      "decision": "Use the existing saved Military, Economy, or Training preset only through its declared consuming route and the existing caller-owned DevelopmentSession helper. Verify the exact Applied preset and avoid redundant switches when already applied. A switch requires the current bound Apply control, exact observed cost, any confirmation and cooldown facts, route approval, and a positive same-preset Applied successor; only an explicitly observed zero-cost switch is currently approved. Unknown, changed, nonzero, or premium switch costs defer. Cache proof is valid only for its exact source generation and runtime context and is invalidated after manual/external change, restart, generation change, or relevant context loss. Never edit/reset trees, create or alter presets, retry an uncertain switch, or schedule the helper independently.",
+      "decision": "Use exactly saved Military, Economy or Training through the existing caller-owned session and declared consumer only. The owner establishes fixed free switching with no cooldown. Bind the current Apply row, acknowledge only an actual recognized free confirmation if shown, and verify the same named Applied successor; no cost/cooldown disclosure is required. Reuse same-visit generation/context/runtime/lock-bound proof, avoiding redundant switches or reopening the helper from training. Invalidate after manual/external change, restart, generation change or relevant context loss. No generic strategic authority, talent-tree edits, Reset or preset alteration.",
       "saved_presets": [
         "Military",
         "Economy",
@@ -370,8 +375,12 @@
         "generation_change",
         "relevant_context_loss"
       ],
-      "switch_requires_current_bound_control_and_cost_confirmation_cooldown": true,
-      "switch_cost_allowance": "explicitly_observed_zero_cost_only",
+      "switch_requires_current_bound_apply_control": true,
+      "switch_cooldown_seconds": 0,
+      "optional_actual_confirmation_only": true,
+      "consumer_restrictions": {"Military": "existing_hall_of_war_consumer", "Training": "existing_troop_training_consumer", "Economy": "no_existing_authorized_consumer_switch_acceptance_unproven"},
+      "generic_free_strategic_action_allowed": false,
+      "switch_cost_allowance": "owner_fixed_free_no_cooldown",
       "route_approval_required": true,
       "changed_or_unknown_switch_facts": "defer",
       "positive_successor": "same_named_preset_row_applied",
@@ -385,13 +394,16 @@
       "policy_id": "hall-of-war-zombie-zero-policy",
       "scope": "hall_of_war.zombie_zero",
       "status": "explicitly_approved",
-      "decision": "Approve one bounded Zombie Zero attempt per route reset only on exact current page, available attempt state, numeric current explicit-zero cost, approved troop-loss effect evidence, Military preset, and applied populated saved Troop Set 1. Require a positive result before considering the separate one-tap glowing Daily Reward row; a claimed/unavailable reward is not repeated. Unknown or nonzero/unapproved cost, premium/refill prompt, unapproved loss, stale formation, ambiguous result, or uncertain dispatch/claim blocks without identical retry.",
+      "decision": "Military Applied, exact current Hall of War Zombie Zero ready action, populated saved Troop Set 1 with five heroes and positive troops, one Dispatch, positive result, one own ready daily reward row tap verified Claimed, then Home. The owner fixes this action at zero resources and zero losses; no literal disclosure, full capacity, Sets 2/3 labels or Today Damage zero gate. The visit budget of three includes an optional preset switch plus dispatch plus reward and does not expand either one-per-reset quota. Preserve UNKNOWN without identical retry.",
       "maximum_dispatches_per_reset": 1,
+      "maximum_consequential_actions_per_visit": 3,
+      "visit_budget_includes": ["optional_preset_switch", "dispatch", "reward_claim"],
+      "visit_budget_changes_reset_quotas": false,
       "attempt_state_must_be_current": true,
       "busy_or_unavailable_attempt_must_not_dispatch": true,
-      "dispatch_cost_allowance": "current_explicit_zero_only",
+      "dispatch_cost_allowance": "owner_fixed_zero_resource",
       "premium_or_refill_allowed": false,
-      "current_troop_loss_effect_must_be_known_and_approved": true,
+      "owner_fixed_zero_loss_mechanic": true,
       "saved_commander_talent_preset": "Military",
       "saved_troop_set": "Troop Set 1",
       "maximum_reward_claims_per_reset": 1,
@@ -750,7 +762,7 @@
       "source": "REC-D01_explicit_completion_boundary"
     }
   ],
-  "authority_revision": "flow-delivery-product-authority-v2-r26",
+  "authority_revision": "flow-delivery-product-authority-v2-r27",
   "product_records": [
     {
       "record_id": "use_resource_item",
@@ -1509,11 +1521,13 @@
         },
         "current_max_quantity_source": "fresh_current_frame_numeric_maximum",
         "current_max_fixed_fallback": null,
+        "existing_batch_quantity_source": "immutable_prior_batch_quantities_at_start",
+        "later_current_max_replaces_existing_batch_quantity": false,
         "commander_talent_requirement": {
           "policy_id": "commander-talent-preset-helper",
           "required_preset": "Training",
           "verification_before_each_start": true,
-          "switch_cost_allowance": "explicitly_observed_zero_cost_only",
+          "switch_cost_allowance": "owner_fixed_free_no_cooldown",
           "route_approval_required": true
         },
         "resource_box_continuation": {
@@ -1526,7 +1540,10 @@
           "requires_observed_shortage_and_sufficient_post_box_balances": true,
           "warehouse_only_rejected": true,
           "effect_authority_required_before_consumption": true,
-          "shooter_or_rider_allowed": false
+          "shooter_or_rider_allowed": false,
+          "implementation_status": "evidence_required",
+          "missing_native_evidence": ["exact_popup_box_identity", "owned_quantity", "consumption_count"],
+          "consumption_allowed_without_exact_box_evidence": false
         }
       },
       "quantity_cost": {
@@ -1550,6 +1567,8 @@
         "current_max_numeric_reconciliation_required": true,
         "current_max_numeric_value_must_be_observed_each_start": true,
         "historical_numeric_maxima_are_not_policy": true,
+        "existing_batch_retains_start_quantity": true,
+        "same_visit_bound_training_preset_proof_reusable": true,
         "commander_talent_preset_verified_before_start": true,
         "resource_box_continuation_requires_exact_configured_branch": true,
         "resource_box_consumption_requires_effect_authority": true,
@@ -1600,8 +1619,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "troop_training-v3",
-      "record_digest": "9dc451e87f326f08c23ca0c07214341e89a58d3bb4883bb759a0517e8e840cc2"
+      "record_revision": "troop_training-v4",
+      "record_digest": "4272aafc0f9cee755f81e3ec64b655c3bda740e59d53da649fcd64e13623cc8e"
     },
     {
       "record_id": "hero_duel",
@@ -1971,6 +1990,9 @@
         "page_identity": "ZOMBIE_ZERO",
         "dispatch_page_identity": "ZOMBIE_ZERO_DISPATCH",
         "maximum_dispatches_per_reset": 1,
+        "maximum_consequential_actions_per_visit": 3,
+        "visit_budget_includes": ["optional_preset_switch", "dispatch", "reward_claim"],
+        "visit_budget_changes_reset_quotas": false,
         "attempt_ordinal": 1,
         "attempt_state_must_be_current": true,
         "attempt_state_values": [
@@ -1981,28 +2003,23 @@
         ],
         "busy_or_unavailable_no_dispatch": true,
         "attempt_availability_or_cooldown_is_not_hardcoded": true,
-        "dispatch_cost_state_values": [
-          "explicit_zero",
-          "nonzero",
-          "unknown"
-        ],
-        "dispatch_requires_current_explicit_zero_cost": true,
-        "unknown_or_nonzero_cost_blocks": true,
+        "literal_cost_or_loss_disclosure_required": false,
+        "today_damage_zero_required": false,
         "premium_or_refill_allowed": false,
-        "current_troop_loss_effect_must_be_known_and_approved": true,
+        "owner_fixed_zero_loss_mechanic": true,
         "loss_free_behavior_assumed": false,
         "commander_talent_requirement": {
           "policy_id": "commander-talent-preset-helper",
           "required_preset": "Military",
           "verification_before_dispatch": true,
-          "switch_policy": "verify_only_without_route_cost_approval",
+          "switch_policy": "owner_fixed_free_no_cooldown",
           "route_approval_required": true
         },
         "saved_troop_set_identity": "Troop Set 1",
         "saved_troop_set_must_be_selected_and_applied": true,
         "five_heroes_must_be_populated": true,
-        "current_troop_capacity_must_be_numeric_and_positive": true,
-        "current_troops_must_equal_current_capacity": true,
+        "current_troop_count_must_be_numeric_and_positive": true,
+        "full_capacity_or_sets_two_and_three_labels_required": false,
         "quick_select_allowed": false,
         "formation_edit_allowed": false,
         "positive_result_identity": "HALL_OF_WAR_ZOMBIE_ZERO_HISTORY_HIGH_RESULT",
@@ -2023,7 +2040,7 @@
       "quantity_cost": {
         "quantity": 1,
         "cost": {
-          "kind": "current_explicit_zero_only",
+          "kind": "owner_fixed_zero_resource",
           "amount": 0,
           "unit": "resource_or_currency",
           "free_only": true
@@ -2031,17 +2048,20 @@
       },
       "semantic_effect": {
         "maximum_dispatches_per_reset": 1,
+        "maximum_consequential_actions_per_visit": 3,
+        "visit_budget_includes": ["optional_preset_switch", "dispatch", "reward_claim"],
+        "visit_budget_changes_reset_quotas": false,
         "current_attempt_state_and_ordinal_required": true,
         "busy_or_unavailable_is_no_input": true,
         "daily_attempt_limit_and_cooldown_not_hardcoded": true,
-        "exact_current_zero_cost_source_required": true,
-        "no_cost_inferred_from_missing_price_label": true,
+        "literal_cost_or_loss_disclosure_required": false,
+        "fixed_zero_resource_mechanic": true,
         "premium_or_changed_confirmation_blocks": true,
-        "current_troop_loss_effect_must_be_known_and_approved": true,
+        "owner_fixed_zero_loss_mechanic": true,
         "loss_free_behavior_assumed": false,
         "saved_commander_talent_preset_verified_before_dispatch": true,
         "saved_troop_set_one_must_be_applied": true,
-        "five_heroes_and_full_current_troop_capacity_required": true,
+        "five_heroes_and_positive_current_troop_count_required": true,
         "history_high_result_successor_required": true,
         "minimum_damage_threshold": null,
         "daily_reward_is_a_separate_effect": true,
@@ -2058,7 +2078,7 @@
         "identical_retry": false
       },
       "forbidden_actions": [
-        "unknown or nonzero dispatch cost",
+        "noncanonical paid dispatch action",
         "premium or refill prompt",
         "unapproved troop loss",
         "Quick Select",
@@ -2099,8 +2119,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "hall_of_war_zombie_zero-v1",
-      "record_digest": "09d9a89d729a75866ab432f353218b5cc2edcbfdcf6642fb72053ec90ea67fd1"
+      "record_revision": "hall_of_war_zombie_zero-v2",
+      "record_digest": "05d88d0cf184c00c321f93f6327f370cb22cf61ce891ed460948746e104240a0"
     },
     {
       "record_id": "hero_upgrade",
@@ -3838,5 +3858,5 @@
       "record_digest": "73a87b8d13e93bd0bc52748dce924dd79241dcba591f61ef8f78c7798b730ddd"
     }
   ],
-  "authority_digest": "a7874167f0d4bbbcb7d1ab451df969d3cd1946a29824817f5e9f802379260f50"
+  "authority_digest": "b0b24bb5e184ecf72a614d35db20bbcbde16c1e274aff7d8e418e0f18105df78"
 }

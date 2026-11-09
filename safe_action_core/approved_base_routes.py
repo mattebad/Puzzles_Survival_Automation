@@ -29,6 +29,7 @@ FOOD_FARM_PRODUCT = "food_farm_output_boost"
 FOOD_FARM_REVISION = "food_farm_output_boost-v2"
 HALL_OF_WAR_TASK = "HALL-OF-WAR-ZOMBIE-ZERO-BLUESTACKS-INTEGRATION"
 HALL_OF_WAR_PRODUCT = "hall_of_war_zombie_zero"
+# Frozen native semantic-token revision, independent of the registry record.
 HALL_OF_WAR_REVISION = "hall_of_war_zombie_zero-v1"
 HERO_DUEL_TASK = "HERO-DUEL-EVIDENCE-GATE"
 HERO_DUEL_PRODUCT = "hero_duel"
@@ -97,7 +98,13 @@ _APPROVED_ROUTE_ACTION_TASKS = {
 
 
 def is_approved_base_route_request(request: PolicyRequest) -> bool:
-    return request.task_id in _APPROVED_ROUTE_TASKS or request.semantic_action in _APPROVED_ROUTE_ACTION_TASKS
+    return (
+        request.task_id in _APPROVED_ROUTE_TASKS
+        or request.semantic_action in _APPROVED_ROUTE_ACTION_TASKS
+        or request.semantic_action.startswith("switch_commander_talent_preset:")
+        or request.action_kind == "commander_talent_preset_switch"
+        or request.observation.consequence == "commander_talent_preset_switch"
+    )
 
 
 def _deny(code: str, reason: str) -> Tuple[PolicyDecision, str, str]:
@@ -883,19 +890,61 @@ def _hero_duel(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
         return guard
     return PolicyDecision.AUTHORIZE, "AUTHORIZED_HERO_DUEL_FREE_ACTION", "exact Survival event, current free allowance, bounded entry/Flee, or defense-save guards passed"
 
+def _commander_talent_preset(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
+    deny = _deny("COMMANDER_TALENT_PRESET_NOT_EXACT", "only an exact saved preset Apply for its approved consumer is allowed")
+    name = request.subject
+    # Saved presets do not confer generic permission for free strategic actions.
+    if (request.task_id, name) not in {
+        (HALL_OF_WAR_TASK, "Military"), (TROOP_TRAINING_TASK, "Training"),
+    }:
+        return deny
+    tokens = _tokens(request, 6)
+    if tokens is None:
+        return deny
+    previous = _field(tokens[2], "previous-applied-preset:")
+    generation = _field(tokens[4], "source-generation:")
+    context = _field(tokens[5], "context-sha256:")
+    if (
+        previous not in {"Military", "Economy", "Training"} or previous == name
+        or generation is None or any(char.isspace() for char in generation)
+        or not _hash(context)
+        or request.action_key != f"commander-talent-switch:{name.lower()}:{generation}"
+        or tokens != (
+            f"saved-preset-name:{name}", f"currently-Apply:{name}",
+            f"previous-applied-preset:{previous}", "owner-fixed-free-no-cooldown-switch",
+            f"source-generation:{generation}", f"context-sha256:{context}",
+        )
+        or request.allowed_confirmation_dialogs != ("commander_talent_free_apply_confirmation",)
+        or type(request.observation.quantity) is not int
+        or not _contract_matches(
+            request, action_class=ActionClass.ZERO_COST_CONSEQUENTIAL,
+            semantic_action=f"switch_commander_talent_preset:{name.lower()}",
+            action_kind="commander_talent_preset_switch", subject=name,
+            source_state="TALENT_MEMORY", target_identity=f"talent-memory-row:{name}:apply",
+            control_class="commander_talent_preset_switch", consequence="commander_talent_preset_switch",
+            postcondition=f"talent-memory-applied:{name}", cost_type="none", cost_amount=0,
+            quantity=1, resource_or_currency="none", maximum_cost=0, free_only=True,
+        )
+    ):
+        return deny
+    guard = _route_runtime_guard(request)
+    if guard is not None:
+        return guard
+    return PolicyDecision.AUTHORIZE, "AUTHORIZED_COMMANDER_TALENT_PRESET", "exact consumer, saved Apply row, generation, context and fixed-free switch contract passed"
+
+
 def _hall_of_war(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
     deny = _deny("HALL_OF_WAR_ACTION_NOT_EXACT", "only the bounded Zombie Zero action and its exact own reward claim are in scope")
     action = request.semantic_action
     if action == "HALL_OF_WAR_ZOMBIE_ZERO_DISPATCH":
-        tokens = request.semantic_preconditions
-        if type(tokens) is not tuple or len(tokens) != 19:
-            return _deny("HALL_OF_WAR_LOSS_EFFECT_UNPROVEN", "current exact cost and independent current no-loss ROI proof are required before Dispatch")
+        tokens = _tokens(request, 18)
+        if tokens is None:
+            return deny
         frame_hash = request.observation.frame_sha256
         reset = _field(tokens[2], "hall_of_war_reset=")
-        cost_frame = _field(tokens[13], "dispatch_cost_source_frame=")
-        cost_roi = _field(tokens[14], "hall_of_war_explicit_zero_cost=")
-        loss_frame = _field(tokens[16], "troop_loss_effect_source_frame=")
-        loss_roi = _field(tokens[17], "hall_of_war_no_loss_rule=")
+        source_frame = _field(tokens[13], "dispatch_source_frame=")
+        formation_roi = _field(tokens[14], "hall_of_war_saved_formation=")
+        dispatch_roi = _field(tokens[15], "hall_of_war_dispatch_control=")
         fixed = (
             f"hall_of_war_product={HALL_OF_WAR_PRODUCT}",
             f"hall_of_war_product_revision={HALL_OF_WAR_REVISION}",
@@ -903,34 +952,33 @@ def _hall_of_war(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
             "current_reset_id_bound_to_game_day_id",
             "challenge_action_ordinal=1",
             "challenge_action_key_binds_attempt_ordinal_one_for_current_reset",
-            "exact_zombie_zero_page_and_today_highest_damage_zero",
+            "exact_zombie_zero_page_and_current_reset_action_key_checked",
             "challenge_attempt_ready_and_not_busy_or_cooling_down",
             "saved_military_preset_verified",
             "troop_set_1_saved_identity_selected_not_edit_or_quick_select",
             "troop_set_1_application_toast_verified",
             "five_hero_slots_populated",
-            "current_troop_count_exactly_matches_visible_capacity_and_positive",
-            f"dispatch_cost_source_frame={frame_hash}",
-            f"hall_of_war_explicit_zero_cost={cost_roi}" if cost_roi is not None else "",
-            "troop_loss_effect=explicit_no_loss",
-            f"troop_loss_effect_source_frame={frame_hash}",
-            f"hall_of_war_no_loss_rule={loss_roi}" if loss_roi is not None else "",
+            "current_troop_count_positive",
+            f"dispatch_source_frame={frame_hash}",
+            f"hall_of_war_saved_formation={formation_roi}" if formation_roi is not None else "",
+            f"hall_of_war_dispatch_control={dispatch_roi}" if dispatch_roi is not None else "",
+            "fixed_zero_resource_zero_loss_zombie_zero_mechanic",
             "one_dispatch_transport_remaining",
         )
         roi_hashes = request.observation.critical_roi_hashes
         action_key_pattern = rf"hall-of-war:dispatch:daily:{re.escape(request.game_day_id or '')}:attempt-1:[0-9a-f]{{64}}"
         if (
             reset != request.game_day_id or not _slug(reset)
-            or frame_hash != cost_frame or frame_hash != loss_frame
-            or not _hash(cost_roi) or not _hash(loss_roi)
-            or sum(name == "hall_of_war_explicit_zero_cost" for name, _digest in roi_hashes) != 1
-            or sum(name == "hall_of_war_no_loss_rule" for name, _digest in roi_hashes) != 1
-            or not any(name == "hall_of_war_explicit_zero_cost" and digest == cost_roi for name, digest in roi_hashes)
-            or not any(name == "hall_of_war_no_loss_rule" and digest == loss_roi for name, digest in roi_hashes)
+            or frame_hash != source_frame
+            or not _hash(formation_roi) or not _hash(dispatch_roi)
+            or sum(name == "hall_of_war_saved_formation" for name, _digest in roi_hashes) != 1
+            or sum(name == "hall_of_war_dispatch_control" for name, _digest in roi_hashes) != 1
+            or not any(name == "hall_of_war_saved_formation" and digest == formation_roi for name, digest in roi_hashes)
+            or not any(name == "hall_of_war_dispatch_control" and digest == dispatch_roi for name, digest in roi_hashes)
             or re.fullmatch(action_key_pattern, request.action_key, flags=re.ASCII) is None
             or tokens != fixed
         ):
-            return _deny("HALL_OF_WAR_LOSS_EFFECT_UNPROVEN", "current exact zero-cost and frame-bound explicit no-loss proof did not match")
+            return deny
         if not _contract_matches(
             request,
             action_class=ActionClass.ZERO_COST_CONSEQUENTIAL,
@@ -953,7 +1001,7 @@ def _hall_of_war(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
         guard = _route_runtime_guard(request)
         if guard is not None:
             return guard
-        return PolicyDecision.AUTHORIZE, "AUTHORIZED_HALL_OF_WAR_ZOMBIE_ZERO", "exact current zero-cost ROI and independently frame-bound explicit no-loss rule passed"
+        return PolicyDecision.AUTHORIZE, "AUTHORIZED_HALL_OF_WAR_ZOMBIE_ZERO", "exact saved populated formation, current Dispatch control and fixed zero-resource zero-loss mechanic passed"
     if action == "HALL_OF_WAR_ZOMBIE_ZERO_DAILY_REWARD_CLAIM":
         tokens = _tokens(request, 11)
         expected = (
@@ -1510,6 +1558,12 @@ def decide_approved_base_route(request: PolicyRequest) -> Optional[Tuple[PolicyD
     # central navigation policy retain its freshness, binding, and cost gates.
     if request.action_class is ActionClass.NAVIGATION_ONLY:
         return None
+    if (
+        request.semantic_action.startswith("switch_commander_talent_preset:")
+        or request.action_kind == "commander_talent_preset_switch"
+        or request.observation.consequence == "commander_talent_preset_switch"
+    ):
+        return _commander_talent_preset(request)
     known_task = request.task_id in _APPROVED_ROUTE_TASKS
     expected_task = _APPROVED_ROUTE_ACTION_TASKS.get(request.semantic_action)
     if not known_task and expected_task is None:

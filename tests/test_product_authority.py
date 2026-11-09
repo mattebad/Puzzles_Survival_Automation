@@ -897,6 +897,11 @@ class ProductAuthorityTests(unittest.TestCase):
 
     def test_f_policy_guards_saved_preset_costs_hall_quota_and_box_scope(self) -> None:
         mutations = (
+            ("commander-talent-preset-helper", lambda policy: policy.__setitem__("generic_free_strategic_action_allowed", True)),
+            ("commander-talent-preset-helper", lambda policy: policy.__setitem__("optional_actual_confirmation_only", False)),
+            ("hall-of-war-zombie-zero-policy", lambda policy: policy.__setitem__("maximum_consequential_actions_per_visit", 4)),
+            ("troop-training-resource-policy", lambda policy: policy["resource_box_continuation"].__setitem__("consumption_allowed_without_exact_box_evidence", True)),
+            ("troop-training-resource-policy", lambda policy: policy.__setitem__("existing_batch_retains_start_quantity", False)),
             (
                 "commander-talent-preset-helper",
                 lambda policy: policy.__setitem__(
@@ -942,11 +947,11 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertEqual(policy["status"], "explicitly_approved")
         self.assertEqual(policy["maximum_dispatches_per_reset"], 1)
         self.assertEqual(
-            policy["dispatch_cost_allowance"], "current_explicit_zero_only"
+            policy["dispatch_cost_allowance"], "owner_fixed_zero_resource"
         )
         self.assertFalse(policy["premium_or_refill_allowed"])
-        self.assertTrue(policy["current_troop_loss_effect_must_be_known_and_approved"])
-        self.assertEqual(record["record_revision"], "hall_of_war_zombie_zero-v1")
+        self.assertTrue(policy["owner_fixed_zero_loss_mechanic"])
+        self.assertEqual(record["record_revision"], "hall_of_war_zombie_zero-v2")
         self.assertEqual(
             record["semantic_entry_route"]["route"], ["HALL_OF_WAR", "ZOMBIE_ZERO"]
         )
@@ -954,7 +959,7 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertEqual(target["maximum_dispatches_per_reset"], 1)
         self.assertTrue(target["attempt_state_must_be_current"])
         self.assertTrue(target["attempt_availability_or_cooldown_is_not_hardcoded"])
-        self.assertTrue(target["dispatch_requires_current_explicit_zero_cost"])
+        self.assertFalse(target["literal_cost_or_loss_disclosure_required"])
         self.assertEqual(target["commander_talent_requirement"]["required_preset"], "Military")
         self.assertTrue(
             target["commander_talent_requirement"]["route_approval_required"]
@@ -962,7 +967,7 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertEqual(target["saved_troop_set_identity"], "Troop Set 1")
         self.assertTrue(target["saved_troop_set_must_be_selected_and_applied"])
         self.assertTrue(target["five_heroes_must_be_populated"])
-        self.assertTrue(target["current_troops_must_equal_current_capacity"])
+        self.assertFalse(target["full_capacity_or_sets_two_and_three_labels_required"])
         self.assertFalse(target["quick_select_allowed"])
         self.assertFalse(target["formation_edit_allowed"])
         self.assertIsNone(target["minimum_damage_threshold"])
@@ -970,7 +975,7 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertTrue(target["reward_claim_is_one_daily_row_tap"])
         self.assertTrue(target["claimed_reward_successor_requires_current_row_checkmarks"])
         cost = record["quantity_cost"]["cost"]
-        self.assertEqual(cost["kind"], "current_explicit_zero_only")
+        self.assertEqual(cost["kind"], "owner_fixed_zero_resource")
         self.assertEqual(cost["amount"], 0)
         self.assertTrue(cost["free_only"])
         effect = record["semantic_effect"]
@@ -980,6 +985,9 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertFalse(effect["daily_inspection_required"])
         self.assertFalse(effect["d02_prerequisite"])
         self.assertFalse(effect["points_attribution_required"])
+        self.assertEqual(effect["maximum_consequential_actions_per_visit"], 3)
+        self.assertEqual(effect["visit_budget_includes"], ["optional_preset_switch", "dispatch", "reward_claim"])
+        self.assertFalse(effect["visit_budget_changes_reset_quotas"])
         self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
         for mutate in (
             lambda invalid: invalid["target"].__setitem__(
@@ -989,7 +997,7 @@ class ProductAuthorityTests(unittest.TestCase):
                 "saved_troop_set_identity", "Troop Set 2"
             ),
             lambda invalid: invalid["target"].__setitem__(
-                "loss_free_behavior_assumed", True
+                "owner_fixed_zero_loss_mechanic", False
             ),
             lambda invalid: invalid["target"].__setitem__(
                 "minimum_damage_threshold", 1
@@ -1357,7 +1365,7 @@ class ProductAuthorityTests(unittest.TestCase):
     def test_troop_training_record_preserves_four_type_queue_and_daily_policy(self) -> None:
         record = self.records["troop_training"]
         self.assertEqual(record["record_type"], "troop_training")
-        self.assertEqual(record["record_revision"], "troop_training-v3")
+        self.assertEqual(record["record_revision"], "troop_training-v4")
         self.assertEqual(record["semantic_entry_route"]["target"], "TRAINING_FACILITIES")
         variants = record["target"]["per_type_contract"]
         self.assertEqual(variants["fighter"]["target_tier"], 8)

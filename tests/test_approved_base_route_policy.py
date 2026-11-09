@@ -19,7 +19,6 @@ from automation_service.registry import (
     FOOD_FARM_BOOST_PRODUCT_REVISION as FARM_REVISION,
     HALL_OF_WAR_FLOW_ID as HALL,
     HALL_OF_WAR_PRODUCT_ID as HALL_PRODUCT,
-    HALL_OF_WAR_PRODUCT_REVISION as HALL_REVISION,
     HERO_DUEL_FLOW_ID as HERO_DUEL,
     HERO_DUEL_PRODUCT_ID as HERO_PRODUCT,
     NANO_MATERIAL_PRODUCTION_FLOW_ID as NANO_PRODUCTION,
@@ -34,7 +33,6 @@ from automation_service.registry import (
     RUINS_PRODUCT_ID as RUINS_PRODUCT,
     RUINS_PRODUCT_REVISION as RUINS_REVISION,
     TROOP_TRAINING_PRODUCT_ID as TRAINING_PRODUCT,
-    TROOP_TRAINING_PRODUCT_REVISION as TRAINING_REVISION,
     WALI_UPGRADE_FLOW_ID as WALI_UPGRADE,
 )
 from safe_action_core.models import ActionClass, PolicyDecision
@@ -55,6 +53,8 @@ OTHER_TASK = "OTHER-SUPERVISED-TASK"
 NANO_PRODUCTION_REVISION = "nano_material_production-v1"
 NANOWEAPON_REVISION = "nanoweapon_normal_craft-v2"
 HERO_REVISION = "hero_duel-v2"
+HALL_REVISION = "hall_of_war_zombie_zero-v1"
+TRAINING_REVISION = "troop_training-v3"
 
 # Native action kinds are independent of product-authority record revisions.
 ALLIANCE_SHOP_ACTION_KIND = "alliance_shop_purchase-v2"
@@ -544,23 +544,41 @@ def farm_boost_request(diamonds=False, *, cost=None, balance=100):
     )
 
 
-def hall_dispatch_request(*, proof=True, loss=True, frame=FRAME):
+def preset_switch_request(task=HALL, name="Military", generation="visit-1"):
+    post = f"talent-memory-applied:{name}"
+    return replace(route_request(
+        task=task, action=f"switch_commander_talent_preset:{name.lower()}",
+        action_class=ActionClass.ZERO_COST_CONSEQUENTIAL,
+        kind="commander_talent_preset_switch", subject=name, source="TALENT_MEMORY",
+        target=f"talent-memory-row:{name}:apply", control="commander_talent_preset_switch",
+        consequence="commander_talent_preset_switch", post=post, cost_type="none", cost=0,
+        quantity=1, resource="none", maximum=0, free=True,
+        action_key=f"commander-talent-switch:{name.lower()}:{generation}",
+        preconditions=(
+            f"saved-preset-name:{name}", f"currently-Apply:{name}",
+            "previous-applied-preset:Economy", "owner-fixed-free-no-cooldown-switch",
+            f"source-generation:{generation}", f"context-sha256:{FRAME}",
+        ),
+    ), allowed_confirmation_dialogs=("commander_talent_free_apply_confirmation",))
+
+
+def hall_dispatch_request(*, proof=True, frame=FRAME):
     reset = DAY
-    cost_roi, loss_roi = COST_ROI, LOSS_ROI
+    formation_roi, dispatch_roi = COST_ROI, LOSS_ROI
     tokens = (
         f"hall_of_war_product={HALL_PRODUCT}", f"hall_of_war_product_revision={HALL_REVISION}",
         f"hall_of_war_reset={reset}", "current_reset_id_bound_to_game_day_id", "challenge_action_ordinal=1",
         "challenge_action_key_binds_attempt_ordinal_one_for_current_reset",
-        "exact_zombie_zero_page_and_today_highest_damage_zero", "challenge_attempt_ready_and_not_busy_or_cooling_down",
+        "exact_zombie_zero_page_and_current_reset_action_key_checked", "challenge_attempt_ready_and_not_busy_or_cooling_down",
         "saved_military_preset_verified", "troop_set_1_saved_identity_selected_not_edit_or_quick_select",
         "troop_set_1_application_toast_verified", "five_hero_slots_populated",
-        "current_troop_count_exactly_matches_visible_capacity_and_positive",
-        f"dispatch_cost_source_frame={frame}", f"hall_of_war_explicit_zero_cost={cost_roi}",
-        "troop_loss_effect=explicit_no_loss" if loss else "troop_loss_effect=unknown",
-        f"troop_loss_effect_source_frame={frame}", f"hall_of_war_no_loss_rule={loss_roi}",
+        "current_troop_count_positive",
+        f"dispatch_source_frame={frame}", f"hall_of_war_saved_formation={formation_roi}",
+        f"hall_of_war_dispatch_control={dispatch_roi}",
+        "fixed_zero_resource_zero_loss_zombie_zero_mechanic",
         "one_dispatch_transport_remaining",
     )
-    hashes = (("hall_of_war_explicit_zero_cost", cost_roi), ("hall_of_war_no_loss_rule", loss_roi)) if proof else ()
+    hashes = (("hall_of_war_saved_formation", formation_roi), ("hall_of_war_dispatch_control", dispatch_roi)) if proof else ()
     return route_request(
         task=HALL, action="HALL_OF_WAR_ZOMBIE_ZERO_DISPATCH", action_class=ActionClass.ZERO_COST_CONSEQUENTIAL,
         kind="HALL_OF_WAR_ZOMBIE_ZERO_DISPATCH", subject=None, source="HALL_OF_WAR_ZOMBIE_ZERO_DISPATCH",
@@ -1029,17 +1047,30 @@ class ApprovedBaseRoutePolicyTests(unittest.TestCase):
                 with self.subTest(action=req.semantic_action, fields=fields):
                     self.assertNotEqual(POLICY.evaluate(replace(req, **fields)).decision, PolicyDecision.AUTHORIZE)
 
-    def test_hall_dispatch_requires_current_roi_hashes_and_explicit_no_loss_rule(self):
+    def test_hall_dispatch_requires_current_saved_formation_and_dispatch_control(self):
         self.assert_authorized(hall_dispatch_request())
         self.assert_authorized(hall_reward_request())
         self.assert_denied(hall_dispatch_request(proof=False))
-        self.assert_denied(hall_dispatch_request(loss=False))
         req = hall_dispatch_request()
-        tokens = list(req.semantic_preconditions)
-        tokens[13] = f"dispatch_cost_source_frame={'b' * 64}"
-        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
-        hashes = (("hall_of_war_explicit_zero_cost", "e" * 64), ("hall_of_war_no_loss_rule", LOSS_ROI))
-        self.assert_denied(replace(req, observation=replace(req.observation, critical_roi_hashes=hashes)))
+        self.assertEqual(len(req.semantic_preconditions), 18)
+        for index, token in (
+            (6, "exact_zombie_zero_page_and_today_highest_damage_zero"),
+            (12, "current_troop_count_exactly_matches_visible_capacity_and_positive"),
+            (13, f"dispatch_source_frame={'b' * 64}"),
+            (14, f"hall_of_war_saved_formation={'b' * 64}"),
+            (15, f"hall_of_war_dispatch_control={'b' * 64}"),
+            (16, "troop_loss_effect=explicit_no_loss"),
+            (17, "one_dispatch_transport_remaining=false"),
+        ):
+            tokens = list(req.semantic_preconditions)
+            tokens[index] = token
+            self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+        for hashes in (
+            (("hall_of_war_saved_formation", "e" * 64), ("hall_of_war_dispatch_control", LOSS_ROI)),
+            (("hall_of_war_explicit_zero_cost", COST_ROI), ("hall_of_war_no_loss_rule", LOSS_ROI)),
+            req.observation.critical_roi_hashes + (("hall_of_war_saved_formation", COST_ROI),),
+        ):
+            self.assert_denied(replace(req, observation=replace(req.observation, critical_roi_hashes=hashes)))
         self.assert_denied(replace(req, action_key=req.action_key.replace(DAY, "game-day-2026-07-14")))
         req = hall_reward_request()
         self.assert_denied(replace(req, action_key=req.action_key.replace("hall-of-war:reward", "hall-of-war:dispatch")))
@@ -1081,6 +1112,63 @@ class ApprovedBaseRoutePolicyTests(unittest.TestCase):
         self.assertFalse(consumed.allow_dispatch)
         self.assertFalse(consumed.binding_matched)
         self.assertEqual(consumed.reason_code, "CAPABILITY_TARGET_MISMATCH")
+
+    def test_saved_preset_switch_is_exact_and_consumer_scoped(self):
+        for task, name in ((HALL, "Military"), (TRAINING, "Training")):
+            req = preset_switch_request(task, name)
+            self.assert_authorized(req)
+            for fields in (
+                {"task_id": OTHER_TASK}, {"subject": "Economy"},
+                {"semantic_action": "switch_commander_talent_preset:economy"},
+                {"action_key": req.action_key + ":other"},
+                {"allowed_confirmation_dialogs": ("unknown_confirmation",)},
+                {"allowed_confirmation_dialogs": ()},
+                {"action_class": ActionClass.SPEND_OR_STRATEGIC},
+                {"action_class": ActionClass.OWNED_ITEM_NON_IDEMPOTENT},
+                {"resource_or_currency": None}, {"free_only": False},
+            ):
+                self.assert_denied(replace(req, **fields))
+            for fields in (
+                {"target_identity": f"talent-memory-row:{name}:reset"},
+                {"source_state": "TALENT_TREE"}, {"cost_amount": 1},
+                {"cost_type": "premium"}, {"quantity": 2},
+                {"expected_postcondition": "TRANSPORT_DELIVERED"},
+            ):
+                self.assert_denied(replace(req, observation=replace(req.observation, **fields)))
+            for index, token in (
+                (0, "saved-preset-name:Unknown"), (1, f"currently-Applied:{name}"),
+                (2, f"previous-applied-preset:{name}"), (2, "previous-applied-preset:Unknown"),
+                (3, "owner-fixed-free-no-cooldown-switch=false"),
+                (4, "source-generation:other"), (4, "source-generation:"),
+                (4, "source-generation:visit 1"), (5, "context-sha256:invalid"),
+            ):
+                tokens = list(req.semantic_preconditions)
+                tokens[index] = token
+                self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+        self.assert_denied(preset_switch_request(HALL, "Training"))
+        self.assert_denied(preset_switch_request(TRAINING, "Military"))
+        self.assert_denied(preset_switch_request(FOOD_FARM, "Economy"))
+        self.assert_authorized(preset_switch_request(generation="0"))
+
+    def test_f_actions_preserve_runtime_and_capability_fences(self):
+        for req in (preset_switch_request(), hall_dispatch_request(), hall_reward_request()):
+            for fields in (
+                {"duplicate_action_key": True}, {"unresolved_action": True}, {"lease_valid": False},
+                {"observation": replace(req.observation, capture_completed_monotonic=990.0)},
+                {"observation": replace(req.observation, package_foreground=False)},
+                {"observation": replace(req.observation, hard_stop_detected=True)},
+                {"observation": replace(req.observation, forbidden_region_intersects_target=True)},
+            ):
+                self.assertNotEqual(POLICY.evaluate(replace(req, **fields)).decision, PolicyDecision.AUTHORIZE)
+        req = replace(preset_switch_request(), runtime_session_id="preset-policy-session")
+        issued = POLICY.issue_capability(req)
+        self.assertTrue(issued.authorized, issued.reason_code)
+        tokens = list(req.semantic_preconditions)
+        tokens[5] = f"context-sha256:{'b' * 64}"
+        consumed = POLICY.consume_capability(
+            issued.capability, replace(req, policy_phase="pre_dispatch", semantic_preconditions=tuple(tokens)),
+        )
+        self.assertFalse(consumed.allow_dispatch)
 
     def test_unproved_preset_switch_and_generic_strategic_actions_stay_denied(self):
         req = route_request(
