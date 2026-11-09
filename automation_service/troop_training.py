@@ -61,6 +61,7 @@ class TrainingActionState:
     pending_start_reset_ids: Mapping[str, str]
     next_start_action_keys: Mapping[str, str]
     blocked_start_variants: Mapping[str, str]
+    prior_batch_quantities: Mapping[str, int]
 
 
 def _exact_identity_part(value: object, field: str) -> str:
@@ -198,6 +199,7 @@ def derive_training_action_state(
 
     pending: dict[str, str] = {}
     pending_resets: dict[str, str] = {}
+    pending_quantities: dict[str, int] = {}
     for start_key, (row, troop_type, _generation, start_reset) in starts.items():
         if row.get("final_status") != "confirmed":
             continue
@@ -206,6 +208,12 @@ def derive_training_action_state(
             continue
         if troop_type in pending:
             raise TrainingActionHistoryError("multiple unclaimed confirmed queues exist for one troop variant")
+        quantity = row.get("quantity")
+        if type(quantity) is not int or quantity <= 0:
+            raise TrainingActionHistoryError("confirmed training start lacks its authorized batch quantity")
+        if troop_type in {"shooter", "rider"} and quantity != 250:
+            raise TrainingActionHistoryError("confirmed daily training start is not quantity 250")
+        pending_quantities[troop_type] = quantity
         pending[troop_type] = start_key
         pending_resets[troop_type] = start_reset
 
@@ -236,6 +244,7 @@ def derive_training_action_state(
         pending_start_reset_ids=MappingProxyType(pending_resets),
         next_start_action_keys=MappingProxyType(next_keys),
         blocked_start_variants=MappingProxyType(blocked),
+        prior_batch_quantities=MappingProxyType(pending_quantities),
     )
 
 

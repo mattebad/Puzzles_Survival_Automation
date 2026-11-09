@@ -41,7 +41,6 @@ from tasks.hall_of_war import (
     Action,
     AttemptState,
     ChallengeObservation,
-    CostState,
     FLOW_ID,
     PRODUCT_ID,
     PRODUCT_REVISION,
@@ -96,7 +95,7 @@ HOME_ATLAS_PAN_TARGET = "hall-of-war-home-atlas-pan"
 HOME_ZOOM_TARGET = "home-zoom-out"
 HOME_BACK_TARGET = "system-back"
 MAX_INPUTS = HALL_OF_WAR_MAX_INPUTS
-MAX_ACTIONS = 2
+MAX_ACTIONS = 3
 PROFILE_ID = HALL_OF_WAR_PROFILE_ID
 
 
@@ -554,7 +553,7 @@ class HallOfWarVision:
     _SELECTOR_ROW = ((0, 80, 70), (12, 255, 200))
 
     def _troop_set_rows(self, frame: np.ndarray) -> dict[int, tuple[tuple[int, int, int, int], tuple[int, int, int, int]]] | None:
-        """Exact Troop Set 1/2/3 rows of the open selector: measured row panel and its separate Edit control."""
+        """Bind the exact Set 1 row body separately from its excluded Edit control."""
         if not self._native(frame):
             return None
         x0, y0, x1, y1 = self._SELECTOR_BAND
@@ -565,8 +564,8 @@ class HallOfWarVision:
             for left, top, width, height, area in stats[1:count]
             if 300 <= width <= 420 and 50 <= height <= 75 and area >= 0.75 * width * height
         ]
-        # Measured geometry first: without three row panels no OCR is spent.
-        if len(panels) < 3 or self.dispatch_page(frame):
+        # Other saved sets may be locked or unreadable; only Set 1 is required.
+        if not panels or self.dispatch_page(frame):
             return None
         white = self._text_lines(frame, self._SELECTOR_BAND, self._WHITE_TEXT)
         gold = self._text_lines(frame, self._SELECTOR_BAND, self._GOLD_TEXT)
@@ -583,15 +582,18 @@ class HallOfWarVision:
             if not edits and not labels:
                 continue  # locked VIP rows carry no Troop Set label or Edit control
             if len(edits) != 1 or len(labels) != 1 or labels[0][2] >= edits[0][0]:
-                return None
+                continue
             # The narrow set digit can sit apart from "Troop Set"; read the
             # label once from its measured start to the Edit control.
             text = self._read_isolated(frame, (labels[0][0] - 4, panel[1] + 6, edits[0][0] - 4, panel[3] - 6), self._WHITE_TEXT)
             match = re.fullmatch(r"troop set ([123])", text or "")
-            if match is None or int(match.group(1)) in rows:
+            if match is None:
+                continue
+            number = int(match.group(1))
+            if number in rows:
                 return None
-            rows[int(match.group(1))] = (panel, edits[0])
-        return rows if set(rows) == {1, 2, 3} else None
+            rows[number] = (panel, edits[0])
+        return rows if 1 in rows else None
 
     def troop_set_selector(self, frame: np.ndarray) -> bool:
         return self._troop_set_rows(frame) is not None
@@ -656,25 +658,6 @@ class HallOfWarVision:
             return None, None
         return int(matches[0].group(1).replace(",", "")), int(matches[0].group(2).replace(",", ""))
 
-    def _ocr_lines(self, frame: np.ndarray) -> tuple[tuple[str, tuple[int, int, int, int]], ...]:
-        tokens = sorted(self.tokens(frame), key=lambda token: ((token.roi[1] + token.roi[3]) // 2, token.roi[0]))
-        groups: list[list[OCRToken]] = []
-        for token in tokens:
-            center = (token.roi[1] + token.roi[3]) // 2
-            group = next((item for item in groups
-                          if abs(center - sum((part.roi[1] + part.roi[3]) // 2 for part in item) / len(item)) <= 28), None)
-            if group is None:
-                groups.append([token])
-            else:
-                group.append(token)
-        rows = []
-        for group in groups:
-            group.sort(key=lambda token: token.roi[0])
-            text = " ".join(token.text for token in group)
-            roi = (min(token.roi[0] for token in group), min(token.roi[1] for token in group),
-                   max(token.roi[2] for token in group), max(token.roi[3] for token in group))
-            rows.append((self._normal(text), roi))
-        return tuple(rows)
 
     @staticmethod
     def roi_sha256(frame: np.ndarray, roi: tuple[int, int, int, int] | None) -> str | None:
@@ -685,40 +668,6 @@ class HallOfWarVision:
             return None
         return hashlib.sha256(frame[y0:y1, x0:x1].tobytes()).hexdigest()
 
-    def cost_proof(self, frame: np.ndarray) -> tuple[CostState, int | None, tuple[int, int, int, int] | None]:
-        # Absence of any explicit price/free statement remains UNKNOWN.
-        for text, roi in self._ocr_lines(frame):
-            if re.search(r"\b(?:cost|price|consume|required)\b", text):
-                zero = re.search(r"\b(?:cost|price|consume|required)\b\D{0,16}0(?:\b|\.0)\b", text)
-                if zero:
-                    return CostState.EXPLICIT_ZERO, 0, roi
-                positive = re.search(r"\b(?:cost|price|consume|required)\b\D{0,16}([1-9][0-9,]*)\b", text)
-                if positive:
-                    try:
-                        return CostState.NONZERO, int(positive.group(1).replace(",", "")), roi
-                    except ValueError:
-                        pass
-            if re.search(r"\bfree\s+(?:dispatch|attack|challenge)\b", text):
-                return CostState.EXPLICIT_ZERO, 0, roi
-        return CostState.UNKNOWN, None, None
-
-    def explicit_cost(self, frame: np.ndarray) -> tuple[CostState, int | None]:
-        state, amount, _roi = self.cost_proof(frame)
-        return state, amount
-
-    def loss_effect_proof(self, frame: np.ndarray) -> tuple[bool, tuple[int, int, int, int] | None]:
-        patterns = (
-            r"\bno troop losses\b",
-            r"\btroops will not be lost\b",
-            r"\btroops cannot be lost\b",
-        )
-        for text, roi in self._ocr_lines(frame):
-            if any(re.search(pattern, text) for pattern in patterns):
-                return True, roi
-        return False, None
-
-    def loss_effect_approved(self, frame: np.ndarray) -> bool:
-        return self.loss_effect_proof(frame)[0]
 
     # White toast just below Clear Hero on the owned Dispatch page (native
     # saved Troop Set 1 capture: label at y367-394).
@@ -1007,9 +956,7 @@ class HallOfWarBoundary:
 
     def _make_challenge_observation(self, *, dispatch_capture, attempt_capture, attempt, today_damage) -> ChallengeObservation:
         exact_dispatch = self.vision.dispatch_page(dispatch_capture.frame)
-        cost, amount, cost_roi = self.vision.cost_proof(dispatch_capture.frame)
         current, capacity = self.vision.troop_counts(dispatch_capture.frame)
-        loss_approved, loss_roi = self.vision.loss_effect_proof(dispatch_capture.frame)
         applied = bool(self.formation_proof and self.formation_proof.get("applied"))
         selected = bool(applied and self.formation_proof.get("selector_row") == "Troop Set 1")
         signature = self.vision.formation_signature(dispatch_capture.frame)
@@ -1019,17 +966,12 @@ class HallOfWarBoundary:
             page_identity="ZOMBIE_ZERO",
             page_exact=self.vision.zombie_zero_page(attempt_capture.frame),
             attempt=attempt,
-            cost=cost,
-            cost_amount=amount,
             saved_military_verified=bool(self.result.get("saved_military_verified")),
             troop_set_one_selected=selected,
             troop_set_one_applied=applied,
             five_heroes_populated=self.vision.hero_count(dispatch_capture.frame) == 5,
             current_troops=current,
             troop_capacity=capacity,
-            cost_roi_sha256=self.vision.roi_sha256(dispatch_capture.frame, cost_roi),
-            loss_effect_known_and_approved=loss_approved,
-            loss_roi_sha256=self.vision.roi_sha256(dispatch_capture.frame, loss_roi),
             today_highest_damage=today_damage,
             attempt_source_frame_sha256=attempt_capture.sha256,
             dispatch_page_identity="ZOMBIE_ZERO_DISPATCH",
@@ -1061,15 +1003,16 @@ class HallOfWarBoundary:
 
     def _action_critical_rois(self, frame: np.ndarray, category: str, target: BoundTarget):
         if category == "dispatch":
-            cost, amount, cost_roi = self.vision.cost_proof(frame)
-            loss, loss_roi = self.vision.loss_effect_proof(frame)
-            cost_digest = self.vision.roi_sha256(frame, cost_roi)
-            loss_digest = self.vision.roi_sha256(frame, loss_roi)
-            if cost is not CostState.EXPLICIT_ZERO or amount != 0 or not loss or not cost_digest or not loss_digest:
-                raise HallOfWarRouteError("dispatch_current_cost_or_loss_disclosure_unproven")
+            signature = self.vision.formation_signature(frame)
+            if len(signature) != 5:
+                raise HallOfWarRouteError("dispatch_current_saved_formation_unproven")
+            formation = hashlib.sha256("|".join(signature).encode("ascii")).hexdigest()
+            control = self.vision.roi_sha256(frame, target.target_roi)
+            if not control:
+                raise HallOfWarRouteError("dispatch_current_control_roi_not_hashable")
             return (
-                ("hall_of_war_explicit_zero_cost", cost_digest),
-                ("hall_of_war_no_loss_rule", loss_digest),
+                ("hall_of_war_saved_formation", formation),
+                ("hall_of_war_dispatch_control", control),
             )
         digest = self.vision.roi_sha256(frame, target.target_roi)
         if not digest:
@@ -1088,15 +1031,6 @@ class HallOfWarBoundary:
         target = binder(proposal_capture.frame)
         if target is None or target.target_identity != target_identity:
             return "blocked", 0, {"reason": f"{category}_target_not_bound"}
-        try:
-            critical_rois = self._action_critical_rois(proposal_capture.frame, category, target)
-        except HallOfWarRouteError as exc:
-            return "blocked", 0, {"reason": str(exc)}
-        proposal_observation = self._action_observation(
-            proposal_capture, source_state=source_state, target=target,
-            consequence=consequence, postcondition=postcondition,
-            critical_roi_hashes=critical_rois,
-        )
 
         try:
             pre_dispatch_capture = self._capture(f"hall-of-war-{category}-pre-dispatch")
@@ -1112,10 +1046,6 @@ class HallOfWarBoundary:
             )
         except HallOfWarRouteError as exc:
             return "blocked", 0, {"reason": str(exc)}
-        if pre_dispatch_rois != critical_rois:
-            return "blocked", 0, {"reason": f"{category}_pre_dispatch_critical_proof_changed"}
-        if pre_dispatch_capture.sha256 != proposal_capture.sha256:
-            return "blocked", 0, {"reason": f"{category}_source_frame_changed_before_capability"}
         pre_dispatch_observation = self._action_observation(
             pre_dispatch_capture, source_state=source_state, target=pre_dispatch_target,
             consequence=consequence, postcondition=postcondition,
@@ -1126,8 +1056,8 @@ class HallOfWarBoundary:
             route_preconditions = dispatch_policy_preconditions(
                 reset_id=self.game_day_id, action_key=key,
                 source_frame_sha256=pre_dispatch_capture.sha256,
-                cost_roi_sha256=roi_digests["hall_of_war_explicit_zero_cost"],
-                loss_roi_sha256=roi_digests["hall_of_war_no_loss_rule"],
+                formation_roi_sha256=roi_digests["hall_of_war_saved_formation"],
+                dispatch_roi_sha256=roi_digests["hall_of_war_dispatch_control"],
             )
         else:
             route_preconditions = reward_policy_preconditions(reset_id=self.game_day_id, action_key=key)
@@ -1136,7 +1066,7 @@ class HallOfWarBoundary:
             action_id=action_id, action_key=key, task_id=FLOW_ID,
             task_mode="supervised_validation", semantic_action=semantic_action,
             expected_runtime_profile_id=PROFILE_ID,
-            observation=proposal_observation, monotonic_now=self.monotonic_clock(),
+            observation=pre_dispatch_observation, monotonic_now=self.monotonic_clock(),
             observation_max_age_seconds=15.0, dispatch_max_age_seconds=5.0,
             lease_owner=self.session.owner,
             lease_valid=self.store.lease_valid_for(self.session.owner, self.wall_clock()),
@@ -1437,7 +1367,8 @@ class HallOfWarBoundary:
         }
         return True
     def execute(self) -> dict[str, Any]:
-        dispatch_calls = reward_calls = committed = 0
+        dispatch_calls = reward_calls = 0
+        committed = int(self.result.get("talent_switch_transport_calls", 0))
         try:
             self._checkpoint()
             source = self._capture("hall-of-war-source-home")
@@ -1479,23 +1410,22 @@ class HallOfWarBoundary:
                 challenge_attempt_state=attempt.value)
             key = self.dispatch_key
             existing = self.store.get_action_by_key(self.dispatch_key)
-            if today_damage is None:
-                self.result.update(challenge_status="blocked_unknown", reason="today_highest_damage_not_exactly_read")
-            elif today_damage > 0:
-                if self._confirmed_dispatch_action(existing):
-                    self.result.update(challenge_status="confirmed_prior_canonical_action",
-                        challenge_participation_proven=True, challenge_transport_calls=0)
-                else:
-                    # Preserve independent reward eligibility, but do not convert a
-                    # live manual-use observation into a canonical dispatch record.
-                    self.result.update(challenge_status="deferred_unexplained_prior_same_reset_use",
-                        challenge_participation_proven=True, challenge_participation_source="positive_current_reset_today_highest_damage",
-                        challenge_transport_calls=0, reason="prior_same_reset_use_has_no_canonical_dispatch_record")
+            if self._confirmed_dispatch_action(existing):
+                self.result.update(challenge_status="confirmed_prior_canonical_action",
+                    challenge_participation_proven=True, challenge_transport_calls=0)
             elif existing is not None:
                 self.result.update(challenge_status="unknown",
                     reason=f"existing_challenge_action_{existing.get('final_status')}",
                     effect_reconciliation_required=existing.get("final_status") in {"prepared", "input_sent", "unresolved"},
                     identical_retry_denied=True)
+                if self.result.get("effect_reconciliation_required"):
+                    self.result.update(status="unresolved")
+                    return self._account(dispatch_calls, reward_calls, committed)
+            elif type(today_damage) is int and today_damage > 0:
+                # Manual use proves participation, not a new canonical effect.
+                self.result.update(challenge_status="deferred_unexplained_prior_same_reset_use",
+                    challenge_participation_proven=True, challenge_participation_source="positive_current_reset_today_highest_damage",
+                    challenge_transport_calls=0, reason="prior_same_reset_use_has_no_canonical_dispatch_record")
             elif attempt is AttemptState.BUSY:
                 self.result.update(challenge_status="busy", reason="challenge_attempt_busy_or_cooling_down")
             elif attempt is AttemptState.UNAVAILABLE:
@@ -1537,7 +1467,7 @@ class HallOfWarBoundary:
                     signature = self.vision.formation_signature(applied.frame)
                     if (not self.vision.troop_set_one_applied(applied.frame)
                             or self.vision.hero_count(applied.frame) != 5
-                            or not counts[0] or not counts[1] or counts[0] != counts[1]
+                            or type(counts[0]) is not int or counts[0] <= 0
                             or len(signature) != 5):
                         raise HallOfWarRouteError("troop_set_one_formation_or_current_troops_not_verified")
                     self.formation_proof = {
@@ -1551,7 +1481,7 @@ class HallOfWarBoundary:
                         "hero_count": 5, "current_troops": counts[0],
                         "troop_capacity": counts[1], "source_frame_sha256": applied.sha256,
                     }
-                    # The native capture of a current cost and loss disclosure is mandatory.
+                    # Bind the actual saved formation for the fixed free mechanic.
                     dispatch_before = self._capture("hall-of-war-dispatch-preflight")
                     composite = self._make_challenge_observation(
                         dispatch_capture=dispatch_before, attempt_capture=page,
@@ -1562,8 +1492,7 @@ class HallOfWarBoundary:
                     decision = plan_dispatch(composite, saved_military_verified=bool(self.result.get("saved_military_verified")))
                     if decision.action is not Action.DISPATCH:
                         self.result.update(challenge_status="blocked_pre_dispatch", reason=decision.reason,
-                            challenge_participation_proven=False, dispatch_cost_state=composite.cost.value,
-                            loss_effect_known_and_approved=composite.loss_effect_known_and_approved)
+                            challenge_participation_proven=False)
                     else:
                         state, dispatch_calls, action_result = self._perform_canonical_action(
                             category="dispatch", action_id=f"hall-of-war-dispatch:{self.game_day_id}",
@@ -1613,6 +1542,7 @@ class HallOfWarBoundary:
                         key=self.reward_key, semantic_action=REWARD_ACTION,
                         source_state=REWARD_SOURCE, target_identity=REWARD_TARGET,
                         consequence=REWARD_CONSEQUENCE, postcondition=REWARD_POSTCONDITION,
+                        binder=self.vision.bind_reward_row,
                         postcondition_checker=self._reward_claimed, action_class="reward",
                     )
                     self.result.update(reward_claim_transport_calls=reward_calls,
@@ -1642,15 +1572,19 @@ class HallOfWarBoundary:
                 complete = challenge in {"confirmed", "confirmed_prior_canonical_action"} and reward in {"claimed", "already_claimed"}
                 if complete:
                     self.result.update(status="complete_for_reset", reason="hall_of_war_challenge_and_reward_reconciled")
-                elif challenge in {"busy", "unavailable"} or reward == "unavailable":
+                elif challenge in {"busy", "unavailable", "deferred_unexplained_prior_same_reset_use"} or reward == "unavailable":
                     self.result.update(status="deferred", reason=self.result.get("reason") or "hall_of_war_action_not_available")
                 else:
                     self.result.update(status="blocked", reason=self.result.get("reason") or "hall_of_war_partial_or_unknown_state")
             return self._account(dispatch_calls, reward_calls, committed)
         except Exception as exc:
-            self.result.update(status="unresolved" if self.result.get("dispatch_transport_calls") or self.result.get("reward_claim_transport_calls") else "blocked",
+            sent = sum(int(self.result.get(name, 0)) for name in (
+                "dispatch_transport_calls", "reward_claim_transport_calls", "talent_switch_transport_calls",
+            ))
+            unknown = bool(self.result.get("effect_reconciliation_required")) or sent > committed
+            self.result.update(status="unresolved" if unknown else "blocked",
                 reason=f"{type(exc).__name__}: {exc}")
-            if self.result.get("dispatch_transport_calls") or self.result.get("reward_claim_transport_calls"):
+            if unknown:
                 self.result.update(effect_reconciliation_required=True, identical_retry_denied=True)
             return self._account(int(self.result.get("dispatch_transport_calls", 0)),
                 int(self.result.get("reward_claim_transport_calls", 0)), committed)
@@ -1715,23 +1649,14 @@ class HallOfWarBoundary:
     def _bind_dispatch_target(self, frame: np.ndarray, composite: ChallengeObservation) -> BoundTarget | None:
         if not self.vision.dispatch_page(frame):
             return None
-        if not (composite.saved_military_verified and composite.troop_set_one_selected
-                and composite.troop_set_one_applied and composite.five_heroes_populated
-                and composite.cost is CostState.EXPLICIT_ZERO and composite.cost_amount == 0
-                and composite.loss_effect_known_and_approved):
+        if plan_dispatch(composite, saved_military_verified=bool(self.result.get("saved_military_verified"))).action is not Action.DISPATCH:
             return None
-        current, capacity = self.vision.troop_counts(frame)
-        if current != composite.current_troops or capacity != composite.troop_capacity or current != capacity or current is None:
+        current, _capacity = self.vision.troop_counts(frame)
+        if current != composite.current_troops or type(current) is not int or current <= 0:
             return None
         if self.vision.hero_count(frame) != 5:
             return None
         if not self.formation_proof or self.vision.formation_signature(frame) != self.formation_proof.get("formation_signature"):
-            return None
-        cost, amount, cost_roi = self.vision.cost_proof(frame)
-        loss, loss_roi = self.vision.loss_effect_proof(frame)
-        if (cost is not CostState.EXPLICIT_ZERO or amount != 0 or not loss
-                or self.vision.roi_sha256(frame, cost_roi) != composite.cost_roi_sha256
-                or self.vision.roi_sha256(frame, loss_roi) != composite.loss_roi_sha256):
             return None
         return self.vision.bind_dispatch(frame)
 
@@ -1751,18 +1676,18 @@ def run_hall_of_war(
     route.result["talent_switch_transport_calls"] = switch_calls
     route.result["military_preset_verification"] = asdict(preset_result)
     route.result["saved_military_verified"] = bool(
-        getattr(preset_result, "status", None) == "already_applied"
+        getattr(preset_result, "status", None) in {"already_applied", "switched"}
         and getattr(preset_result, "verified", None) is True
         and getattr(preset_result, "preset_name", None) == "Military"
-        and switch_calls == 0
+        and (switch_calls == 0 or bool(getattr(preset_result, "switch_action_key", None)))
     )
-    if switch_calls:
-        route.result.update(status="unresolved", reason="unapproved_talent_switch_transport_was_attempted",
+    if switch_calls and not route.result["saved_military_verified"]:
+        route.result.update(status="unresolved", reason="talent_switch_effect_not_verified",
             effect_reconciliation_required=True, identical_retry_denied=True)
         return route._account(0, 0, 0)
     if not route._return_home_from_preset_memory(recognize_talent_page):
         route.result.update(status="blocked", reason="verified_talent_memory_to_home_path_not_confirmed")
-        return route._account(0, 0, 0)
+        return route._account(0, 0, switch_calls if route.result["saved_military_verified"] else 0)
     if not route.result["saved_military_verified"]:
         route.result.update(
             status="deferred" if getattr(preset_result, "status", None) == "deferred" else "blocked",

@@ -29,9 +29,6 @@ class PresetRow:
     name: str
     state: PresetRowState
     status_target: tuple[int, int, int, int] | None = None
-    cost_text: str | None = None
-    cooldown_text: str | None = None
-    confirmation_text: str | None = None
 
 
 @dataclass(frozen=True)
@@ -41,21 +38,10 @@ class TalentMemoryObservation:
     row_state: PresetRowState
     applied_preset: str | None
     apply_target: tuple[int, int, int, int] | None
-    cost_text: str | None
-    cooldown_text: str | None
-    confirmation_text: str | None
     source_frame_sha256: str
     evidence_ref: str
     reason: str
 
-    @property
-    def switch_facts_complete(self) -> bool:
-        return bool(
-            self.cost_text
-            and self.cooldown_text
-            and self.confirmation_text
-            and self.apply_target is not None
-        )
 
 
 @dataclass(frozen=True)
@@ -161,23 +147,6 @@ def _associated(status_hit: Any, name_hit: Any) -> bool:
     )
 
 
-def _row_facts(name_hit: Any, hits: tuple[Any, ...]) -> tuple[str | None, str | None, str | None]:
-    name_box = _bounds(name_hit)
-    if name_box is None:
-        return None, None, None
-    y = _center_y(name_box)
-    associated = [
-        hit for hit in hits
-        if _bounds(hit) is not None and abs(_center_y(_bounds(hit)) - y) <= 48
-    ]
-    costs = [str(getattr(hit, "text", "")).strip() for hit in associated if re.search(r"\bcost\b", _text(hit))]
-    cooldowns = [str(getattr(hit, "text", "")).strip() for hit in associated if re.search(r"\bcooldown\b", _text(hit))]
-    confirmations = [str(getattr(hit, "text", "")).strip() for hit in associated if re.search(r"\bconfirm(?:ation)?\b", _text(hit))]
-    return (
-        costs[0] if len(costs) == 1 else None,
-        cooldowns[0] if len(cooldowns) == 1 else None,
-        confirmations[0] if len(confirmations) == 1 else None,
-    )
 
 
 def recognize_talent_memory(hits: Iterable[Any]) -> TalentMemoryRecognition:
@@ -210,15 +179,7 @@ def recognize_talent_memory(hits: Iterable[Any]) -> TalentMemoryRecognition:
         status_hit = matches[0]
         used_statuses.add(id(status_hit))
         state = PresetRowState.APPLIED if _text(status_hit) == "applied" else PresetRowState.APPLY
-        cost_text, cooldown_text, confirmation_text = _row_facts(name_hit, materialized)
-        rows.append(PresetRow(
-            name=name,
-            state=state,
-            status_target=_bounds(status_hit),
-            cost_text=cost_text,
-            cooldown_text=cooldown_text,
-            confirmation_text=confirmation_text,
-        ))
+        rows.append(PresetRow(name=name, state=state, status_target=_bounds(status_hit)))
     if len(used_statuses) != len(statuses):
         return TalentMemoryRecognition(False, (), None, "UNBOUND_PRESET_STATUS")
     applied = [row.name for row in rows if row.state is PresetRowState.APPLIED]
@@ -244,14 +205,14 @@ def observe_preset(
         raise ValueError("preset evidence reference is required")
     if not recognition.recognized:
         return TalentMemoryObservation(
-            False, preset_name, PresetRowState.UNKNOWN, None, None, None, None, None,
+            False, preset_name, PresetRowState.UNKNOWN, None, None,
             source_frame_sha256, evidence_ref, recognition.reason,
         )
     row = next((item for item in recognition.rows if item.name == preset_name), None)
     if row is None:
         return TalentMemoryObservation(
             False, preset_name, PresetRowState.UNKNOWN, recognition.applied_preset, None,
-            None, None, None, source_frame_sha256, evidence_ref, "REQUIRED_PRESET_ROW_MISSING",
+            source_frame_sha256, evidence_ref, "REQUIRED_PRESET_ROW_MISSING",
         )
     return TalentMemoryObservation(
         True,
@@ -259,9 +220,6 @@ def observe_preset(
         row.state,
         recognition.applied_preset,
         row.status_target if row.state is PresetRowState.APPLY else None,
-        row.cost_text,
-        row.cooldown_text,
-        row.confirmation_text,
         source_frame_sha256,
         evidence_ref,
         "PRESET_APPLIED" if row.state is PresetRowState.APPLIED else "PRESET_AVAILABLE_TO_APPLY",

@@ -341,6 +341,7 @@ class TrainingController:
         prior_daily_initiations: Iterable[str] = (),
         queue_generations: Mapping[str, int] | None = None,
         pending_start_action_keys: Mapping[str, str] | None = None,
+        prior_batch_quantities: Mapping[str, int] | None = None,
     ) -> None:
         config.validate()
         if not isinstance(reset_identity, str) or not reset_identity.strip():
@@ -359,9 +360,15 @@ class TrainingController:
             for value in pending_starts.values()
         ):
             raise TrainingContractError("pending start keys must be non-empty per-variant action keys")
+        batch_quantities = dict(prior_batch_quantities or {})
+        if set(batch_quantities) - set(TROOP_TYPES) or any(
+            type(value) is not int or value <= 0 for value in batch_quantities.values()
+        ):
+            raise TrainingContractError("prior batch quantities must be positive per-variant integers")
         self.config = config
         self.reset_identity = reset_identity
         self.pending_start_action_keys = pending_starts
+        self.prior_batch_quantities = batch_quantities
         self.states = {
             troop_type: TroopWorkflowState(
                 troop_type=troop_type,
@@ -371,7 +378,7 @@ class TrainingController:
                 target_tier=config.for_type(troop_type).target_tier,
                 configured_quantity=config.for_type(troop_type).quantity,
                 quantity_mode=config.for_type(troop_type).quantity_mode,
-                resolved_quantity=None,
+                resolved_quantity=batch_quantities.get(troop_type),
                 allow_resource_boxes=config.for_type(troop_type).allow_resource_boxes,
                 training_policy=config.for_type(troop_type).training_policy,
                 daily_initiation_state="initiated" if troop_type in initiated else "not_started",
@@ -530,27 +537,22 @@ class TrainingController:
             or observation.queue_tier != config.target_tier
         ):
             return "reject_active_queue_label_mismatch"
-        if config.quantity_mode == "current_max":
-            maximum = observation.quantity_maximum
-            expected = observation.queue_quantity
-            if (
-                type(maximum) is not int
-                or maximum <= 0
-                or expected != maximum
-                or observation.selected_quantity != maximum
-            ):
-                return "reject_active_queue_quantity"
+        start_action_key = self.pending_start_action_keys.get(troop_type)
+        if start_action_key:
+            expected = self.prior_batch_quantities.get(troop_type)
+        elif config.quantity_mode == "fixed":
+            expected = config.quantity
         else:
-            expected = self.resolved_quantity(observation, troop_type)
-            maximum = observation.quantity_maximum
-            if (
-                expected is None
-                or type(maximum) is not int
-                or maximum < expected
-                or observation.selected_quantity != expected
-                or observation.queue_quantity != expected
-            ):
-                return "reject_active_queue_quantity"
+            # A manual queue is observable, but its quantity is not evidence
+            # of an authorized start and must never create a claim identity.
+            expected = observation.queue_quantity
+        if (
+            type(expected) is not int
+            or expected <= 0
+            or type(observation.queue_quantity) is not int
+            or observation.queue_quantity != expected
+        ):
+            return "reject_active_queue_quantity"
         if observation.training_duration_seconds is None or observation.training_duration_seconds <= 0:
             return "reject_active_queue_timer_or_tier"
         if observation.captured_at is None:
@@ -633,20 +635,17 @@ class TrainingController:
             return "reject_claim_identity_unknown"
         if (
             observation.facility_identity != FACILITY_BY_TYPE[troop_type]
-            or observation.selected_tier != config.target_tier
-            or type(observation.quantity_maximum) is not int
-            or observation.quantity_maximum <= 0
+            or observation.queue_troop_type != troop_type
+            or observation.queue_tier != config.target_tier
         ):
             return "reject_claim_configuration_mismatch"
-        if config.quantity_mode == "current_max":
-            quantity_matches = observation.selected_quantity == observation.quantity_maximum
-        else:
-            quantity_matches = (
-                observation.selected_quantity == config.quantity
-                and config.quantity is not None
-                and config.quantity <= observation.quantity_maximum
-            )
-        if type(observation.selected_quantity) is not int or observation.selected_quantity <= 0 or not quantity_matches:
+        expected = self.prior_batch_quantities.get(troop_type)
+        if (
+            type(expected) is not int
+            or expected <= 0
+            or type(observation.queue_quantity) is not int
+            or observation.queue_quantity != expected
+        ):
             return "reject_claim_quantity_mismatch"
         identity = (troop_type, self.reset_identity, start_action_key)
         if identity in self._claimed_batches or action_key in self._used_action_keys:
@@ -699,27 +698,10 @@ class TrainingController:
             or post.queue_quantity != resolved_quantity
         ):
             raise TrainingContractError("active queue label postcondition has mismatched identity")
-        if post.selected_tier != observation.selected_tier or post.selected_tier != self.config.for_type(troop_type).target_tier:
-            raise TrainingContractError("active queue postcondition has mismatched tier")
-        if resolved_quantity is None or post.selected_quantity != resolved_quantity:
-            raise TrainingContractError("active queue postcondition has mismatched quantity")
-        maximum = post.quantity_maximum
-        if type(maximum) is not int or maximum <= 0:
-            raise TrainingContractError("numeric post-training capacity is required")
-        if (
-            self.config.for_type(troop_type).quantity_mode == "current_max"
-            and maximum != resolved_quantity
-        ) or (
-            self.config.for_type(troop_type).quantity_mode == "fixed"
-            and resolved_quantity is not None
-            and maximum < resolved_quantity
-        ):
-            raise TrainingContractError("post-training capacity does not match the configured quantity")
-        if not resource_readings_exact(post.resources):
-            raise TrainingContractError("exact post-training resource readings are required")
-        if tuple(item.required for item in post.resources) != tuple(item.required for item in observation.resources):
-            raise TrainingContractError("post-training ordinary resource cost changed")
-        done_at = expected_completion_timestamp(dispatched_at, post.training_duration_seconds)
+        done_at = expected_completion_timestamp(
+            post.captured_at if post.captured_at is not None else dispatched_at,
+            post.training_duration_seconds,
+        )
         config = self.config.for_type(troop_type)
         previous = self.states[troop_type]
         updated = replace(
@@ -743,6 +725,9 @@ class TrainingController:
             frame_hashes=previous.frame_hashes + tuple(item for item in (observation.frame_sha256, post.frame_sha256) if item),
         )
         self.states[troop_type] = updated
+        self._used_action_keys.add(action_key)
+        self.pending_start_action_keys[troop_type] = action_key
+        self.prior_batch_quantities[troop_type] = resolved_quantity
         return updated
 
     def scheduler_state(self, troop_type: str, *, now: datetime | None = None) -> TrainingSchedulerState:

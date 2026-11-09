@@ -39,14 +39,14 @@ class FakeRuntime:
         self.switch_mode = switch_mode
         self.captures = 0
         self.taps: list[tuple[str, str]] = []
-        self.current_cost: str | None = None
-        self.change_cost_on_second_capture = False
+        self.change_preset_on_second_capture = False
 
     def capture(self, label: str):
         self.captures += 1
+        if self.change_preset_on_second_capture and self.captures >= 2:
+            self.applied = "Training"
         payload = np.zeros((1280, 800, 3), dtype=np.uint8)
         payload[0, 0, 0] = _PAGE_CODES.get(self.page, _PAGE_CODES["unknown"])
-        payload[0, 0, 1] = 2 if self.change_cost_on_second_capture and self.captures >= 2 else 1
         digest = hashlib.sha256(f"{self.page}:{self.captures}:{label}".encode()).hexdigest()
         return type("Frame", (), {
             "frame": payload,
@@ -61,27 +61,28 @@ class FakeRuntime:
             _, source, destination = target_identity.split(":", 2)
             self.page = "memory" if destination == "talent_memory" else destination
         elif target_identity.startswith("talent-memory-row:"):
+            self.requested = target_identity.split(":")[1]
             if self.switch_mode == "applied":
-                self.applied = target_identity.split(":")[1]
+                self.applied = self.requested
                 self.page = "memory"
+            elif self.switch_mode in {"confirmation", "paid_confirmation"}:
+                self.page = self.switch_mode
             else:
                 self.page = "unknown"
+        elif target_identity.startswith("talent-memory-confirm:"):
+            self.applied = self.requested
+            self.page = "memory"
 
 
-_PAGE_CODES = {"home": 1, "commander_info": 2, "commander_talent": 3, "memory": 4, "unknown": 9}
+_PAGE_CODES = {"home": 1, "commander_info": 2, "commander_talent": 3, "memory": 4,
+               "confirmation": 5, "paid_confirmation": 6, "unknown": 9}
 
 
-def _memory_hits(applied: str, *, cost: str | None = None) -> tuple[Hit, ...]:
+def _memory_hits(applied: str) -> tuple[Hit, ...]:
     result = [Hit("Talent Memory", (265, 42, 515, 84))]
     for name, y in (("Economy", 150), ("Military", 250), ("Training", 350)):
         result.append(Hit(name, (58, y, 188, y + 30)))
         result.append(Hit("Applied" if name == applied else "Apply", (520, y, 675, y + 32)))
-        if name == "Economy" and cost is not None:
-            result.extend((
-                Hit(cost, (330, y + 1, 510, y + 18)),
-                Hit("Cooldown: 0 seconds", (330, y + 18, 510, y + 30)),
-                Hit("Confirmation: exact Apply", (330, y + 31, 510, y + 44)),
-            ))
     return tuple(result)
 
 
@@ -103,10 +104,15 @@ def _page_hits(frame: np.ndarray, runtime: FakeRuntime) -> tuple[Hit, ...]:
             Hit("Balance", (520, 190, 650, 225)),
         )
     if page == "memory":
-        cost = runtime.current_cost
-        if int(frame[0, 0, 1]) == 2:
-            cost = "Cost: 26 Gold"
-        return _memory_hits(runtime.applied, cost=cost)
+        return _memory_hits(runtime.applied)
+    if page in {"confirmation", "paid_confirmation"}:
+        hits = (
+            Hit(f"Apply {runtime.requested} talent preset?", (220, 450, 580, 480)),
+            Hit("Confirm", (450, 650, 580, 690)), Hit("Cancel", (200, 650, 330, 690)),
+        )
+        if page == "paid_confirmation":
+            hits += (Hit("Cost: 25 diamonds", (220, 500, 580, 530)),)
+        return hits
     return ()
 
 
@@ -193,7 +199,7 @@ class CommanderTalentNativeTests(unittest.TestCase):
             "commander-talent-navigation:commander_talent:talent_memory",
         ])
 
-    def test_switch_requires_approval_and_fresh_unchanged_cost(self) -> None:
+    def test_switch_requires_approval_and_fresh_unchanged_preset(self) -> None:
         runtime = FakeRuntime(page="memory", applied="Military")
         result, session, _store = self._run(runtime, "Economy")
         self.assertEqual(result.status, "deferred")
@@ -201,8 +207,7 @@ class CommanderTalentNativeTests(unittest.TestCase):
         self.assertEqual(runtime.taps, [])
 
         changed = FakeRuntime(page="memory", applied="Military")
-        changed.current_cost = "Cost: 25 Gold"
-        changed.change_cost_on_second_capture = True
+        changed.change_preset_on_second_capture = True
         result, session, _store = self._run(
             changed,
             "Economy",
@@ -215,7 +220,6 @@ class CommanderTalentNativeTests(unittest.TestCase):
 
     def test_switch_requires_canonical_settlement_callback(self) -> None:
         runtime = FakeRuntime(page="memory", applied="Military")
-        runtime.current_cost = "Cost: 25 Gold"
         result, session, _store = self._run(
             runtime,
             "Economy",
@@ -228,7 +232,6 @@ class CommanderTalentNativeTests(unittest.TestCase):
 
     def test_approved_switch_dispatches_once_and_exact_applied_successor(self) -> None:
         runtime = FakeRuntime(page="memory", applied="Military")
-        runtime.current_cost = "Cost: 25 Gold"
         outcomes = []
         result, session, _store = self._run(
             runtime,
@@ -242,9 +245,33 @@ class CommanderTalentNativeTests(unittest.TestCase):
         self.assertEqual(runtime.taps, [("talent-memory-row:Economy:apply", "approved-switch-economy")])
         self.assertEqual(outcomes, [("approved-switch-economy", "switched", True)])
 
+    def test_optional_real_confirmation_is_one_bounded_continuation_not_a_requirement(self):
+        runtime = FakeRuntime(page="memory", applied="Military", switch_mode="confirmation")
+        outcomes = []
+        result, session, _store = self._run(
+            runtime, "Economy", switch_approval=lambda *_: TalentSwitchPermit("switch-economy"),
+            switch_outcome=lambda *args: outcomes.append(args),
+        )
+        self.assertTrue(result.verified)
+        self.assertEqual(result.status, "switched")
+        self.assertEqual(session.input_count, 2)
+        self.assertEqual(runtime.taps, [("talent-memory-row:Economy:apply", "switch-economy"),
+                                       ("talent-memory-confirm:Economy", "switch-economy:confirm")])
+        self.assertEqual(len(outcomes), 1)
+
+    def test_unexpected_paid_confirmation_is_not_pressed_or_retried(self):
+        runtime = FakeRuntime(page="memory", applied="Military", switch_mode="paid_confirmation")
+        result, session, _store = self._run(
+            runtime, "Economy", switch_approval=lambda *_: TalentSwitchPermit("switch-economy"),
+            switch_outcome=lambda *args: None,
+        )
+        self.assertFalse(result.verified)
+        self.assertEqual(result.status, "unknown")
+        self.assertEqual(session.input_count, 1)
+        self.assertEqual(len(runtime.taps), 1)
+
     def test_unknown_switch_is_persistently_blocked_from_identical_retry(self) -> None:
         runtime = FakeRuntime(page="memory", applied="Military", switch_mode="unknown")
-        runtime.current_cost = "Cost: 25 Gold"
         store = FakeActionStore()
         outcomes = []
 

@@ -6,7 +6,6 @@ from tasks.hall_of_war import (
     Action,
     AttemptState,
     ChallengeObservation,
-    CostState,
     RewardObservation,
     RewardState,
     action_key,
@@ -17,8 +16,6 @@ from tasks.hall_of_war import (
 
 
 FRAME = "a" * 64
-COST_ROI = "b" * 64
-LOSS_ROI = "c" * 64
 
 
 def challenge(**overrides):
@@ -26,17 +23,12 @@ def challenge(**overrides):
         page_identity="ZOMBIE_ZERO",
         page_exact=True,
         attempt=AttemptState.READY,
-        cost=CostState.EXPLICIT_ZERO,
-        cost_amount=0,
         saved_military_verified=True,
         troop_set_one_selected=True,
         troop_set_one_applied=True,
         five_heroes_populated=True,
         current_troops=160200,
         troop_capacity=160200,
-        cost_roi_sha256=COST_ROI,
-        loss_effect_known_and_approved=True,
-        loss_roi_sha256=LOSS_ROI,
         today_highest_damage=0,
         attempt_source_frame_sha256=FRAME,
         dispatch_page_identity="ZOMBIE_ZERO_DISPATCH",
@@ -48,22 +40,24 @@ def challenge(**overrides):
     return ChallengeObservation(**facts)
 
 
-def test_dispatch_requires_every_explicit_current_gate():
+def test_dispatch_requires_actual_saved_populated_formation():
     assert plan_dispatch(challenge(), saved_military_verified=True).action is Action.DISPATCH
     rejected = (
-        {"cost": CostState.UNKNOWN, "cost_amount": None, "cost_roi_sha256": None},
-        {"cost": CostState.NONZERO, "cost_amount": 1},
-        {"loss_effect_known_and_approved": False, "loss_roi_sha256": None},
         {"saved_military_verified": False},
+        {"troop_set_one_applied": False},
         {"troop_set_one_selected": False},
         {"five_heroes_populated": False},
-        {"current_troops": 160199},
+        {"current_troops": 0},
         {"current_troops": None},
-        {"today_highest_damage": None},
     )
     for change in rejected:
         result = plan_dispatch(challenge(**change), saved_military_verified=True)
         assert result.action is Action.BLOCKED
+
+
+def test_fixed_mechanic_needs_neither_damage_ocr_nor_maximum_capacity():
+    observation = challenge(today_highest_damage=None, current_troops=160199, troop_capacity=None)
+    assert plan_dispatch(observation, saved_military_verified=True).action is Action.DISPATCH
 
 
 def test_dispatch_busy_unavailable_and_prior_same_reset_use_are_not_actions():

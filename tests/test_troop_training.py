@@ -225,18 +225,13 @@ class TroopTrainingContractTests(unittest.TestCase):
         unknown = tuple(ResourceReading(name, None, 50) for name in ("food", "wood", "steel", "gas"))
         self.assertEqual(controller.plan_training(replace(observation(), resources=unknown), "fighter"), "reject_unknown_resources")
 
-    def test_current_max_reconciliation_rejects_selected_quantity_mismatch(self):
-        current_max_config = replace(
-            config(policy="continuous", allow_resource_boxes=True),
-            fighter=TrainingConfig(
-                target_tier=8,
-                quantity=None,
-                quantity_mode="current_max",
-                training_policy="continuous",
-                allow_resource_boxes=True,
-            ),
+    def test_authorized_active_queue_rejects_wrong_stored_batch_quantity(self):
+        controller = TrainingController(
+            default_troop_training_config(),
+            reset_identity=RESET,
+            pending_start_action_keys={"fighter": "fighter:batch-1"},
+            prior_batch_quantities={"fighter": 999},
         )
-        controller = TrainingController(current_max_config, reset_identity=RESET)
         active = replace(
             observation("fighter", quantity=999, queue_active=True, duration=9369),
             quantity_maximum=None,
@@ -256,6 +251,7 @@ class TroopTrainingContractTests(unittest.TestCase):
             reset_identity=RESET,
             queue_generations={"fighter": 1},
             pending_start_action_keys={"fighter": "fighter:batch-1"},
+            prior_batch_quantities={"fighter": 1400},
         )
         current = replace(observation("fighter", quantity=1400), quantity_maximum=1400)
 
@@ -279,28 +275,48 @@ class TroopTrainingContractTests(unittest.TestCase):
             queue_tier=8,
             queue_quantity=1400,
         )
-        self.assertEqual(controller.reconcile_active_queue(active, "fighter"), "active_queue_reconciled")
+        changed_capacity = replace(active, quantity_maximum=700, selected_quantity=700)
+        self.assertEqual(controller.reconcile_active_queue(changed_capacity, "fighter"), "active_queue_reconciled")
         self.assertEqual(controller.states["fighter"].resolved_quantity, 1400)
         self.assertEqual(
-            controller.reconcile_active_queue(replace(active, selected_quantity=1399), "fighter"),
+            controller.reconcile_active_queue(replace(changed_capacity, queue_quantity=1399), "fighter"),
             "reject_active_queue_quantity",
         )
 
-        completion = replace(current, completion_ready=True, completion_batch_id="fighter:batch-1")
+        completion = replace(
+            active, queue_active=False, completion_ready=True,
+            completion_batch_id="fighter:batch-1", quantity_maximum=700,
+            selected_quantity=700, selected_tier=1,
+        )
         self.assertEqual(controller.plan_claim(completion, action_key="claim-1400"), "authorize_claim")
         self.assertEqual(
             controller.plan_claim(
-                replace(completion, selected_quantity=1399),
+                replace(completion, queue_quantity=1399),
                 action_key="claim-1400-mismatch",
             ),
             "reject_claim_quantity_mismatch",
         )
+        for mismatch in (
+            {"queue_quantity": None},
+            {"queue_troop_type": "vehicle"},
+            {"queue_tier": 1},
+        ):
+            with self.subTest(completed_queue=mismatch):
+                self.assertNotEqual(
+                    controller.plan_claim(replace(completion, **mismatch), action_key="bad-claim"),
+                    "authorize_claim",
+                )
 
         post = replace(
             active,
             frame_sha256="b" * 64,
+            selected_tier=1,
+            selected_quantity=700,
+            quantity_maximum=None,
+            resources=(),
         )
-        committed = TrainingController(training_config, reset_identity=RESET).commit_training(
+        starting = TrainingController(training_config, reset_identity=RESET)
+        committed = starting.commit_training(
             "fighter",
             current,
             action_key="training-1400",
@@ -308,6 +324,74 @@ class TroopTrainingContractTests(unittest.TestCase):
             post=post,
         )
         self.assertEqual(committed.resolved_quantity, 1400)
+        self.assertEqual(starting.prior_batch_quantities["fighter"], 1400)
+        self.assertEqual(starting.pending_start_action_keys["fighter"], "training-1400")
+        with self.assertRaisesRegex(TrainingContractError, "duplicate training action key"):
+            starting.commit_training(
+                "fighter", current, action_key="training-1400",
+                dispatched_at=datetime.now(timezone.utc), post=post,
+            )
+        for mismatch in (
+            {"queue_troop_type": "vehicle"},
+            {"queue_tier": 1},
+            {"queue_quantity": 700},
+            {"training_duration_seconds": None},
+        ):
+            with self.subTest(postcondition=mismatch), self.assertRaises(TrainingContractError):
+                TrainingController(training_config, reset_identity=RESET).commit_training(
+                    "fighter", current, action_key="bad-start",
+                    dispatched_at=datetime.now(timezone.utc),
+                    post=replace(post, **mismatch),
+                )
+        self.assertEqual(
+            TrainingController(training_config, reset_identity=RESET).resolved_quantity(
+                replace(current, quantity_maximum=700), "fighter"
+            ),
+            700,
+        )
+
+    def test_manual_queue_observation_does_not_fabricate_start_authority(self):
+        controller = TrainingController(default_troop_training_config(), reset_identity=RESET)
+        active = replace(
+            observation("fighter", queue_active=True, quantity=700),
+            queue_label="Train T8 x1400",
+            queue_troop_type="fighter",
+            queue_tier=8,
+            queue_quantity=1400,
+            quantity_maximum=700,
+        )
+        self.assertEqual(controller.reconcile_active_queue(active, "fighter"), "active_queue_reconciled")
+        self.assertIsNone(controller.states["fighter"].last_confirmed_start_action_key)
+        self.assertEqual(controller.states["fighter"].queue_generation, 0)
+        self.assertEqual(controller.pending_start_action_keys, {})
+        completed = replace(active, queue_active=False, completion_ready=True, completion_batch_id="manual")
+        self.assertEqual(controller.plan_claim(completed, action_key="manual-claim"), "reject_claim_identity_unknown")
+
+    def test_missing_or_invalid_durable_quantity_never_uses_current_max(self):
+        for invalid in (0, -1, True, 1.5):
+            with self.subTest(quantity=invalid), self.assertRaises(TrainingContractError):
+                TrainingController(
+                    default_troop_training_config(),
+                    reset_identity=RESET,
+                    prior_batch_quantities={"fighter": invalid},
+                )
+        controller = TrainingController(
+            default_troop_training_config(),
+            reset_identity=RESET,
+            queue_generations={"fighter": 3},
+            pending_start_action_keys={"fighter": "fighter:batch-1"},
+        )
+        active = replace(
+            observation("fighter", queue_active=True, quantity=1000),
+            queue_label="Train T8 x1000",
+            queue_troop_type="fighter",
+            queue_tier=8,
+            queue_quantity=1000,
+        )
+        self.assertEqual(controller.reconcile_active_queue(active, "fighter"), "reject_active_queue_quantity")
+        completed = replace(active, queue_active=False, completion_ready=True, completion_batch_id="fighter:batch-1")
+        self.assertEqual(controller.plan_claim(completed, action_key="missing-quantity-claim"), "reject_claim_quantity_mismatch")
+        self.assertEqual(controller.states["fighter"].queue_generation, 3)
 
     def test_fixed_reconciliation_still_uses_configured_quantity(self):
         controller = TrainingController(config(), reset_identity=RESET)
@@ -356,7 +440,6 @@ class TroopTrainingContractTests(unittest.TestCase):
         route._record_reconciled_queue(SimpleNamespace(sha256="c" * 64), active, "rider")
         self.assertEqual(route.training[0]["selected_tier"], 1)
         self.assertEqual(route.training[0]["quantity"], 250)
-        self.assertTrue(route.training[0]["maximum_equality_proven"])
 
     def test_empty_queue_still_requires_configured_selected_tier(self):
         controller = TrainingController(config(tier=1), reset_identity=RESET)
@@ -495,62 +578,6 @@ class TroopTrainingContractTests(unittest.TestCase):
         with self.assertRaisesRegex(TrainingContractError, "structurally forbidden"):
             mixed.validate()
 
-    def test_native_train_defers_known_shortage_without_opening_box_branch(self):
-        shortage = (
-            ResourceReading("food", 50, 100, "base"),
-            ResourceReading("wood", 1_000, 100, "base"),
-            ResourceReading("steel", 1_000, 100, "base"),
-            ResourceReading("gas", 1_000, 100, "base"),
-        )
-        source_observation = replace(
-            observation("fighter", quantity=1000),
-            resources=shortage,
-        )
-        capture = SimpleNamespace(
-            frame=np.zeros((1280, 800, 3), dtype=np.uint8),
-            sha256="a" * 64,
-        )
-
-        class Runtime:
-            def __init__(self):
-                self.capture_labels = []
-                self.taps = []
-
-            def capture(self, label):
-                self.capture_labels.append(label)
-                return capture
-
-            def tap(self, *args, **kwargs):
-                self.taps.append((args, kwargs))
-                raise AssertionError("known shortage must not dispatch Train or a box confirmation")
-
-        runtime = Runtime()
-        route = TroopTrainingIntegratedRoute.__new__(TroopTrainingIntegratedRoute)
-        route.native_context = SimpleNamespace(runtime=runtime)
-        route.config = default_troop_training_config()
-        route.controller = TroopTrainingRuntimeController(route.config, reset_identity=RESET)
-        recognition = SimpleNamespace(
-            observation=source_observation,
-            target=lambda _name: source_observation.normal_train_target,
-        )
-        with patch(
-            "scripts.troop_training_bluestacks.recognize_training_with_targets",
-            return_value=recognition,
-        ):
-            returned_capture, returned_observation, error = route._train(
-                capture,
-                source_observation,
-                "fighter",
-            )
-
-        self.assertIs(returned_capture, capture)
-        self.assertIs(returned_observation, source_observation)
-        self.assertEqual(
-            error,
-            "defer_resource_shortage_effect_authority_unavailable",
-        )
-        self.assertEqual(runtime.capture_labels, ["fighter-train-immediate-before"])
-        self.assertEqual(runtime.taps, [])
 
     def test_busy_and_shortage_variants_leave_independent_variants_authorizeable(self):
         controller = TrainingController(
@@ -709,7 +736,12 @@ class TroopTrainingContractTests(unittest.TestCase):
 
 
     def test_unknown_start_successor_blocks_identical_retry(self):
-        controller = TroopTrainingRuntimeController(config(), reset_identity=RESET)
+        controller = TroopTrainingRuntimeController(
+            config(), reset_identity=RESET,
+            prior_daily_initiations=("shooter", "rider"),
+            queue_generations={"fighter": 3},
+            prior_batch_quantities={"fighter": 250},
+        )
         ready = controller.observe_training(observation(), "fighter")
         self.assertEqual(ready.action, "start_training")
         dispatched = controller.dispatch_started("fighter", "training-start-1")
@@ -731,6 +763,11 @@ class TroopTrainingContractTests(unittest.TestCase):
         self.assertEqual(retry.action, "stop")
         self.assertEqual(retry.reason, "prior consequential action unresolved")
         self.assertEqual(controller.unresolved_action, "training-start-1")
+        self.assertEqual(controller.states["fighter"].queue_generation, 3)
+        self.assertEqual(controller.semantic.prior_batch_quantities["fighter"], 250)
+        self.assertEqual(controller.semantic.pending_start_action_keys, {})
+        self.assertEqual(controller.states["shooter"].daily_initiation_state, "initiated")
+        self.assertEqual(controller.states["rider"].daily_initiation_state, "initiated")
 
 
     def test_integrated_return_home_reports_terminal_localization_truthfully(self):
@@ -952,6 +989,7 @@ class TroopTrainingContractTests(unittest.TestCase):
     def test_training_commit_records_timer_expected_completion_and_daily_state(self):
         controller = TrainingController(config(), reset_identity=RESET)
         before = observation()
+        captured = datetime(2026, 7, 16, 20, 5, tzinfo=timezone.utc)
         after = replace(
             before,
             queue_active=True,
@@ -960,13 +998,24 @@ class TroopTrainingContractTests(unittest.TestCase):
             queue_tier=8,
             queue_quantity=250,
             frame_sha256="b" * 64,
+            captured_at=captured,
         )
         dispatched = datetime(2026, 7, 16, 20, 0, tzinfo=timezone.utc)
         state = controller.commit_training("fighter", before, action_key="training-key", dispatched_at=dispatched, post=after)
         self.assertEqual(state.queue_state, "active")
-        self.assertEqual(state.expected_completion_timestamp, expected_completion_timestamp(dispatched, 3600))
+        self.assertEqual(state.expected_completion_timestamp, expected_completion_timestamp(captured, 3600))
         self.assertEqual(state.daily_initiation_state, "initiated")
         self.assertEqual(controller.scheduler_state("fighter").state, "WAIT_UNTIL_COMPLETION")
+        self.assertEqual(state.next_eligible_timestamp, expected_completion_timestamp(captured, 3600))
+        self.assertEqual(state.last_successful_training, dispatched)
+        without_capture = TrainingController(config(), reset_identity=RESET).commit_training(
+            "fighter", before, action_key="training-no-capture",
+            dispatched_at=dispatched, post=replace(after, captured_at=None),
+        )
+        self.assertEqual(
+            without_capture.expected_completion_timestamp,
+            expected_completion_timestamp(dispatched, 3600),
+        )
 
     def test_durable_once_daily_and_queue_state_is_injected_from_action_history(self):
         runtime = TroopTrainingRuntimeController(
@@ -975,11 +1024,13 @@ class TroopTrainingContractTests(unittest.TestCase):
             prior_daily_initiations=("shooter", "rider"),
             queue_generations={"fighter": 3},
             pending_start_action_keys={"fighter": "canonical-start-key"},
+            prior_batch_quantities={"fighter": 1400},
         )
         controller = runtime.semantic
         self.assertEqual(controller.states["shooter"].daily_initiation_state, "initiated")
         self.assertEqual(controller.states["rider"].daily_initiation_state, "initiated")
         self.assertEqual(controller.states["fighter"].queue_generation, 3)
+        self.assertEqual(controller.states["fighter"].resolved_quantity, 1400)
         self.assertEqual(
             controller.pending_start_action_keys["fighter"],
             "canonical-start-key",
@@ -1668,8 +1719,12 @@ class TroopTrainingContractTests(unittest.TestCase):
             reset_identity=RESET,
             queue_generations={"fighter": 1},
             pending_start_action_keys={"fighter": "fighter:batch-1"},
+            prior_batch_quantities={"fighter": 250},
         )
-        before = observation(completion_ready=True)
+        before = replace(
+            observation(completion_ready=True),
+            queue_troop_type="fighter", queue_tier=8, queue_quantity=250,
+        )
         self.assertEqual(controller.plan_claim(before, action_key="claim-1"), "authorize_claim")
         self.assertTrue(controller.reconcile_claim(before, replace(before, completion_ready=False, completion_batch_id=None), action_key="claim-1"))
         self.assertEqual(controller.plan_claim(before, action_key="claim-2"), "reject_duplicate_claim")

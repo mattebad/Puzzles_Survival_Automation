@@ -23,7 +23,6 @@ from scripts.hall_of_war_bluestacks import (
     HallOfWarVision,
 )
 from tasks.hall_of_war import (
-    CostState,
     DISPATCH_ACTION,
     DISPATCH_CONSEQUENCE,
     DISPATCH_POSTCONDITION,
@@ -67,6 +66,8 @@ class _ReplayRuntime:
         self.capture_count += 1
         self.last_capture_monotonic += 0.1
         frame = np.full((NATIVE_HEIGHT, NATIVE_WIDTH, 3), self.state, dtype=np.uint8)
+        # Unrelated animation must not make a fresh, still-bound target stale.
+        frame[-1, -1] = self.capture_count % 256
         digest = hashlib.sha256(frame.tobytes()).hexdigest()
         path = self.root / f"{self.capture_count:03d}-{label}.png"
         return CapturedNativeFrame(
@@ -120,11 +121,8 @@ class _ReplaySession:
 
 
 class _ReplayVision:
-    def cost_proof(self, _frame):
-        return CostState.EXPLICIT_ZERO, 0, (0, 0, 100, 40)
-
-    def loss_effect_proof(self, _frame):
-        return True, (0, 40, 100, 80)
+    def formation_signature(self, _frame):
+        return ("a" * 64,) * 5
 
     @staticmethod
     def roi_sha256(_frame, roi):
@@ -225,6 +223,49 @@ class HallOfWarNativeReplayTests(unittest.TestCase):
                 self.assertEqual(runtime.tap_count, 2)
                 self.assertEqual(route.result["dispatch_transport_calls"], 1)
                 self.assertEqual(route.result["reward_claim_transport_calls"], 1)
+            finally:
+                store.release_lease(OWNER, NOW)
+                store.close()
+
+    def test_verified_switch_dispatch_reward_prefix_fits_visit_budget(self):
+        with tempfile.TemporaryDirectory() as directory:
+            route, runtime, store = _route(Path(directory), effects_confirmed=True)
+            try:
+                self.assertEqual(_perform(route, "dispatch")[:2], ("confirmed", 1))
+                self.assertEqual(_perform(route, "reward")[:2], ("confirmed", 1))
+                route.result["talent_switch_transport_calls"] = 1
+                runtime.input_count = route.session.input_count + 1
+                route.session.input_count = runtime.input_count
+                result = route._account(1, 1, 3)
+                self.assertEqual(result["committed_action_count"], 3)
+                self.assertEqual(result["hall_of_war_dispatch_count"], 3)
+                self.assertTrue(result["accounting_verified"])
+                self.assertFalse(result["effect_reconciliation_required"])
+            finally:
+                store.release_lease(OWNER, NOW)
+                store.close()
+
+    def test_unknown_reward_retains_confirmed_dispatch_across_store_restart(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            route, runtime, store = _route(root, effects_confirmed=True)
+            try:
+                self.assertEqual(_perform(route, "dispatch")[:2], ("confirmed", 1))
+                runtime.effects_confirmed = False
+                self.assertEqual(_perform(route, "reward")[:2], ("unresolved", 1))
+                store.release_lease(OWNER, NOW)
+                store.close()
+                store = SafetyStore(root / "safety.sqlite3")
+                store.acquire_lease(OWNER, NOW, 3600.0)
+                route.store = store
+                dispatch_key = action_key(
+                    category="dispatch", runtime_scope="replay-slot", account_id="account",
+                    server_id="server", reset_id=RESET_ID,
+                )
+                self.assertEqual(store.get_action_by_key(dispatch_key)["final_status"], "confirmed")
+                with self.assertRaises(HallOfWarRouteError):
+                    _perform(route, "reward")
+                self.assertEqual(runtime.tap_count, 2)
             finally:
                 store.release_lease(OWNER, NOW)
                 store.close()

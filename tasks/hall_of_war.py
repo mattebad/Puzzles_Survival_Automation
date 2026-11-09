@@ -31,12 +31,6 @@ class AttemptState(str, Enum):
     UNKNOWN = "unknown"
 
 
-class CostState(str, Enum):
-    EXPLICIT_ZERO = "explicit_zero"
-    NONZERO = "nonzero"
-    UNKNOWN = "unknown"
-
-
 class RewardState(str, Enum):
     READY = "ready"
     CLAIMED = "claimed"
@@ -58,17 +52,12 @@ class ChallengeObservation:
     page_identity: str
     page_exact: bool
     attempt: AttemptState
-    cost: CostState
-    cost_amount: int | None
     saved_military_verified: bool
     troop_set_one_selected: bool
     troop_set_one_applied: bool
     five_heroes_populated: bool
     current_troops: int | None
     troop_capacity: int | None
-    cost_roi_sha256: str | None
-    loss_effect_known_and_approved: bool
-    loss_roi_sha256: str | None
     today_highest_damage: int | None
     attempt_source_frame_sha256: str
     dispatch_page_identity: str
@@ -77,12 +66,12 @@ class ChallengeObservation:
     source_frame_sha256: str
 
     def __post_init__(self) -> None:
-        if not isinstance(self.attempt, AttemptState) or not isinstance(self.cost, CostState):
-            raise TypeError("attempt and cost must be typed Hall of War observations")
+        if not isinstance(self.attempt, AttemptState):
+            raise TypeError("attempt must be a typed Hall of War observation")
         for name in (
             "page_exact", "saved_military_verified", "troop_set_one_selected",
             "troop_set_one_applied", "five_heroes_populated",
-            "loss_effect_known_and_approved", "dispatch_page_exact",
+            "dispatch_page_exact",
         ):
             if type(getattr(self, name)) is not bool:
                 raise TypeError(f"{name} must be a boolean observation")
@@ -98,19 +87,10 @@ class ChallengeObservation:
                 char not in "0123456789abcdef" for char in digest
             ):
                 raise ValueError(f"{name} must be a current source frame digest")
-        for name in ("cost_amount", "current_troops", "troop_capacity", "today_highest_damage"):
+        for name in ("current_troops", "troop_capacity", "today_highest_damage"):
             value = getattr(self, name)
             if value is not None and (type(value) is not int or value < 0):
                 raise ValueError(f"{name} must be a non-negative integer or unknown")
-        for name in ("cost_roi_sha256", "loss_roi_sha256"):
-            digest = getattr(self, name)
-            if digest is not None and (not isinstance(digest, str) or len(digest) != 64
-                    or any(char not in "0123456789abcdef" for char in digest)):
-                raise ValueError(f"{name} must be an exact current-source ROI digest")
-        if self.cost is CostState.EXPLICIT_ZERO and not self.cost_roi_sha256:
-            raise ValueError("explicit zero-cost evidence requires its exact current-source ROI")
-        if self.loss_effect_known_and_approved and not self.loss_roi_sha256:
-            raise ValueError("approved no-loss evidence requires its exact current-source ROI")
 
 
 @dataclass(frozen=True)
@@ -189,15 +169,15 @@ def dispatch_policy_preconditions(
     reset_id: str,
     action_key: str,
     source_frame_sha256: str,
-    cost_roi_sha256: str,
-    loss_roi_sha256: str,
+    formation_roi_sha256: str,
+    dispatch_roi_sha256: str,
 ) -> tuple[str, ...]:
     """Build exact current-frame dispatch proof tokens after every route gate passed."""
     reset_id = _action_reset(reset_id)
     _current_action_key(action_key, category="dispatch", reset_id=reset_id, ordinal="attempt")
     source = _source_digest(source_frame_sha256, "dispatch source frame")
-    cost = _source_digest(cost_roi_sha256, "explicit zero-cost ROI")
-    loss = _source_digest(loss_roi_sha256, "explicit no-loss ROI")
+    formation = _source_digest(formation_roi_sha256, "saved formation ROI")
+    dispatch = _source_digest(dispatch_roi_sha256, "dispatch control ROI")
     return (
         f"hall_of_war_product={PRODUCT_ID}",
         f"hall_of_war_product_revision={PRODUCT_REVISION}",
@@ -205,18 +185,17 @@ def dispatch_policy_preconditions(
         "current_reset_id_bound_to_game_day_id",
         "challenge_action_ordinal=1",
         "challenge_action_key_binds_attempt_ordinal_one_for_current_reset",
-        "exact_zombie_zero_page_and_today_highest_damage_zero",
+        "exact_zombie_zero_page_and_current_reset_action_key_checked",
         "challenge_attempt_ready_and_not_busy_or_cooling_down",
         "saved_military_preset_verified",
         "troop_set_1_saved_identity_selected_not_edit_or_quick_select",
         "troop_set_1_application_toast_verified",
         "five_hero_slots_populated",
-        "current_troop_count_exactly_matches_visible_capacity_and_positive",
-        f"dispatch_cost_source_frame={source}",
-        f"hall_of_war_explicit_zero_cost={cost}",
-        "troop_loss_effect=explicit_no_loss",
-        f"troop_loss_effect_source_frame={source}",
-        f"hall_of_war_no_loss_rule={loss}",
+        "current_troop_count_positive",
+        f"dispatch_source_frame={source}",
+        f"hall_of_war_saved_formation={formation}",
+        f"hall_of_war_dispatch_control={dispatch}",
+        "fixed_zero_resource_zero_loss_zombie_zero_mechanic",
         "one_dispatch_transport_remaining",
     )
 
@@ -241,7 +220,7 @@ def reward_policy_preconditions(*, reset_id: str, action_key: str) -> tuple[str,
 
 
 def plan_dispatch(observation: ChallengeObservation, *, saved_military_verified: bool) -> Decision:
-    """Require current proof for every dispatch precondition; no default-free assumptions."""
+    """Authorize the fixed free mechanic using the observed saved populated formation."""
 
     if observation.page_identity != "ZOMBIE_ZERO" or observation.page_exact is not True:
         return Decision(Action.BLOCKED, "exact_zombie_zero_page_not_recognized")
@@ -254,26 +233,18 @@ def plan_dispatch(observation: ChallengeObservation, *, saved_military_verified:
         return Decision(Action.BLOCKED, "saved_military_preset_not_verified")
     if type(observation.today_highest_damage) is int and observation.today_highest_damage > 0:
         return Decision(Action.NO_WORK, "same_reset_participation_already_observed")
-    if observation.today_highest_damage is None:
-        return Decision(Action.BLOCKED, "current_attempt_participation_state_unknown")
     if observation.attempt is AttemptState.BUSY:
         return Decision(Action.NO_WORK, "challenge_attempt_busy_or_cooling_down")
     if observation.attempt is AttemptState.UNAVAILABLE:
         return Decision(Action.NO_WORK, "challenge_unavailable")
     if observation.attempt is not AttemptState.READY:
         return Decision(Action.BLOCKED, "challenge_attempt_state_unknown")
-    if observation.cost is not CostState.EXPLICIT_ZERO or observation.cost_amount != 0:
-        return Decision(Action.BLOCKED, "dispatch_cost_not_explicitly_zero")
     if not observation.troop_set_one_selected or not observation.troop_set_one_applied:
         return Decision(Action.BLOCKED, "saved_troop_set_one_not_applied")
     if not observation.five_heroes_populated:
         return Decision(Action.BLOCKED, "five_hero_formation_not_verified")
-    if (type(observation.current_troops) is not int or observation.current_troops <= 0
-            or type(observation.troop_capacity) is not int
-            or observation.current_troops != observation.troop_capacity):
-        return Decision(Action.BLOCKED, "current_troops_not_full_or_unknown")
-    if not observation.loss_effect_known_and_approved:
-        return Decision(Action.BLOCKED, "troop_loss_effect_unknown_or_unapproved")
+    if type(observation.current_troops) is not int or observation.current_troops <= 0:
+        return Decision(Action.BLOCKED, "current_troops_empty_or_unknown")
     return Decision(Action.DISPATCH, "exact_current_dispatch_preconditions_verified")
 
 

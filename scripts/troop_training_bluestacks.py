@@ -701,6 +701,7 @@ class TroopTrainingIntegratedRoute:
         queue_generations: Mapping[str, int] | None = None,
         pending_start_action_keys: Mapping[str, str] | None = None,
         pending_start_reset_ids: Mapping[str, str] | None = None,
+        prior_batch_quantities: Mapping[str, int] | None = None,
         next_start_action_keys: Mapping[str, str] | None = None,
         blocked_start_variants: Mapping[str, str] | None = None,
         per_reset_variant_start_counts: Mapping[str, int] | None = None,
@@ -751,6 +752,7 @@ class TroopTrainingIntegratedRoute:
             prior_daily_initiations=prior_daily_initiations,
             queue_generations=queue_generations,
             pending_start_action_keys=pending_start_action_keys,
+            prior_batch_quantities=prior_batch_quantities,
         )
         self.actions_completed = 0
         self.training_start_transport_calls = 0
@@ -1065,13 +1067,28 @@ class TroopTrainingIntegratedRoute:
                 return captured, observation
         return last_captured, last_observation
 
+    def _capture_timestamp(self, captured) -> datetime:
+        if self.native_context is None:
+            return datetime.now(timezone.utc)
+        clock = self.native_context
+        return datetime.fromtimestamp(
+            float(clock.utc_clock()) - max(
+                0.0, float(clock.monotonic_clock()) - float(captured.captured_monotonic),
+            ),
+            timezone.utc,
+        )
+
     def _capture_training(self, label: str):
         last_captured = None
         last_observation = None
         for attempt in range(2):
             capture_label = label if attempt == 0 else f"{label}-recognition-retry-{attempt}"
             captured = self.runtime.capture(capture_label)
+            # Native captures carry a monotonic completion time. Bind the wall-clock
+            # projection before OCR, not to its potentially much later completion.
+            captured_at = self._capture_timestamp(captured)
             observation = recognize_training(captured.frame)
+            observation = replace(observation, captured_at=captured_at)
             last_captured, last_observation = captured, observation
             if observation.recognized:
                 return captured, observation
@@ -1104,7 +1121,9 @@ class TroopTrainingIntegratedRoute:
                 "configured_quantity": state.configured_quantity,
                 "quantity_mode": state.quantity_mode,
                 "quantity_maximum": observation.quantity_maximum,
-                "maximum_equality_proven": state.quantity_mode != "current_max" or observation.selected_quantity == observation.quantity_maximum,
+                "authorized_batch_quantity": (
+                    state.resolved_quantity if self.pending_start_action_keys.get(troop_type) else None
+                ),
                 "queue_label": observation.queue_label,
                 "queue_troop_type": observation.queue_troop_type,
                 "queue_tier": observation.queue_tier,
@@ -1288,6 +1307,7 @@ class TroopTrainingIntegratedRoute:
 
         post_captures: list[tuple[Any, TrainingScreenObservation, bool]] = []
         dispatch_counts: list[int] = []
+        dispatched_times: list[datetime] = []
 
         def record_dispatch(count: int) -> None:
             if count <= 0:
@@ -1338,6 +1358,7 @@ class TroopTrainingIntegratedRoute:
                     )
                     if dispatch_decision.action != "await_postcondition":
                         raise RuntimeError("training controller rejected its preauthorized start")
+                dispatched_times.append(datetime.fromtimestamp(float(context.utc_clock()), timezone.utc))
                 runtime.tap(
                     before,
                     target_identity=target_identity,
@@ -1348,7 +1369,9 @@ class TroopTrainingIntegratedRoute:
                 )
 
             def recognize(after):
+                captured_at = self._capture_timestamp(after)
                 fresh = recognize_training_with_targets(after.frame)
+                fresh.observation = replace(fresh.observation, captured_at=captured_at)
                 shape_ok = (
                     getattr(session, "input_count", None) - session_before == 1
                     and getattr(runtime, "input_count", None) - runtime_before == 1
@@ -1511,6 +1534,7 @@ class TroopTrainingIntegratedRoute:
             "successor_sha256": post_captures[-1][0].sha256 if post_captures else None,
             "successor_capture": post_captures[-1][0] if post_captures else None,
             "successor_observation": post_captures[-1][1] if post_captures else None,
+            "dispatched_at": dispatched_times[-1] if dispatched_times else None,
         }
 
     def _navigation_tap(self, captured, *, identity: str, roi, action_key: str) -> None:
@@ -1531,7 +1555,7 @@ class TroopTrainingIntegratedRoute:
         target = recognition.target(f"tab:{troop_type}")
         config = self.config.for_type(troop_type)
         state = self.controller.semantic.states[troop_type]
-        quantity = observation.selected_quantity
+        quantity = observation.queue_quantity
         batch_quantity = observation.queue_quantity
         if (
             target is None
@@ -1541,8 +1565,6 @@ class TroopTrainingIntegratedRoute:
             or type(quantity) is not int
             or type(batch_quantity) is not int
             or batch_quantity != quantity
-            or type(observation.quantity_maximum) is not int
-            or observation.quantity_maximum <= 0
             or self.controller.semantic.plan_claim(bound, action_key=make_training_claim_action_key(start_action_key))
             != "authorize_claim"
         ):
@@ -1592,7 +1614,6 @@ class TroopTrainingIntegratedRoute:
                 and fresh.queue_tier == config.target_tier
                 and fresh.queue_quantity == batch_quantity
                 and fresh.selected_tier == config.target_tier
-                and fresh.selected_quantity == quantity
                 and not fresh.premium_popup
                 and not fresh.forbidden_controls
             )
@@ -1605,7 +1626,6 @@ class TroopTrainingIntegratedRoute:
                 and fresh.overlay_state == "none"
                 and not fresh.completion_ready
                 and fresh.selected_tier == config.target_tier
-                and fresh.selected_quantity == quantity
                 and not fresh.premium_popup
                 and not fresh.forbidden_controls
             )
@@ -1689,12 +1709,11 @@ class TroopTrainingIntegratedRoute:
                 "troop_type": troop_type,
                 "facility_identity": state.facility_identity,
                 "selected_tier": observation.selected_tier,
-                "quantity": observation.selected_quantity,
+                "quantity": batch_quantity,
                 "configured_quantity": state.configured_quantity,
                 "quantity_mode": state.quantity_mode,
                 "quantity_maximum": observation.quantity_maximum,
-                "maximum_equality_proven": state.quantity_mode != "current_max"
-                or observation.selected_quantity == observation.quantity_maximum,
+                "authorized_batch_quantity": state.resolved_quantity,
                 "queue_label": observation.queue_label,
                 "queue_troop_type": observation.queue_troop_type,
                 "queue_tier": observation.queue_tier,
@@ -2134,11 +2153,6 @@ class TroopTrainingIntegratedRoute:
                 and fresh.queue_troop_type == troop_type
                 and fresh.queue_tier == config.target_tier
                 and fresh.queue_quantity == quantity
-                and fresh.selected_tier == config.target_tier
-                and fresh.selected_quantity == quantity
-                and type(fresh.quantity_maximum) is int
-                and fresh.quantity_maximum > 0
-                and (config.quantity_mode != "current_max" or fresh.quantity_maximum == quantity)
                 and type(fresh.training_duration_seconds) is int
                 and fresh.training_duration_seconds > 0
                 and fresh.diagnostics.get("duration_source") == "queue_band"
@@ -2184,6 +2198,7 @@ class TroopTrainingIntegratedRoute:
             self.effect_reconciliation_required = True
             self.identical_retry_denied = True
             return None, None, "confirmed training action lost its positive queue successor"
+        dispatched_at = result.get("dispatched_at") or dispatched_at
         reconciled = self.controller.reconcile_started(
             troop_type,
             observation,
@@ -2670,6 +2685,7 @@ def run_troop_training_native(context, arguments: Mapping[str, object]) -> Mappi
         queue_generations=state.queue_generations,
         pending_start_action_keys=state.pending_start_action_keys,
         pending_start_reset_ids=state.pending_start_reset_ids,
+        prior_batch_quantities=state.prior_batch_quantities,
         next_start_action_keys=state.next_start_action_keys,
         blocked_start_variants=state.blocked_start_variants,
         per_reset_variant_start_counts=state.per_reset_variant_start_counts,

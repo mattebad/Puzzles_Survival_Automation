@@ -91,11 +91,11 @@ def _identity(now):
 
 
 @pytest.mark.parametrize(
-    ("confirmed_challenge", "seconds_before_reset"),
-    ((False, 3600), (True, 3600), (False, 1)),
+    ("confirmed_challenge", "seconds_before_reset", "manual_use"),
+    ((False, 3600, False), (True, 3600, False), (False, 1, False), (False, 3600, True)),
 )
 def test_known_deferral_preserves_progress_and_reopen_waits_before_reset(
-    confirmed_challenge, seconds_before_reset,
+    confirmed_challenge, seconds_before_reset, manual_use,
 ):
     with ExitStack() as stack:
         native_visits = []
@@ -111,6 +111,12 @@ def test_known_deferral_preserves_progress_and_reopen_waits_before_reset(
                     dispatch_transport_calls=1,
                     hall_of_war_dispatch_count=1,
                     committed_action_count=1,
+                )
+            if manual_use:
+                payload.update(
+                    challenge_status="deferred_unexplained_prior_same_reset_use",
+                    challenge_participation_proven=True,
+                    today_highest_damage=321,
                 )
 
             class ObservedBoundary(FakeBoundary):

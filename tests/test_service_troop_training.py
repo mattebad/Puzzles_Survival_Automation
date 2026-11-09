@@ -47,13 +47,16 @@ def _identity(now: float) -> SchedulerIdentity:
     )
 
 
-def _row(action_key: str, *, reset_id: str, status: str, semantic_action: str) -> dict[str, object]:
+def _row(
+    action_key: str, *, reset_id: str, status: str, semantic_action: str, quantity: int = 250,
+) -> dict[str, object]:
     return {
         "task_id": FLOW_ID,
         "action_key": action_key,
         "final_status": status,
         "game_day_id": reset_id,
         "semantic_action": semantic_action,
+        "quantity": quantity,
     }
 
 
@@ -94,9 +97,70 @@ def test_action_state_keeps_global_generation_daily_counts_and_old_batch_identit
     assert state.per_reset_variant_start_counts["fighter"] == 0
     assert state.per_reset_variant_claim_counts["fighter"] == 1
     assert state.pending_start_action_keys == {"shooter": shooter_today}
+    assert state.prior_batch_quantities == {"shooter": 250}
     assert state.next_start_action_keys["fighter"].endswith(":fighter:g2:start")
     assert "vehicle" in state.blocked_start_variants
     assert "vehicle" not in state.next_start_action_keys
+
+
+@pytest.mark.parametrize("troop", TROOP_TYPES)
+@pytest.mark.parametrize("quantity", (None, 0, -1, True, "250"))
+def test_pending_confirmed_start_requires_positive_stored_integer_quantity(troop, quantity):
+    binding = resource_fixed_runtime_binding()
+    runtime_hash = training_identity_digest(binding.runtime_scope, binding.account_id, binding.server_id)
+    reset = "game-day-2025-01-02"
+    row = _row(
+        make_training_start_action_key(runtime_hash, reset, troop, 1),
+        reset_id=reset, status="confirmed", semantic_action="TROOP_TRAINING_START",
+    )
+    if quantity is None:
+        row.pop("quantity")
+    else:
+        row["quantity"] = quantity
+    with pytest.raises(TrainingActionHistoryError, match="authorized batch quantity"):
+        derive_training_action_state(
+            [row], runtime_scope=binding.runtime_scope, account_id=binding.account_id,
+            server_id=binding.server_id, game_day_id=reset,
+        )
+
+
+@pytest.mark.parametrize("troop", ("shooter", "rider"))
+def test_pending_daily_batch_rejects_stored_quantity_other_than_250(troop):
+    binding = resource_fixed_runtime_binding()
+    runtime_hash = training_identity_digest(binding.runtime_scope, binding.account_id, binding.server_id)
+    reset = "game-day-2025-01-02"
+    with pytest.raises(TrainingActionHistoryError, match="quantity 250"):
+        derive_training_action_state(
+            [_row(
+                make_training_start_action_key(runtime_hash, reset, troop, 1),
+                reset_id=reset, status="confirmed", semantic_action="TROOP_TRAINING_START",
+                quantity=1000,
+            )],
+            runtime_scope=binding.runtime_scope, account_id=binding.account_id,
+            server_id=binding.server_id, game_day_id=reset,
+        )
+
+
+@pytest.mark.parametrize("troop", ("fighter", "vehicle"))
+def test_pending_continuous_batch_retains_quantity_across_reset(troop):
+    binding = resource_fixed_runtime_binding()
+    runtime_hash = training_identity_digest(binding.runtime_scope, binding.account_id, binding.server_id)
+    prior_reset = "game-day-2025-01-01"
+    start = make_training_start_action_key(runtime_hash, prior_reset, troop, 1)
+    state = derive_training_action_state(
+        [_row(
+            start, reset_id=prior_reset, status="confirmed",
+            semantic_action="TROOP_TRAINING_START", quantity=731,
+        )],
+        runtime_scope=binding.runtime_scope, account_id=binding.account_id,
+        server_id=binding.server_id, game_day_id="game-day-2025-01-02",
+    )
+    assert state.prior_batch_quantities == {troop: 731}
+    assert state.pending_start_action_keys == {troop: start}
+    assert state.pending_start_reset_ids == {troop: prior_reset}
+    assert state.queue_generations[troop] == 1
+    assert state.per_reset_variant_start_counts[troop] == 0
+    assert troop not in state.next_start_action_keys
 
 
 def test_unresolved_restart_and_duplicate_generations_are_manual_reconciliation():
@@ -179,6 +243,7 @@ def test_legacy_continuation_history_requires_manual_reconciliation_without_losi
     assert progress.queue_generations["fighter"] == 1
     assert progress.per_reset_variant_start_counts["fighter"] == 1
     assert progress.per_reset_variant_claim_counts["fighter"] == 1
+    assert progress.prior_batch_quantities == {}
 
 
 
@@ -220,6 +285,8 @@ def native_service():
         monotonic=10.0,
         pre_dispatch_mode=None,
         preset_requests=[],
+        maxima={troop: 1000 for troop in TROOP_TYPES},
+        queue_quantities={},
     )
 
     class OfflineRuntime:
@@ -266,25 +333,30 @@ def native_service():
                     "unknown" if world.uncertain_claim else world.after_claim_mode
                 )
             else:
+                world.queue_quantities[world.current] = (
+                    world.maxima[world.current] if world.current in {"fighter", "vehicle"} else 250
+                )
                 world.modes[world.current] = "active"
 
     def recognize(frame):
         troop = world.current
         mode = ("empty", "active", "completed", "shortage", "unknown")[int(frame[0, 0, 0]) - 1]
-        quantity = 1000 if troop in {"fighter", "vehicle"} else 250
+        quantity = world.maxima[troop] if troop in {"fighter", "vehicle"} else 250
         tier = 8 if troop in {"fighter", "shooter"} else 1
         queued = mode in {"active", "completed"}
+        queue_quantity = world.queue_quantities.get(troop) if queued else None
         seen = replace(
             observation(troop, tier=tier, quantity=quantity),
             recognized=mode != "unknown",
+            quantity_maximum=world.maxima[troop],
             captured_at=datetime.fromtimestamp(world.rig.stop.now, timezone.utc),
             frame_sha256=hashlib.sha256(cv2.imencode(".png", frame)[1].tobytes()).hexdigest(),
             queue_active=mode == "active",
             completion_ready=mode == "completed",
-            queue_label=f"Train T{tier} {troop} x{quantity}" if queued else None,
+            queue_label=f"Train T{tier} {troop} x{queue_quantity}" if queued else None,
             queue_troop_type=troop if queued else None,
             queue_tier=tier if queued else None,
-            queue_quantity=quantity if queued else None,
+            queue_quantity=queue_quantity,
             diagnostics={
                 "duration_source": "queue_band" if queued else "normal_train_band",
                 "queue_spatially_associated": queued,
@@ -551,6 +623,57 @@ def test_claimed_continuous_batch_survives_shortage_and_reopen_before_next_start
     assert world.payloads[-1]["warehouse_dispatch_count"] == 0
 
 
+@pytest.mark.parametrize("troop", ("fighter", "vehicle"))
+@pytest.mark.parametrize("new_maximum", (613, 1427))
+def test_reopened_batch_uses_authorized_quantity_then_next_start_reads_new_maximum(
+    native_service, troop, new_maximum,
+):
+    from scripts.navigation_development_boundary import RuntimeInputLock
+
+    world = native_service
+    rig = world.rig
+    world.modes.update({other: "shortage" for other in TROOP_TYPES if other != troop})
+    assert rig.once()
+    rows, first = _reopened_training_state(world)
+    start = first.pending_start_action_keys[troop]
+    assert first.prior_batch_quantities == {troop: 1000}
+    assert rows[0]["quantity"] == 1000
+
+    # The queue remains the old batch while the next batch's capacity changes.
+    world.maxima[troop] = new_maximum
+    with RuntimeInputLock(owner="automation-service", invocation_id="changed-max-active") as lock:
+        result = rig.runner(
+            _identity(rig.stop.now), None, lambda: None,
+            runtime_input_lock=lock, occurrence_key="changed-max-active",
+        )
+    assert result["effect_reconciliation_required"] is False
+    assert result["training_dispatch_count"] == 0
+    assert world.inputs == [start]
+    _, active = _reopened_training_state(world)
+    assert active.prior_batch_quantities == {troop: 1000}
+
+    world.modes[troop] = "completed"
+    rig.stop.now += 60
+    with BotStateManager(rig.path) as reopened:
+        assert rig.once(reopened)
+    rows, restarted = _reopened_training_state(world)
+    next_start = restarted.pending_start_action_keys[troop]
+    assert next_start.endswith(f":{troop}:g2:start")
+    assert world.inputs == [start, make_training_claim_action_key(start), next_start]
+    assert restarted.queue_generations[troop] == 2
+    assert restarted.per_reset_variant_start_counts[troop] == 2
+    assert restarted.per_reset_variant_claim_counts[troop] == 1
+    assert restarted.prior_batch_quantities == {troop: new_maximum}
+    assert {
+        row["action_key"]: row["quantity"]
+        for row in rows if row["semantic_action"] == "TROOP_TRAINING_START"
+    } == {start: 1000, next_start: new_maximum}
+    assert all(row["final_status"] == "confirmed" for row in rows)
+    assert world.payloads[-1]["claim_dispatch_count"] == 1
+    assert world.payloads[-1]["training_start_transport_calls"] == 1
+    assert not world.payloads[-1]["effect_reconciliation_required"]
+
+
 @pytest.mark.parametrize("changed_mode", ("active", "shortage"))
 def test_changed_immediate_queue_or_cost_blocks_before_any_training_input(native_service, changed_mode):
     world = native_service
@@ -560,3 +683,33 @@ def test_changed_immediate_queue_or_cost_blocks_before_any_training_input(native
     assert world.inputs == []
     assert rows == []
     assert all(count == 0 for count in state.per_reset_variant_start_counts.values())
+
+
+@pytest.mark.parametrize("troop", ("fighter", "vehicle"))
+@pytest.mark.parametrize("mode", ("active", "completed"))
+def test_reopened_queue_quantity_must_match_durable_authorized_batch(native_service, troop, mode):
+    world = native_service
+    rig = world.rig
+    world.modes.update({other: "shortage" for other in TROOP_TYPES if other != troop})
+    assert rig.once()
+    _, before = _reopened_training_state(world)
+    start = before.pending_start_action_keys[troop]
+
+    # Matching a new maximum is not proof that the persisted batch changed.
+    world.maxima[troop] = 613
+    world.queue_quantities[troop] = 613
+    world.modes[troop] = mode
+    rig.stop.now += 60
+    with BotStateManager(rig.path) as reopened:
+        assert rig.once(reopened)
+
+    rows, after = _reopened_training_state(world)
+    assert world.inputs == [start]
+    assert len(rows) == 1
+    assert rows[0]["final_status"] == "confirmed"
+    assert after.pending_start_action_keys[troop] == start
+    assert after.prior_batch_quantities == {troop: 1000}
+    assert after.queue_generations[troop] == 1
+    assert troop not in after.next_start_action_keys
+    assert world.payloads[-1]["claim_dispatch_count"] == 0
+    assert world.payloads[-1]["training_start_transport_calls"] == 0

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import datetime, timezone
 from pathlib import Path
 import time
 from types import SimpleNamespace
@@ -30,6 +31,7 @@ from tasks.troop_training_entry import (
     first_enabled_entry_target,
 )
 from tasks.troop_training_vision import forbidden_atlas_entry_surface
+from tests.test_troop_training import observation
 
 
 PROFILE = PlatformProfile(BLUESTACKS_PLATFORM, BLUESTACKS_PROFILE_ID, (800, 1280), "com.global.ztmslg")
@@ -311,6 +313,63 @@ class TroopTrainingEntryIntegratedRouteTests(unittest.TestCase):
             home_pan_settle_seconds=0,
             zoom_transport=zoom_transport,
         )
+
+    def test_training_capture_timestamp_precedes_ocr_and_tracks_retry_source(self):
+        runtime = Runtime()
+        runtime.frames[0] = replace(runtime.frames[0], captured_monotonic=97.0)
+        runtime.frames[1] = replace(runtime.frames[1], captured_monotonic=108.0)
+        route = self._route(runtime)
+        clock = SimpleNamespace(utc=1_735_819_200.0, monotonic=100.0)
+        route.native_context = SimpleNamespace(
+            utc_clock=lambda: clock.utc, monotonic_clock=lambda: clock.monotonic,
+        )
+        seen_frames = []
+
+        def recognize(frame):
+            seen_frames.append(frame)
+            # OCR latency must not make the screenshot appear newly captured.
+            clock.utc += 10.0
+            clock.monotonic += 10.0
+            return replace(
+                observation(), recognized=len(seen_frames) == 2,
+                captured_at=None, frame_sha256=runtime.frames[len(seen_frames) - 1].sha256,
+            )
+
+        with patch("scripts.troop_training_bluestacks.recognize_training", side_effect=recognize):
+            captured, seen = route._capture_training("timestamp-source")
+
+        self.assertEqual(len(seen_frames), 2)
+        self.assertIs(seen_frames[0], runtime.frames[0].frame)
+        self.assertIs(seen_frames[1], runtime.frames[1].frame)
+        self.assertIs(captured, runtime.frames[1])
+        self.assertEqual(seen.frame_sha256, captured.sha256)
+        self.assertEqual(
+            seen.captured_at, datetime.fromtimestamp(1_735_819_208.0, timezone.utc),
+        )
+        self.assertEqual(runtime.taps, [])
+
+    def test_training_capture_stamps_first_recognized_source_before_ocr(self):
+        runtime = Runtime()
+        runtime.frames[0] = replace(runtime.frames[0], captured_monotonic=97.0)
+        route = self._route(runtime)
+        clock = SimpleNamespace(utc=1_735_819_200.0, monotonic=100.0)
+        route.native_context = SimpleNamespace(
+            utc_clock=lambda: clock.utc, monotonic_clock=lambda: clock.monotonic,
+        )
+
+        def recognize(_frame):
+            clock.utc += 30.0
+            clock.monotonic += 30.0
+            return replace(observation(), captured_at=None)
+
+        with patch("scripts.troop_training_bluestacks.recognize_training", side_effect=recognize):
+            captured, seen = route._capture_training("timestamp-source")
+
+        self.assertIs(captured, runtime.frames[0])
+        self.assertEqual(
+            seen.captured_at, datetime.fromtimestamp(1_735_819_197.0, timezone.utc),
+        )
+        self.assertEqual(runtime.index, 1)
 
     def _run_zoom_case(
         self,

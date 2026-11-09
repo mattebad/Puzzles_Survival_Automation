@@ -51,6 +51,7 @@ class TroopTrainingRuntimeController:
         prior_daily_initiations: Iterable[str] = (),
         queue_generations: Mapping[str, int] | None = None,
         pending_start_action_keys: Mapping[str, str] | None = None,
+        prior_batch_quantities: Mapping[str, int] | None = None,
     ) -> None:
         self.semantic = TrainingController(
             config,
@@ -58,6 +59,7 @@ class TroopTrainingRuntimeController:
             prior_daily_initiations=prior_daily_initiations,
             queue_generations=queue_generations,
             pending_start_action_keys=pending_start_action_keys,
+            prior_batch_quantities=prior_batch_quantities,
         )
         self.phase = TrainingPhase.HOME
         self.unresolved_action: str | None = None

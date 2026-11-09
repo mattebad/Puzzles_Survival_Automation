@@ -7,6 +7,7 @@ an operator flow and does not edit Commander talent trees or saved memories.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from typing import Any, Callable, Sequence
 
 from tasks.commander_talents import (
@@ -331,6 +332,31 @@ def session_result_frame(session: Any, runtime: Any, label: str) -> CapturedNati
     return session.observe(runtime.capture, label=f"commander-talent-{label}-settled")
 
 
+def _switch_confirmation_target(frame, required_preset: str, *, ocr_engine=None) -> NativeBox | None:
+    """Bind only a real, non-payment preset confirmation; never assume a dialog exists."""
+    hits = _all_hits(frame, ocr_engine)
+    confirms = _label_hits(hits, "Confirm")
+    cancels = _label_hits(hits, "Cancel")
+    if len(confirms) != 1 or len(cancels) != 1:
+        return None
+    confirm, cancel = _hit_box(confirms[0]), _hit_box(cancels[0])
+    if abs((confirm[1] + confirm[3]) - (cancel[1] + cancel[3])) > 60:
+        return None
+    left, right = min(confirm[0], cancel[0]) - 120, max(confirm[2], cancel[2]) + 120
+    top, bottom = min(confirm[1], cancel[1]) - 300, min(confirm[1], cancel[1]) - 15
+    body = " ".join(_normalize(getattr(hit, "text", "")) for hit in hits
+                    if _hit_box(hit) is not None and left <= _hit_box(hit)[0] < right
+                    and top <= _hit_box(hit)[1] < bottom)
+    if (not re.search(r"\b(?:apply|switch|change|use)\b", body)
+            or not re.search(r"\btalent\b", body)
+            or re.search(r"\b(?:diamond|gem|gold|cost|price|pay|purchase|reset|unlock|cooldown)\b|[0-9]", body)):
+        return None
+    named = [name for name in PRESET_NAMES if name.casefold() in body]
+    if named and named != [required_preset]:
+        return None
+    return confirm
+
+
 def run_commander_talent_preset(
     session: Any,
     runtime: Any,
@@ -345,11 +371,7 @@ def run_commander_talent_preset(
     switch_approval: Callable[[TalentMemoryObservation, CapturedNativeFrame], NativeSwitchPermit | None] | None = None,
     switch_outcome: Callable[[str, str, bool, TalentMemoryObservation | None], None] | None = None,
 ) -> NativePresetResult:
-    """Verify a saved memory, or dispatch one explicitly approved switch.
-
-    Missing cost/cooldown/confirmation facts or missing canonical approval are
-    a zero-input defer. The source evidence has no approved switch branch today.
-    """
+    """Verify Applied, or send one canonically approved free Apply and any actual confirmation."""
 
     if required_preset not in PRESET_NAMES:
         raise ValueError("required preset must be Military, Economy, or Training")
@@ -427,12 +449,6 @@ def run_commander_talent_preset(
             return NativePresetResult("already_applied", True, required_preset, "EXACT_PRESET_ALREADY_APPLIED",
                                       tuple(dict.fromkeys((*refs, observation.evidence_ref))),
                                       int(getattr(session, "input_count", 0)) - start_count)
-
-        if not observation.switch_facts_complete:
-            return NativePresetResult("deferred", False, required_preset,
-                                      "SWITCH_COST_CONFIRMATION_OR_COOLDOWN_UNKNOWN",
-                                      tuple(dict.fromkeys((*refs, observation.evidence_ref))),
-                                      int(getattr(session, "input_count", 0)) - start_count)
         if switch_approval is None:
             return NativePresetResult("deferred", False, required_preset, "SWITCH_NOT_APPROVED",
                                       tuple(dict.fromkeys((*refs, observation.evidence_ref))),
@@ -452,12 +468,9 @@ def run_commander_talent_preset(
                 raise RuntimeError("TALENT_SWITCH_SOURCE_UNKNOWN")
             fresh = found.preset
             if (fresh.row_state is not PresetRowState.APPLY or fresh.preset_name != required_preset
-                    or not fresh.switch_facts_complete):
+                    or fresh.apply_target != observation.apply_target
+                    or fresh.applied_preset != observation.applied_preset):
                 raise RuntimeError("TALENT_SWITCH_FACTS_CHANGED")
-            if (fresh.cost_text, fresh.cooldown_text, fresh.confirmation_text) != (
-                observation.cost_text, observation.cooldown_text, observation.confirmation_text
-            ):
-                raise RuntimeError("TALENT_SWITCH_COST_OR_CONFIRMATION_CHANGED")
             if not callable(switch_outcome):
                 raise RuntimeError("TALENT_SWITCH_SETTLEMENT_UNAVAILABLE")
             permit = switch_approval(fresh, frame)
@@ -486,50 +499,72 @@ def run_commander_talent_preset(
                 action_class="commander_talent_preset",
                 consequential=True,
             )
+            pending.setdefault("runtime_keys", []).append(permit.action_key)
             dispatch_returned = True
 
         def switch_recognize(frame: CapturedNativeFrame) -> str:
+            pending["post_frame"] = frame
+            if _switch_confirmation_target(frame, required_preset, ocr_engine=ocr_engine) is not None:
+                return "confirmation"
             found = _recognized_page(frame, required_preset=required_preset, ocr_engine=ocr_engine)
-            if found.recognized and found.page == TALENT_MEMORY and found.preset is not None:
-                if found.preset.row_state is PresetRowState.APPLIED:
-                    return "applied"
-                return "apply"
+            if (found.recognized and found.page == TALENT_MEMORY and found.preset is not None
+                    and found.preset.row_state is PresetRowState.APPLIED):
+                return "applied"
             return UNKNOWN
 
         try:
             switch_result = session.run_action(
-                action_class="commander_talent_preset",
-                label=f"commander-talent-switch-{required_preset.casefold()}",
-                capture=switch_capture,
-                dispatch=_dispatch_marker(switch_dispatch).dispatch,
-                recognize=switch_recognize,
-                authorize=switch_authorize,
-                target_roi=None,
+                action_class="commander_talent_preset", label=f"commander-talent-switch-{required_preset.casefold()}",
+                capture=switch_capture, dispatch=_dispatch_marker(switch_dispatch).dispatch,
+                recognize=switch_recognize, authorize=switch_authorize,
+                settled_successor=lambda: session_result_frame(session, runtime, "switch"),
                 consequence_class="commander_talent_preset_switch",
             )
+            if getattr(switch_result, "state", "") == "confirmation":
+                def confirm_authorize(frame):
+                    target = _switch_confirmation_target(frame, required_preset, ocr_engine=ocr_engine)
+                    if target is None:
+                        raise RuntimeError("TALENT_SWITCH_CONFIRMATION_CHANGED")
+                    pending["confirmation_target"] = target
+                    pending["confirmation_sha256"] = frame.sha256
+
+                def confirm_dispatch(frame):
+                    permit = pending.get("permit")
+                    if (not isinstance(permit, NativeSwitchPermit)
+                            or pending.get("confirmation_sha256") != frame.sha256):
+                        raise RuntimeError("TALENT_SWITCH_CONFIRMATION_NOT_BOUND")
+                    runtime_input_lock.assert_held(owner, invocation_id)
+                    checkpoint()
+                    runtime.tap(frame, target_identity=f"talent-memory-confirm:{required_preset}",
+                                target_roi=pending["confirmation_target"], action_key=f"{permit.action_key}:confirm",
+                                action_class="commander_talent_preset", consequential=True,
+                                continuation_of=permit.action_key)
+                    pending.setdefault("runtime_keys", []).append(f"{permit.action_key}:confirm")
+
+                switch_result = session.run_action(
+                    action_class="commander_talent_preset", label=f"commander-talent-confirm-{required_preset.casefold()}",
+                    capture=switch_capture, authorize=confirm_authorize,
+                    dispatch=_dispatch_marker(confirm_dispatch).dispatch, recognize=switch_recognize,
+                    settled_successor=lambda: session_result_frame(session, runtime, "confirm"),
+                    consequence_class="commander_talent_preset_switch",
+                )
         except Exception as exc:
             permit = pending.get("permit")
             reason = str(exc) or type(exc).__name__
             if isinstance(permit, NativeSwitchPermit):
-                if switch_outcome is not None:
-                    switch_outcome(permit.action_key, "unknown", dispatch_returned, pending.get("observation"))
+                switch_outcome(permit.action_key, "unknown", dispatch_returned, pending.get("observation"))
                 return NativePresetResult(
                     "unknown", False, required_preset, reason,
                     tuple(dict.fromkeys((*refs, observation.evidence_ref))),
-                    int(getattr(session, "input_count", 0)) - start_count,
-                    permit.action_key, True,
+                    int(getattr(session, "input_count", 0)) - start_count, permit.action_key, True,
                 )
             status = "deferred" if reason in {
-                "TALENT_SWITCH_NOT_APPROVED",
-                "TALENT_SWITCH_FACTS_CHANGED",
-                "TALENT_SWITCH_COST_OR_CONFIRMATION_CHANGED",
+                "TALENT_SWITCH_NOT_APPROVED", "TALENT_SWITCH_FACTS_CHANGED",
                 "TALENT_SWITCH_SETTLEMENT_UNAVAILABLE",
             } else "unknown"
-            return NativePresetResult(
-                status, False, required_preset, reason,
-                tuple(dict.fromkeys((*refs, observation.evidence_ref))),
-                int(getattr(session, "input_count", 0)) - start_count,
-            )
+            return NativePresetResult(status, False, required_preset, reason,
+                                      tuple(dict.fromkeys((*refs, observation.evidence_ref))),
+                                      int(getattr(session, "input_count", 0)) - start_count)
 
         permit = pending.get("permit")
         if not isinstance(permit, NativeSwitchPermit):
@@ -550,6 +585,11 @@ def run_commander_talent_preset(
             and successor.preset.applied_preset == required_preset
         )
         status = "switched" if switched else "unknown"
+        reconcile_runtime = getattr(runtime, "reconcile", None)
+        if callable(reconcile_runtime):
+            for key in pending.get("runtime_keys", ()):
+                reconcile_runtime(key, "confirmed" if switched else "unresolved", switch_frame,
+                                  "preset Applied verified" if switched else "preset switch successor unknown")
         if switch_outcome is not None:
             switch_outcome(permit.action_key, status, dispatch_returned, successor.preset)
         return NativePresetResult(
