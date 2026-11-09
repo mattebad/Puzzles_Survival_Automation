@@ -126,6 +126,8 @@ class FakeRuntime:
         elif target_identity.startswith("alliance-tech:hot:"):
             self.state = "DONATION_PANEL"
         elif target_identity == DONATION_TARGET:
+            if self.last_capture is None or source.sha256 != self.last_capture.sha256:
+                raise AssertionError("fake native donation must use the latest actual capture")
             if self.current_hot_slug is None:
                 raise AssertionError("fake native donation has no freshly bound HOT target")
             self.donation_target_slugs.append(self.current_hot_slug)

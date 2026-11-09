@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 import time
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Callable, Mapping
 
 import cv2
@@ -736,32 +736,51 @@ def _action_once(context: Any, *, captured: CapturedNativeFrame, surface: Donati
                                                     product_revision=PRODUCT_REVISION, ordinal=ordinal),
         semantic_postconditions=(DONATION_POSTCONDITION,), runtime_session_id=str(runtime.session),
     )
-    issued = policy.issue_capability(request)
+    # The executor compares a genuinely later capture to the proposal, but consumes a grant
+    # bound to that later frame. Prefetch it once and give both boundaries the same capture.
+    dispatch_frame, dispatch_surface = _capture(
+        context, f"alliance-donation-pre-dispatch-{ordinal:02d}",
+    )
+    if (dispatch_surface.state != "DONATION_PANEL" or dispatch_surface.donation is None
+            or dispatch_surface.tech_slug != capability_surface.tech_slug
+            or dispatch_surface.target_identity != capability_surface.target_identity
+            or dispatch_surface.target_roi != capability_surface.target_roi
+            or not _same_donation_facts(capability_donation, dispatch_surface.donation)
+            or not donation_authorizeable(dispatch_surface.donation, ordinal - 1)):
+        return "blocked", "fresh_ordinary_donation_quote_changed_before_dispatch", 0
+    dispatch_observation = to_policy_observation(dispatch_frame, dispatch_surface)
+    request = replace(
+        request, semantic_preconditions=policy_preconditions(
+            dispatch_surface.donation, product_id=PRODUCT_ID,
+            product_revision=PRODUCT_REVISION, ordinal=ordinal,
+        ),
+    )
+    capability_request = replace(
+        request, observation=dispatch_observation, monotonic_now=float(context.monotonic_clock()),
+        policy_phase="pre_dispatch",
+        lease_valid=store.lease_valid_for(session.owner, float(context.utc_clock())),
+        unresolved_action=store.has_action_block(), duplicate_action_key=store.action_key_exists(action_key),
+    )
+    issued = policy.issue_capability(capability_request)
     store.audit(FLOW_ID, "capability_issued", float(context.utc_clock()), issued.audit, request.action_id)
     if not issued.authorized or issued.capability is None:
         return "blocked", issued.reason_code, 0
 
     before_state: dict[str, Any] = {
-        "captured": capability_frame, "surface": capability_surface,
-        "dispatch_target": (capability_surface.target_identity, capability_surface.target_roi),
+        "captured": dispatch_frame, "surface": dispatch_surface,
+        "dispatch_target": (dispatch_surface.target_identity, dispatch_surface.target_roi),
     }
     post: list[tuple[CapturedNativeFrame, DonationSurface]] = []
     transport_calls = 0
 
+    recapture_used = False
+
     def recapture() -> Observation:
-        fresh, fresh_surface = _capture(
-            context, f"alliance-donation-pre-dispatch-{ordinal:02d}",
-        )
-        if (fresh_surface.state != "DONATION_PANEL" or fresh_surface.donation is None
-                or fresh_surface.tech_slug != capability_surface.tech_slug
-                or fresh_surface.target_identity != capability_surface.target_identity
-                or fresh_surface.target_roi != capability_surface.target_roi
-                or not _same_donation_facts(capability_donation, fresh_surface.donation)
-                or not donation_authorizeable(fresh_surface.donation, ordinal - 1)):
-            return _unknown_policy_observation(fresh, fresh_surface.evidence_ref)
-        before_state["captured"], before_state["surface"] = fresh, fresh_surface
-        before_state["dispatch_target"] = (fresh_surface.target_identity, fresh_surface.target_roi)
-        return to_policy_observation(fresh, fresh_surface)
+        nonlocal recapture_used
+        if recapture_used:
+            raise ValueError("Alliance donation dispatch capture was already consumed")
+        recapture_used = True
+        return dispatch_observation
 
     def transport(_intent: Any) -> TransportResult:
         nonlocal transport_calls
