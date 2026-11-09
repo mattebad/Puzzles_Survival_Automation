@@ -84,7 +84,7 @@
       "planner": "scripts/alliance_shop_bluestacks.py",
       "permitted_input": null,
       "postconditions": [
-        "complete current preferred inventory has no present and affordable exact allowlisted item"
+        "current preferred inventory has no present and affordable exact allowlisted item; a red price proves shortage without Owned, numeric balance or stock"
       ],
       "terminal_outcomes": [
         "deferred",
@@ -162,14 +162,14 @@
       "evidence_gate_id": "alliance_shop_current_native_acceptance"
     },
     {
-      "transition_id": "reconcile_paired_purchase_effect",
+      "transition_id": "reconcile_exact_purchase_acknowledgement",
       "from": "purchase_effect_pending",
       "to": "purchase_effect_verified",
       "planner": "scripts/alliance_shop_bluestacks.py",
       "permitted_input": null,
       "postconditions": [
-        "exact item increase and matching Alliance Coin decrease are both current and positively verified",
-        "unknown effect is not retried identically"
+        "the game Obtained [exact selected item]x1 acknowledgement is current on the expected shop tab; no Owned increment, stock decrease or wallet arithmetic is required",
+        "purchase acknowledgement commits the effect before and independently of Home return; unknown effect is not retried identically and historical Home-digest receipts remain valid without replay"
       ],
       "terminal_outcomes": [
         "action_performed",
@@ -217,10 +217,10 @@
     "manual_required"
   ],
   "cooldown_deferred_behavior": "Recheck current availability and the exact visible offer on a configured pulse. Never infer a weekly refresh time or permit a second purchase in the same reset.",
-  "bounded_recovery_behavior": "Stop on incomplete inventory, unknown or changed item/currency/cost/balance/stock, ambiguity, unaffordable fallback, quantity mismatch, unknown effect, or noncanonical terminal state. Preserve an uncertain effect and do not retry it.",
+  "bounded_recovery_behavior": "Stop on unresolved preferred inventory, ambiguous item/currency, unknown selected affordable-offer cost/balance/stock, unaffordable fallback, quantity mismatch, or unknown effect. Red price shortage permits fallback without Owned, numeric balance or stock. Preserve confirmed acknowledgement effects even if Home return fails; preserve uncertain effects without identical retry.",
   "evidence_requirements": [
-    "Current complete Weekly Offers and Other inventories, exact allowlisted item identity, Alliance Coin unit cost/balance, availability, stock, and numeric quantity-one dialog evidence.",
-    "A bounded current native purchase successor with paired Alliance Coin decrease and exact item increase; no purchase was part of product approval.",
+    "Current preferred allowlist evaluation and exact fallback when needed; selected affordable offer binds item, Alliance Coins, unit cost/balance, availability, stock, and numeric quantity-one dialog. Red shortage needs no Owned, numeric balance or stock.",
+    "A bounded current Obtained [exact selected item]x1 acknowledgement on the expected tab establishes the purchase effect independently of terminal Home and without Owned, stock or wallet arithmetic. Historical Home-digest receipts remain valid and must not cause a duplicate Buy.",
     "Current canonical Home return and controller authorization remain required; registration stays disabled."
   ],
   "evidence_gates": [
@@ -236,13 +236,13 @@
         "verify_numeric_purchase_quantity",
         "verify_fallback_quantity",
         "buy_one_preferred_or_fallback",
-        "reconcile_paired_purchase_effect",
+        "reconcile_exact_purchase_acknowledgement",
         "return_canonical_home"
       ],
       "required_evidence": [
         "current production-route source, offer, non-consuming dialog, inner-Buy, transport, immediate successor, effect, and terminal Home bindings",
-        "complete current allowlist inventory and no-work evidence, including numeric unaffordable preferred rows and exact fallback evidence",
-        "paired current item and Alliance Coin effects plus unknown-result no-retry behavior"
+        "current allowlist and no-work evidence, including red unaffordable preferred rows without Owned and exact affordable fallback evidence",
+        "exact item x1 purchase acknowledgement before Home, historical Home-digest receipt reconciliation, and unknown-result no-retry behavior"
       ],
       "permitted_inputs": []
     }
@@ -263,7 +263,7 @@
         "select_affordable_preferred_offer",
         "verify_numeric_purchase_quantity",
         "buy_one_preferred_or_fallback",
-        "reconcile_paired_purchase_effect",
+        "reconcile_exact_purchase_acknowledgement",
         "return_canonical_home"
       ],
       "evidence_gate_ids": [
@@ -287,7 +287,7 @@
         "evaluate_exact_fallback",
         "verify_fallback_quantity",
         "buy_one_preferred_or_fallback",
-        "reconcile_paired_purchase_effect",
+        "reconcile_exact_purchase_acknowledgement",
         "return_canonical_home"
       ],
       "evidence_gate_ids": [
@@ -301,7 +301,7 @@
       "fixture_id": "alliance_shop_current_native_acceptance",
       "status": "required_evidence",
       "path": null,
-      "notes": "Offline selection arithmetic does not establish current offers or a successful paired native purchase effect."
+      "notes": "Offline selection arithmetic does not establish current offers or an exact native purchase acknowledgement."
     }
   ],
   "unsupported_or_manual_only_states": [
@@ -310,7 +310,7 @@
     "Int. Recruit Coin",
     "premium offer or currency",
     "real-money confirmation",
-    "ambiguous item, price, balance, stock, or availability",
+    "ambiguous item/currency or unknown selected affordable-offer price, balance, stock, or availability",
     "quantity greater than one",
     "buying preferred and fallback together",
     "purchase after uncertain effect",
@@ -334,11 +334,11 @@
   "production_eligible": false,
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r23",
-    "product_authority_digest": "01439c1db1f98d2fe2734667d3b73135006755c74ffe39eb16891f027236a949",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r24",
+    "product_authority_digest": "7a40a259d2108e0ad1a246d1daa1d19b650cf167784e321d3216c2fd8b02d012",
     "product_record_id": "alliance_shop_purchase",
-    "product_record_revision": "alliance_shop_purchase-v2",
-    "product_record_digest": "ecb5d83a4c31de3ef748eddbf9f542d3fc9bccdd695bf6fe8e87bc516465ad80",
+    "product_record_revision": "alliance_shop_purchase-v3",
+    "product_record_digest": "12b2dc6aaf156225732e0c94f2df682d75c7a2259f89f03f982245f4efbc5ac0",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",

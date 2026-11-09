@@ -99,7 +99,7 @@ class GameplayFlowContractTests(unittest.TestCase):
             "alliance-shop-purchase-policy",
         )
         self.assertEqual(binding["product_record_id"], "alliance_shop_purchase")
-        self.assertEqual(binding["product_record_revision"], "alliance_shop_purchase-v2")
+        self.assertEqual(binding["product_record_revision"], "alliance_shop_purchase-v3")
         self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(contract["cost_quantity_requirements"]["quantity"], 1)
         self.assertIsNone(contract["cost_quantity_requirements"]["maximum_cost"])
@@ -137,7 +137,7 @@ class GameplayFlowContractTests(unittest.TestCase):
                 "select_affordable_preferred_offer",
                 "verify_numeric_purchase_quantity",
                 "buy_one_preferred_or_fallback",
-                "reconcile_paired_purchase_effect",
+                "reconcile_exact_purchase_acknowledgement",
                 "return_canonical_home",
             ],
         )
@@ -150,7 +150,7 @@ class GameplayFlowContractTests(unittest.TestCase):
                 "evaluate_exact_fallback",
                 "verify_fallback_quantity",
                 "buy_one_preferred_or_fallback",
-                "reconcile_paired_purchase_effect",
+                "reconcile_exact_purchase_acknowledgement",
                 "return_canonical_home",
             ],
         )
@@ -166,14 +166,14 @@ class GameplayFlowContractTests(unittest.TestCase):
         )
         binding = contract["product_authority_binding"]
         self.assertEqual(binding["product_record_id"], "alliance_donation")
-        self.assertEqual(binding["product_record_revision"], "alliance_donation-v1")
+        self.assertEqual(binding["product_record_revision"], "alliance_donation-v2")
         self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(contract["trigger_cadence_type"], "cooldown_pulse")
         self.assertEqual(contract["reset_scope"], "daily_reset")
         self.assertEqual(contract["cost_quantity_requirements"]["quantity"], 1)
         self.assertEqual(
             contract["cost_quantity_requirements"]["resource_or_currency"],
-            "CURRENT_ORDINARY_RESOURCE",
+            "ORDINARY_RESOURCE",
         )
         transitions = {
             item["transition_id"]: item for item in contract["transition_contracts"]
@@ -200,7 +200,7 @@ class GameplayFlowContractTests(unittest.TestCase):
         contract = load_flow_contract("DAILY-SHOPS-PURCHASE-EVIDENCE-GATE")
         binding = contract["product_authority_binding"]
         self.assertEqual(binding["product_record_id"], "daily_shops_purchase")
-        self.assertEqual(binding["product_record_revision"], "daily_shops_purchase-v1")
+        self.assertEqual(binding["product_record_revision"], "daily_shops_purchase-v2")
         self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
         self.assertIsNone(contract["cost_quantity_requirements"]["quantity"])
         self.assertEqual(
@@ -228,6 +228,14 @@ class GameplayFlowContractTests(unittest.TestCase):
         )
         self.assertIn("ruins_tab_result_recorded", contract["recognized_states"])
         self.assertIn("rare_earth_tab_result_recorded", contract["recognized_states"])
+        partial_transition = transitions["preserve_known_partial_visit"]
+        self.assertEqual(partial_transition["to"], "independent_partial_results")
+        self.assertEqual(partial_transition["terminal_outcomes"], ["deferred"])
+        self.assertIsNone(partial_transition["permitted_input"])
+        self.assertEqual(
+            transitions["return_canonical_home_after_partial_tabs"]["from"],
+            "independent_partial_results",
+        )
         self.assertEqual(contract["registration_state"], "disabled")
         self.assertEqual(contract["proof_state"], "evidence_required")
         self.assertFalse(contract["production_eligible"])

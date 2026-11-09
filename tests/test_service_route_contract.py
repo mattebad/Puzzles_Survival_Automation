@@ -913,6 +913,25 @@ class BatchCSemanticContractTests(unittest.TestCase):
                 first, runner.last_identity, first["started_at_utc"],
             )
             self.assertEqual(due, rig.stop.now + 300)
+            for known_status in ("confirmed", "already_confirmed"):
+                partial = dict(first)
+                partial["tab_results"] = {
+                    name: dict(row) for name, row in first["tab_results"].items()
+                }
+                partial["tab_results"]["ruins"]["status"] = known_status
+                partial["tab_results"]["rare_earth"].update(
+                    status="blocked", reason="RARE_EARTH_SELECTION_NOT_RECOGNIZED",
+                )
+                partial["purchase_transport_calls"] = int(known_status == "confirmed")
+                partial["committed_action_count"] = int(known_status == "confirmed")
+                with self.subTest(known_status=known_status):
+                    self.assertEqual(
+                        daily_shops_next_due(
+                            partial, runner.last_identity, partial["started_at_utc"],
+                        ),
+                        due,
+                    )
+                    self.assertFalse(partial["effect_reconciliation_required"])
             runner.rare_earth_unaffordable = False
             with BotStateManager(rig.path) as restarted:
                 self.assertEqual(rig.once(state=restarted), [])

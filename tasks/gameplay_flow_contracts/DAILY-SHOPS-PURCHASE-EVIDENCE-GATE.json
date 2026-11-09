@@ -124,7 +124,7 @@
       "permitted_input": null,
       "postconditions": [
         "Ruins tab action_key, status, effect_verified, quantity, total, and current source reference/hash are retained",
-        "a purchase requires paired exact item increase and matching Ruins Coins decrease; uncertain effects are not retried"
+        "a purchase requires exact selected item xN game acknowledgement and decreased Ruins tab stock; Owned and wallet arithmetic are not required; uncertain effects are not retried"
       ],
       "terminal_outcomes": [
         "action_performed",
@@ -207,7 +207,7 @@
       "permitted_input": null,
       "postconditions": [
         "Rare Earth tab action_key, status, effect_verified, quantity, total, and current source reference/hash are retained",
-        "a purchase requires paired exact item increase and matching Rare Earth decrease; uncertain effects are not retried"
+        "a purchase requires exact selected item xN game acknowledgement and decreased Rare Earth tab stock; Owned and wallet arithmetic are not required; uncertain effects are not retried"
       ],
       "terminal_outcomes": [
         "action_performed",
@@ -280,6 +280,37 @@
         "manual_required"
       ],
       "evidence_gate_id": "daily_shops_current_native_acceptance"
+    },
+    {
+      "transition_id": "preserve_known_partial_visit",
+      "from": "rare_earth_tab_current",
+      "to": "independent_partial_results",
+      "planner": "scripts/daily_shops_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "a confirmed or already-confirmed tab remains durably committed when its sibling is blocked or unavailable without a sent unresolved Buy",
+        "the visit is partial DEFERRED, not total failure or UNKNOWN; a genuinely uncertain sent effect remains UNKNOWN with identical retry denied"
+      ],
+      "terminal_outcomes": [
+        "deferred"
+      ],
+      "evidence_gate_id": "daily_shops_current_native_acceptance"
+    },
+    {
+      "transition_id": "return_canonical_home_after_partial_tabs",
+      "from": "independent_partial_results",
+      "to": "home_returned",
+      "planner": "scripts/daily_shops_bluestacks.py",
+      "permitted_input": "safe_return_to_canonical_home",
+      "postconditions": [
+        "known confirmed tab effects survive and canonical Home is positively recognized; partial status remains DEFERRED"
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily_shops_current_native_acceptance"
     }
   ],
   "permitted_inputs": [
@@ -306,13 +337,14 @@
     "blocked",
     "manual_required"
   ],
-  "cooldown_deferred_behavior": "One route visit evaluates both tabs. A zero-quantity or unavailable tab is skipped without preventing the other tab result; re-enter only on a configured pulse and rebind all current evidence.",
+  "cooldown_deferred_behavior": "One route visit evaluates both tabs independently. A confirmed or already-confirmed tab plus a blocked, unavailable or zero-quantity sibling is partial DEFERRED, not total failure or UNKNOWN. Preserve durable tab keys and confirmed effects; re-enter only on a configured pulse and rebind current evidence.",
   "bounded_recovery_behavior": "Stop the affected tab on unknown item, rarity, currency, unit price, balance, stock, quantity, total, or unresolved effect. Never substitute, exceed the formula cap, or retry an uncertain purchase. Continue the other tab only when its source and result remain independently current and safe.",
   "evidence_requirements": [
     "Current source reference/hash for each tab and exact item/rarity/currency/unit-price/balance/stock/availability observations.",
     "Numeric selected quantity and total are reread immediately before each inner Buy; slider position is never quantity proof.",
-    "Per-tab action_key, status, effect_verified, numeric quantity/total, source reference/hash, and paired exact item/currency effects or positive no-work result are retained.",
-    "Only current native gameplay success establishes readiness; no D02 screen or points attribution is inspected."
+    "Per-tab action_key, status, effect_verified, numeric quantity/total, source reference/hash, exact item xN purchase acknowledgement and decreased stock, or positive no-work result are retained. No Owned baseline or wallet debit is required.",
+    "Only current native gameplay success establishes readiness; no D02 screen or points attribution is inspected.",
+    "Confirmed and already-confirmed tab results survive a blocked sibling as partial DEFERRED; no sent unresolved Buy is reclassified as known partial."
   ],
   "evidence_gates": [
     {
@@ -333,11 +365,13 @@
         "skip_zero_or_unavailable_tab",
         "continue_after_ruins_tab_skipped",
         "skip_zero_or_unavailable_rare_earth_tab",
-        "return_canonical_home_after_both_tabs"
+        "return_canonical_home_after_both_tabs",
+        "preserve_known_partial_visit",
+        "return_canonical_home_after_partial_tabs"
       ],
       "required_evidence": [
         "current production-route source, exact current offer, numeric quantity/total, inner Buy, transport, immediate successor, and terminal Home bindings for each tab",
-        "paired current item and currency effects or a positive tab-local unavailable/zero-affordability result",
+        "exact item xN acknowledgement plus decreased current-tab stock, or a positive tab-local unavailable/zero-affordability result",
         "independent partial two-tab outcomes and no-retry behavior after uncertain effect"
       ],
       "permitted_inputs": []
@@ -416,7 +450,7 @@
     "slider endpoint as numeric quantity proof",
     "inner Buy without fresh matching quantity and total",
     "premium purchase",
-    "item or currency delta without paired effect",
+    "purchase without exact item xN acknowledgement and decreased current-tab stock",
     "identical retry after uncertain effect",
     "Daily screen or points attribution",
     "registration",
@@ -437,11 +471,11 @@
   "production_eligible": false,
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r23",
-    "product_authority_digest": "01439c1db1f98d2fe2734667d3b73135006755c74ffe39eb16891f027236a949",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r24",
+    "product_authority_digest": "7a40a259d2108e0ad1a246d1daa1d19b650cf167784e321d3216c2fd8b02d012",
     "product_record_id": "daily_shops_purchase",
-    "product_record_revision": "daily_shops_purchase-v1",
-    "product_record_digest": "4938325d72f7ac359a96716b78f9c4826feef2e611f3249f4bf16bed32b9c6c5",
+    "product_record_revision": "daily_shops_purchase-v2",
+    "product_record_digest": "e97b9d4fe21f67801e0a38aec1e8c05ee52191bd6d6e7d6fea55bc61994c3088",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",

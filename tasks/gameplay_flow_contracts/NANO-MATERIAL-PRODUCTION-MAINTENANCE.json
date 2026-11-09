@@ -379,8 +379,8 @@
   "supervised_live_proof_state": "evidence_required",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r23",
-    "product_authority_digest": "01439c1db1f98d2fe2734667d3b73135006755c74ffe39eb16891f027236a949",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r24",
+    "product_authority_digest": "7a40a259d2108e0ad1a246d1daa1d19b650cf167784e321d3216c2fd8b02d012",
     "product_record_id": "nano_material_production",
     "product_record_revision": "nano_material_production-v1",
     "product_record_digest": "49fe5e4486ea94482a076df2e0332640d74f6be8ef240bb509c29c8ee40198a2",

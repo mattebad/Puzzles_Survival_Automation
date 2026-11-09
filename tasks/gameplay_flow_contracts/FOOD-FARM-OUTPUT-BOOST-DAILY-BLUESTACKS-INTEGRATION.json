@@ -304,8 +304,8 @@
       "HOME_CANONICAL"
     ],
     "selected_daily_prerequisite": false,
-    "product_authority_revision": "flow-delivery-product-authority-v2-r23",
-    "product_authority_digest": "01439c1db1f98d2fe2734667d3b73135006755c74ffe39eb16891f027236a949",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r24",
+    "product_authority_digest": "7a40a259d2108e0ad1a246d1daa1d19b650cf167784e321d3216c2fd8b02d012",
     "product_record_id": "food_farm_output_boost",
     "product_record_revision": "food_farm_output_boost-v1",
     "product_record_digest": "7ef1742cf67b28a27dde83d7c39244228e43ea8085e379a796589a0002afe2e4"

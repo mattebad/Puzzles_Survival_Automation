@@ -44,7 +44,10 @@
         "the current Arena screen is positively recognized",
         "no other PvP mode or event is selected"
       ],
-      "terminal_outcomes": ["blocked", "manual_required"],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
       "evidence_gate_id": "hero_duel_native_acceptance"
     },
     {
@@ -58,7 +61,11 @@
         "Hero Duel–Glory is not treated as the same event",
         "Emergency Details exclusions are read from the current event"
       ],
-      "terminal_outcomes": ["blocked", "deferred", "manual_required"],
+      "terminal_outcomes": [
+        "blocked",
+        "deferred",
+        "manual_required"
+      ],
       "evidence_gate_id": "hero_duel_native_acceptance"
     },
     {
@@ -71,7 +78,10 @@
         "current event identity remains Hero Duel–Survival",
         "the event's prohibited heroes remain bound as current exclusions"
       ],
-      "terminal_outcomes": ["blocked", "manual_required"],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
       "evidence_gate_id": "hero_duel_native_acceptance"
     },
     {
@@ -84,7 +94,11 @@
         "all five slots contain the first five currently eligible heroes, skipping current exclusions",
         "the Save Form acknowledgement is positively observed before opponents are used"
       ],
-      "terminal_outcomes": ["action_performed", "blocked", "manual_required"],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
       "evidence_gate_id": "hero_duel_native_acceptance"
     },
     {
@@ -97,7 +111,11 @@
         "the exact active Survival overview is recognized",
         "available free entries and current pass balance are read"
       ],
-      "terminal_outcomes": ["deferred", "blocked", "manual_required"],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked",
+        "manual_required"
+      ],
       "evidence_gate_id": "hero_duel_native_acceptance"
     },
     {
@@ -110,7 +128,11 @@
         "a current listed opponent with an explicit Free control is recognized",
         "no premium, purchase, refresh, or paid entry control is used"
       ],
-      "terminal_outcomes": ["deferred", "blocked", "manual_required"],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked",
+        "manual_required"
+      ],
       "evidence_gate_id": "hero_duel_native_acceptance"
     },
     {
@@ -123,7 +145,10 @@
         "the selected opponent remains bound to the current event and free allowance",
         "the independent attack lineup is shown"
       ],
-      "terminal_outcomes": ["blocked", "manual_required"],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
       "evidence_gate_id": "hero_duel_native_acceptance"
     },
     {
@@ -136,7 +161,10 @@
         "the attack formation independently contains five current eligible heroes",
         "a complete valid attack formation is not cleared or needlessly replaced"
       ],
-      "terminal_outcomes": ["blocked", "manual_required"],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
       "evidence_gate_id": "hero_duel_native_acceptance"
     },
     {
@@ -150,7 +178,11 @@
         "a positively recognized loaded Wave 1/1 battle is required",
         "entry transport alone is not a confirmed cycle"
       ],
-      "terminal_outcomes": ["action_performed", "blocked", "manual_required"],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
       "evidence_gate_id": "hero_duel_native_acceptance"
     },
     {
@@ -163,7 +195,11 @@
         "no combat action or battle loop occurs",
         "the current Flee warning and Flee control are recognized"
       ],
-      "terminal_outcomes": ["action_performed", "blocked", "manual_required"],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
       "evidence_gate_id": "hero_duel_native_acceptance"
     },
     {
@@ -176,7 +212,11 @@
         "a current loss/result screen is recognized",
         "the current event, reset, cycle ordinal, and participation successor remain bound"
       ],
-      "terminal_outcomes": ["action_performed", "blocked", "manual_required"],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
       "evidence_gate_id": "hero_duel_native_acceptance"
     },
     {
@@ -189,7 +229,11 @@
         "current participation/attempt evidence positively confirms this entry/exit cycle",
         "confirmed cycle progress is durably reconciled before another entry"
       ],
-      "terminal_outcomes": ["action_performed", "blocked", "manual_required"],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
       "evidence_gate_id": "hero_duel_native_acceptance"
     },
     {
@@ -202,7 +246,10 @@
         "the current event positively shows no eligible free entries",
         "no paid entry or attempt refresh is substituted"
       ],
-      "terminal_outcomes": ["deferred", "blocked"],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked"
+      ],
       "evidence_gate_id": "hero_duel_native_acceptance"
     },
     {
@@ -215,7 +262,10 @@
         "canonical Home is positively recognized",
         "no identical unresolved input is retried"
       ],
-      "terminal_outcomes": ["blocked", "manual_required"],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
       "evidence_gate_id": "hero_duel_native_acceptance"
     }
   ],
@@ -307,7 +357,9 @@
         "continue_loss_result",
         "return_canonical_home"
       ],
-      "evidence_gate_ids": ["hero_duel_native_acceptance"]
+      "evidence_gate_ids": [
+        "hero_duel_native_acceptance"
+      ]
     }
   ],
   "replay_fixture_requirements": [
@@ -356,8 +408,8 @@
   "production_eligible": false,
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r23",
-    "product_authority_digest": "01439c1db1f98d2fe2734667d3b73135006755c74ffe39eb16891f027236a949",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r24",
+    "product_authority_digest": "7a40a259d2108e0ad1a246d1daa1d19b650cf167784e321d3216c2fd8b02d012",
     "product_record_id": "hero_duel",
     "product_record_revision": "hero_duel-v2",
     "product_record_digest": "6eef740d0ef6f726966573dd2886404a8a3c08d68c5ecac31833c3e32262e63c",
@@ -372,7 +424,9 @@
     "package_id": "com.global.ztmslg",
     "home_authority": "HOME_CANONICAL",
     "terminal_home_authority": "HOME_CANONICAL",
-    "accepted_home_authorities": ["HOME_CANONICAL"],
+    "accepted_home_authorities": [
+      "HOME_CANONICAL"
+    ],
     "selected_daily_prerequisite": false
   }
 }

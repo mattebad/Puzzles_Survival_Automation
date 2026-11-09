@@ -21,7 +21,7 @@ DEFAULT_AUTHORITY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.jso
 DEFAULT_POLICY_PATH = DEFAULT_AUTHORITY_PATH
 AUTHORITY_SCHEMA_VERSION = 2
 AUTHORITY_REGISTRY_KIND = "flow_delivery_product_policy"
-AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r23"
+AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r24"
 PRODUCT_AUTHORITY_SCHEMA_VERSION = AUTHORITY_SCHEMA_VERSION
 PRODUCT_AUTHORITY_REVISION = AUTHORITY_REVISION
 PRODUCT_RECORDS_FIELD = "product_records"
@@ -2167,14 +2167,24 @@ def _validate_alliance_shop_purchase_record(record: Mapping[str, Any]) -> None:
         "daily_screen_or_points_inspection_required": False,
         "one_quantity_total_across_both_paths": 1,
         "fresh_numeric_quantity_and_total_required_before_inner_buy": True,
-        "exact_current_item_currency_cost_balance_stock_and_availability_required": True,
+        "selected_offer_requires_current_item_currency_cost_balance_stock_and_availability": True,
+        "red_price_shortage_permits_fallback_without_owned_balance_or_stock": True,
+        "owned_baseline_required": False,
         "purchase_dispatch_allowed": False,
-        "paired_currency_and_item_successors_required": True,
+        "exact_item_quantity_one_purchase_acknowledgement_required": True,
+        "purchase_effect_independent_of_home_return": True,
+        "historical_home_digest_receipts_remain_valid": True,
         "dispatch_is_not_success_proof": True,
-        "canonical_home_successor_required": True,
+        "canonical_home_return_required": True,
         "daily_ownership": "none",
         "identical_retry": False,
     }
+    if any(key in effect for key in (
+        "exact_current_item_currency_cost_balance_stock_and_availability_required",
+        "paired_currency_and_item_successors_required",
+        "canonical_home_successor_required",
+    )):
+        raise ProductAuthorityError("Alliance Shop must not require redundant purchase accounting")
     if any(
         effect.get(key) != value
         or (type(value) is bool and type(effect.get(key)) is not bool)
@@ -2244,16 +2254,19 @@ def _validate_alliance_donation_record(record: Mapping[str, Any]) -> None:
         or not isinstance(cost, Mapping)
         or cost.get("kind") != "current_observed_ordinary_resource_cost"
         or cost.get("amount") is not None
-        or cost.get("unit") != "CURRENT_ORDINARY_RESOURCE"
+        or cost.get("unit") != "ORDINARY_RESOURCE"
         or cost.get("free_only") is not False
     ):
         raise ProductAuthorityError("Alliance Donation must require a freshly observed ordinary cost")
     effect = record["semantic_effect"]
     required_effects = {
-        "current_hot_target_and_exact_resource_cost_and_balance_required": True,
+        "current_hot_target_numeric_ordinary_cost_and_affordability_required": True,
+        "hud_resource_census_required": False,
+        "resource_wallet_debit_required": False,
+        "tech_progress_required": False,
         "one_confirmed_action_requires_one_consumed_attempt": True,
-        "one_confirmed_action_requires_exact_ordinary_resource_spend": True,
-        "one_confirmed_action_requires_positive_current_tech_progress": True,
+        "attempt_consumption_accounts_for_positively_observed_regeneration": True,
+        "unchanged_attempt_count_requires_observed_timer_rollover": True,
         "count_only_distinct_effect_confirmed_actions": True,
         "daily_success_limit": 10,
         "available_attempts_may_be_spent_consecutively": True,
@@ -2268,6 +2281,12 @@ def _validate_alliance_donation_record(record: Mapping[str, Any]) -> None:
         "daily_ownership": "none",
         "identical_retry": False,
     }
+    if any(key in effect for key in (
+        "current_hot_target_and_exact_resource_cost_and_balance_required",
+        "one_confirmed_action_requires_exact_ordinary_resource_spend",
+        "one_confirmed_action_requires_positive_current_tech_progress",
+    )):
+        raise ProductAuthorityError("Alliance Donation must use attempt counts, not resource or Tech deltas")
     if any(
         effect.get(key) != value
         or (type(value) is bool and type(effect.get(key)) is not bool)
@@ -2366,7 +2385,12 @@ def _validate_daily_shops_purchase_record(record: Mapping[str, Any]) -> None:
         "numeric_quantity_and_total_must_match_before_inner_buy": True,
         "changed_or_ambiguous_tab_blocks_without_substitution": True,
         "premium_purchase_allowed": False,
-        "tab_status_and_item_currency_effects_reconciled_separately": True,
+        "tab_status_and_purchase_acknowledgement_stock_effects_reconciled_separately": True,
+        "exact_item_and_quantity_purchase_acknowledgement_required_per_tab": True,
+        "decreased_stock_required_per_purchased_tab": True,
+        "owned_baseline_required": False,
+        "wallet_debit_required": False,
+        "confirmed_or_already_confirmed_tab_with_blocked_sibling_is_partial_deferred": True,
         "uncertain_tab_effect_is_not_retried": True,
         "current_native_gameplay_effect_is_only_readiness_basis": True,
         "daily_screen_or_points_inspection_required": False,
@@ -2376,6 +2400,8 @@ def _validate_daily_shops_purchase_record(record: Mapping[str, Any]) -> None:
         "dispatch_is_not_success_proof": True,
         "identical_retry": False,
     }
+    if "tab_status_and_item_currency_effects_reconciled_separately" in effect:
+        raise ProductAuthorityError("Daily Shops must not require paired item and currency accounting")
     if any(
         effect.get(key) != value
         or (type(value) is bool and type(effect.get(key)) is not bool)

@@ -53,7 +53,7 @@
       "permitted_input": null,
       "postconditions": [
         "the game's automatically selected current HOT Tech is positively identified and rebound before every action",
-        "ordinary Donate control, exact current resource cost, current balance, and available attempts are fresh"
+        "ordinary Donate control, numeric ordinary cost, game cost_affordable indicator, and displayed available attempts are fresh; no HUD resource census or wallet balance is required"
       ],
       "terminal_outcomes": [
         "blocked",
@@ -99,7 +99,7 @@
       "planner": "scripts/alliance_donation_bluestacks.py",
       "permitted_input": null,
       "postconditions": [
-        "one ordinary-resource Donate action is currently enabled for the exact current cost and balance",
+        "one ordinary-resource Donate action is currently enabled with a numeric cost and positive game affordability, separate from premium gem controls",
         "remaining current-reset quota is positive and the current attempt count is positive"
       ],
       "terminal_outcomes": [
@@ -133,9 +133,9 @@
       "planner": "scripts/alliance_donation_bluestacks.py",
       "permitted_input": null,
       "postconditions": [
-        "one current attempt is consumed with the exact ordinary-resource spend and positive current Tech progress successor",
-        "only this positive semantic effect increments committed_action_count and durable daily_committed_action_count",
-        "Bonus or reward multipliers never increment the action count twice"
+        "one displayed attempt is consumed net of a positively observed 1800-second regeneration rollover; an unchanged count requires before/after countdown rollover and elapsed capture time",
+        "only this distinct attempt-confirmed effect increments committed_action_count and durable daily_committed_action_count; wallet debit and Tech progress are not gates",
+        "ranking, Tech progress, Bonus and reward multipliers never count as donations"
       ],
       "terminal_outcomes": [
         "action_performed",
@@ -152,7 +152,7 @@
       "permitted_input": null,
       "postconditions": [
         "confirmed action count is durably reset-scoped across restart",
-        "the next action rebinds target, current cost, balance, and available attempts"
+        "the next action rebinds the HOT target, numeric ordinary cost, game affordability, and displayed attempts"
       ],
       "terminal_outcomes": [
         "deferred",
@@ -233,7 +233,7 @@
     "free_only": false,
     "maximum_cost": null,
     "quantity": 1,
-    "resource_or_currency": "CURRENT_ORDINARY_RESOURCE",
+    "resource_or_currency": "ORDINARY_RESOURCE",
     "notes": "Each action requires the current exact ordinary-resource cost and balance. The reset quota is ten confirmed actions; per-action quantity is one."
   },
   "completion_identity": "alliance-donation:ten-confirmed-ordinary-hot-tech-actions-per-reset",
@@ -246,10 +246,10 @@
     "manual_required"
   ],
   "cooldown_deferred_behavior": "One attempt regenerates every 1800 seconds up to 20 stored attempts. Spend currently available attempts consecutively without a between-action wait. When none remain, use the currently observed timer or an explicit safe recheck policy; never fabricate a due time or alter the ten-action target.",
-  "bounded_recovery_behavior": "Stop on changed HOT target, unknown cost/balance/attempts, premium control, stale source, or unresolved effect. Preserve confirmed partial count and unresolved effects across restart, deny identical retries, and return only through recognized safe navigation.",
+  "bounded_recovery_behavior": "Stop on changed HOT target, unknown numeric ordinary cost/affordability/attempts, red shortage, premium control, stale source, or unresolved effect. Preserve confirmed partial count and unresolved effects across restart, deny identical retries, and return only through recognized safe navigation.",
   "evidence_requirements": [
-    "Fresh current HOT Tech identity, ordinary Donate control, exact resource cost and balance, availability count, and immediate-before source reference/hash for every action.",
-    "Current native effect evidence must bind one consumed attempt, exact ordinary-resource spend, positive current Tech progress, immediate successor reference/hash, and canonical Home.",
+    "Fresh current HOT Tech identity, ordinary Donate control, numeric ordinary cost, cost_affordable, displayed attempt count, and immediate-before source reference/hash for every action; no all-resource HUD census.",
+    "Current native effect evidence binds exactly one consumed displayed attempt net of positively observed regeneration, with immediate successor reference/hash. An unchanged count requires countdown rollover and elapsed capture time. Canonical Home is the route terminal, not resource-debit or Tech-progress proof.",
     "Native outcomes distinguish donation_transport_calls from committed_action_count and durable daily_committed_action_count; availability_evidence and next_eligible_at are based only on current observation.",
     "No ranking or reward-point counters, Daily screen, D02, or point attribution is used as action success evidence."
   ],
@@ -341,11 +341,11 @@
   "production_eligible": false,
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r23",
-    "product_authority_digest": "01439c1db1f98d2fe2734667d3b73135006755c74ffe39eb16891f027236a949",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r24",
+    "product_authority_digest": "7a40a259d2108e0ad1a246d1daa1d19b650cf167784e321d3216c2fd8b02d012",
     "product_record_id": "alliance_donation",
-    "product_record_revision": "alliance_donation-v1",
-    "product_record_digest": "b26c59422b0c8c10eda6a60b0db1b9295be78d1d40bd7c82d1cdba768632e878",
+    "product_record_revision": "alliance_donation-v2",
+    "product_record_digest": "fb80b2e52cc1657efef7ef2f5f32d28bb4dc9257746e230700be1c00ac92735f",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",

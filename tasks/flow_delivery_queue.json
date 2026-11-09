@@ -120,14 +120,14 @@
         "execution_flow_id": "ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE",
         "queue_record_state": "staged_non_executable",
         "depends_on": [],
-        "blocker": "No purchase was dispatched; paired item/currency effect, quantity-one purchase successor, and canonical Home evidence remain evidence_required."
+        "blocker": "Recovered Bioenhance completion at source5be0024 is retained without another Buy; revised exact acknowledgement and fallback branches remain evidence_required."
       },
       {
         "task_id": "daily-shops-purchase",
         "execution_flow_id": "DAILY-SHOPS-PURCHASE-EVIDENCE-GATE",
         "queue_record_state": "staged_non_executable",
         "depends_on": [],
-        "blocker": "Both shop tabs have quantity-dialog observations, but no purchase was dispatched; current paired item/currency effects and canonical Home evidence remain evidence_required."
+        "blocker": "Both quantity dialogs were observed but no purchase was dispatched; exact item xN acknowledgement plus decreased stock on each tab and Rare Earth selected successor remain evidence_required."
       },
       {
         "task_id": "nano-material-maintenance",
@@ -4578,8 +4578,8 @@
       ],
       "navigation_model": "canonical_service_alliance_shop_one_bounded_purchase_and_home",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "The information investigation observed the exact allowlisted Bioenhance Scheme Weekly Offer and the exact Other one-star Gear fallback; no purchase was dispatched. A purchase still requires current controller/operator authorization, current item/currency/price/balance/stock/quantity/total evidence, paired item and currency effects, the purchase successor, and canonical Home. Runtime remains disabled and current native purchase acceptance is evidence_required.",
-      "consequence_policy": "At most one item total: buy one exact affordable allowlisted Weekly Offer, or if none is present or affordable, evaluate only exact Other 1-star Gear as a quantity-one fallback. Require exact current currency, unit price, balance, stock, selected quantity and total, paired item/currency effects, and canonical Home; unknown effects block identical retry. No premium, real-money, donation, or unlisted item.",
+      "live_validation_scope": "Historical recovered/resumed Bioenhance completion at source5be0024 remains valid without another Buy. It does not accept revised/fallback branches. A separately authorized purchase binds exact item/currency/price/balance/stock/quantity/total; an exact item x1 game acknowledgement proves the effect before terminal Home. No Owned baseline or Owned/stock/wallet triple is required. Runtime stays disabled; unobserved branches remain evidence_required.",
+      "consequence_policy": "At most one item total per reset: one affordable exact allowlisted Weekly Offer, otherwise exact Other one-star Gear fallback. A red preferred-price shortage permits fallback evaluation without Owned evidence. Re-read quantity one and total before inner Buy; confirm exact item x1 acknowledgement on the expected shop tab independently of Home return. Preserve historical receipt readers and confirmed actions; actual UNKNOWN blocks identical retry. No premium, real-money, donation, or unlisted item.",
       "product_policy_status": "explicitly_approved",
       "maximum_live_attempts": 0,
       "maximum_inputs": 24,
@@ -4596,12 +4596,12 @@
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [],
-      "blocked_reason": "No purchase dispatch or paired item/currency effect evidence exists; current bounded native purchase acceptance and canonical Home evidence remain required.",
+      "blocked_reason": "Revised acknowledgement and fallback branches are not live-qualified; historical recovered Bioenhance completion is retained and must not be repeated.",
       "next_concrete_action": "Complete the focused offline native, adapter, and shared-contract checks during parent integration; keep runtime disabled until separately authorized live purchase-effect acceptance is recorded.",
       "acceptance_criteria": [
         "one affordable allowlisted Weekly Offer is preferred; if none is present or affordable, only the exact affordable Other one-star Gear fallback may be selected",
         "the selected quantity is exactly one and its numeric total matches the observed unit price",
-        "paired item and currency effects and canonical Home are required for confirmed completion",
+        "exact item x1 purchase acknowledgement proves the effect independently of Home; verified canonical Home is still required for route completion",
         "unknown offer or purchase effects block identical retry",
         "the flow remains runtime-disabled and evidence_required until live purchase acceptance"
       ],
@@ -4674,8 +4674,8 @@
       ],
       "navigation_model": "canonical_service_automatic_alliance_tech_ten_confirmed_donations",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "One bounded ordinary Steel donation was an owner-controlled investigation probe, not route acceptance; retain its historical effect for reconciliation and do not infer route quota from it. Current route acceptance still requires an automatically selected HOT target, exact current ordinary resource/cost/balance and available attempts before each individually bounded action, ten durable confirmed effects or observed safe defer, and canonical Home. Runtime remains disabled and live acceptance is evidence_required.",
-      "consequence_policy": "At most ten actual confirmed ordinary-resource donations per reset to the automatically selected HOT target. Each attempt requires current target, availability, exact resource/cost/balance and enabled quantity-one Donate control; only confirmed effect increments the durable action count. Defer on observed attempt/resource unavailability; preserve partial progress and block unknown effects without identical retry. No diamonds, boxes, paid actions, forced reset, D02, Daily inspection, or points attribution.",
+      "live_validation_scope": "The bounded ordinary Steel donation was an investigation, not quota acceptance. Preserve it for same-reset reconciliation. A separately authorized route binds the current automatic HOT target, numeric ordinary cost, white affordable versus red shortage state and available attempts. Count actual individual donations from attempt successors, accounting only for positively observed thirty-minute regeneration. Ten per reset or safe partial defer, then canonical Home. No wallet census or ranking-point count. Runtime disabled; evidence_required.",
+      "consequence_policy": "At most ten confirmed individual ordinary-resource donations per reset to the automatic HOT target. Current numeric ordinary cost, affordability and available attempts admit each action; displayed attempts establish count, allowing unchanged attempts only with positively observed regeneration rollover. No mandatory per-tap two-frame wait, exact resource-wallet debit, ranking-point credit or bonus count. Spend stored attempts consecutively. Preserve partial progress and UNKNOWN/no-identical-retry. No diamonds, boxes, held Donate, forced reset, Daily/D02 or points attribution.",
       "product_policy_status": "explicitly_approved",
       "maximum_live_attempts": 0,
       "maximum_inputs": 40,
@@ -4759,8 +4759,8 @@
       ],
       "navigation_model": "canonical_service_two_shop_tabs_with_independent_daily_purchase_actions_and_home",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "The information investigation observed both exact three-star offers and their quantity dialogs, but no purchase was dispatched. Current native purchase acceptance still requires fresh item, rarity, currency, price, stock, balance, selected numeric quantity/total, paired item/currency effects, per-tab successor, and canonical Home evidence under separate current authorization. Runtime remains disabled and live acceptance is evidence_required.",
-      "consequence_policy": "Visit Ruins Shop and Rare Earth Shop as two independent tabs in one route visit. For each exact current allowlisted three-star material, buy only min(observed stock, floor(current observed balance / current unit price)); re-read the numeric quantity and total before dispatch. Preserve confirmed tab effects across restart, resume without rebuying, and block unknown effects without identical retry. No premium currency, reserve balance, unrelated shop, D02, Daily inspection, or points attribution.",
+      "live_validation_scope": "Both exact three-star offers and quantity dialogs were observed, but no Buy occurred. Current purchase acceptance requires fresh exact item/rarity/currency/price/stock/balance, selected numeric quantity/total, exact item xN game acknowledgement plus decreased stock on the same tab, and terminal Home under separate authorization. No Owned baseline or wallet arithmetic. Rare Earth selected successor remains evidence_required; runtime stays disabled.",
+      "consequence_policy": "Evaluate Ruins and Rare Earth tabs in one visit. For each approved three-star material buy min(stock, floor(balance/unit price)); re-read numeric quantity and total before inner Buy. Exact item xN acknowledgement plus stock decrease confirms that tab. Keep confirmed/already-confirmed prefixes with a blocked/unavailable sibling as partial DEFERRED, not total failure or UNKNOWN. Preserve historical receipts and genuine UNKNOWN/no-identical-retry. No premium currency, reserve balance, unrelated shop, Daily/D02 or points attribution.",
       "product_policy_status": "explicitly_approved",
       "maximum_live_attempts": 0,
       "maximum_inputs": 48,
@@ -4777,7 +4777,7 @@
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [],
-      "blocked_reason": "The navigation and quantity-dialog observations do not prove a purchase; paired current item/currency effects, separate tab successors, and canonical Home acceptance remain evidence_required.",
+      "blocked_reason": "No actual Buy was observed on either tab; exact item xN acknowledgement and stock successors, Rare Earth selection and terminal route acceptance remain evidence_required.",
       "next_concrete_action": "Complete focused offline native, adapter, and shared-contract checks during parent integration; keep runtime disabled until separately authorized current purchase-effect acceptance is recorded.",
       "reference_docs": [
         "docs/adding-a-route.md",

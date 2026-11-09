@@ -449,7 +449,7 @@
       "policy_id": "alliance-shop-purchase-policy",
       "scope": "alliance_shop.purchase",
       "status": "explicitly_approved",
-      "decision": "One current quantity-one purchase from the exact Weekly Offers allowlist is approved; when no matching preferred offer is present and affordable, only the exact Other one-star Gear Enhance Material may be used. This static product decision does not authorize runtime dispatch.",
+      "decision": "One current quantity-one purchase from the exact Weekly Offers allowlist is approved; when no matching preferred offer is present and affordable, only the exact Other one-star Gear Enhance Material may be used. This static product decision does not authorize runtime dispatch. A red preferred price proves shortage without Owned, numeric balance or stock. Exact item x1 purchase acknowledgement confirms the effect independently of Home return; preserve historical Home-digest receipts without replay.",
       "preferred_shop": "Weekly Offers",
       "preferred_items": [
         "Joy Coin",
@@ -473,7 +473,7 @@
       "policy_id": "alliance-technology-donation-policy",
       "scope": "alliance_tech.donation",
       "status": "explicitly_approved",
-      "decision": "Make at most ten individually confirmed ordinary-resource donations per daily reset to the game's automatically selected HOT Tech. Existing available attempts may be spent consecutively; one attempt regenerates every 1800 seconds up to 20 stored attempts. No ranking/reward-point counters, unbounded hold, premium spend, or Daily/points inspection grants success.",
+      "decision": "Make at most ten individually confirmed ordinary-resource donations per daily reset to the game's automatically selected HOT Tech. Existing available attempts may be spent consecutively; one attempt regenerates every 1800 seconds up to 20 stored attempts. No ranking/reward-point counters, unbounded hold, premium spend, or Daily/points inspection grants success. Read numeric ordinary cost and game affordability, not HUD resource identity or wallet arithmetic. Count consumed displayed attempts net of a positively observed regeneration rollover; Tech progress is not a success gate.",
       "target": "game_automatically_selected_hot_tech",
       "ordinary_resource_only": true,
       "quantity_per_action": 1,
@@ -491,7 +491,7 @@
       "policy_id": "daily-shops-purchase-policy",
       "scope": "daily_shops.purchase",
       "status": "explicitly_approved",
-      "decision": "During one visit, independently evaluate Ruins Shop 3\u2605 Chip Enhance Material and Rare Earth Shop 3\u2605 Module Enhance Material. Each tab's quantity must equal min(current stock, floor(current balance/current unit price)); reread the numeric quantity and total before its inner Buy. Preserve per-tab results; the static product decision does not authorize runtime dispatch or Daily/points attribution.",
+      "decision": "During one visit, independently evaluate Ruins Shop 3\u2605 Chip Enhance Material and Rare Earth Shop 3\u2605 Module Enhance Material. Each tab's quantity must equal min(current stock, floor(current balance/current unit price)); reread the numeric quantity and total before its inner Buy. Preserve per-tab results; the static product decision does not authorize runtime dispatch or Daily/points attribution. Exact item xN acknowledgement and decreased current-tab stock confirm each purchase without Owned or wallet arithmetic. A confirmed or already-confirmed tab with a blocked or unavailable sibling remains partial DEFERRED, not UNKNOWN.",
       "shops": [
         {
           "shop": "RUINS_SHOP",
@@ -749,7 +749,7 @@
       "source": "REC-D01_explicit_completion_boundary"
     }
   ],
-  "authority_revision": "flow-delivery-product-authority-v2-r23",
+  "authority_revision": "flow-delivery-product-authority-v2-r24",
   "product_records": [
     {
       "record_id": "use_resource_item",
@@ -2332,10 +2332,14 @@
         "daily_screen_or_points_inspection_required": false,
         "one_quantity_total_across_both_paths": 1,
         "fresh_numeric_quantity_and_total_required_before_inner_buy": true,
-        "exact_current_item_currency_cost_balance_stock_and_availability_required": true,
+        "selected_offer_requires_current_item_currency_cost_balance_stock_and_availability": true,
+        "red_price_shortage_permits_fallback_without_owned_balance_or_stock": true,
+        "owned_baseline_required": false,
         "purchase_dispatch_allowed": false,
-        "paired_currency_and_item_successors_required": true,
-        "canonical_home_successor_required": true,
+        "exact_item_quantity_one_purchase_acknowledgement_required": true,
+        "purchase_effect_independent_of_home_return": true,
+        "historical_home_digest_receipts_remain_valid": true,
+        "canonical_home_return_required": true,
         "dispatch_is_not_success_proof": true,
         "daily_ownership": "none",
         "identical_retry": false
@@ -2351,10 +2355,9 @@
         "quantity greater than one",
         "buy both preferred and fallback",
         "unaffordable fallback purchase",
-        "currency delta without item successor",
-        "item delta without currency delta",
         "identical retry",
-        "real-money confirmation"
+        "real-money confirmation",
+        "purchase without exact item and quantity acknowledgement"
       ],
       "terminal_requirement": {
         "home_authority": "HOME_CANONICAL",
@@ -2378,8 +2381,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "alliance_shop_purchase-v2",
-      "record_digest": "ecb5d83a4c31de3ef748eddbf9f542d3fc9bccdd695bf6fe8e87bc516465ad80"
+      "record_revision": "alliance_shop_purchase-v3",
+      "record_digest": "12b2dc6aaf156225732e0c94f2df682d75c7a2259f89f03f982245f4efbc5ac0"
     },
     {
       "record_id": "alliance_donation",
@@ -2418,16 +2421,19 @@
         "cost": {
           "kind": "current_observed_ordinary_resource_cost",
           "amount": null,
-          "unit": "CURRENT_ORDINARY_RESOURCE",
+          "unit": "ORDINARY_RESOURCE",
           "free_only": false
         }
       },
       "semantic_effect": {
         "effect_ordinal": 1,
-        "current_hot_target_and_exact_resource_cost_and_balance_required": true,
+        "current_hot_target_numeric_ordinary_cost_and_affordability_required": true,
+        "hud_resource_census_required": false,
+        "resource_wallet_debit_required": false,
+        "tech_progress_required": false,
         "one_confirmed_action_requires_one_consumed_attempt": true,
-        "one_confirmed_action_requires_exact_ordinary_resource_spend": true,
-        "one_confirmed_action_requires_positive_current_tech_progress": true,
+        "attempt_consumption_accounts_for_positively_observed_regeneration": true,
+        "unchanged_attempt_count_requires_observed_timer_rollover": true,
         "count_only_distinct_effect_confirmed_actions": true,
         "daily_success_limit": 10,
         "available_attempts_may_be_spent_consecutively": true,
@@ -2477,8 +2483,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "alliance_donation-v1",
-      "record_digest": "b26c59422b0c8c10eda6a60b0db1b9295be78d1d40bd7c82d1cdba768632e878"
+      "record_revision": "alliance_donation-v2",
+      "record_digest": "fb80b2e52cc1657efef7ef2f5f32d28bb4dc9257746e230700be1c00ac92735f"
     },
     {
       "record_id": "daily_shops_purchase",
@@ -2549,7 +2555,12 @@
         "premium_purchase_allowed": false,
         "zero_affordable_or_unavailable_tab_is_skipped": true,
         "numeric_quantity_and_total_must_match_before_inner_buy": true,
-        "tab_status_and_item_currency_effects_reconciled_separately": true,
+        "tab_status_and_purchase_acknowledgement_stock_effects_reconciled_separately": true,
+        "exact_item_and_quantity_purchase_acknowledgement_required_per_tab": true,
+        "decreased_stock_required_per_purchased_tab": true,
+        "owned_baseline_required": false,
+        "wallet_debit_required": false,
+        "confirmed_or_already_confirmed_tab_with_blocked_sibling_is_partial_deferred": true,
         "uncertain_tab_effect_is_not_retried": true,
         "current_native_gameplay_effect_is_only_readiness_basis": true,
         "daily_screen_or_points_inspection_required": false,
@@ -2572,8 +2583,8 @@
         "points attribution",
         "identical retry after uncertain effect",
         "premium purchase",
-        "currency delta without matching item successor",
-        "item successor without matching currency delta"
+        "purchase without exact item and quantity acknowledgement",
+        "purchase without decreased current tab stock"
       ],
       "terminal_requirement": {
         "home_authority": "HOME_CANONICAL",
@@ -2597,8 +2608,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "daily_shops_purchase-v1",
-      "record_digest": "4938325d72f7ac359a96716b78f9c4826feef2e611f3249f4bf16bed32b9c6c5"
+      "record_revision": "daily_shops_purchase-v2",
+      "record_digest": "e97b9d4fe21f67801e0a38aec1e8c05ee52191bd6d6e7d6fea55bc61994c3088"
     },
     {
       "record_id": "rare_earth_shop_purchase",
@@ -3815,5 +3826,5 @@
       "record_digest": "73a87b8d13e93bd0bc52748dce924dd79241dcba591f61ef8f78c7798b730ddd"
     }
   ],
-  "authority_digest": "01439c1db1f98d2fe2734667d3b73135006755c74ffe39eb16891f027236a949"
+  "authority_digest": "7a40a259d2108e0ad1a246d1daa1d19b650cf167784e321d3216c2fd8b02d012"
 }

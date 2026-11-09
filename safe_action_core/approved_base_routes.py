@@ -16,7 +16,7 @@ from typing import Optional, Tuple
 # Fixed policy allowlist, independent of runtime composition and registration.
 DONATION_TASK = "ALLIANCE-TECH-DONATION-BLUESTACKS-INTEGRATION"
 DONATION_PRODUCT = "alliance_donation"
-DONATION_REVISION = "alliance_donation-v1"
+DONATION_REVISION = "alliance_donation-v2"
 ALLIANCE_HELP_TASK = "ALLIANCE-HELP-TEN-FREE-REQUESTS"
 ALLIANCE_HELP_PRODUCT = "alliance_help"
 ALLIANCE_HELP_REVISION = "alliance_help-v2"
@@ -226,7 +226,7 @@ def _donation(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
         cost_type="ordinary_resource",
         cost_amount=request.observation.cost_amount if type(request.observation.cost_amount) is int else -1,
         quantity=1,
-        resource_or_currency=request.resource_or_currency,
+        resource_or_currency="ORDINARY_RESOURCE",
         maximum_cost=request.observation.cost_amount if type(request.observation.cost_amount) is int else -1,
         free_only=False,
     ):
@@ -243,7 +243,7 @@ def _donation(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
         "alliance_donation_hot_marker=",
         "alliance_donation_target=",
         "alliance_donation_attempts=",
-        "alliance_donation_balance=",
+        "alliance_donation_cost_affordable=",
         "alliance_donation_resource=",
         "alliance_donation_cost=",
         "alliance_donation_quantity=",
@@ -256,14 +256,15 @@ def _donation(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
     values = tuple(_field(token, prefix) for token, prefix in zip(tokens, prefixes))
     if any(value is None for value in values):
         return deny
-    product, revision, reset, hot, target, attempts_text, balance_text, resource, cost_text, qty_text, tap, premium, refill, hold, count_text = values
+    product, revision, reset, hot, target, attempts_text, affordable, resource, cost_text, qty_text, tap, premium, refill, hold, count_text = values
     if (
         product != DONATION_PRODUCT
         or revision != DONATION_REVISION
         or reset != request.game_day_id
         or hot != "true"
         or target != request.subject
-        or resource not in {"FOOD", "WOOD", "STEEL", "GAS"}
+        or affordable != "true"
+        or resource != "ORDINARY_RESOURCE"
         or resource != request.resource_or_currency
         or qty_text != "1"
         or tap != "true"
@@ -275,10 +276,9 @@ def _donation(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
     if not re.fullmatch(r"(?:[1-9]|1[0-9]|20)/20", attempts_text or "", flags=re.ASCII):
         return deny
     attempts = int(attempts_text.split("/", 1)[0])
-    balance = _integer_token(balance_text)
     cost = _integer_token(cost_text, minimum=1)
     count = _integer_token(count_text, maximum=9)
-    if balance is None or cost is None or count is None or balance < cost:
+    if cost is None or count is None:
         return deny
     if request.observation.cost_amount != cost or request.maximum_cost != cost:
         return deny
@@ -289,7 +289,7 @@ def _donation(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
         "alliance_donation_hot_marker=true",
         f"alliance_donation_target={request.subject}",
         f"alliance_donation_attempts={attempts}/20",
-        f"alliance_donation_balance={balance}",
+        "alliance_donation_cost_affordable=true",
         f"alliance_donation_resource={resource}",
         f"alliance_donation_cost={cost}",
         "alliance_donation_quantity=1",

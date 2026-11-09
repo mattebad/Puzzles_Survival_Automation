@@ -156,8 +156,8 @@ def donation_request():
         "alliance_donation_hot_marker=true",
         "alliance_donation_target=tech_alpha",
         "alliance_donation_attempts=1/20",
-        "alliance_donation_balance=100",
-        "alliance_donation_resource=FOOD",
+        "alliance_donation_cost_affordable=true",
+        "alliance_donation_resource=ORDINARY_RESOURCE",
         f"alliance_donation_cost={cost}",
         "alliance_donation_quantity=1",
         "alliance_donation_single_tap=true",
@@ -171,7 +171,7 @@ def donation_request():
         kind=DONATION_REVISION, subject="tech_alpha", source="ALLIANCE_TECH_DONATION_PANEL",
         target="alliance-tech:ordinary-donate", control="DONATE", consequence="alliance_tech_donation_effect",
         post="ALLIANCE_TECH_DONATION_CONFIRMED", cost_type="ordinary_resource", cost=cost, quantity=1,
-        resource="FOOD", maximum=cost, free=False, preconditions=tokens,
+        resource="ORDINARY_RESOURCE", maximum=cost, free=False, preconditions=tokens,
     )
 
 
@@ -604,7 +604,7 @@ class ApprovedBaseRoutePolicyTests(unittest.TestCase):
         req = donation_request()
         self.assert_authorized(req)
         tokens = list(req.semantic_preconditions)
-        tokens[1] = "alliance_donation_product_revision=alliance_donation-v2"
+        tokens[1] = "alliance_donation_product_revision=alliance_donation-v1"
         self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
         self.assert_denied(replace(req, resource_or_currency="DIAMONDS"))
         self.assert_denied(replace(req, observation=replace(req.observation, cost_amount=26), maximum_cost=26))
@@ -613,6 +613,51 @@ class ApprovedBaseRoutePolicyTests(unittest.TestCase):
         tokens = list(req.semantic_preconditions)
         tokens[11] = "alliance_donation_no_premium=false"
         self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+
+    def test_alliance_donation_requires_positive_affordability_without_wallet_identity(self):
+        req = donation_request()
+        for index, token in (
+            (6, "alliance_donation_cost_affordable=false"),
+            (6, "alliance_donation_cost_affordable=unknown"),
+            (6, "alliance_donation_balance=100"),
+            (7, "alliance_donation_resource=FOOD"),
+            (8, "alliance_donation_cost=0"),
+        ):
+            with self.subTest(token=token):
+                tokens = list(req.semantic_preconditions)
+                tokens[index] = token
+                self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+        for resource in ("FOOD", "WOOD", "STEEL", "GAS", "DIAMONDS"):
+            with self.subTest(resource=resource):
+                tokens = list(req.semantic_preconditions)
+                tokens[7] = f"alliance_donation_resource={resource}"
+                self.assert_denied(replace(
+                    req, resource_or_currency=resource, semantic_preconditions=tuple(tokens),
+                ))
+        self.assert_denied(replace(req, action_kind="alliance_donation-v1"))
+        self.assert_denied(replace(req, semantic_preconditions=req.semantic_preconditions[:6] + req.semantic_preconditions[7:]))
+
+    def test_alliance_donation_preserves_attempt_and_reset_quota_limits(self):
+        req = donation_request()
+        tokens = list(req.semantic_preconditions)
+        tokens[5] = "alliance_donation_attempts=20/20"
+        tokens[14] = "alliance_donation_daily_action_count=9"
+        self.assert_authorized(replace(req, semantic_preconditions=tuple(tokens)))
+        for index, token in (
+            (2, "alliance_donation_game_day=another-reset"),
+            (3, "alliance_donation_hot_marker=false"),
+            (5, "alliance_donation_attempts=0/20"),
+            (5, "alliance_donation_attempts=21/20"),
+            (5, "alliance_donation_attempts=1/21"),
+            (10, "alliance_donation_single_tap=false"),
+            (12, "alliance_donation_no_refill=false"),
+            (13, "alliance_donation_no_hold=false"),
+            (14, "alliance_donation_daily_action_count=10"),
+        ):
+            with self.subTest(token=token):
+                tokens = list(req.semantic_preconditions)
+                tokens[index] = token
+                self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
 
     def test_alliance_shop_allowlist_currency_and_quantity_are_exact(self):
         for item, shop in (
