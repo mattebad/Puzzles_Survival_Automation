@@ -1,0 +1,58 @@
+[
+  {
+    "asset": "ruins_price_medal.png",
+    "source_path": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\canonical-owner-replay-20261109T080850495633Z\\mystery-shop-current-stock-single-counter\\DAILY-SHOPS-PURCHASE-EVIDENCE-GATE-20261109T101501805520Z-d2217b4a\\daily-shops-native-20261109T101501903931Z\\frames\\0020-daily-shops-ruins-offer-source.png",
+    "source_sha256": "f1e36e1f511d9e4ae16bfd40f74f0550698caf4235b4d1c726826aad48d30c3a",
+    "crop_roi": [
+      619,
+      894,
+      650,
+      925
+    ],
+    "sha256": "69144c3caea2d59b8dd2042aed7fde6644889d25847f8fb1a6584b802268675c",
+    "observed_currency": "Ruins Coins",
+    "role": "price"
+  },
+  {
+    "asset": "ruins_wallet_medal.png",
+    "source_path": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\canonical-owner-replay-20261109T080850495633Z\\mystery-shop-current-stock-single-counter\\DAILY-SHOPS-PURCHASE-EVIDENCE-GATE-20261109T101501805520Z-d2217b4a\\daily-shops-native-20261109T101501903931Z\\frames\\0020-daily-shops-ruins-offer-source.png",
+    "source_sha256": "f1e36e1f511d9e4ae16bfd40f74f0550698caf4235b4d1c726826aad48d30c3a",
+    "crop_roi": [
+      585,
+      11,
+      632,
+      61
+    ],
+    "sha256": "a514cbf5a9a130a1181cfe790cb78faef9fa1784f354156061aa32cc64d3558f",
+    "observed_currency": "Ruins Coins",
+    "role": "wallet"
+  },
+  {
+    "asset": "rare_earth_price_crystal.png",
+    "source_path": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\canonical-owner-replay-20261109T080850495633Z\\mystery-shop-current-stock-single-counter\\DAILY-SHOPS-PURCHASE-EVIDENCE-GATE-20261109T101501805520Z-d2217b4a\\daily-shops-native-20261109T101501903931Z\\frames\\0025-daily-shops-rare_earth-offer-source.png",
+    "source_sha256": "1a908f888d6967e128e43a106c3a7bed2ac820b51dd71c40f462af22ad231d19",
+    "crop_roi": [
+      604,
+      666,
+      630,
+      696
+    ],
+    "sha256": "ed6825cec89d7d067c533cdb808f6c2ea97a97490781cec73d6d8fd884716eaf",
+    "observed_currency": "Rare Earth",
+    "role": "price"
+  },
+  {
+    "asset": "rare_earth_wallet_crystal.png",
+    "source_path": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\canonical-owner-replay-20261109T080850495633Z\\mystery-shop-current-stock-single-counter\\DAILY-SHOPS-PURCHASE-EVIDENCE-GATE-20261109T101501805520Z-d2217b4a\\daily-shops-native-20261109T101501903931Z\\frames\\0025-daily-shops-rare_earth-offer-source.png",
+    "source_sha256": "1a908f888d6967e128e43a106c3a7bed2ac820b51dd71c40f462af22ad231d19",
+    "crop_roi": [
+      585,
+      8,
+      627,
+      61
+    ],
+    "sha256": "282bfecb99a755b4d6e7adf1c0c7d89194d57406e867097ef35244f6631348b7",
+    "observed_currency": "Rare Earth",
+    "role": "wallet"
+  }
+]

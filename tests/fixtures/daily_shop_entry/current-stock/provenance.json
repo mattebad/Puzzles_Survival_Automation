@@ -1,0 +1,17 @@
+{
+  "source_root": "C:/Users/burni/Documents/Coding_Projects/Puzzle_Survival_Runtime_POC/.local-captures/canonical-owner-replay-20261109T080850495633Z/mystery-shop-current-stock-single-counter/DAILY-SHOPS-PURCHASE-EVIDENCE-GATE-20261109T101501805520Z-d2217b4a/daily-shops-native-20261109T101501903931Z/frames",
+  "fixtures": [
+    {
+      "fixture": "0020-ruins-stock-zero.png",
+      "source_filename": "0020-daily-shops-ruins-offer-source.png",
+      "sha256": "f1e36e1f511d9e4ae16bfd40f74f0550698caf4235b4d1c726826aad48d30c3a",
+      "observed": {"tab": "ruins", "item": "3★ Chip Enhance Material", "rarity": 3, "stock": 0, "unit_price": 15, "balance": 18076, "owned_counter_present": false}
+    },
+    {
+      "fixture": "0025-rare-earth-unaffordable.png",
+      "source_filename": "0025-daily-shops-rare_earth-offer-source.png",
+      "sha256": "1a908f888d6967e128e43a106c3a7bed2ac820b51dd71c40f462af22ad231d19",
+      "observed": {"tab": "rare_earth", "item": "3★ Module Enhance Material", "rarity": 3, "stock": 5, "unit_price": 13800, "balance": 4995, "owned": 15}
+    }
+  ]
+}

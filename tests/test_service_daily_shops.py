@@ -194,7 +194,7 @@ class DailyShopsServiceAdapterTests(unittest.TestCase):
         base = route_result(identity)
         rows = {tab: dict(row) for tab, row in base["tab_results"].items()}
         rows["rare_earth"].update(
-            status="deferred", effect_verified=False, reason="TAB_NO_AFFORDABLE_STOCK",
+            status="deferred", effect_verified=False, reason="TAB_INSUFFICIENT_CURRENCY",
             quantity=0, total=None, balance_before=0,
         )
         payload = route_result(
@@ -243,7 +243,7 @@ class DailyShopsServiceAdapterTests(unittest.TestCase):
         rows = {tab: dict(row) for tab, row in base["tab_results"].items()}
         rows["ruins"].update(status="already_confirmed", reason="TAB_OCCURRENCE_ALREADY_CONFIRMED")
         rows["rare_earth"].update(
-            status="deferred", effect_verified=False, reason="TAB_NO_AFFORDABLE_STOCK",
+            status="deferred", effect_verified=False, reason="TAB_INSUFFICIENT_CURRENCY",
             quantity=0, total=None, balance_before=0,
         )
         payload = route_result(
@@ -268,9 +268,12 @@ class DailyShopsServiceAdapterTests(unittest.TestCase):
         rows = {tab: dict(row) for tab, row in base["tab_results"].items()}
         for row in rows.values():
             row.update(
-                status="deferred", effect_verified=False, reason="TAB_NO_AFFORDABLE_STOCK",
+                status="deferred", effect_verified=False, reason="TAB_INSUFFICIENT_CURRENCY",
                 quantity=0, total=None, balance_before=0,
             )
+        rows["ruins"].update(
+            reason="TAB_STOCK_EXHAUSTED", stock_before=0, item_quantity_before=None,
+        )
         payload = route_result(
             identity, status="deferred", purchase_transport_calls=0, committed_action_count=0,
             tab_results=rows,

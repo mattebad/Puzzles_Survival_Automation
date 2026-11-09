@@ -206,7 +206,9 @@ class DailyShopsPurchaseRoute:
             return True
         if quantity == 0:
             self._tab_result(
-                tab, status="deferred", reason="TAB_NO_AFFORDABLE_STOCK",
+                tab, status="deferred",
+                reason=("TAB_STOCK_EXHAUSTED" if offer.stock == 0
+                        else "TAB_INSUFFICIENT_CURRENCY"),
                 offer=offer, quantity=0, source_ref=observation.evidence_ref,
                 source_hash=observation.evidence_frame_sha256,
             )
@@ -380,7 +382,7 @@ class DailyShopsLivePort:
         return self._ocr_region(captured.frame)
 
     @staticmethod
-    def _ocr_region(frame, roi=None, *, psm=6, light_text=False):
+    def _ocr_region(frame, roi=None, *, psm=6, light_text=False, character_blacklist=""):
         from scripts.bounded_tesseract import call_ocr, tesseract_data
         left, top, right, bottom = roi or (0, 0, 800, 1280)
         image = frame[top:bottom, left:right]
@@ -391,7 +393,10 @@ class DailyShopsLivePort:
                                 np.array((0, 0, 190), dtype=np.uint8),
                                 np.array((179, 70, 255), dtype=np.uint8))
             image = cv2.cvtColor(255 - glyphs, cv2.COLOR_GRAY2BGR)
-        data = call_ocr(tesseract_data, image, config=f"--psm {psm}")
+        config = f"--psm {psm}"
+        if character_blacklist:
+            config += f" -c tessedit_char_blacklist={character_blacklist}"
+        data = call_ocr(tesseract_data, image, config=config)
         groups = {}
         for i, text in enumerate(data.get("text", ())):
             value = str(text).strip()
@@ -605,6 +610,7 @@ class DailyShopsLivePort:
             self.context, current=home, atlas=atlas, localizer=localizer,
             building_id="home.building.mystery_shop", product_id=PRODUCT_ID,
             binding_for_frame=self._mapped_mystery_shop, maximum_pans=8,
+            retained_controller_transport=True,
         )
         if home is None or binding is None:
             self.entry_reason = f"DAILY_SHOPS_ENTRY_DEFERRED:{reason}"
@@ -678,57 +684,132 @@ class DailyShopsLivePort:
                 return False
         return False
 
+    def _shop_currency_box(self, captured, tab, role, roi):
+        """Bind the exact currency's role-specific artwork, not wallet/price lookalikes."""
+        from pathlib import Path
+        import cv2
+        import numpy as np
+        templates = getattr(self, "_currency_templates", None)
+        if templates is None:
+            templates = self._currency_templates = {}
+        key = (tab, role)
+        if key not in templates:
+            name = f"{tab}_{role}_{'medal' if tab == RUINS_TAB else 'crystal'}.png"
+            path = Path(__file__).resolve().parents[1] / "tasks/assets/daily_shops" / name
+            templates[key] = cv2.imread(str(path), cv2.IMREAD_COLOR)
+        reference = templates[key]
+        left, top, right, bottom = roi
+        search = captured.frame[top:bottom, left:right]
+        if reference is None or search.shape[0] < reference.shape[0] or search.shape[1] < reference.shape[1]:
+            return None
+        height, width = reference.shape[:2]
+        yy, xx = np.indices((height, width))
+        # As in the Alliance currency matcher, use the unobscured interior;
+        # surrounding button color and the wallet's + overlay are not identity.
+        mask = (((xx - width / 2) / width) ** 2 + ((yy - height / 2) / height) ** 2 < 0.42 ** 2)
+        scores = cv2.matchTemplate(search, reference, cv2.TM_CCOEFF_NORMED,
+                                   mask=mask.astype(np.uint8) * 255)
+        scores = np.where(np.isfinite(scores), scores, -1.0)
+        ys, xs = np.where(scores >= 0.86)
+        if not len(xs) or int(xs.max() - xs.min()) > 4 or int(ys.max() - ys.min()) > 4:
+            return None
+        _, _, _, (x, y) = cv2.minMaxLoc(scores)
+        return left + x, top + y, left + x + width, top + y + height
+
+    def _offer_field(self, captured, roi, *, yellow=False, price=False, psm=6):
+        """Read an isolated native shop field, including disabled white/red prices."""
+        import cv2
+        import numpy as np
+        left, top, right, bottom = roi
+        if not (0 <= left < right <= 800 and 0 <= top < bottom <= 1280):
+            return ()
+        image = captured.frame[top:bottom, left:right]
+        # Keep the title's antialiased star intact; binarizing its fine strokes
+        # loses positive rarity evidence even when the item words remain legible.
+        if not (yellow and psm == 7):
+            hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+            if yellow:
+                glyphs = cv2.inRange(hsv, np.array((15, 70, 100), np.uint8),
+                                    np.array((45, 255, 255), np.uint8))
+            else:
+                glyphs = cv2.inRange(hsv, np.array((0, 0, 180), np.uint8),
+                                    np.array((179, 100, 255), np.uint8))
+                if price:
+                    glyphs |= cv2.inRange(hsv, np.array((0, 130, 80), np.uint8),
+                                         np.array((10, 255, 255), np.uint8))
+                    glyphs |= cv2.inRange(hsv, np.array((170, 130, 80), np.uint8),
+                                         np.array((179, 255, 255), np.uint8))
+            image = cv2.cvtColor(255 - glyphs, cv2.COLOR_GRAY2BGR)
+        image = cv2.resize(image, None, fx=2, fy=2)
+        lines = self._ocr_region(
+            image, (0, 0, image.shape[1], image.shape[0]), psm=psm,
+            # Shop item titles use stars, not percentage units. Constrain the OCR
+            # alphabet rather than rewriting an uncertain OCR token into an item.
+            character_blacklist="%" if yellow and psm == 7 else "",
+        )
+        return tuple(tuple((text, (left + box[0] // 2, top + box[1] // 2,
+                                   left + (box[2] + 1) // 2, top + (box[3] + 1) // 2))
+                           for text, box in line) for line in lines)
+
     def _read_offer(self, captured, tab):
-        lines = self._ocr(captured)
-        expected = {
+        """Read bound current fields even when Buy is disabled; missing fields stay unknown."""
+        if self._page(captured)[0] != tab:
+            return None
+        shop, item, currency = {
             RUINS_TAB: (RUINS_SHOP, "3★ Chip Enhance Material", "Ruins Coins"),
             RARE_EARTH_TAB: (RARE_EARTH_SHOP, "3★ Module Enhance Material", "Rare Earth"),
         }[tab]
-        shop, item, currency = expected
-        item_hits = self._hits(lines, item)
-        if len(item_hits) != 1:
+        # Locate candidate titles without assuming their rarity; then positively
+        # re-read the full title including the numeric rarity and star.
+        titles = []
+        for box in self._hits(self._ocr(captured), item.split(" ", 1)[1]):
+            roi = (max(200, box[0] - 55), max(230, box[1] - 10),
+                   min(550, box[2] + 10), min(1280, box[3] + 10))
+            titles.extend(self._hits(self._offer_field(captured, roi, yellow=True, psm=7), item))
+        if len(titles) != 1:
             return None
-        item_roi = item_hits[0]
-        row_y = (item_roi[1] + item_roi[3]) / 2
-        row_prices, stocks, owned_values = [], [], []
-        for line in lines:
+        title = titles[0]
+        top, bottom = title[3], min(1280, title[3] + 120)
+        details_roi = (80, top, 195, bottom) if tab == RUINS_TAB else (200, top, 550, bottom)
+        details = self._offer_field(captured, details_roi, yellow=True)
+        stocks, owned = [], []
+        for line in details:
             text = " ".join(word[0] for word in line).casefold()
-            y = sum((word[1][1] + word[1][3]) / 2 for word in line) / len(line)
-            all_numbers = self._numbers(line)
-            positive_numbers = [value for value in all_numbers if value[0] > 0]
-            if "owned" in text and abs(y - row_y) <= 110 and len(all_numbers) == 1:
-                owned_values.append(all_numbers[0][0])
-            if "left" in text or "remaining" in text or "stock" in text:
-                if abs(y - row_y) <= 150 and len(all_numbers) == 1:
-                    stocks.append(all_numbers[0][0])
+            numbers = self._numbers(line)
+            if len(numbers) != 1:
                 continue
-            if y <= 120 and len(all_numbers) == 1:
-                continue
-            if abs(y - row_y) <= 130 and len(positive_numbers) == 1 and any(
-                phrase in text for phrase in ("buy", "refresh")
-            ):
-                row_prices.append((abs(y - row_y), positive_numbers[0]))
-        row_prices.sort(key=lambda x: x[0])
-        if (not row_prices or (len(row_prices) > 1 and row_prices[0][0] == row_prices[1][0])
-                or len(set(stocks)) != 1):
+            if "left" in text or "remaining" in text:
+                stocks.append(numbers[0][0])
+            elif "owned" in text:
+                owned.append(numbers[0][0])
+        if len(stocks) != 1 or len(owned) > 1:
             return None
-        price, price_roi = row_prices[0][1]
-        price_icon = self._icon(captured, price_roi)
-        balances = []
-        for line in lines:
-            for amount, roi in self._numbers(line):
-                if roi[1] <= 115 and self._icons_match(price_icon, self._icon(captured, roi)):
-                    balances.append(amount)
-        if len(balances) != 1 or price_icon is None:
+        icon = self._shop_currency_box(captured, tab, "price", (560, top, 745, bottom))
+        wallet_icon = self._shop_currency_box(captured, tab, "wallet", (560, 0, 635, 70))
+        if icon is None or wallet_icon is None:
             return None
-        self.currency_icons[tab] = price_icon
-        count = owned_values[0] if len(owned_values) == 1 else None
-        stock = stocks[0]
+        # The price is beside the icon, above Buy. Exclude the lower icon
+        # margin so partial Buy strokes cannot contaminate the numeric line.
+        price_roi = (icon[2] + 1, max(top, icon[1] - 4), 745,
+                     min(bottom, icon[3] - max(1, (icon[3] - icon[1]) // 10)))
+        price_lines = self._offer_field(captured, price_roi, price=True, psm=7)
+        prices = [value for line in price_lines for value in self._numbers(line)]
+        if len(prices) != 1 or prices[0][0] <= 0:
+            return None
+        unit_price, numeric_roi = prices[0]
+        balances = [
+            amount for line in self._offer_field(
+                captured, (wallet_icon[2] + 1, 10, 750, 60), psm=7,
+            ) for amount, _roi in self._numbers(line)
+        ]
+        if len(balances) != 1:
+            return None
+        self.currency_icons[tab] = self._icon(captured, numeric_roi)
         offer = ShopOffer(
             shop_identity=shop, item_identity=item, currency_identity=currency,
-            unit_price=price, balance=balances[0], stock=stock,
-            item_quantity=count, rarity=3, available=stock > 0,
-            recognized=True, offer_identity=f"{tab}:{item}",
+            unit_price=unit_price, balance=balances[0], stock=stocks[0],
+            item_quantity=owned[0] if owned else None, rarity=3,
+            available=stocks[0] > 0, recognized=True, offer_identity=f"{tab}:{item}",
         )
         return offer
 

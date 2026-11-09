@@ -174,9 +174,12 @@ def daily_shops_next_due(
             deferred += 1
             if row.get("effect_verified") is not False:
                 raise ValueError("Daily Shops deferred tab cannot claim a verified effect")
-            if row.get("reason") == "TAB_NO_AFFORDABLE_STOCK":
-                _validate_tab_offer(row, tab, no_work=True)
-            else:
+            _validate_tab_offer(row, tab, no_work=True)
+            expected_reason = (
+                "TAB_STOCK_EXHAUSTED" if row["stock_before"] == 0
+                else "TAB_INSUFFICIENT_CURRENCY"
+            )
+            if row.get("reason") != expected_reason:
                 raise ValueError("Daily Shops deferred tab lacks an exact no-work reason")
         elif status == "blocked" and result.get("status") == "deferred":
             deferred += 1

@@ -1776,7 +1776,7 @@ class GuardedDailyShopsRunner:
             "source_frame_sha256": _C_EVIDENCE_SHA256,
         }
         if deferred:
-            row["reason"] = "TAB_NO_AFFORDABLE_STOCK"
+            row["reason"] = "TAB_INSUFFICIENT_CURRENCY"
         return row
 
 

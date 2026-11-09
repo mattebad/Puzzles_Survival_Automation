@@ -701,6 +701,61 @@ class SelectorRunTransport:
         self.inputs.append(("tap", point))
 
 
+class DailyShopActualNoWorkTests(unittest.TestCase):
+    FIXTURES = Path(__file__).resolve().parent / "fixtures/daily_shop_entry/current-stock"
+
+    def _assert_no_work(self, filename, digest, tab, expected):
+        from scripts.bluestacks_native_runtime import captured_native_frame_from_png
+        path = self.FIXTURES / filename
+        png = path.read_bytes()
+        self.assertEqual(hashlib.sha256(png).hexdigest(), digest)
+        captured = captured_native_frame_from_png(png, captured_monotonic=1, path=path)
+        port = object.__new__(DailyShopsLivePort)
+        port.context = SimpleNamespace(is_clean_home=lambda _frame: False)
+        port.currency_icons = {}
+        port._capture = lambda _label: captured
+        port.action_status = lambda _key: None
+        port.open_quantity_dialog = lambda *_args: self.fail("known no-work offer opened Buy")
+        readiness = port.inspect_tab(tab)
+        self.assertTrue(readiness.complete, readiness.reason)
+        row = readiness.offer
+        self.assertIsNotNone(row)
+        self.assertEqual(
+            (row.shop_identity, row.item_identity, row.currency_identity, row.rarity,
+             row.unit_price, row.balance, row.stock, row.item_quantity), expected,
+        )
+        self.assertEqual(daily_shop_quantity(row, shop_identity=row.shop_identity), 0)
+        route = DailyShopsPurchaseRoute(port, action_keys=KEYS)
+        self.assertTrue(route._process_tab(tab))
+        result = route.result.tab_results[tab]
+        self.assertEqual((result["status"], result["reason"], result["quantity"]),
+                         ("deferred", "TAB_STOCK_EXHAUSTED" if row.stock == 0 else "TAB_INSUFFICIENT_CURRENCY", 0))
+        self.assertEqual((result["stock_before"], result["balance_before"],
+                          result["unit_price"], result["item_quantity_before"]),
+                         (row.stock, row.balance, row.unit_price, row.item_quantity))
+        self.assertEqual((route.result.purchase_transport_calls, route.result.committed_action_count), (0, 0))
+        other_tab = RARE_EARTH_TAB if tab == RUINS_TAB else RUINS_TAB
+        self.assertFalse(port.inspect_tab(other_tab).complete)
+
+    @requires_tesseract
+    def test_actual_ruins_zero_stock_retains_disabled_price_and_absent_owned(self):
+        self._assert_no_work(
+            "0020-ruins-stock-zero.png",
+            "f1e36e1f511d9e4ae16bfd40f74f0550698caf4235b4d1c726826aad48d30c3a",
+            RUINS_TAB,
+            (RUINS_SHOP, RUINS_CHIP_ITEM, RUINS_CURRENCY, 3, 15, 18076, 0, None),
+        )
+
+    @requires_tesseract
+    def test_actual_rare_earth_insufficient_balance_retains_stock_and_owned(self):
+        self._assert_no_work(
+            "0025-rare-earth-unaffordable.png",
+            "1a908f888d6967e128e43a106c3a7bed2ac820b51dd71c40f462af22ad231d19",
+            RARE_EARTH_TAB,
+            (RARE_EARTH_SHOP, RARE_EARTH_MODULE_ITEM, RARE_EARTH_CURRENCY, 3, 13800, 4995, 5, 15),
+        )
+
+
 class DailyShopGoldSelectorRunTests(unittest.TestCase):
     @requires_tesseract
     def test_actual_0017_offer_without_owned_retains_exact_purchase_quantity(self):
@@ -774,6 +829,7 @@ class NativeDailyShopEntryRuntime:
 
     execute = True
     in_flight_action = None
+    max_inputs = 48
 
     def __init__(self, directory, source, *, pan_successor="unchanged", zoom_successor=None, home_source=None):
         self.session = Path(directory)
@@ -823,6 +879,8 @@ class NativeDailyShopEntryRuntime:
         self.swipes.append(gesture)
         if self.pan_successor == "unknown":
             self.state = "unknown"
+        elif isinstance(self.pan_successor, Path):
+            self.source = self.pan_successor
 
     def dispatch_external_zoom(self, captured, *, action_key, transport):
         self.input_count += 1
@@ -920,6 +978,78 @@ class DailyShopMappedEntryTests(unittest.TestCase):
                 zoom_out_once=lambda: self.fail("offline runtime attempted physical zoom transport"),
             ),
         ))
+
+    def test_retained_pan_checks_global_runtime_budget_after_zoom(self):
+        source = self.ROOT / "tests/fixtures/daily_shop_entry/canonical-home-source.png"
+        with tempfile.TemporaryDirectory() as directory:
+            store = SafetyStore(Path(directory) / "actions.sqlite3")
+            try:
+                port, runtime = native_daily_shop_entry_port(
+                    directory, store, source,
+                    zoom_successor=self.TILES / "viewport-010.png",
+                    pan_successor=self.TILES / "viewport-003.png",
+                )
+                runtime.max_inputs = 1
+                self.assertFalse(port.enter_ruins_shop())
+                self.assertIn("mapped_home_atlas_pan_input_limit_reached", port.entry_reason)
+                self.assertEqual(len(runtime.zooms), 1)
+                self.assertEqual((runtime.swipes, runtime.taps), ([], []))
+                self.assertEqual(runtime.input_count, 1)
+            finally:
+                store.close()
+
+    @requires_tesseract
+    def test_retained_zoom_pan_entry_and_home_use_one_real_session_counter(self):
+        from scripts import navigation_development_boundary as boundary
+        source = self.ROOT / "tests/fixtures/daily_shop_entry/canonical-home-source.png"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            store = SafetyStore(root / "actions.sqlite3")
+            try:
+                port, runtime = native_daily_shop_entry_port(
+                    directory, store, source,
+                    zoom_successor=self.TILES / "viewport-010.png",
+                    pan_successor=self.TILES / "viewport-003.png",
+                    home_source=self.TILES / "viewport-003.png",
+                )
+                with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
+                    with boundary.DevelopmentSession(
+                        owner=NativeDailyShopEntrySession.owner,
+                        invocation_id=NativeDailyShopEntrySession.invocation_id,
+                        session_directory=root / "session", max_inputs=5,
+                    ) as session:
+                        port.context.session = port.session = session
+                        self.assertTrue(port.enter_ruins_shop(), port.entry_reason)
+                        self.assertTrue(port.return_home())
+                        self.assertTrue(port.context.is_clean_home(runtime.capture("verified-home").frame))
+                        # One zoom, one Core-fenced atlas pan, Mystery entry, Ruins
+                        # selection and Back: the retained transport owns all five.
+                        self.assertEqual(
+                            (len(runtime.zooms), len(runtime.swipes), len(runtime.taps), len(runtime.backs)),
+                            (1, 1, 2, 1),
+                        )
+                        self.assertEqual(runtime.input_count, 5)
+                        self.assertEqual(session.input_count, 0)
+                        journal = str(root / "events.jsonl")
+                        self.assertEqual(session.adopt_retained_transport_count(
+                            runtime.input_count, source=journal,
+                        ), 5)
+                        self.assertEqual(session.adopt_retained_transport_count(
+                            runtime.input_count, source=journal,
+                        ), 5)
+                        with self.assertRaisesRegex(boundary.DevelopmentSessionError, "exceeds"):
+                            session.adopt_retained_transport_count(6, source=journal)
+                        denied_dispatches = []
+                        with self.assertRaisesRegex(boundary.DevelopmentSessionError, "input limit"):
+                            session.run_action(
+                                action_class="navigation", label="over-budget",
+                                capture=runtime.capture, dispatch=denied_dispatches.append,
+                                recognize=lambda _frame: "HOME_BASE",
+                            )
+                        self.assertEqual(denied_dispatches, [])
+                        self.assertEqual((session.input_count, runtime.input_count), (5, 5))
+            finally:
+                store.close()
 
     def test_native_visible_mystery_binding_uses_semantic_not_transport_digest(self):
         from tasks.home_atlas_vision import frame_digest
