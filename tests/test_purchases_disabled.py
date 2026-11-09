@@ -257,6 +257,26 @@ class ApprovedPurchasePolicyTests(unittest.TestCase):
             timed, quantity=1, selected_quantity=1, displayed_total=999,
         ))
 
+    def test_affordable_exact_weekly_offer_does_not_require_full_inventory(self):
+        timed = shop_offer(
+            ALLIANCE_WEEKLY_SHOP, "Timed Recruit Coin", "Diamonds",
+            1000, 54400, 5, 98, premium=True,
+        )
+        choice = alliance_shop_choice(
+            (timed,), None, weekly_inventory_complete=False,
+            fallback_inventory_complete=False,
+        )
+        self.assertEqual((choice.status, choice.offer, choice.quantity), ("selected", timed, 1))
+        for changed in (
+            replace(timed, unit_price=None), replace(timed, balance=None),
+            replace(timed, currency_identity="UNKNOWN"),
+        ):
+            choice = alliance_shop_choice(
+                (changed,), None, weekly_inventory_complete=False,
+                fallback_inventory_complete=False,
+            )
+            self.assertEqual(choice.status, "blocked")
+
     def test_alliance_inventory_ambiguity_and_fallback_limits_fail_closed(self):
         valid = shop_offer(
             ALLIANCE_WEEKLY_SHOP, "Joy Coin", ALLIANCE_CURRENCY,
@@ -268,7 +288,7 @@ class ApprovedPurchasePolicyTests(unittest.TestCase):
         )
         for choice in (
             alliance_shop_choice(
-                (valid,), fallback,
+                (replace(valid, balance=6),), fallback,
                 weekly_inventory_complete=False,
                 fallback_inventory_complete=True,
             ),

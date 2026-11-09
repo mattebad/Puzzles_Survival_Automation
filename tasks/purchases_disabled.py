@@ -240,8 +240,6 @@ def alliance_shop_choice(
 ) -> AlliancePurchaseChoice:
     """Select one exact affordable Weekly offer, else only the exact Other fallback."""
 
-    if not weekly_inventory_complete:
-        return AlliancePurchaseChoice("blocked", "WEEKLY_INVENTORY_INCOMPLETE")
     if type(weekly_offers) is not tuple or any(type(row) is not ShopOffer for row in weekly_offers):
         return AlliancePurchaseChoice("blocked", "WEEKLY_OFFER_EVIDENCE_INVALID")
     matched: dict[str, ShopOffer] = {}
@@ -283,6 +281,10 @@ def alliance_shop_choice(
                 and row.available and _known_nonnegative(row.balance)
                 and row.balance >= row.unit_price):
             return AlliancePurchaseChoice("selected", "AFFORDABLE_PREFERRED_OFFER", row, 1)
+    # Exhaustion is required to establish absence/unaffordability, not to buy
+    # an already positively observed, exact affordable allowlisted offer.
+    if not weekly_inventory_complete:
+        return AlliancePurchaseChoice("blocked", "WEEKLY_INVENTORY_INCOMPLETE")
     if not fallback_inventory_complete:
         return AlliancePurchaseChoice("blocked", "FALLBACK_INVENTORY_INCOMPLETE")
     if fallback_offer is None:

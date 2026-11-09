@@ -111,8 +111,10 @@ def _validated_due_context(result: Mapping[str, Any], identity: SchedulerIdentit
     return completed, (reset_start + timedelta(days=1)).timestamp()
 
 
-def _validate_scan_readiness(value: Any, *, required_reason: str | None = None) -> Mapping[str, Any]:
-    if not isinstance(value, Mapping) or value.get("complete") is not True:
+def _validate_scan_readiness(value: Any, *, required_reason: str | None = None,
+                             require_complete: bool = True) -> Mapping[str, Any]:
+    if (not isinstance(value, Mapping) or type(value.get("complete")) is not bool
+            or (require_complete and value["complete"] is not True)):
         raise ValueError("Alliance Shop inventory scan is not complete")
     refs, hashes = value.get("frame_refs"), value.get("frame_sha256s")
     if (not isinstance(refs, (tuple, list)) or not refs
@@ -162,8 +164,15 @@ def _validate_selection_evidence(result: Mapping[str, Any], selected: Mapping[st
     evidence = result.get("selection_evidence")
     if not isinstance(evidence, Mapping):
         raise ValueError("Alliance Shop selected purchase lacks preferred inventory evidence")
-    weekly_inventory = _validate_scan_readiness(evidence.get("weekly_inventory"))
-    if weekly_inventory.get("reason") not in {"", None}:
+    selected_weekly = selected.get("shop_identity") == ALLIANCE_WEEKLY_SHOP
+    weekly_inventory = _validate_scan_readiness(
+        evidence.get("weekly_inventory"), require_complete=not selected_weekly,
+    )
+    allowed_reasons = (
+        {"AFFORDABLE_PREFERRED_OFFER_OBSERVED"}
+        if selected_weekly and not weekly_inventory["complete"] else {"", None}
+    )
+    if weekly_inventory.get("reason") not in allowed_reasons:
         raise ValueError("Alliance Shop Weekly selection scan is unresolved")
     weekly_offers = evidence.get("weekly_offers")
     if not isinstance(weekly_offers, (tuple, list)):

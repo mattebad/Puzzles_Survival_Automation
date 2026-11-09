@@ -263,6 +263,50 @@ class AllianceShopServiceAdapterTests(unittest.TestCase):
         request.validate_identity()
         self.assertTrue(checkpoints)
 
+    def test_exact_affordable_timed_purchase_accepts_evidenced_partial_weekly_scan(self):
+        _binding, identity, now = self._identity()
+        payload = native_result()
+        payload["selected_offer"].update(
+            offer_identity="Weekly Offers:Timed Recruit Coin",
+            item_identity="Timed Recruit Coin", currency_identity="Diamonds",
+            unit_price=1000, balance_before=54400, stock_before=5,
+            item_quantity_before=98, total=1000,
+        )
+        evidence = payload["selection_evidence"]
+        evidence["weekly_inventory"].update(
+            complete=False, reason="AFFORDABLE_PREFERRED_OFFER_OBSERVED",
+        )
+        evidence["weekly_offers"][0].update(
+            offer_identity="Weekly Offers:Timed Recruit Coin",
+            item_identity="Timed Recruit Coin", currency_identity="Diamonds",
+            unit_price=1000, balance=54400, stock=5, premium=True,
+        )
+        result = self._invoke(payload, identity, now)
+        self.assertEqual(result["status"], "complete_for_reset")
+        self.assertFalse(result["selection_evidence"]["weekly_inventory"]["complete"])
+        self.assertGreater(alliance_shop_next_due(result, identity, now), now)
+        # Positive selection does not excuse unknown catalogue state, missing
+        # frame evidence, or an unverified selected quote/currency/affordability.
+        for target, change in (
+            (evidence["weekly_inventory"], {"complete": None}),
+            (evidence["weekly_inventory"], {"reason": "WEEKLY_SCAN_BOUND_REACHED"}),
+            (evidence["weekly_inventory"], {"frame_refs": ()}),
+            (evidence["weekly_inventory"], {"frame_sha256s": ("not-a-hash",)}),
+            (evidence["weekly_offers"][0], {"balance": None}),
+            (evidence["weekly_offers"][0], {"unit_price": None}),
+            (evidence["weekly_offers"][0], {"currency_identity": "UNKNOWN"}),
+        ):
+            with self.subTest(change=change):
+                original = dict(target)
+                target.update(change)
+                try:
+                    changed_result = self._invoke(payload, identity, now)
+                    with self.assertRaises(ValueError):
+                        alliance_shop_next_due(changed_result, identity, now)
+                finally:
+                    target.clear()
+                    target.update(original)
+
     def test_other_fallback_proves_complete_unaffordable_weekly_scan(self):
         _binding, identity, now = self._identity()
         result = self._invoke(fallback_purchase_result(), identity, now)

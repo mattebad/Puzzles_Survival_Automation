@@ -382,11 +382,86 @@ class AllianceShopInventoryPixelTests(unittest.TestCase):
         port.current_tab = "weekly"
         return port, swipes
 
-    def test_actual_inventory_selects_exact_quote_after_proving_list_end(self):
+    def test_canonical_weekly_scroll_uses_readable_controls_not_unreadable_edge(self):
+        from scripts.bluestacks_native_runtime import captured_native_frame_from_png
+        root = Path(__file__).resolve().parents[2] / "Puzzle_Survival_Runtime_POC"
+        path = root / (
+            ".local-captures/canonical-owner-replay-20261109T080850495633Z/alliance-shop/"
+            "ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE-20261109T081025512785Z-2933eced/"
+            "alliance-shop-native-20261109T081025604824Z/frames/"
+            "0013-alliance-shop-weekly-scan-2.png"
+        )
+        if not path.is_file():
+            self.skipTest("immutable canonical owner replay capture is not installed")
+        source = captured_native_frame_from_png(
+            path.read_bytes(), captured_monotonic=1, path=path,
+        )
+        port, swipes = self.port([source])
+        buttons = native._offer_buttons(source)
+        x0, y0, x1, y1 = buttons[0]
+        self.assertFalse(native._has(native._ocr_words(
+            source, (x0 + 2, (y0 + y1) // 2, x1 - 2, y1 - 1), psm=7,
+        ), "Buy"))
+        timed = port._read_offer(source, "Timed Recruit Coin", ALLIANCE_WEEKLY_SHOP, None)
+        self.assertIsNotNone(timed)
+        self.assertTrue(timed.recognized)
+        self.assertEqual((timed.currency_identity, timed.unit_price, timed.stock, timed.item_quantity),
+                         ("Diamonds", 1000, 5, 98))
+        # No Home diamond evidence was supplied: never borrow the Alliance Coin header.
+        self.assertIsNone(timed.balance)
+        self.assertEqual(port._scroll(source, "weekly").sha256, source.sha256)
+        self.assertEqual(len(swipes), 1)
+        before, gesture = swipes[0]
+        self.assertEqual(before.sha256, source.sha256)
+        self.assertEqual(gesture["start"], (374, 1183))
+        self.assertEqual(gesture["end"], (374, 484))
+        self.assertEqual(gesture["target_identity"], "alliance-shop:weekly-offer-list-scroll")
+
+    def test_canonical_timed_offer_uses_home_balance_without_catalogue_completion(self):
+        from scripts.bluestacks_native_runtime import captured_native_frame_from_png
+        root = Path(__file__).resolve().parents[2] / "Puzzle_Survival_Runtime_POC"
+        frames = root / (
+            ".local-captures/canonical-owner-replay-20261109T080850495633Z/"
+            "alliance-shop-readable-scroll/"
+            "ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE-20261109T083530906096Z-d5e240e8/"
+            "alliance-shop-native-20261109T083530991580Z/frames"
+        )
+        names = (
+            "0003-alliance-shop-home-source.png", "0011-alliance-shop-weekly-scan-1.png",
+            "0019-alliance-shop-weekly-scan-5.png", "0020-alliance-shop-weekly-scroll-successor.png",
+        )
+        if not all((frames / name).is_file() for name in names):
+            self.skipTest("immutable canonical readable-scroll captures are not installed")
+        home, weekly, end_before, end_after = (
+            captured_native_frame_from_png(
+                (frames / name).read_bytes(), captured_monotonic=1, path=frames / name,
+            ) for name in names
+        )
+        self.assertFalse(native.np.array_equal(
+            end_before.frame[230:1280, 40:760], end_after.frame[230:1280, 40:760],
+        ))
+        self.assertTrue(native._same_offer_view(end_before, end_after))
+        port, swipes = self.port([home, weekly])
+        # Stop before navigation dispatch; exercise the real Home balance reader.
+        with patch.object(port, "_tap_roi", return_value=False):
+            self.assertFalse(port.enter_weekly_offers())
+        self.assertEqual(port.diamond_balance, 54400)
+        scan = port.scan_weekly_offers()
+        self.assertFalse(scan.complete)
+        self.assertEqual(scan.reason, "AFFORDABLE_PREFERRED_OFFER_OBSERVED")
+        choice = AllianceShopPurchaseRoute._choice(scan)
+        self.assertEqual((choice.status, choice.quantity), ("selected", 1))
+        self.assertEqual((choice.offer.item_identity, choice.offer.currency_identity,
+                          choice.offer.unit_price, choice.offer.balance, choice.offer.stock),
+                         ("Timed Recruit Coin", "Diamonds", 1000, 54400, 5))
+        self.assertEqual(swipes, [])
+        self.assertIn(str(home.path), scan.evidence_refs)
+
+    def test_actual_inventory_selects_exact_quote_without_enumerating_missing_items(self):
         source = self.inventory_frame()
         port, swipes = self.port([source])
         scan = port.scan_weekly_offers()
-        self.assertTrue(scan.complete, scan)
+        self.assertFalse(scan.complete, scan)
         self.assertEqual(len(scan.offers), 1)
         selected = AllianceShopPurchaseRoute._choice(scan)
         self.assertEqual(selected.status, "selected")
@@ -396,13 +471,13 @@ class AllianceShopInventoryPixelTests(unittest.TestCase):
                          (80000, 1464257, 5))
         self.assertEqual(row.currency_identity, ALLIANCE_CURRENCY)
         self.assertTrue(row.recognized)
-        self.assertEqual(len(swipes), 1)
+        self.assertEqual(len(swipes), 0)
         self.assertEqual(port.offer_evidence[row.item_identity].sha256, source.sha256)
         buy = port._outer_buy_roi(source, row)
         self.assertTrue(548 <= buy[0] < buy[2] <= 720)
         self.assertTrue(663 <= buy[1] < buy[3] <= 692)
 
-    def test_scan_does_not_select_bioenhance_before_resolving_higher_priority_joy(self):
+    def test_scan_selects_positive_bioenhance_without_searching_for_unseen_joy(self):
         before, after = self.inventory_frame(), self.inventory_frame(2)
         port, _swipes = self.port([before, after])
         bio = offer(ALLIANCE_WEEKLY_SHOP, "Bioenhance Scheme")
@@ -416,9 +491,9 @@ class AllianceShopInventoryPixelTests(unittest.TestCase):
         port._read_offer = read_offer
         with patch.object(port, "_scroll", return_value=after) as scroll, patch.object(native, "_same_offer_view", return_value=False):
             scan = port.scan_weekly_offers()
-        self.assertTrue(scan.complete)
-        self.assertEqual(AllianceShopPurchaseRoute._choice(scan).offer, joy)
-        self.assertEqual(scroll.call_count, 1)
+        self.assertFalse(scan.complete)
+        self.assertEqual(AllianceShopPurchaseRoute._choice(scan).offer, bio)
+        self.assertEqual(scroll.call_count, 0)
 
 
     def test_actual_refresh_tick_is_not_offer_list_progress(self):
@@ -524,6 +599,45 @@ class AllianceShopQuantityModalPixelTests(unittest.TestCase):
         row = port._read_offer(self.captured(DIALOG_OFFER), "Bioenhance Scheme", ALLIANCE_WEEKLY_SHOP, None)
         self.assertTrue(row.recognized)
         return row
+
+    def test_canonical_timed_modal_binds_diamond_before_total_label(self):
+        root = Path(__file__).resolve().parents[2] / "Puzzle_Survival_Runtime_POC"
+        frames = root / (
+            ".local-captures/canonical-owner-replay-20261109T080850495633Z/"
+            "alliance-shop-affordable-exact-offer/"
+            "ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE-20261109T085840226835Z-bed24d68/"
+            "alliance-shop-native-20261109T085840328647Z/frames"
+        )
+        source = frames / "0011-alliance-shop-weekly-scan-1.png"
+        modal = frames / "0016-alliance-shop-quantity-dialog.png"
+        if not source.is_file() or not modal.is_file():
+            self.skipTest("immutable canonical Timed Recruit Coin modal captures are not installed")
+        port = native.AllianceShopLivePort(SimpleNamespace(
+            session=None, runtime=None, checkpoint=lambda: None,
+        ), settle_seconds=0)
+        row = port._read_offer(
+            self.captured(source), "Timed Recruit Coin", ALLIANCE_WEEKLY_SHOP, None,
+        )
+        self.assertIsNotNone(row)
+        self.assertTrue(row.recognized)
+        self.assertEqual((row.currency_identity, row.unit_price, row.stock),
+                         ("Diamonds", 1000, 5))
+        # Affordability is separately bound to Home; the modal must not invent it.
+        self.assertIsNone(row.balance)
+        dialog = port._quantity_dialog(self.captured(modal), row)
+        self.assertIsNotNone(dialog)
+        self.assertEqual(dialog, QuantityDialog(
+            ALLIANCE_WEEKLY_SHOP, "Timed Recruit Coin", "Diamonds",
+            1000, 1, 1000, dialog.inner_buy_roi, True,
+        ))
+        self.assertIsNone(port._quantity_dialog(
+            self.captured(modal), replace(row, item_identity="Joy Coin"),
+        ))
+        wrong_currency = port._quantity_dialog(
+            self.captured(modal), replace(row, currency_identity=ALLIANCE_CURRENCY),
+        )
+        self.assertFalse(wrong_currency.recognized)
+        self.assertIsNone(wrong_currency.total)
 
     def test_actual_modal_binds_exact_quantity_total_coin_and_inner_buy(self):
         from tasks.purchases_disabled import purchase_dialog_matches

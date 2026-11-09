@@ -489,8 +489,26 @@ def _purchase_acknowledgements(captured):
 
 
 def _same_offer_view(before, after):
-    # The refresh countdown above the cards is deliberately not list state.
-    return np.array_equal(before.frame[230:1280, 40:760], after.frame[230:1280, 40:760])
+    # The refresh countdown and animated text highlights are not list progress.
+    if np.array_equal(before.frame[230:1280, 40:760], after.frame[230:1280, 40:760]):
+        return True
+    buttons = _offer_buttons(before)
+    if len(buttons) < 2 or buttons != _offer_buttons(after):
+        return False
+    titles = []
+    for captured in (before, after):
+        rows = tuple(
+            tuple(_norm(word.text) for word in _ocr_words(
+                captured, (200, max(230, y0 - 45), x0 - 8, y0 - 5), psm=7,
+            ))
+            for x0, y0, _x1, _y1 in buttons
+        )
+        if any(not row or not any(token.isalpha() for token in row) for row in rows):
+            return False
+        if len(set(rows)) != len(rows):
+            return False
+        titles.append(rows)
+    return titles[0] == titles[1]
 
 
 def _selected_tab(captured, label, roi):
@@ -878,8 +896,17 @@ class AllianceShopLivePort:
         source = self._capture("alliance-shop-home-source")
         if not self._home(source):
             return False
-        from scripts.food_farm_boost_bluestacks import _home_diamond_balance
-        self.diamond_balance = _home_diamond_balance(source.frame)
+        from scripts.food_farm_boost_bluestacks import (
+            _diamond_balance_lower_bound, _has_blue_diamond_before,
+        )
+        # Read only the amount beside the Home diamond, not the icon or the
+        # nearby Top-up Gift text that defeats full-screen OCR on this Home.
+        amounts = [
+            _diamond_balance_lower_bound(word.text)
+            for word in _ocr_words(source, (682, 0, 760, 52), psm=7)
+            if _has_blue_diamond_before(source.frame, word)
+        ]
+        self.diamond_balance = amounts[0] if len(amounts) == 1 else None
         self.diamond_balance_source = source
         from scripts.alliance_donation_bluestacks import _home_alliance_target
         def bind_home(before):
@@ -982,14 +1009,18 @@ class AllianceShopLivePort:
         )
 
     def _scroll(self, captured, page, *, reverse=False):
-        buttons = _offer_buttons(captured)
+        # A partially clipped or unreadable edge label must not discard other
+        # positively recognized controls in the current list viewport.
+        buttons = tuple(
+            button for button in _offer_buttons(captured)
+            if _has(_ocr_words(
+                captured, (button[0] + 2, (button[1] + button[3]) // 2,
+                           button[2] - 2, button[3] - 1), psm=7,
+            ), "Buy")
+        )
         if len(buttons) < 2:
             return None
         top, bottom = buttons[0], buttons[-1]
-        for button in (top, bottom):
-            x0, y0, x1, y1 = button
-            if not _has(_ocr_words(captured, (x0 + 2, (y0 + y1) // 2, x1 - 2, y1 - 1), psm=7), "Buy"):
-                return None
         # Drag the measured description gutter, never a Buy control.
         x = (200 + min(button[0] for button in buttons)) // 2
         start = (x, (bottom[1] + bottom[3]) // 2)
@@ -1039,16 +1070,13 @@ class AllianceShopLivePort:
                 if offer is not None:
                     offers[item] = offer
                     self.offer_evidence[item] = captured
-            # Do not buy a lower-priority row before resolving the rows above it in the
-            # allowlist. Missing preferred items become absent only at the proven list end.
-            for item in ALLIANCE_WEEKLY_ITEMS:
-                row = offers.get(item)
-                if row is None or not row.recognized:
-                    break
-                if (not row.price_shortage and row.available
-                        and row.balance is not None and row.unit_price is not None
-                        and row.balance >= row.unit_price):
-                    return scan_result(True)
+            choice = alliance_shop_choice(
+                tuple(offers.values()), None,
+                weekly_inventory_complete=False, fallback_inventory_complete=False,
+            )
+            if choice.status == "selected":
+                # This is sufficient positive evidence, not a fabricated full inventory.
+                return scan_result(False, "AFFORDABLE_PREFERRED_OFFER_OBSERVED")
             successor = self._scroll(captured, "weekly")
             if successor is None:
                 return scan_result(False, "WEEKLY_LIST_END_NOT_PROVEN")
@@ -1126,7 +1154,14 @@ class AllianceShopLivePort:
             from scripts.food_farm_boost_bluestacks import _has_blue_diamond_before
             words = _ocr_words(captured, (max(0, title[0] - 40), title[3], 760, layout.select[1]), psm=7)
             amounts = [(value, word) for line in _lines(words) for value, word in _numbers(line)]
-            if _has(words, "Total") and len(amounts) == 1 and _has_blue_diamond_before(captured.frame, amounts[0][1]):
+            labels = [word for word in words if _norm(word.text) == "total"]
+            # The modal lays out diamond -> "Total:" -> amount. Bind the icon
+            # to its adjacent label, then require the one numeric quote to its right.
+            if (len(labels) == 1 and len(amounts) == 1
+                    and amounts[0][1].roi[0] >= labels[0].roi[2]
+                    and max(labels[0].roi[1], amounts[0][1].roi[1])
+                    < min(labels[0].roi[3], amounts[0][1].roi[3])
+                    and _has_blue_diamond_before(captured.frame, labels[0])):
                 total = amounts[0][0]
         return QuantityDialog(
             offer.shop_identity, offer.item_identity,
