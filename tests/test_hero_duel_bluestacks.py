@@ -397,6 +397,36 @@ class HeroDuelNativeObserverRegressionTests(unittest.TestCase):
         self.assertEqual(page["free_entries_remaining"], 0)
 
 
+    def test_current_native_arena_preserves_multiday_survival_countdown(self):
+        source = (Path(__file__).resolve().parents[2] / "Puzzle_Survival_Runtime_POC"
+                  / ".local-captures" / "canonical-owner-replay-20261109T080850495633Z"
+                  / "hero-duel-current-zero-free-allowance-no-passes"
+                  / "HERO-DUEL-EVIDENCE-GATE-20261109T110107072205Z-4c68a3dd"
+                  / "hero-duel-survival-20261109T110107163174Z" / "frames"
+                  / "0012-hero-duel-current-survival-event.png")
+        if not source.is_file() or shutil.which("tesseract") is None:
+            self.skipTest("retained native Arena frame and local OCR required")
+        image = cv2.imread(str(source))
+        self.assertIsNotNone(image)
+        # Use the real consumer, including card-local timer association and
+        # current-frame target binding; no producer flags or OCR substitutions.
+        self.flow.vision.event_identity = None
+        self.flow.vision.current_event_valid = False
+        page = self.flow.vision.recognize(SimpleNamespace(frame=image),
+            target_hint=("hero-duel-current-survival-event", "hero duel survival"))
+        self.assertEqual(page["screen_state"], "arena")
+        self.assertTrue(page["event_timer_visible"])
+        self.assertTrue(page["event_active"])
+        self.assertEqual(page["overlay_state"], "none")
+        remaining = 6 * 86400 + 12 * 3600 + 57 * 60 + 2
+        deadline = int((self.flow.context.utc_clock() + remaining + 30) // 60)
+        self.assertEqual(page["event_identity"],
+            f"survival_{self.identity.reset_id}_ends_{deadline}")
+        self.assertEqual(page["target_identity"], "hero-duel-current-survival-event")
+        self.assertIsNotNone(page["target_roi"])
+        self.assertEqual(sum(route.TIMER_RE.search(row["text"]) is not None
+                             for row in page["lines"]), 1)
+
     def test_retained_actual_images_use_real_observer_when_evidence_and_ocr_exist(self):
         source = Path(__file__).resolve().parents[2] / "Puzzle_Survival_Runtime_POC" / ".local-captures" / "development-sessions" / "investigation2-cua-owner-20261106T232501213650Z"
         if not source.is_dir() or shutil.which("tesseract") is None:

@@ -184,15 +184,17 @@ class HeroDuelVision:
         if not time_words:
             return (*header, *labels)
         x0, y0, _, y1 = min(time_words, key=lambda box: box[1])
-        left, right = x0, min(frame.shape[1], x0 + 285)
+        left, right = x0, survival[0]["box"][2]
         top, bottom = max(0, y0 - 8), min(frame.shape[0], y1 + 8)
-        # Isolate the cyan countdown from the banner art; the latter caused
-        # valid :28/:26 glyphs to OCR as impossible :78/:76 and change the event.
+        # Keep the full measured label width: a multi-day countdown exceeds
+        # the old fixed-width crop. Isolate cyan glyphs from the banner art.
         timer_image = 255 - cv2.inRange(
             cv2.cvtColor(frame[top:bottom, left:right], cv2.COLOR_BGR2HSV),
             (80, 80, 130), (115, 255, 255),
         )
-        timer = read_region(timer_image, offset=(left, top), psm=7, whitelist="0123456789:")
+        # Preserve the day unit and word spacing. A digits-only whitelist
+        # merged "6d 12:57:02" into a zero-confidence token on current Arena.
+        timer = read_region(timer_image, offset=(left, top), psm=7)
         return (*header, *labels, *timer)
 
 
