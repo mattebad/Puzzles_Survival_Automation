@@ -279,22 +279,24 @@ Existing layout exceptions:
   production registration or runtime controls: each route remains disabled and `evidence_required`.
   Offline route contracts and native scenarios model durable attempts separately from confirmed
   resource effects, restart/partial/unknown outcomes, and no identical retry after unresolved effects.
-  Hero Duel requires three reset-scoped free entry/Flee cycles, a saved and verified first-five defense lineup, and all-five
-  eligible attack lineup with battle/Exit/Flee/result evidence; a win is not
-  required. Research considers only the first displayed ordinary-queue recommendation when idle and
-  affordable; it freshly binds the mapped Home Atlas Research dome. If HUD obscures the target, safely
-  pan/rebind or defer, never punch through the HUD. Research Now diamonds, Queue 2, substitutes, boxes
-  and gathering remain prohibited. Food Farm reconciles incidental multi-building collection, then
-  prefers an exact matching owned item. Consider a diamond option only after inventory is observed
-  exactly zero and the exact current price is within the approved ceiling, with confirmation/effect
-  proof; unknown inventory is not zero. Item action cost 1 is not a total-inventory claim and global
-  Food Output Boost is prohibited. Current manual evidence is narrower than acceptance: Hero Duel has
-  one free loss cycle and five eligible defense heroes observed; Research had no start/timer proof;
-  Food Farm had one owned-item boost with a positive timer and incidental multi-building collection,
-  while total inventory and the premium branch remain unproven. These are not route-level acceptance.
-  Research uses the shared bounded OCR caller's deadline rather than passing a duplicate reader
-  timeout. OCR failure never authorizes a start; actual debit and ordinary-queue timer proof remain
-  required for live acceptance.
+  Hero Duel performs three reset-scoped free Entry/loaded-battle/Exit/Flee/result cycles without
+  requiring a win. Save and verify the first five currently eligible defense portraits; fill missing
+  attack slots without clearing a valid five. Do not census paid passes or fixed emergency
+  exclusions, or force a universal operation-ordinal/free-allowance equation. Actual exhausted
+  free allowance defers unfinished quota; true UNKNOWN remains fenced.
+  Research uses only the first displayed ordinary-queue recommendation when idle, with actual
+  prerequisites, costs and balances satisfied. Bind the mapped Research Center freshly, pan/rebind
+  or defer if obscured. Its positive effect is that same technology active with a timer, not four
+  post-debits. Do not inspect forbidden Research Now prices or use Queue2, boxes or gathering.
+  Farm first-tap settlement is the same bound Home/Farm radial context, not proof that collection
+  occurred. Credit collection only on a positive Food HUD tick; it is never a boost prerequisite.
+  Prefer a positively usable matching owned item, otherwise a current eligible diamond option
+  with sufficient balance and actual price within48. Neither action-cost1 nor an unreadable
+  inventory proves total inventory; require no census or invented confirmation dialog.
+  Verify the same Farm's positive Boosting timer; global Food Output Boost remains forbidden.
+  Historical manual Duel/Farm observations are narrower than revised route acceptance.
+  Research uses the bounded OCR caller deadline; missing actual prerequisites/costs blocks Start,
+  and current native same-target active-timer acceptance remains evidence_required.
 
 * **Batch F Hall of War and Troop Training**: canonical-service-only routes with fixed
   bindings; no compatibility runner, validator, operator-registry row, or second input-budget owner

@@ -286,18 +286,24 @@ runtime enablement. Their runtime controls remain off and current live acceptanc
 entry/Flee/loss/result cycle, not the required three reset-scoped cycles and lineup/battle acceptance.
 Research binds the mapped Home Atlas Research dome from fresh localization. If HUD obscures the
 target, safely pan/rebind or defer; never tap through the HUD. The idle first recommendation was
-inspected, but no research start or timer was verified. Farm accounts for incidental multi-building
-collection effects and prefers an exact owned-item boost. A diamond alternative requires exact
-observed zero inventory, an exact current offer within the approved price ceiling, and confirmation/
-effect proof; unknown inventory is not zero. One owned-item boost and positive timer were observed;
-total inventory and the exact premium branch remain unproven. None of this raw investigation is
-route-level live acceptance.
+inspected, but current revised Research-start/timer acceptance remains evidence_required.
+Farm first-tap settlement requires the same bound Home or Farm radial context, even if Food
+HUD is unreadable or unchanged. It credits collection only on a positive Food HUD tick, never
+inventing collection or requiring it before boosting. Prefer a positively usable matching item;
+only an unavailable matching item permits a current eligible diamond option, actual price within48
+and sufficient balance. No inventory census or invented dialog. Historical owned-item/timer
+observation does not accept revised or premium branches.
 Duel scene classification recognizes retained defense/attack headings, the formation-details
 dialog, Exit/Flee result and opponent return even when OCR misses an action label. Scene identity
-alone never establishes an eligible hero, free entry or actionable control: missing exclusion/
-eligibility evidence still blocks dispatch. Actual historical desktop images prove classification
-only, not native input binding or three-cycle acceptance. Research refreshes queue, prerequisites,
-paired resource costs/balances and the exact detail control immediately before start; changed,
+alone never establishes an eligible hero, free entry or actionable control: unknown current
+eligibility still blocks dispatch. Actual historical desktop images prove classification
+only, not native input binding or three-cycle acceptance. Duel saves/verifies the first five
+currently available defense portraits and fills missing attack slots without clearing a valid five;
+no paid-pass or fixed exclusion census, or universal ordinal/free-allowance equation is required.
+Exhausted free allowance defers unfinished quota; genuine UNKNOWN stays fenced.
+Research refreshes queue, actual prerequisites, resource costs/balances and the exact detail
+control immediately before Start; the positive effect is the same technology active with timer,
+not four readable post-debits. Changed,
 expired or ambiguous evidence denies input. Recommendation title/button rereads use measured
 current pixels; an already-open recognized Research page gets at most three guarded Back hops,
 each reaching a recognized nearer parent or Home. Unknown/unchanged successors stop without retry.
@@ -325,14 +331,16 @@ Research Center level is read from its owner-bound caption and unique badge; onl
 peripheral plate-border fragments are removed, never interior or glyph-height components. All six
 glyph readings must agree or the prerequisite remains unknown. At night, if terrain merges with
 the dark plate, only a unique closed rim with matching owned geometry and a dark interior can
-isolate that same badge; ambiguous plates stay unknown. The separate excluded Research Now
-price is measured from its own diamond/caption band, never defaulted or substituted for START.
+isolate that same badge; ambiguous plates stay unknown. Research Now remains forbidden;
+its premium price need not be measured or read to admit an ordinary Research Start.
 The left-HUD queue count is read only from the isolated neutral glyphs under the unique HUD
 Research label; three OCR modes must agree and a data read must confirm that text at its own
 confidence of at least 80, otherwise a clipped, missing or disagreeing count stays unknown.
-Farm uses fixed runtime identity, source-bound collection/boost controls and current lease/freshness
-guards. A displayed item cost of one is
-not owned inventory; unproved inventory or premium confirmation/effects remains blocked.
+Farm uses fixed runtime identity, source-bound first-tap/boost controls and current lease/freshness
+guards. First-tap settlement and collection credit are distinct; collection is not a boost gate.
+Owned usability is positively bound before preferring the item; an unavailable-item observation
+permits the exact eligible diamond option, never a guessed inventory or balance. Both branches
+share the reset-only boost key and require the same Farm's positive Boosting timer.
 An offscreen Farm uses the existing bounded, verified Atlas Home pans before binding a reachable
 mapped Farm. An unknown approach stops before collection/boost and captures fresh terminal context.
 
