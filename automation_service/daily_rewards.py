@@ -299,6 +299,7 @@ def daily_rewards_next_due(
         # completion projection. A later occurrence may collect only new work.
         scan = result.get("milestone_scan")
         rows = scan.get("milestones") if isinstance(scan, Mapping) else None
+        observed_count = scan.get("observed_chest_count") if isinstance(scan, Mapping) else None
         if (
             result.get("native_status") != "evidence_required"
             or result.get("no_work") is not False
@@ -310,8 +311,8 @@ def daily_rewards_next_due(
             or not _valid_sha256(scan.get("source_frame_sha256"))
             or type(scan.get("slot_count")) is not int
             or scan.get("slot_count") != 5
-            or type(scan.get("observed_chest_count")) is not int
-            or not 0 <= scan.get("observed_chest_count") <= 5
+            or type(observed_count) is not int
+            or not 0 <= observed_count <= 5
             or not isinstance(rows, (list, tuple))
             or len(rows) != 5
         ):
@@ -343,11 +344,11 @@ def daily_rewards_next_due(
         if (
             not chest_keys <= nonready_keys
             or ready_count + unknown_count == 0
-            or scan.get("observed_chest_count") != sum(
+            or observed_count != sum(
                 row["milestone_state"] != "unknown" for row in rows
             )
             or scan.get("status") != (
-                "observed" if scan.get("observed_chest_count") == 5 else "partial_unknown"
+                "observed" if observed_count == 5 else "partial_unknown"
             )
             or type(scan.get("ready_chest_count")) is not int
             or scan.get("ready_chest_count") != ready_count

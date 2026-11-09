@@ -1364,10 +1364,10 @@ def _last_item_list_attribution(
     """
 
     tolerance = LAST_ITEM_ANCHOR_TOLERANCE_PX
-    card = tuple(context.get("card_bounds") or ())
-    content = tuple(context.get("content_roi") or ())
-    above = tuple(context.get("above") or ())
-    below = tuple(context.get("below") or ())
+    card: Sequence[int] = context.get("card_bounds", ())
+    content: Sequence[int] = context.get("content_roi", ())
+    above: Sequence[tuple[str, Sequence[int]]] = context.get("above") or ()
+    below: Sequence[tuple[str, Sequence[int]]] = context.get("below") or ()
     # Repeated labels (Use/Owned/Food) cannot distinguish a row collapse from
     # a one-row scroll. Attribute only uniquely identified neighboring anchors.
     anchor_counts: dict[str, int] = {}

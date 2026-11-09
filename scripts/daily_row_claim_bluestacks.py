@@ -4108,7 +4108,6 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
         label="daily-rewards-aggregate-immediate-before",
     )
     immediate_recognition = recognize(immediate_capture, proposal.game_day_id)
-    immediate_visual = dict(immediate_recognition.visual_evidence or {})
     immediate = daily_claim_observation_from_recognition(
         immediate_recognition,
         source_frame_sha256=immediate_capture.sha256,

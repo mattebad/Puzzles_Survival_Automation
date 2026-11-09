@@ -144,10 +144,11 @@ Existing layout exceptions:
   second dispatch path. Both remain runtime-disabled. Daily rewards remain `evidence_required`.
   The supplied Nov 6 DailyQuest image shows one 30-point glowing chest, four closed chests,
   30 points and no aggregate Claim. Policy handles each of five chest categories independently
-  when glowing, with no 150-point minimum. A native pass with zero ready chests can complete
-  without an aggregate Claim; after a confirmed aggregate Claim, it requires fresh proof
-  that all five chests are static after claiming. A ready chest still requires its same-chest
-  claimed/opened successor; current native readiness is not live completion acceptance.
+  when glowing, with no 150-point minimum. Ready chests do not require aggregate Claim
+  availability or a complete ordinary-control scan. Any sent aggregate Claim must settle
+  before further gameplay. Each affected chest needs its own claimed/opened/removed successor.
+  Incomplete chest observations defer without requiring all five chests static merely to
+  return Home. These implemented guards are not fresh native completion acceptance.
   Resource Item has source-scoped native acceptance at integrated source `a4811874`
   (2026-11-08): one owned 1K Food, inventory 129810 to 129809, one confirmed authority effect,
   three inputs and verified Home. This is a dated receipt, not an inventory constant or
