@@ -59,6 +59,7 @@ class HelpObservation:
     help_success_message: bool = False
     help_all_success_count: int | None = None
     recognizer_reason: str | None = None
+    ready_request_context: bool = False
 
 
 @dataclass(frozen=True)
@@ -106,6 +107,14 @@ def choose_help_action(observation: HelpObservation, remaining: int) -> HelpPlan
     if observation.help_success_message:
         return HelpPlan(HelpAction.UNKNOWN, None, None, (), "prior_result_message_visible")
 
+    if observation.help_all_roi is not None and (
+            observation.ready_request_context or observation.requests):
+        if not _valid_roi(observation.help_all_roi) or not observation.help_all_free:
+            return HelpPlan(HelpAction.UNKNOWN, None, None, (), "help_all_cost_or_binding_unknown")
+        return HelpPlan(HelpAction.HELP_ALL, HELP_ALL_TARGET_IDENTITY, observation.help_all_roi,
+                        tuple(item.request_id for item in observation.requests),
+                        "bound_free_help_all_with_ready_request_context")
+
     requests = observation.requests
     if len({item.request_id for item in requests}) != len(requests):
         return HelpPlan(HelpAction.UNKNOWN, None, None, (), "duplicate_request_identity")
@@ -114,12 +123,6 @@ def choose_help_action(observation: HelpObservation, remaining: int) -> HelpPlan
         return HelpPlan(HelpAction.UNKNOWN, None, None, (), "unknown_or_nonfree_individual_control")
     if not requests:
         return HelpPlan(HelpAction.FREE_HELP_DISAPPEARED, None, None, (), "no_current_free_request_control")
-    if observation.help_all_roi is not None:
-        if not _valid_roi(observation.help_all_roi) or not observation.help_all_free:
-            return HelpPlan(HelpAction.UNKNOWN, None, None, (), "help_all_cost_or_binding_unknown")
-        return HelpPlan(HelpAction.HELP_ALL, HELP_ALL_TARGET_IDENTITY, observation.help_all_roi,
-                        tuple(item.request_id for item in requests),
-                        "bound_free_help_all_with_visible_requests")
     first = requests[0]
     return HelpPlan(HelpAction.INDIVIDUAL, INDIVIDUAL_TARGET_IDENTITY,
                     first.target_roi, (first.request_id,),
@@ -147,6 +150,15 @@ def verified_help_result(
             or not before.frame_sha256 or not after.frame_sha256
             or before.help_success_message or not after.help_success_message):
         return None
+    if plan.action is HelpAction.HELP_ALL:
+        selected = choose_help_action(before, DAILY_REQUEST_LIMIT)
+        count = after.help_all_success_count
+        if (selected.action is not HelpAction.HELP_ALL
+                or plan.target_identity != selected.target_identity
+                or plan.target_roi != selected.target_roi
+                or (count is not None and (type(count) is not int or count < 1))):
+            return None
+        return HelpResult(HelpAction.HELP_ALL, count)
     before_ids = {item.request_id for item in before.requests}
     if len(before_ids) != len(before.requests) or any(not item for item in before_ids):
         return None
@@ -156,13 +168,6 @@ def verified_help_result(
                 or selected in {item.request_id for item in after.requests}):
             return None
         return HelpResult(HelpAction.INDIVIDUAL, 1)
-    if plan.action is HelpAction.HELP_ALL:
-        count = after.help_all_success_count
-        if (not before_ids or plan.target_identity != HELP_ALL_TARGET_IDENTITY
-                or plan.target_roi != before.help_all_roi
-                or (count is not None and (type(count) is not int or count < 1))):
-            return None
-        return HelpResult(HelpAction.HELP_ALL, count)
     return None
 
 

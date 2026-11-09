@@ -29,7 +29,7 @@ from tasks.runtime_identity import derive_resource_runtime_identity, resource_fi
 class AllianceHelpSemanticsTests(unittest.TestCase):
     def _observation(self, *, ids=("a" * 24,), at=1.0, success=False,
                      no_requests=False, all_count=None, help_all=True, source_fresh=True,
-                     overlay=True, cost=False):
+                     overlay=True, cost=False, ready_context=False):
         requests = tuple(HelpRequest(item, (550, 260 + index * 80, 680, 310 + index * 80), True, True)
                          for index, item in enumerate(ids))
         return HelpObservation(
@@ -39,6 +39,7 @@ class AllianceHelpSemanticsTests(unittest.TestCase):
             help_all_roi=(277, 1188, 523, 1268) if help_all else None, help_all_free=help_all,
             exact_no_requests_message=no_requests, cost_marker_seen=cost,
             help_success_message=success, help_all_success_count=all_count,
+            ready_request_context=ready_context,
         )
 
     def test_quota_and_individual_fallback_selection(self):
@@ -97,6 +98,19 @@ class AllianceHelpSemanticsTests(unittest.TestCase):
         # acknowledgement neither the batch nor any number of helped requests is proven.
         self.assertIsNone(verified_help_result(before,
             self._observation(ids=(), at=2, all_count=13), plan=plan, transport_calls=1))
+
+    def test_help_all_is_independent_of_individual_ocr_but_not_ready_context(self):
+        before = self._observation(ids=(), ready_context=True)
+        plan = choose_help_action(before, 10)
+        self.assertEqual(plan.action, HelpAction.HELP_ALL)
+        after = self._observation(ids=(), at=2, success=True, no_requests=True)
+        result = verified_help_result(before, after, plan=plan, transport_calls=1)
+        self.assertIsNotNone(result)
+        self.assertIsNone(result.proven_request_count)
+        self.assertIsNone(verified_help_result(
+            self._observation(ids=()), after, plan=plan, transport_calls=1))
+        self.assertEqual(choose_help_action(after, 10).action, HelpAction.NO_REQUESTS)
+
 
     def test_retained_positive_individual_banner_has_no_invented_help_all_count(self):
         post = _retained(route.HELP_SOURCE_PATH.with_name("alliance_help_post.png"))
@@ -324,6 +338,37 @@ def _retained(path: Path, expected_sha256: str | None = None):
 
 class AllianceHelpRetainedNavigationTests(unittest.TestCase):
     """Production OCR/overlay recognizers on retained native pixels (#56 failure frame)."""
+
+    def test_real_walkthrough_help_all_needs_no_request_names_and_empty_gold_is_not_ready(self):
+        fixture_root = ALLIANCE_MENU_FIXTURE.parent
+        names_and_hashes = (
+            ("0005-speedup-help-before.jpg",
+             "d5c2840123529c943035eaabd350313f5b84b094299aac81a7ae8b49695f9492"),
+            ("0006-help-all-immediate.jpg",
+             "2e36b46654f188874f0087427c185bd16245982a58d1e0981037466262fdd603"),
+            ("0007-help-post-batch-reobserve.jpg",
+             "2d61ae16b7a3f01e6ba45e602b99963b974fb93f6339ff33fadfdb5d96068e7d"),
+        )
+        observations = []
+        for at, (name, digest) in enumerate(names_and_hashes, 1):
+            retained = _retained(fixture_root / name, digest)
+            # Remove only this retained window's OS chrome, then normalize its
+            # actual game viewport. These are fixture geometry, never input targets.
+            frame = cv2.resize(retained.frame[32:1212, :738], (800, 1280),
+                               interpolation=cv2.INTER_AREA)
+            with patch.object(route, "_individual_controls", return_value=()):
+                observations.append(route.recognize_help_screen(
+                    frame, captured_at=float(at), frame_sha256=digest, now=at + 0.1))
+        before, success, empty = observations
+        self.assertTrue(before.ready_request_context)
+        plan = choose_help_action(before, 10)
+        self.assertEqual(plan.action, HelpAction.HELP_ALL)
+        result = verified_help_result(before, success, plan=plan, transport_calls=1)
+        self.assertIsNotNone(result)
+        self.assertIsNone(result.proven_request_count)
+        self.assertIsNotNone(empty.help_all_roi)
+        self.assertFalse(empty.ready_request_context)
+        self.assertEqual(choose_help_action(empty, 10).action, HelpAction.NO_REQUESTS)
 
     def test_retained_alliance_menu_is_recognized_and_binds_bottom_bar_help_entry(self):
         menu = _retained(ALLIANCE_MENU_FIXTURE, ALLIANCE_MENU_FIXTURE_SHA256)

@@ -170,7 +170,25 @@ def _help_all_control(frame: np.ndarray, *, reader: Callable[..., str] | None = 
         return None, False
     return HELP_ALL_ROI, True
 
+def _ready_request_context(frame: np.ndarray) -> bool:
+    """Find a current request-row button independently of requester/name OCR.
 
+    The footer Help All remains gold on an empty page. Only gold controls inside
+    the request list establish this context; the exact empty message still wins.
+    """
+    x0, y0, x1, y1 = (535, 210, 760, 1120)
+    crop = frame[y0:y1, x0:x1]
+    hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+    mask = cv2.inRange(hsv, (5, 55, 65), (38, 255, 255))
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    for contour in contours:
+        x, y, width, height = cv2.boundingRect(contour)
+        if not (90 <= width <= 225 and 30 <= height <= 90):
+            continue
+        roi = (x0 + x, y0 + y, x0 + x + width, y0 + y + height)
+        if _orange_button(frame, roi):
+            return True
+    return False
 
 
 def recognize_help_screen(
@@ -200,9 +218,8 @@ def recognize_help_screen(
     body = _norm(_ocr_text(frame, NO_REQUESTS_ROI, psm=6, reader=text_reader))
     exact_no_requests = "no help request currently" in body
     result_text = _norm(_ocr_text(frame, HELP_SUCCESS_ROI, psm=6, reader=text_reader))
-    # Retained individual-Help result frames show the exact "Help successful" banner. No
-    # Help All result with requests has been observed yet, so no Help All helped-count
-    # signal is recognized: help_all_success_count stays None until one is captured.
+    # The real Help All walkthrough shows the same "Help successful" banner.
+    # It does not display an attributable numeric result, so quantity stays unknown.
     success_message = "help successful" in result_text
     # Existing captures prove the individual Help button is zero-cost, but not arbitrary
     # currencies or paid controls. Any cost word adjacent to a current CTA invalidates it.
@@ -215,6 +232,7 @@ def recognize_help_screen(
         requests=requests, help_all_roi=help_all_roi, help_all_free=help_all_free,
         exact_no_requests_message=exact_no_requests, cost_marker_seen=cost_marker,
         help_success_message=success_message, help_all_success_count=None,
+        ready_request_context=_ready_request_context(frame),
         recognizer_reason=None if overlay_clear else overlay_reason,
     )
 
