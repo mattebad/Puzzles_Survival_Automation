@@ -154,6 +154,25 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
             route.recognize_food_item_in_resources(frame),
         ))
 
+    @requires_tesseract
+    def test_actual_scrolled_food_card_preserves_resources_context(self):
+        # Unmodified canary after one Bag navigation and one list swipe; no Use:
+        # owner-plan-resource66-repaired-20261109T033818750191Z/native/
+        # DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION-20261109T033838348345Z-21e097e1/
+        # daily-resource-item-native-20261109T033838445104Z/frames/
+        # 0009-daily-resource-item-scroll-01-settled.png
+        # SHA256: 0d18169c5353bc68621da82250d4f9721967ed60eb917b818ce8da11c962fd1a
+        frame = cv2.imread(str(
+            PORTABLE_FIXTURES / "native-bag-resource66-scrolled-food-20261109.png"
+        ))
+        self.assertIsNotNone(frame)
+        resources = route.recognize_resources_screen(frame)
+        self.assertTrue(resources.recognized, resources)
+        item = route.recognize_food_item_in_resources(frame)
+        self.assertTrue(route.resource_item_authorizeable(item), item)
+        self.assertEqual((item.item_name, item.owned_quantity, item.quantity), ("1K Food", 129809, 1))
+        self.assertTrue(item.bulk_disjoint_from_use)
+
     def test_exact_measured_card_authorizes_one_food_use(self):
         measured = {
             "proven": True,

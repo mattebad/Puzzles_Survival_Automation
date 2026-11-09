@@ -839,7 +839,9 @@ def recognize_resources_screen(
         selected is not None
         and selected_category == "resource_speedup"
         and {"diamond", "shop"} <= words
-        and len({"military", "gadget", "other", "recent"} & words) >= 3
+        # Use the same bounded label bindings as selected-category recognition;
+        # notification badges can append OCR punctuation (e.g. ``gadget®``).
+        and len(BAG_CATEGORY_CONTEXT_LABELS & set(_bag_category_tab_rois(tokens))) >= 3
         and len(visual_controls) >= 3
         and isinstance(panel_candidates, (tuple, list))
         and len(panel_candidates) >= 6
