@@ -13,9 +13,7 @@ from automation_service.registry import (
     ALLIANCE_HELP_PRODUCT_ID as HELP_PRODUCT,
     ALLIANCE_HELP_PRODUCT_REVISION as HELP_REVISION,
     ALLIANCE_SHOP_FLOW_ID as ALLIANCE_SHOP,
-    ALLIANCE_SHOP_PRODUCT_REVISION as ALLIANCE_SHOP_REVISION,
     DAILY_SHOPS_FLOW_ID as DAILY_SHOPS,
-    DAILY_SHOPS_PRODUCT_REVISION as DAILY_SHOPS_REVISION,
     FOOD_FARM_BOOST_FLOW_ID as FOOD_FARM,
     FOOD_FARM_BOOST_PRODUCT_ID as FARM_PRODUCT,
     FOOD_FARM_BOOST_PRODUCT_REVISION as FARM_REVISION,
@@ -55,6 +53,10 @@ FRAME = "a" * 64
 COST_ROI = "c" * 64
 LOSS_ROI = "d" * 64
 OTHER_TASK = "OTHER-SUPERVISED-TASK"
+
+# Native action kinds are independent of product-authority record revisions.
+ALLIANCE_SHOP_ACTION_KIND = "alliance_shop_purchase-v2"
+DAILY_SHOPS_ACTION_KIND = "daily_shops_purchase-v1"
 
 POLICY = CentralPolicy(
     {
@@ -187,7 +189,7 @@ def alliance_shop_request(item="joy_coin", shop="weekly_offers", currency="ALLIA
     source = "ALLIANCE_SHOP_WEEKLY_QUANTITY_DIALOG" if shop == "weekly_offers" else "ALLIANCE_SHOP_OTHER_QUANTITY_DIALOG"
     return route_request(
         task=ALLIANCE_SHOP, action="PURCHASE_ALLIANCE_SHOP_OFFER", action_class=ActionClass.SPEND_OR_STRATEGIC,
-        kind=ALLIANCE_SHOP_REVISION, subject=item, source=source, target="alliance-shop:inner-buy",
+        kind=ALLIANCE_SHOP_ACTION_KIND, subject=item, source=source, target="alliance-shop:inner-buy",
         control="BUY", consequence="alliance_shop_purchase", post="ALLIANCE_SHOP_PURCHASE_RECONCILED",
         cost_type="ALLIANCE_COINS", cost=total, quantity=quantity, resource=currency, maximum=total,
         free=False, preconditions=tokens,
@@ -209,7 +211,7 @@ def daily_shop_request(item="3_star_chip_enhance_material", shop="ruins_shop", c
     )
     return route_request(
         task=DAILY_SHOPS, action="PURCHASE_DAILY_SHOP_MATERIAL", action_class=ActionClass.SPEND_OR_STRATEGIC,
-        kind=DAILY_SHOPS_REVISION, subject=item, source=source, target=target, control="BUY",
+        kind=DAILY_SHOPS_ACTION_KIND, subject=item, source=source, target=target, control="BUY",
         consequence="daily_shops_purchase", post=post, cost_type=currency, cost=total,
         quantity=quantity, resource=currency, maximum=total, free=False, preconditions=tokens,
     )

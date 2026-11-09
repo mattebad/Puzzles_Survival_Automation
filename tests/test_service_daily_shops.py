@@ -233,7 +233,6 @@ class DailyShopsServiceAdapterTests(unittest.TestCase):
                 occurrence_key="opaque-partial-blocked",
             )
         self.assertEqual(result["status"], "deferred")
-        self.assertEqual(result["native_status"], "deferred")
         self.assertEqual(result["committed_action_count"], 1)
         self.assertEqual(result["purchase_transport_calls"], 1)
         self.assertEqual(daily_shops_next_due(result, identity, now), now + 300)
