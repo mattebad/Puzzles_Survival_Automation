@@ -1048,7 +1048,7 @@ class ProductAuthorityTests(unittest.TestCase):
 
     def test_nano_material_production_is_one_zero_resource_six_hour_batch(self) -> None:
         record = self.records["nano_material_production"]
-        self.assertEqual(record["record_revision"], "nano_material_production-v1")
+        self.assertEqual(record["record_revision"], "nano_material_production-v2")
         self.assertEqual(record["record_type"], "nano_material_production")
         self.assertEqual(record["recurrence"], "cooldown_pulse")
         self.assertEqual(
@@ -1069,13 +1069,19 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertTrue(effect["idle_start_successor_allowed"])
         self.assertTrue(effect["active_due_time_successor_required"])
         self.assertTrue(effect["zero_resource_cost_required"])
+        for field in ("dynamic_start_quote_required", "literal_free_cost_or_duration_disclosure_required", "info_visit_required"):
+            self.assertFalse(effect[field])
+        self.assertTrue(effect["confirmed_claim_preserved_after_unsent_restart_failure"])
+        self.assertTrue(effect["confirmed_effect_independent_of_home_return"])
+        self.assertTrue(effect["claim_and_start_proofs_separate"])
+        self.assertEqual(effect["active_due_time_source"], "observed_remaining_timer")
         self.assertFalse(effect["identical_retry"])
         self.assertIsNone(record["daily_ownership"]["daily_owner"])
         self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
     def test_nanoweapon_product_is_one_exact_normal_craft_per_reset(self) -> None:
         record = self.records["nanoweapon_normal_craft"]
         self.assertEqual(record["record_type"], "nanoweapon_normal_craft")
-        self.assertEqual(record["record_revision"], "nanoweapon_normal_craft-v2")
+        self.assertEqual(record["record_revision"], "nanoweapon_normal_craft-v3")
         self.assertEqual(record["objective"], "nanoweapon_normal_craft")
         self.assertEqual(record["recurrence"], "daily_reset_scoped")
         self.assertEqual(
@@ -1097,10 +1103,12 @@ class ProductAuthorityTests(unittest.TestCase):
             target["prior_material_production"],
             {
                 "product_record_id": "nano_material_production",
-                "product_record_revision": "nano_material_production-v1",
+                "product_record_revision": "nano_material_production-v2",
                 "required_same_visit": True,
                 "separate_authorization_required": True,
                 "positive_effect_must_be_reconciled_before_craft": True,
+                "verified_active_zero_effects_satisfies_maintenance": True,
+                "claim_without_restart_satisfies_maintenance": False,
                 "normal_craft_substitution_allowed": False,
                 "normal_craft_reset_allowance_consumed": False,
             },
@@ -1112,7 +1120,15 @@ class ProductAuthorityTests(unittest.TestCase):
         effect = record["semantic_effect"]
         self.assertTrue(effect["completed_claim_successor_required"])
         self.assertTrue(effect["no_currency_box_or_item_input"])
-        self.assertTrue(effect["exact_parts_consumption_required"])
+        self.assertFalse(effect["exact_parts_consumption_required"])
+        self.assertTrue(effect["completed_claim_free"])
+        for field in ("completed_claim_requires_original_start", "completed_claim_requires_new_start_quote",
+                      "completed_claim_requires_current_affordability", "active_craft_requires_new_start_quote",
+                      "literal_quantity_one_caption_required", "navigation_failure_makes_confirmed_effect_unknown"):
+            self.assertFalse(effect[field])
+        self.assertTrue(effect["claim_and_start_proofs_separate"])
+        self.assertTrue(effect["confirmed_effect_preserved_after_unsent_failure"])
+        self.assertEqual(effect["affordability_source"], "normal_or_red_material_cost_display")
         self.assertTrue(effect["single_active_craft_required"])
         self.assertTrue(effect["single_start_per_reset_required"])
         self.assertTrue(effect["exact_duration_required"])
@@ -1125,7 +1141,7 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertIsNone(record["daily_ownership"]["point_credit_trigger"])
         self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
 
-    def test_nanoweapon_v2_rejects_daily_and_composition_regressions(self) -> None:
+    def test_nanoweapon_v3_rejects_daily_and_composition_regressions(self) -> None:
         mutations = (
             ("stale_revision", lambda changed: changed.__setitem__("record_revision", "nanoweapon_normal_craft-v1")),
             ("wrong_parts", lambda changed: changed["target"].__setitem__("parts_required", 101)),
@@ -1135,7 +1151,7 @@ class ProductAuthorityTests(unittest.TestCase):
             ("wrong_duration", lambda changed: changed["target"].__setitem__("craft_duration_seconds", 21600)),
             ("exclusive", lambda changed: changed["target"].__setitem__("exclusive_craft_allowed", True)),
             ("maintenance_record", lambda changed: changed["target"]["prior_material_production"].__setitem__("product_record_id", "nanoweapon_normal_craft")),
-            ("maintenance_revision", lambda changed: changed["target"]["prior_material_production"].__setitem__("product_record_revision", "nano_material_production-v2")),
+            ("maintenance_revision", lambda changed: changed["target"]["prior_material_production"].__setitem__("product_record_revision", "nano_material_production-v1")),
             ("not_same_visit", lambda changed: changed["target"]["prior_material_production"].__setitem__("required_same_visit", False)),
             ("not_separately_authorized", lambda changed: changed["target"]["prior_material_production"].__setitem__("separate_authorization_required", False)),
             ("maintenance_substitution", lambda changed: changed["target"]["prior_material_production"].__setitem__("normal_craft_substitution_allowed", True)),
@@ -1149,10 +1165,28 @@ class ProductAuthorityTests(unittest.TestCase):
             ("points_requirement", lambda changed: changed["semantic_effect"].__setitem__("points_delta_required", True)),
             ("missing_own_successor", lambda changed: changed["semantic_effect"].__setitem__("own_normal_craft_start_successor_required", False)),
             ("identical_retry", lambda changed: changed["semantic_effect"].__setitem__("identical_retry", True)),
+            ("original_start_claim_gate", lambda changed: changed["semantic_effect"].__setitem__("completed_claim_requires_original_start", True)),
+            ("quote_claim_gate", lambda changed: changed["semantic_effect"].__setitem__("completed_claim_requires_new_start_quote", True)),
+            ("affordability_claim_gate", lambda changed: changed["semantic_effect"].__setitem__("completed_claim_requires_current_affordability", True)),
+            ("quote_active_gate", lambda changed: changed["semantic_effect"].__setitem__("active_craft_requires_new_start_quote", True)),
+            ("merged_proofs", lambda changed: changed["semantic_effect"].__setitem__("claim_and_start_proofs_separate", False)),
+            ("lost_partial", lambda changed: changed["semantic_effect"].__setitem__("confirmed_effect_preserved_after_unsent_failure", False)),
+            ("active_maintenance_gate", lambda changed: changed["target"]["prior_material_production"].__setitem__("verified_active_zero_effects_satisfies_maintenance", False)),
+            ("claim_without_restart", lambda changed: changed["target"]["prior_material_production"].__setitem__("claim_without_restart_satisfies_maintenance", True)),
         )
         for field, mutate in mutations:
             changed = deepcopy(self.records["nanoweapon_normal_craft"])
             mutate(changed)
+            changed["record_digest"] = record_digest(changed)
+            with self.subTest(field=field), self.assertRaises(ProductAuthorityError):
+                validate_product_record(changed)
+
+    def test_material_v2_rejects_disclosures_and_lost_confirmed_claim(self) -> None:
+        for field in ("dynamic_start_quote_required", "literal_free_cost_or_duration_disclosure_required",
+                      "info_visit_required", "confirmed_claim_preserved_after_unsent_restart_failure",
+                      "confirmed_effect_independent_of_home_return", "claim_and_start_proofs_separate"):
+            changed = deepcopy(self.records["nano_material_production"])
+            changed["semantic_effect"][field] = not changed["semantic_effect"][field]
             changed["record_digest"] = record_digest(changed)
             with self.subTest(field=field), self.assertRaises(ProductAuthorityError):
                 validate_product_record(changed)

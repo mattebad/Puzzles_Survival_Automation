@@ -3603,8 +3603,8 @@
       ],
       "navigation_model": "gear_factory_craft_weapon_route",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "No live attempt is authorized; native Gear Factory, Nanoweapon, exact Normal Craft, claim, balance, 43200-second timer, and Home effects remain unaccepted. Runtime stays disabled and acceptance is evidence_required.",
-      "consequence_policy": "Perform same-visit zero-resource Nano Material maintenance first, then at most one reset-scoped Normal Craft start using exactly 100 Nano Parts for 43200 seconds; claim a completed craft when recognized. Exclusive Craft, display rotation, Daily/D02 ownership, and points attribution are prohibited.",
+      "live_validation_scope": "No live attempt is authorized. Current source still needs same-visit maintenance, independently free completed Craft Claim, current affordable Normal Craft Start, active 43200-second successor and Home evidence. Verified active production can satisfy maintenance with zero effects; no original automated Start/new quote is needed to Claim. Runtime stays disabled and unobserved branches remain evidence_required.",
+      "consequence_policy": "Maintain fixed free Material Production in the same visit, including zero-effect verified active observation. Claim completed Normal Craft independently of original Start, current quote or affordability; observe active craft without a new quote. At most one current-reset Normal Craft Start: fixed100 Nano Parts/43200 seconds, current affordability, one active slot. No quantity-one caption or paired parts-balance arithmetic gate. Keep each production/craft Claim/Start proof separate; preserve confirmed prefixes through unsent action/navigation failures. Genuine UNKNOWN denies identical retry. No Exclusive Craft, Daily/D02 or points attribution.",
       "product_policy_status": "explicitly_approved",
       "maximum_live_attempts": 0,
       "maximum_inputs": 22,
@@ -3625,10 +3625,10 @@
       "blocked_reason": "No live Normal Craft execution/effect evidence or supervised canary has been accepted; native validation remains evidence_required.",
       "next_concrete_action": "Keep production registration, scheduling, and runtime input disabled pending separately authorized live acceptance; do not treat historical backlog task identifiers as current authorization.",
       "acceptance_criteria": [
-        "same-visit Nano Material maintenance is reconciled before Normal Craft",
-        "Normal Craft is the only craft type and spends exactly 100 Nano Parts",
-        "at most one Normal Craft starts per reset and its duration is exactly 43200 seconds",
-        "unknown effects block identical retry and no live acceptance is claimed"
+        "same-visit Material maintenance accepts verified active production with zero effects; idle/completed maintenance handles applicable work",
+        "Normal Craft is the only craft type with fixed100 Nano Parts cost; affordable Start needs no quantity-one caption or paired balance readings",
+        "at most one Normal Craft Start per reset, duration43200 seconds; free completed Claim and active observation require no original automated Start or new quote",
+        "preserve independent confirmed Claim/Start effects across later unsent failures; genuine UNKNOWN blocks identical retry and native acceptance remains evidence_required"
       ],
       "scope_prohibitions": [
         "no Exclusive Craft or rotating-display selection",
@@ -3684,8 +3684,8 @@
       ],
       "navigation_model": "canonical_home_to_gear_factory_nanoweapon_material_production",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "No live attempt is authorized; current idle, active, completed, zero-resource-cost, exact 21600-second timer, claim/start effects, and canonical Home evidence remain unaccepted. Runtime stays disabled and acceptance is evidence_required.",
-      "consequence_policy": "Zero-resource maintenance only: keep exactly one active production slot with a 21600-second duration; start when idle, claim then restart when complete, and refresh the observed timer without dispatch while active. The timer persists across game-day boundaries; no Daily reset ownership, D02, or points attribution.",
+      "live_validation_scope": "No live attempt is authorized. Fixed free production needs current idle Produce/active timer/completed Claim-and-restart and terminal Home evidence. No Info or literal zero-cost/duration disclosure is required. Preserve the already-confirmed historical Claim; do not repeat it to obtain new evidence. Runtime stays disabled and unobserved branches remain evidence_required.",
+      "consequence_policy": "One fixed free21600-second Material Production slot: idle Produce once; completed Claim once then restart; active observe timer without input. No dynamic quote, Info or textual free/no-cost/no-loss gate. Confirm Claim by its idle successor and Start by its active timer; preserve a confirmed Claim if restart is unattempted or later navigation fails. Retain exact per-action proofs, finite budgets, occurrence identities and UNKNOWN/no-identical-retry. Timer persists across resets with no Daily/D02 ownership or points attribution.",
       "product_policy_status": "explicitly_approved",
       "maximum_live_attempts": 0,
       "maximum_inputs": 18,

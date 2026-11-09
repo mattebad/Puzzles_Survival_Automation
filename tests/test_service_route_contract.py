@@ -1001,6 +1001,15 @@ class BatchCSemanticContractTests(unittest.TestCase):
 
 
 class BatchDSemanticContractTests(unittest.TestCase):
+    def assert_action_proof(self, proof):
+        self.assertEqual(set(proof), {"before", "after"})
+        for frame in proof.values():
+            self.assertTrue(frame["frame_path"])
+            self.assertEqual(len(frame["frame_sha256"]), 64)
+            self.assertTrue(frame["observed_utc"])
+        self.assertNotEqual(proof["before"]["frame_sha256"], proof["after"]["frame_sha256"])
+        self.assertLess(proof["before"]["capture_ordinal"], proof["after"]["capture_ordinal"])
+
     def test_production_timer_survives_service_restart_across_reset_and_restarts_once(self):
         with RouteRig(self, ROUTES[NANO_MATERIAL_PRODUCTION_FLOW_ID]) as rig:
             midnight = (int(rig.stop.now) // 86400 + 1) * 86400
@@ -1043,6 +1052,9 @@ class BatchDSemanticContractTests(unittest.TestCase):
                  second_result["committed_action_count"]),
                 (2, 2),
             )
+            self.assertEqual(set(second_result["production_action_evidence"]), {"claim", "start"})
+            for proof in second_result["production_action_evidence"].values():
+                self.assert_action_proof(proof)
             self.assertEqual(
                 nano_material_production_next_due(
                     second_result, runner.last_identity, due,
@@ -1063,6 +1075,7 @@ class BatchDSemanticContractTests(unittest.TestCase):
                  result["committed_action_count"], result["active_production_count"]),
                 ("deferred", 0, 0, 1),
             )
+            self.assertEqual(result["production_action_evidence"], {})
             self.assertEqual(
                 nano_material_production_next_due(result, runner.last_identity, started),
                 started + 3600,
@@ -1090,6 +1103,8 @@ class BatchDSemanticContractTests(unittest.TestCase):
             self.assertFalse(result["terminal_home_verified"])
             self.assertNotIn("next_eligible_at", result)
             self.assertEqual(runner.transition_order, ["claim"])
+            self.assertEqual(set(result["production_action_evidence"]), {"claim"})
+            self.assert_action_proof(result["production_action_evidence"]["claim"])
             with BotStateManager(rig.path) as restarted:
                 self.assertEqual(rig.once(state=restarted)[0]["status"], "paused")
             self.assertEqual(len(runner.calls), 1)
@@ -1122,6 +1137,15 @@ class BatchDSemanticContractTests(unittest.TestCase):
                 (200, 100, 43200, first_run.reset_id, 1, True),
             )
             self.assertEqual(first["production_occurrence_key"], first["occurrence_key"])
+            self.assertEqual(set(first["production_action_evidence"]), {"start"})
+            self.assert_action_proof(first["production_action_evidence"]["start"])
+            self.assert_action_proof(first["craft_claim_action_evidence"])
+            self.assert_action_proof(first["craft_start_action_evidence"])
+            self.assertNotEqual(
+                first["craft_claim_action_evidence"], first["craft_start_action_evidence"],
+            )
+            self.assertTrue(first["craft_claim_confirmed"])
+            self.assertEqual(first["craft_claim_occurrence_key"], first["occurrence_key"])
             due = nanoweapon_next_due(first, runner.last_identity, started)
             self.assertEqual(due, started + 21600)
 
@@ -1147,23 +1171,41 @@ class BatchDSemanticContractTests(unittest.TestCase):
             )
 
     def test_nanoweapon_known_shortage_uses_bounded_observation_due(self):
-        with RouteRig(self, ROUTES[NANOWEAPON_FLOW_ID]) as rig:
-            runner = rig.runner
-            runner.nano_parts_balance = NANO_PARTS_REQUIRED - 1
-            started = rig.stop.now
-            rig.once()
-            result = runner.last_result
-            self.assertEqual(
-                (result["production_transport_calls"], result["craft_transport_calls"],
-                 result["nanoweapon_dispatch_count"], result["committed_action_count"],
-                 result["nano_parts_balance"], result["craft_state"]),
-                (1, 0, 1, 1, NANO_PARTS_REQUIRED - 1, "idle"),
-            )
-            self.assertEqual(result["due_reason"], "known_material_shortage")
-            self.assertEqual(
-                nanoweapon_next_due(result, runner.last_identity, started),
-                started + 300,
-            )
+        for craft_state, balance in (
+            ("idle", NANO_PARTS_REQUIRED - 1),
+            ("complete", NANO_PARTS_REQUIRED - 1),
+            ("complete", None),
+        ):
+            with self.subTest(craft_state=craft_state, balance=balance), RouteRig(
+                self, ROUTES[NANOWEAPON_FLOW_ID],
+            ) as rig:
+                runner = rig.runner
+                runner.craft_state = craft_state
+                runner.nano_parts_balance = balance
+                runner.materials_affordable = False
+                started = rig.stop.now
+                rig.once()
+                result = runner.last_result
+                claims = int(craft_state == "complete")
+                self.assertEqual(
+                    (result["production_transport_calls"], result["craft_transport_calls"],
+                     result["craft_claim_transport_calls"], result["craft_start_transport_calls"],
+                     result["committed_action_count"], result["nano_parts_balance"],
+                     result["craft_state"]),
+                    (1, claims, claims, 0, 1 + claims, balance, "idle"),
+                )
+                if claims:
+                    self.assertTrue(result["craft_claim_confirmed"])
+                    self.assert_action_proof(result["craft_claim_action_evidence"])
+                else:
+                    self.assertNotIn("craft_claim_action_evidence", result)
+                self.assertNotIn("craft_start_action_evidence", result)
+                self.assertIsNone(result["precraft_nano_parts_balance"])
+                self.assertEqual(result["due_reason"], "known_material_shortage")
+                self.assertEqual(
+                    nanoweapon_next_due(result, runner.last_identity, started),
+                    started + 300,
+                )
 
     def test_nanoweapon_previous_reset_craft_timer_prevents_duplicate_start(self):
         with RouteRig(self, ROUTES[NANOWEAPON_FLOW_ID]) as rig:
@@ -1189,6 +1231,68 @@ class BatchDSemanticContractTests(unittest.TestCase):
                 nanoweapon_next_due(result, runner.last_identity, started),
                 started + 7200,
             )
+
+    def test_nanoweapon_manual_active_craft_observes_timers_without_effects(self):
+        with RouteRig(self, ROUTES[NANOWEAPON_FLOW_ID]) as rig:
+            runner = rig.runner
+            started = rig.stop.now
+            runner.production_state = runner.craft_state = "active"
+            runner.production_due_at = started + 7200
+            runner.craft_due_at = started + 3600
+            runner.nano_parts_balance = None
+            rig.once()
+            result = runner.last_result
+            self.assertEqual(
+                (result["production_transport_calls"], result["craft_transport_calls"],
+                 result["committed_action_count"], result["starts_this_reset"],
+                 result["due_reason"], result["craft_start_confirmed"],
+                 result["craft_start_reset_id"]),
+                (0, 0, 0, 0, "observed_active_timer", False, None),
+            )
+            self.assertTrue(result["prior_material_production_reconciled"])
+            self.assertEqual(result["production_action_evidence"], {})
+            self.assertNotIn("craft_start_action_evidence", result)
+            self.assertEqual(
+                nanoweapon_next_due(result, runner.last_identity, started), started + 3600,
+            )
+
+    def test_known_completed_claim_survives_later_unsent_failure(self):
+        for flow_id in (NANO_MATERIAL_PRODUCTION_FLOW_ID, NANOWEAPON_FLOW_ID):
+            with self.subTest(flow_id=flow_id), RouteRig(self, ROUTES[flow_id]) as rig:
+                runner = rig.runner
+                if flow_id == NANO_MATERIAL_PRODUCTION_FLOW_ID:
+                    runner.production_state = "complete"
+                    claim_input = runner.CLAIM_INPUT
+                else:
+                    runner.production_state = "active"
+                    runner.production_due_at = rig.stop.now + 7200
+                    runner.craft_state = "complete"
+                    claim_input = runner.CRAFT_CLAIM_INPUT
+
+                def fail_after_claim(index):
+                    if index == claim_input:
+                        raise RuntimeError("navigation failed before any subsequent effect input")
+
+                runner.on_input = fail_after_claim
+                report, = rig.once()
+                result = report["result"]
+                self.assertEqual(report["status"], "blocked")
+                self.assertEqual(result["status"], "blocked")
+                self.assertEqual(result["attempted_action_count"], 1)
+                self.assertEqual(result["committed_action_count"], 1)
+                self.assertFalse(result["effect_reconciliation_required"])
+                self.assertFalse(result["identical_retry_denied"])
+                self.assertNotIn("next_eligible_at", result)
+                if flow_id == NANO_MATERIAL_PRODUCTION_FLOW_ID:
+                    self.assertEqual(result["production_state"], "idle")
+                    self.assertEqual(set(result["production_action_evidence"]), {"claim"})
+                    self.assert_action_proof(result["production_action_evidence"]["claim"])
+                else:
+                    self.assertEqual(result["craft_claim_transport_calls"], 1)
+                    self.assertEqual(result["craft_start_transport_calls"], 0)
+                    self.assertTrue(result["craft_claim_confirmed"])
+                    self.assert_action_proof(result["craft_claim_action_evidence"])
+                    self.assertNotIn("craft_start_action_evidence", result)
 
 
 

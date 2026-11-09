@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "flow_id": "NANO-MATERIAL-PRODUCTION-MAINTENANCE",
-  "product_purpose": "Maintain one zero-resource Nano Material Production batch under its own product authority. When combined with Normal Craft, this separately authorized record-70 maintenance is a required same-visit predecessor, never a substitute for Normal Craft and never a consumer of its reset allowance.",
+  "product_purpose": "Maintain one fixed free zero-resource 21600-second production slot: idle Produce; completed Claim then Produce; active observe remaining timer. No dynamic quote, screen disclosure or Info visit. Preserve independently confirmed Claim across unsent restart failure.",
   "trigger_cadence_type": "cooldown_pulse",
   "reset_scope": "independent_six_hour_maintenance",
   "required_starting_context": [
@@ -124,7 +124,7 @@
       "permitted_input": "start_material_production",
       "postconditions": [
         "exactly_one_production_batch_is_active",
-        "due_time_is_21600_seconds_from_verified_start",
+        "due_time_uses_observed_remaining_timer_of_fixed_21600_second_batch",
         "no_base_resource_box_currency_or_item_is_consumed"
       ],
       "terminal_outcomes": [
@@ -153,7 +153,7 @@
       "planner": "record_or_refresh_material_production_due_time",
       "permitted_input": null,
       "postconditions": [
-        "next_eligible_at_is_recorded_from_the_exact_21600_second_duration"
+        "next_eligible_at_is_recorded_from_observed_remaining_timer"
       ],
       "terminal_outcomes": [
         "blocked"
@@ -241,8 +241,8 @@
     "blocked",
     "manual_required"
   ],
-  "cooldown_deferred_behavior": "When one production is active, record or refresh its exact 21600-second due time, return deferred, and never wait or start a second batch inside the pulse.",
-  "bounded_recovery_behavior": "Unknown production state, timer, selector, claim result, start result, or Home recovery fails closed. An ambiguous consequential claim or start is not retried; only a positively recognized safe return to canonical Home is permitted.",
+  "cooldown_deferred_behavior": "Active production uses the observed remaining timer for its next due time, without input, arbitrary six-hour wait or a second start.",
+  "bounded_recovery_behavior": "Keep Claim and Start as separate canonical effects. A positively confirmed effect remains confirmed partial progress after later unsent restart/start or navigation failure, including failed Home return. A Claim alone is not proof of restart. UNKNOWN applies only to a genuinely unresolved sent effect; preserve its key and deny identical retry. Known unavailable work defers, without fabricating an uncertain effect.",
   "product_policy_refs": [
     {
       "policy_id": "nano-material-production-maintenance",
@@ -250,9 +250,9 @@
     }
   ],
   "evidence_requirements": [
-    "No Material Production implementation, native selector set, consequential postcondition evidence, or production-controller replay currently exists.",
-    "Native evidence remains required for the Material Production tab, complete, active, idle, claim, zero-resource start, exact six-hour timer, one-active-batch guard, and canonical Home return.",
-    "A production-controller positive offline replay and separately authorized supervised claim/start canary remain required before registration or scheduling."
+    "Native implementation exists; revised fixed-free idle/start, completed Claim/restart and active observation still require distinct supervised acceptance.",
+    "Fixed zero-resource 21600-second mechanics require no dynamic quote, free/cost/duration disclosure or Info step.",
+    "Retain the historical confirmed production Claim; never repeat it merely to manufacture new evidence. Verify positive active timer, one slot and canonical Home independently."
   ],
   "evidence_gates": [
     {
@@ -339,7 +339,7 @@
   "scenarios": [
     {
       "scenario_id": "nano_material_production_maintenance",
-      "mode": "blocked_until_policy",
+      "mode": "blocked_until_evidence",
       "start_state": "home_canonical",
       "terminal_state": "blocked",
       "permitted_inputs": [],
@@ -357,7 +357,7 @@
         "nano_material_start_evidence",
         "nano_material_production_replay"
       ],
-      "notes": "The independent maintenance contract is approved but unimplemented and evidence-gated; registration and scheduler eligibility are disabled."
+      "notes": "Implemented fixed-free maintenance remains evidence-gated; no live acceptance or production enabling is granted."
     }
   ],
   "unsupported_or_manual_only_states": [
@@ -372,18 +372,18 @@
     "multiple_active_productions",
     "ambiguous_claim_or_start_result"
   ],
-  "implementation_status": "contract_only",
-  "proof_state": "not_implemented",
-  "offline_proof_state": "not_implemented",
+  "implementation_status": "reference_implemented",
+  "proof_state": "evidence_required",
+  "offline_proof_state": "evidence_required",
   "replay_fixture_proof_state": "evidence_required",
   "supervised_live_proof_state": "evidence_required",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r24",
-    "product_authority_digest": "7a40a259d2108e0ad1a246d1daa1d19b650cf167784e321d3216c2fd8b02d012",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r25",
+    "product_authority_digest": "3dccabe3f905a31e3f8a44dda135ae95845329f6de97b87dd4d17f969a1358fd",
     "product_record_id": "nano_material_production",
-    "product_record_revision": "nano_material_production-v1",
-    "product_record_digest": "49fe5e4486ea94482a076df2e0332640d74f6be8ef240bb509c29c8ee40198a2",
+    "product_record_revision": "nano_material_production-v2",
+    "product_record_digest": "007e877fc1754306c9b478c6aac8c39e911407867690c796bbbf60c64af1a874",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",

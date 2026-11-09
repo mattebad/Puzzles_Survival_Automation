@@ -1796,6 +1796,18 @@ def _guarded_d_frame(path, sha256, now, ordinal=1):
     }
 
 
+def _guarded_d_action_evidence(action, now, ordinal, *, after_sha256):
+    return {
+        "before": _guarded_d_frame(
+            f"{action}-before.png", hashlib.sha256(f"{action}:before".encode()).hexdigest(),
+            now, ordinal,
+        ),
+        "after": _guarded_d_frame(
+            f"{action}-after.png", after_sha256, now, ordinal + 1,
+        ),
+    }
+
+
 def _guarded_d_backend(completed):
     backend = derive_resource_runtime_identity(
         resource_fixed_runtime_binding(),
@@ -1894,6 +1906,7 @@ class GuardedNanoMaterialProductionRunner:
         error = None
         unknown = False
         last_action_evidence = None
+        production_action_evidence = {}
         try:
             for index in range(NANO_MATERIAL_PRODUCTION_MAX_INPUTS):
                 checkpoint()
@@ -1923,21 +1936,21 @@ class GuardedNanoMaterialProductionRunner:
                                 self.stop.now, 2,
                             ),
                         }
+                        production_action_evidence[action] = last_action_evidence
                         break
                     committed += 1
                     self.effects += 1
-                    last_action_evidence = {
-                        "before": _guarded_d_frame(
-                            "nano-material-production-before.png", _D_BEFORE_SHA256,
-                            self.stop.now,
+                    last_action_evidence = _guarded_d_action_evidence(
+                        f"nano-material-production-{action}", self.stop.now,
+                        transport_calls * 2 - 1,
+                        after_sha256=(
+                            _D_AFTER_SHA256 if action == "claim" else _D_PRODUCTION_SHA256
                         ),
-                        "after": _guarded_d_frame(
-                            "nano-material-production-state.png", _D_PRODUCTION_SHA256,
-                            self.stop.now, 2,
-                        ),
-                    }
+                    )
+                    production_action_evidence[action] = last_action_evidence
                     if action == "claim":
                         self.production_state = "idle"
+                        self.production_due_at = None
                     else:
                         self.production_state = "active"
                         self.production_due_at = self.stop.now + NANO_MATERIAL_PRODUCTION_DURATION_SECONDS
@@ -1954,6 +1967,8 @@ class GuardedNanoMaterialProductionRunner:
         frame = _guarded_d_frame(
             "nano-material-production-state.png", _D_PRODUCTION_SHA256, completed, 2,
         )
+        if committed == transport_calls and last_action_evidence is not None:
+            frame = last_action_evidence["after"]
         timer = (
             max(1, min(NANO_MATERIAL_PRODUCTION_DURATION_SECONDS,
                        int(self.production_due_at - completed)))
@@ -1982,17 +1997,18 @@ class GuardedNanoMaterialProductionRunner:
             attempted_action_count_known=True,
             action_evidence_required=False,
             committed_action_count=committed,
-            zero_resource_cost_confirmed=bool(transport_calls and not error),
-            production_state="active" if not error else None,
-            active_production_count=1 if not error else None,
-            completed_batch_count=0 if not error else None,
+            zero_resource_cost_confirmed=bool(committed),
+            production_state=self.production_state if not unknown else None,
+            active_production_count=int(self.production_state == "active") if not unknown else None,
+            completed_batch_count=int(self.production_state == "complete") if not unknown else None,
             production_duration_seconds=NANO_MATERIAL_PRODUCTION_DURATION_SECONDS,
             timer_seconds_remaining=timer,
             production_occurrence_key=occurrence_key,
             production_target_identity=NANO_MATERIAL_PRODUCTION_TARGET,
             production_state_frame=frame,
-            production_state_observation_sha256=_D_PRODUCTION_SHA256,
+            production_state_observation_sha256=frame["frame_sha256"],
             production_evidence_refs=("nano-material-production-state.png",),
+            production_action_evidence=production_action_evidence,
         )
         if not error:
             result["next_eligible_at"] = completed + timer
@@ -2024,6 +2040,7 @@ class GuardedNanoweaponRunner:
         self.starts_this_reset = 0
         self.reset_id = None
         self.nano_parts_balance = 200
+        self.materials_affordable = None
         self.partial = False
         self.fail_action = "craft_start"
         self.on_input = self.on_entry = None
@@ -2060,6 +2077,8 @@ class GuardedNanoweaponRunner:
         error = None
         unknown = False
         last_action_evidence = None
+        production_action_evidence = {}
+        craft_action_evidence = {}
         precraft_balance = self.nano_parts_balance
         phase = "production"
         production_frame = _guarded_d_frame(
@@ -2092,9 +2111,26 @@ class GuardedNanoweaponRunner:
                         self.stop.now, 2,
                     ),
                 }
+                if production:
+                    production_action_evidence[action] = last_action_evidence
                 return False
             committed += 1
             self.effects += 1
+            evidence = _guarded_d_action_evidence(
+                f"nanoweapon-{'production' if production else 'craft'}-{action}",
+                self.stop.now, committed * 2 - 1,
+                after_sha256=(
+                    _D_PRODUCTION_SHA256 if production and action == "start"
+                    else hashlib.sha256(
+                        f"nanoweapon:{production}:{action}:after".encode(),
+                    ).hexdigest()
+                ),
+            )
+            last_action_evidence = evidence
+            if production:
+                production_action_evidence[action] = evidence
+            else:
+                craft_action_evidence[action] = evidence
             if production:
                 if action == "claim":
                     self.production_state = "idle"
@@ -2106,7 +2142,8 @@ class GuardedNanoweaponRunner:
                 self.craft_state = "idle"
                 self.craft_due_at = None
             else:
-                self.nano_parts_balance -= NANO_PARTS_REQUIRED
+                if self.nano_parts_balance is not None:
+                    self.nano_parts_balance -= NANO_PARTS_REQUIRED
                 self.craft_state = "active"
                 self.craft_due_at = self.stop.now + NORMAL_CRAFT_DURATION_SECONDS
                 self.craft_start_reset_id = identity.reset_id
@@ -2142,7 +2179,11 @@ class GuardedNanoweaponRunner:
                         else "start" if index == self.CRAFT_START_INPUT
                         and self.craft_state == "idle"
                         and self.starts_this_reset == 0
-                        and self.nano_parts_balance >= NANO_PARTS_REQUIRED
+                        and (
+                            self.materials_affordable if self.materials_affordable is not None
+                            else self.nano_parts_balance is not None
+                            and self.nano_parts_balance >= NANO_PARTS_REQUIRED
+                        )
                         else None
                     )
                     if craft_action and not dispatch(craft_action, production=False):
@@ -2164,20 +2205,22 @@ class GuardedNanoweaponRunner:
                        int(self.production_due_at - completed)))
             if production_known and self.production_due_at is not None else None
         )
+        if "start" in production_action_evidence and production_known:
+            production_frame = production_action_evidence["start"]["after"]
         craft_timer = (
             max(1, min(NORMAL_CRAFT_DURATION_SECONDS, int(self.craft_due_at - completed)))
             if successful and self.craft_state == "active" and self.craft_due_at is not None
             else 0
         )
         game_day_id = identity.reset_id
-        if self.craft_start_reset_id is None and self.craft_state == "active":
-            active_date = datetime.fromisoformat(
-                identity.reset_id.removeprefix("game-day-"),
-            ).date() - timedelta(days=1)
-            self.craft_start_reset_id = f"game-day-{active_date.isoformat()}"
+        prior_start_known = (
+            self.craft_start_reset_id is not None
+            and self.craft_start_reset_id != identity.reset_id
+        )
         due_reason = (
             "current_reset_start" if self.starts_this_reset > 0
-            else "previous_reset_active_timer" if self.craft_state == "active"
+            else "previous_reset_active_timer" if self.craft_state == "active" and prior_start_known
+            else "observed_active_timer" if self.craft_state == "active"
             else "known_material_shortage"
         )
         if self.craft_state == "complete":
@@ -2215,6 +2258,7 @@ class GuardedNanoweaponRunner:
             production_target_identity=NANO_MATERIAL_PRODUCTION_TARGET,
             production_state_frame=production_frame,
             production_state_observation_sha256=_D_PRODUCTION_SHA256,
+            production_action_evidence=production_action_evidence,
             game_day_id=game_day_id,
             craft_state=self.craft_state if successful else None,
             craft_active_count=1 if successful and self.craft_state == "active" else 0,
@@ -2228,8 +2272,33 @@ class GuardedNanoweaponRunner:
             nano_parts_balance=self.nano_parts_balance,
             observation_interval_seconds=300,
         )
+        if "claim" in craft_action_evidence:
+            result.update(
+                craft_claim_confirmed=True,
+                craft_claim_occurrence_key=occurrence_key,
+                craft_claim_action_evidence=craft_action_evidence["claim"],
+                craft_claim_action_key=(
+                    f"{NANOWEAPON_PRODUCT_ID}:claim:{identity.reset_id}:"
+                    + hashlib.sha256(
+                        "\0".join((
+                            FIXED_RUNTIME_SCOPE, identity.account_id, identity.server_id,
+                            occurrence_key,
+                        )).encode("utf-8"),
+                    ).hexdigest()
+                ),
+            )
+        if "start" in craft_action_evidence:
+            result["craft_start_action_evidence"] = craft_action_evidence["start"]
+            result["craft_start_action_key"] = (
+                f"{NANOWEAPON_PRODUCT_ID}:start:{identity.reset_id}:"
+                + hashlib.sha256(
+                    "\0".join((
+                        FIXED_RUNTIME_SCOPE, identity.account_id, identity.server_id, "",
+                    )).encode("utf-8"),
+                ).hexdigest()
+            )
         if successful:
-            if due_reason == "previous_reset_active_timer":
+            if due_reason in {"previous_reset_active_timer", "observed_active_timer"}:
                 craft_due = completed + craft_timer
             elif due_reason == "known_material_shortage":
                 craft_due = completed + 300

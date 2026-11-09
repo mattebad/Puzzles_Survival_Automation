@@ -712,7 +712,7 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(contract["schema_version"], 2)
         self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(binding["product_record_id"], "nanoweapon_normal_craft")
-        self.assertEqual(binding["product_record_revision"], "nanoweapon_normal_craft-v2")
+        self.assertEqual(binding["product_record_revision"], "nanoweapon_normal_craft-v3")
         self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
         self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
         self.assertFalse(binding["selected_daily_prerequisite"])
@@ -753,13 +753,25 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(
             transitions["authorize_normal_craft"]["postconditions"][-2:],
             [
-                "same_visit_record_70_maintenance_effect_is_current_and_reconciled",
+                "same_visit_record_70_active_state_or_effect_is_current_and_reconciled",
                 "maintenance_did_not_consume_the_normal_craft_reset_allowance",
             ],
         )
         self.assertIn(
             "own_current_NANOWEAPON_NORMAL_CRAFT_ACTIVE_successor_is_positive",
             transitions["start_one_normal_craft"]["postconditions"],
+        )
+        self.assertIn(
+            "free_claim_independent_of_original_start_new_quote_affordability_and_start_allowance",
+            transitions["claim_completed_craft"]["postconditions"],
+        )
+        self.assertIn(
+            "same_visit_verified_active_production_with_zero_effects_satisfies_maintenance",
+            transitions["reconcile_active_production"]["postconditions"],
+        )
+        self.assertIn(
+            "active_craft_requires_no_new_start_quote",
+            transitions["defer_active_craft"]["postconditions"],
         )
         transition_inputs = {
             item["permitted_input"]
@@ -833,7 +845,7 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(contract["schema_version"], 2)
         self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(binding["product_record_id"], "nano_material_production")
-        self.assertEqual(binding["product_record_revision"], "nano_material_production-v1")
+        self.assertEqual(binding["product_record_revision"], "nano_material_production-v2")
         self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
         self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
         self.assertFalse(binding["selected_daily_prerequisite"])
@@ -846,8 +858,8 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(contract["cost_quantity_requirements"]["quantity"], 1)
         self.assertEqual(contract["registration_state"], "disabled")
         self.assertFalse(contract["production_eligible"])
-        self.assertEqual(contract["proof_state"], "not_implemented")
-        self.assertEqual(contract["scenarios"][0]["mode"], "blocked_until_policy")
+        self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertEqual(contract["scenarios"][0]["mode"], "blocked_until_evidence")
         self.assertEqual(contract["scenarios"][0]["permitted_inputs"], [])
 
     def test_daily_and_maintenance_contract_identities_are_separate(self):

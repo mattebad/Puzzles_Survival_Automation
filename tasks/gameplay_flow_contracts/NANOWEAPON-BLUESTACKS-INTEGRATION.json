@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "flow_id": "NANOWEAPON-BLUESTACKS-INTEGRATION",
-  "product_purpose": "From canonical Home, perform one reset-scoped Normal Craft Nanoweapon action only after a separately authorized, successful Nano Material Production maintenance result from product record nano_material_production-v1 has been reconciled earlier in the same visit. Maintenance neither substitutes for Normal Craft nor consumes its reset allowance; Normal Craft success requires its own positive craft successor.",
+  "product_purpose": "Maintain production in the same visit, accepting verified active production with zero effects. Freely Claim completed Normal Craft independently of original starter, new-start quote, affordability or reset start allowance. Active craft observation needs no quote. Start at most once per reset at fixed 100 Nano Parts/43200 seconds, one active craft, using material-cost affordability and no quantity-one caption. Claim/Start proofs remain separate.",
   "trigger_cadence_type": "daily_once",
   "reset_scope": "daily_reset",
   "required_starting_context": [
@@ -124,7 +124,9 @@
       "permitted_input": "claim_completed_nanoweapon",
       "postconditions": [
         "completed_nanoweapon_is_claimed_exactly_once",
-        "successor_no_longer_shows_the_completed_craft"
+        "successor_no_longer_shows_the_completed_craft",
+        "free_claim_independent_of_original_start_new_quote_affordability_and_start_allowance",
+        "claim_proof_is_separate_from_start_proof"
       ],
       "terminal_outcomes": [
         "blocked"
@@ -151,7 +153,7 @@
       "planner": "select_material_production",
       "permitted_input": "select_material_production",
       "postconditions": [
-        "the current Material Production tab is positively recognized under separately authorized product record nano_material_production-v1",
+        "the current Material Production tab is positively recognized under separately authorized product record nano_material_production-v2",
         "no Material Production action substitutes for Normal Craft or consumes its reset allowance"
       ],
       "terminal_outcomes": [
@@ -226,7 +228,7 @@
       "permitted_input": "start_material_production",
       "postconditions": [
         "one record-70 production batch is started at zero resource cost",
-        "the current active successor has an exact 21600-second duration"
+        "the active successor has a positive remaining timer bounded by the fixed 21600-second duration"
       ],
       "terminal_outcomes": [
         "blocked",
@@ -241,7 +243,7 @@
       "planner": "reconcile_material_production_successor",
       "permitted_input": null,
       "postconditions": [
-        "record-70 start has one current positive 21600-second active successor",
+        "record-70 start has one current positive active successor for fixed 21600-second production",
         "the maintenance effect is separately authorized, same-visit, and does not consume the Normal Craft reset allowance"
       ],
       "terminal_outcomes": [
@@ -272,7 +274,7 @@
       "planner": "record_or_refresh_material_production_due_time",
       "permitted_input": null,
       "postconditions": [
-        "the current active record-70 batch due time is recorded from the exact 21600-second duration"
+        "the current active record-70 batch due time is recorded from its observed remaining timer"
       ],
       "terminal_outcomes": [
         "blocked",
@@ -288,7 +290,8 @@
       "permitted_input": null,
       "postconditions": [
         "record-70 active state and due time are current in this visit",
-        "this separately authorized maintenance result neither substitutes for nor consumes the Normal Craft reset allowance"
+        "this separately authorized maintenance result neither substitutes for nor consumes the Normal Craft reset allowance",
+        "same_visit_verified_active_production_with_zero_effects_satisfies_maintenance"
       ],
       "terminal_outcomes": [
         "blocked",
@@ -319,12 +322,13 @@
       "planner": "evaluate_normal_craft_policy",
       "permitted_input": null,
       "postconditions": [
-        "current_nano_parts_balance_is_at_least_100",
+        "literal_quantity_one_caption_is_not_required",
+        "materials_affordable_from_normal_not_red_cost_display",
         "craft_control_is_enabled",
         "no_craft_is_active",
         "no_nanoweapon_craft_has_started_in_this_reset",
         "displayed_or_verified_duration_equals_43200_seconds",
-        "same_visit_record_70_maintenance_effect_is_current_and_reconciled",
+        "same_visit_record_70_active_state_or_effect_is_current_and_reconciled",
         "maintenance_did_not_consume_the_normal_craft_reset_allowance"
       ],
       "terminal_outcomes": [
@@ -339,7 +343,8 @@
       "permitted_input": null,
       "postconditions": [
         "one_existing_craft_remains_active",
-        "no_new_craft_or_resource_consumption_occurs"
+        "no_new_craft_or_resource_consumption_occurs",
+        "active_craft_requires_no_new_start_quote"
       ],
       "terminal_outcomes": [
         "blocked"
@@ -352,7 +357,7 @@
       "planner": "evaluate_normal_craft_policy",
       "permitted_input": null,
       "postconditions": [
-        "nano_parts_are_below_100",
+        "material_cost_display_is_red_shortage",
         "no_resource_is_consumed"
       ],
       "terminal_outcomes": [
@@ -394,7 +399,7 @@
       "planner": "plan_one_normal_nanoweapon_craft",
       "permitted_input": "start_normal_craft",
       "postconditions": [
-        "exactly_100_nano_parts_are_consumed",
+        "fixed_recipe_cost_is_100_nano_parts_without_balance_debit_census",
         "exactly_one_craft_is_active",
         "craft_due_time_is_43200_seconds_from_verified_start",
         "current_reset_start_ledger_records_exactly_one_start",
@@ -527,7 +532,7 @@
     "manual_required"
   ],
   "cooldown_deferred_behavior": "An active 43200-second Normal Craft records or refreshes its due time; insufficient parts, disabled Craft, or an already-used craft allowance defer without spending. Record-70 maintenance remains separately eligible after the craft allowance is used and never reopens it.",
-  "bounded_recovery_behavior": "Unknown selectors, costs, reset identity, maintenance result, claim result, craft result, or Home recovery fail closed. An ambiguous consequential claim, maintenance action, or craft is preserved and never retried; only a positively recognized safe return to canonical Home is permitted.",
+  "bounded_recovery_behavior": "Keep Claim and Start as separate canonical effects. A positively confirmed effect remains confirmed partial progress after later unsent restart/start or navigation failure, including failed Home return. A Claim alone is not proof of restart. UNKNOWN applies only to a genuinely unresolved sent effect; preserve its key and deny identical retry. Known unavailable work defers, without fabricating an uncertain effect.",
   "product_policy_refs": [
     {
       "policy_id": "nanoweapon-material-policy",
@@ -539,9 +544,10 @@
     }
   ],
   "evidence_requirements": [
-    "Native current-frame selectors are required for the canonical Home, Gear Factory, Nanoweapon, Material Production, and Normal Craft transitions and safe Home return.",
-    "Same-visit record-70 v1 maintenance evidence is required for a reconciled completed claim plus restart, idle start, or current active due-time path, with one active batch and zero-resource 21600-second semantics.",
-    "Normal Craft requires an independent current positive NANOWEAPON_NORMAL_CRAFT_ACTIVE successor, exact 100 NANO_PARTS consumption, 43200-second duration, one active craft, and at most one start per reset; no external objective or points successor is consumed."
+    "Same-visit production must be verified active: existing active with zero effects, idle Produce, or completed Claim plus restart. Claim alone is retained progress, not completed maintenance.",
+    "Completed Normal Craft free Claim has its own occurrence-bound identity and positive successor, independent of original Start, current material affordability and new-start quote.",
+    "New Start uses fixed 100 Nano Parts/43200 seconds, one active craft and one Start/reset. Normal/red material cost proves affordability; no balance/debit census or literal quantity-one caption. Active craft needs no quote.",
+    "Live completed-Claim, existing active, new Start and fixed-free production branches remain evidence_required; earlier source proofs do not establish revised native acceptance."
   ],
   "evidence_gates": [
     {
@@ -604,7 +610,7 @@
         "nanoweapon_maintenance_revisit_after_reset_quota"
       ],
       "required_evidence": [
-        "separately authorized record-70 v1 production claim/restart, idle-start, and active due-time evidence in the same visit before Normal Craft",
+        "separately authorized record-70 v2 production claim/restart, idle-start, and active due-time evidence in the same visit before Normal Craft",
         "positive reconciliation of the maintenance result without substituting for or consuming the Normal Craft reset allowance"
       ],
       "permitted_inputs": []
@@ -633,7 +639,7 @@
       "fixture_id": "nanoweapon_same_visit_material_maintenance",
       "status": "required_evidence",
       "path": null,
-      "notes": "Requires separately authorized record-70 v1 completion/restart, idle-start, or active due-time evidence before Normal Craft in the same visit."
+      "notes": "Requires separately authorized record-70 v2 completion/restart, idle-start, or active due-time evidence before Normal Craft in the same visit."
     },
     {
       "fixture_id": "nanoweapon_canonical_home_round_trip",
@@ -896,16 +902,16 @@
   ],
   "implementation_status": "reference_implemented",
   "proof_state": "evidence_required",
-  "offline_proof_state": "current",
+  "offline_proof_state": "evidence_required",
   "replay_fixture_proof_state": "evidence_required",
   "supervised_live_proof_state": "evidence_required",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r24",
-    "product_authority_digest": "7a40a259d2108e0ad1a246d1daa1d19b650cf167784e321d3216c2fd8b02d012",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r25",
+    "product_authority_digest": "3dccabe3f905a31e3f8a44dda135ae95845329f6de97b87dd4d17f969a1358fd",
     "product_record_id": "nanoweapon_normal_craft",
-    "product_record_revision": "nanoweapon_normal_craft-v2",
-    "product_record_digest": "bbf610de5bcddc6c5e31675c856defd6554c236205d2fd7a97dfca064cd54f07",
+    "product_record_revision": "nanoweapon_normal_craft-v3",
+    "product_record_digest": "b822fb27b3ce2c1532bf5de15a4cb075249aeb76eeb0b8f4a18372caadc7a6ff",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",

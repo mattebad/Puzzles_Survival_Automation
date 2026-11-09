@@ -35,6 +35,7 @@ HERO_DUEL_PRODUCT = "hero_duel"
 HERO_DUEL_REVISION = "hero_duel-v2"
 NANO_PRODUCTION_TASK = "NANO-MATERIAL-PRODUCTION-MAINTENANCE"
 NANO_PRODUCTION_PRODUCT = "nano_material_production"
+# Native semantic-token revisions are independent of product-record revisions.
 NANO_PRODUCTION_REVISION = "nano_material_production-v1"
 NANOWEAPON_TASK = "NANOWEAPON-BLUESTACKS-INTEGRATION"
 NANOWEAPON_PRODUCT = "nanoweapon_normal_craft"
@@ -484,6 +485,7 @@ def _nanoweapon(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
             or request.action_key != f"{NANO_PRODUCTION_PRODUCT}|{occurrence}|{phase}"
         ):
             return deny
+        # These tokens encode approved fixed mechanics, not a screen quote.
         suffix = (
             ("material_production_tab", "production_state=complete", "active_production_count=0",
              "completed_batch_count=1", "cost=none:0", "zero_resource_claim")
@@ -505,10 +507,18 @@ def _nanoweapon(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
         if tokens is None:
             return deny
         instance = _field(tokens[7], "craft_instance=")
-        if (type(instance) is not str or re.fullmatch(
-                r"craft-instance:nanoweapon:start_normal_nanoweapon_craft:[0-9a-f]{24}", instance,
-        ) is None):
+        if (
+            type(instance) is not str
+            or re.fullmatch(r"craft-instance:[0-9a-f]{64}", instance) is None
+            or type(request.action_key) is not str
+            or re.fullmatch(
+                re.escape(f"{NANOWEAPON_PRODUCT}:claim:{request.game_day_id}:") + r"[0-9a-f]{64}",
+                request.action_key,
+            ) is None
+        ):
             return deny
+        # Native binds both digests to the current occurrence before preparation.
+        # No original automated Start or new-start resource quote is required.
         expected = (
             f"product_id={NANOWEAPON_PRODUCT}",
             f"product_revision={NANOWEAPON_REVISION}",
@@ -535,7 +545,7 @@ def _nanoweapon(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
         tokens = _tokens(request, 14)
         if tokens is None:
             return deny
-        balance = _integer_token(_field(tokens[7], "nano_parts_balance="))
+        # Native affordability is the normal (non-red) fixed-cost display.
         expected = (
             f"product_id={NANOWEAPON_PRODUCT}",
             f"product_revision={NANOWEAPON_REVISION}",
@@ -544,7 +554,7 @@ def _nanoweapon(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
             "normal_craft_tab",
             "recipe_selection=normal",
             f"game_day_id={request.game_day_id}",
-            f"nano_parts_balance={balance}" if balance is not None else "",
+            "materials_affordable=1",
             "cost=NANO_PARTS:100",
             "duration_seconds=43200",
             "active_craft_count=0",
@@ -552,7 +562,7 @@ def _nanoweapon(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
             "exclusive_craft=0",
             "rotating_display=0",
         )
-        if not request.game_day_id or balance is None or balance < 100 or tokens != expected:
+        if not request.game_day_id or tokens != expected:
             return deny
         action_class = ActionClass.SPEND_OR_STRATEGIC
         action_kind = "START_NORMAL_NANOWEAPON_CRAFT"

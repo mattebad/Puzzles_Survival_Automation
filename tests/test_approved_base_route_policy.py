@@ -25,11 +25,9 @@ from automation_service.registry import (
     HERO_DUEL_PRODUCT_REVISION as HERO_REVISION,
     NANO_MATERIAL_PRODUCTION_FLOW_ID as NANO_PRODUCTION,
     NANO_MATERIAL_PRODUCTION_PRODUCT_ID as NANO_PRODUCTION_PRODUCT,
-    NANO_MATERIAL_PRODUCTION_PRODUCT_REVISION as NANO_PRODUCTION_REVISION,
     NANOWEAPON_FLOW_ID as NANOWEAPON,
     RECOMMENDED_RESEARCH_FLOW_ID as RESEARCH,
     NANOWEAPON_PRODUCT_ID as NANOWEAPON_PRODUCT,
-    NANOWEAPON_PRODUCT_REVISION as NANOWEAPON_REVISION,
     RUINS_FLOW_ID as RUINS,
     TROOP_TRAINING_FLOW_ID as TRAINING,
     RECOMMENDED_RESEARCH_PRODUCT_ID as RESEARCH_PRODUCT,
@@ -46,6 +44,7 @@ from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 from tests.support.safe_action import TEST_TASK_ID, observation, request as base_request
 from tasks.hero_upgrade_disabled import HeroUpgradeObservation, hero_evolution_spec, hero_upgrade_batch_spec
 from tasks.profile import BLUESTACKS_NATIVE_TARGET_PROVENANCE
+from tasks.runtime_identity import FIXED_RUNTIME_SCOPE
 
 
 DAY = "game-day-2026-07-15"
@@ -53,6 +52,9 @@ FRAME = "a" * 64
 COST_ROI = "c" * 64
 LOSS_ROI = "d" * 64
 OTHER_TASK = "OTHER-SUPERVISED-TASK"
+# Frozen native token API versions, not registry product-record revisions.
+NANO_PRODUCTION_REVISION = "nano_material_production-v1"
+NANOWEAPON_REVISION = "nanoweapon_normal_craft-v2"
 
 # Native action kinds are independent of product-authority record revisions.
 ALLIANCE_SHOP_ACTION_KIND = "alliance_shop_purchase-v2"
@@ -256,12 +258,17 @@ def nano_request(action, occurrence=f"{NANO_PRODUCTION}:{DAY}:1"):
     )
 
 
-def craft_claim_request():
+def craft_claim_request(occurrence=f"{NANOWEAPON}:{DAY}:manual-completion", game_day=DAY):
+    # Mirror native _completed_craft_binding / _action_key: never an original Start.
+    instance = hashlib.sha256(occurrence.encode("utf-8")).hexdigest()
+    scope = "\0".join((FIXED_RUNTIME_SCOPE, "policy-test-account", "policy-test-server"))
+    digest = hashlib.sha256(f"{scope}\0{occurrence}".encode("utf-8")).hexdigest()
+    key = f"{NANOWEAPON_PRODUCT}:claim:{game_day}:{digest}"
     tokens = (
         f"product_id={NANOWEAPON_PRODUCT}", f"product_revision={NANOWEAPON_REVISION}",
-        "effect_ordinal=1", f"game_day_id={DAY}", "prior_material_production_reconciled=1",
+        "effect_ordinal=1", f"game_day_id={game_day}", "prior_material_production_reconciled=1",
         "normal_craft_tab", "completed_normal_craft=1",
-        "craft_instance=craft-instance:nanoweapon:start_normal_nanoweapon_craft:0123456789abcdef01234567",
+        f"craft_instance=craft-instance:{instance}",
         "active_craft_count=0", "claim_visible=1", "cost=none:0",
     )
     return route_request(
@@ -269,7 +276,7 @@ def craft_claim_request():
         kind="CLAIM_NANOWEAPON_COMPLETED", subject="nanoweapon-completed-claim", source="NANOWEAPON",
         target="nanoweapon-completed-claim", control="CLAIM", consequence="nanoweapon_completed_claim",
         post="NANOWEAPON_CRAFT_CLAIMED", cost_type="none", cost=0, quantity=1, resource=None,
-        maximum=0, free=True, preconditions=tokens,
+        maximum=0, free=True, preconditions=tokens, action_key=key, game_day=game_day,
     )
 
 
@@ -277,7 +284,7 @@ def craft_start_request():
     tokens = (
         f"product_id={NANOWEAPON_PRODUCT}", f"product_revision={NANOWEAPON_REVISION}",
         "effect_ordinal=1", "prior_material_production_reconciled=1", "normal_craft_tab",
-        "recipe_selection=normal", f"game_day_id={DAY}", "nano_parts_balance=130",
+        "recipe_selection=normal", f"game_day_id={DAY}", "materials_affordable=1",
         "cost=NANO_PARTS:100", "duration_seconds=43200", "active_craft_count=0",
         "current_reset_start_ordinal=1", "exclusive_craft=0", "rotating_display=0",
     )
@@ -724,6 +731,89 @@ class ApprovedBaseRoutePolicyTests(unittest.TestCase):
         tokens = list(req.semantic_preconditions)
         tokens[8] = "cost=NANO_PARTS:101"
         self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+
+    def test_nanoweapon_start_requires_affordability_and_fixed_single_start_fences(self):
+        req = craft_start_request()
+        self.assertEqual(len(req.semantic_preconditions), 14)
+        for index, token in (
+            (1, "product_revision=nanoweapon_normal_craft-v3"),
+            (3, "prior_material_production_reconciled=0"),
+            (5, "recipe_selection=exclusive"),
+            (6, "game_day_id=another-reset"),
+            (7, "materials_affordable=0"),
+            (7, "materials_affordable=unknown"),
+            (7, "nano_parts_balance=130"),
+            (8, "cost=NANO_PARTS:99"),
+            (9, "duration_seconds=43199"),
+            (10, "active_craft_count=1"),
+            (11, "current_reset_start_ordinal=2"),
+            (12, "exclusive_craft=1"),
+            (13, "rotating_display=1"),
+        ):
+            with self.subTest(token=token):
+                tokens = list(req.semantic_preconditions)
+                tokens[index] = token
+                self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+        self.assert_denied(replace(req, observation=replace(req.observation, quantity=2)))
+
+    def test_completed_craft_claim_uses_current_reset_occurrence_not_original_start(self):
+        occurrence = f"{NANOWEAPON}:game-day-2026-07-14:manual-completion"
+        req = craft_claim_request(occurrence=occurrence)
+        self.assertEqual(len(req.semantic_preconditions), 11)
+        self.assert_authorized(req)
+        # A later reset collects the same completed craft without a new-start quote.
+        self.assert_authorized(craft_claim_request(occurrence=occurrence, game_day="game-day-2026-07-16"))
+        for key in (
+            f"{NANOWEAPON_PRODUCT}:claim:game-day-2026-07-14:" + "a" * 64,
+            req.action_key.replace(":claim:", ":start:"),
+            req.action_key[:-1],
+            req.action_key + ":extra",
+            "route:claim_completed_nanoweapon:1",
+        ):
+            with self.subTest(key=key):
+                self.assert_denied(replace(req, action_key=key))
+        for index, token in (
+            (1, "product_revision=nanoweapon_normal_craft-v3"),
+            (3, "game_day_id=another-reset"),
+            (6, "completed_normal_craft=0"),
+            (7, "craft_instance=craft-instance:nanoweapon:start_normal_nanoweapon_craft:0123456789abcdef01234567"),
+            (7, "craft_instance=craft-instance:" + "a" * 63),
+            (7, "craft_instance=craft-instance:" + "A" * 64),
+            (8, "active_craft_count=1"),
+            (9, "claim_visible=0"),
+            (10, "cost=NANO_PARTS:100"),
+        ):
+            with self.subTest(token=token):
+                tokens = list(req.semantic_preconditions)
+                tokens[index] = token
+                self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+
+    def test_nano_fixed_mechanics_preserve_occurrence_and_runtime_fences(self):
+        for req in (
+            nano_request("claim_nano_material_production"),
+            nano_request("start_nano_material_production"),
+            craft_claim_request(),
+            craft_start_request(),
+        ):
+            with self.subTest(action=req.semantic_action):
+                self.assert_authorized(req)
+                for fields in (
+                    {"duplicate_action_key": True},
+                    {"unresolved_action": True},
+                    {"lease_valid": False},
+                ):
+                    self.assertNotEqual(POLICY.evaluate(replace(req, **fields)).decision, PolicyDecision.AUTHORIZE)
+        req = nano_request("start_nano_material_production")
+        for index, token in (
+            (1, "product_revision=nano_material_production-v2"),
+            (7, "active_production_count=1"),
+            (9, "cost=NANO_PARTS:100"),
+            (10, "production_start_ordinal=2"),
+        ):
+            with self.subTest(token=token):
+                tokens = list(req.semantic_preconditions)
+                tokens[index] = token
+                self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
 
     def test_recommended_research_only_first_idle_queue_ordinary_affordable_case(self):
         req = research_request()

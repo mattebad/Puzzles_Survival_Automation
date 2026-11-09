@@ -21,7 +21,7 @@ DEFAULT_AUTHORITY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.jso
 DEFAULT_POLICY_PATH = DEFAULT_AUTHORITY_PATH
 AUTHORITY_SCHEMA_VERSION = 2
 AUTHORITY_REGISTRY_KIND = "flow_delivery_product_policy"
-AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r24"
+AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r25"
 PRODUCT_AUTHORITY_SCHEMA_VERSION = AUTHORITY_SCHEMA_VERSION
 PRODUCT_AUTHORITY_REVISION = AUTHORITY_REVISION
 PRODUCT_RECORDS_FIELD = "product_records"
@@ -2612,12 +2612,12 @@ def _validate_nanoweapon_normal_craft_record(record: Mapping[str, Any]) -> None:
     """Validate one reset-scoped Normal Craft action and its maintenance prerequisite."""
 
     if (
-        record["record_revision"] != "nanoweapon_normal_craft-v2"
+        record["record_revision"] != "nanoweapon_normal_craft-v3"
         or record["objective"] != "nanoweapon_normal_craft"
         or record["action"] != "start_one_normal_nanoweapon_craft"
         or record["recurrence"] != "daily_reset_scoped"
     ):
-        raise ProductAuthorityError("Nanoweapon Normal Craft must use its v2 own-action identity")
+        raise ProductAuthorityError("Nanoweapon Normal Craft must use its v3 own-action identity")
     route = record["semantic_entry_route"]
     if (
         route.get("source_home_authorities") != ["HOME_CANONICAL"]
@@ -2628,10 +2628,12 @@ def _validate_nanoweapon_normal_craft_record(record: Mapping[str, Any]) -> None:
         )
     expected_maintenance = {
         "product_record_id": "nano_material_production",
-        "product_record_revision": "nano_material_production-v1",
+        "product_record_revision": "nano_material_production-v2",
         "required_same_visit": True,
         "separate_authorization_required": True,
         "positive_effect_must_be_reconciled_before_craft": True,
+        "verified_active_zero_effects_satisfies_maintenance": True,
+        "claim_without_restart_satisfies_maintenance": False,
         "normal_craft_substitution_allowed": False,
         "normal_craft_reset_allowance_consumed": False,
     }
@@ -2708,7 +2710,17 @@ def _validate_nanoweapon_normal_craft_record(record: Mapping[str, Any]) -> None:
     expected_effect = {
         "effect_ordinal": 1,
         "completed_claim_successor_required": True,
-        "exact_parts_consumption_required": True,
+        "completed_claim_free": True,
+        "completed_claim_requires_original_start": False,
+        "completed_claim_requires_new_start_quote": False,
+        "completed_claim_requires_current_affordability": False,
+        "active_craft_requires_new_start_quote": False,
+        "literal_quantity_one_caption_required": False,
+        "affordability_source": "normal_or_red_material_cost_display",
+        "claim_and_start_proofs_separate": True,
+        "confirmed_effect_preserved_after_unsent_failure": True,
+        "navigation_failure_makes_confirmed_effect_unknown": False,
+        "exact_parts_consumption_required": False,
         "single_active_craft_required": True,
         "single_start_per_reset_required": True,
         "exact_duration_required": True,
@@ -2756,6 +2768,8 @@ def _validate_nanoweapon_normal_craft_record(record: Mapping[str, Any]) -> None:
 def _validate_nano_material_production_record(record: Mapping[str, Any]) -> None:
     """Validate independent zero-resource six-hour material maintenance."""
 
+    if record["record_revision"] != "nano_material_production-v2":
+        raise ProductAuthorityError("Nano Material must use its v2 fixed-free identity")
     if record["objective"] != "nano_material_production_maintenance":
         raise ProductAuthorityError(
             "Nano Material record objective must be nano_material_production_maintenance"
@@ -2826,6 +2840,18 @@ def _validate_nano_material_production_record(record: Mapping[str, Any]) -> None
         raise ProductAuthorityError(
             "Nano Material successor, cost, or retry safety effect is incomplete"
         )
+    expected_fixed_effects = {
+        "dynamic_start_quote_required": False,
+        "literal_free_cost_or_duration_disclosure_required": False,
+        "info_visit_required": False,
+        "confirmed_claim_preserved_after_unsent_restart_failure": True,
+        "confirmed_effect_independent_of_home_return": True,
+        "claim_and_start_proofs_separate": True,
+        "active_due_time_source": "observed_remaining_timer",
+    }
+    if any(effect.get(field) != expected or type(effect.get(field)) is not type(expected)
+           for field, expected in expected_fixed_effects.items()):
+        raise ProductAuthorityError("Nano Material fixed-free and partial-effect semantics changed")
     terminal = record["terminal_requirement"]
     if terminal.get("home_authority") != "HOME_CANONICAL" or terminal.get(
         "return_required"

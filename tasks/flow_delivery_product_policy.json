@@ -544,7 +544,7 @@
       "policy_id": "nanoweapon-material-policy",
       "scope": "nanoweapon.crafting",
       "status": "explicitly_approved",
-      "decision": "Normal Craft is a direct own-action flow, not a Daily/provider claim. Reconcile one separately authorized, successful Nano Material Production maintenance result under nano_material_production-v1 earlier in the same visit; it neither substitutes for Normal Craft nor consumes its reset allowance. Claim any completed weapon on entry, then start at most one Normal Craft per game-day/reset only when current nano parts are at least 100 and Craft is enabled. Exactly 100 nano parts are required, duration is exactly 43200 seconds, only one craft may be active, Exclusive Craft and rotating-display selection are prohibited, and insufficient/disabled states defer without spending. Readiness requires this action's own positive Normal Craft successor; no Daily/provider/points evidence is required.",
+      "decision": "Maintain Material Production in the same visit: verified active production with zero effects satisfies maintenance; a Claim alone does not prove restart. Free completed Normal Craft Claim is independent of original starter, new-start quote, current affordability and reset start allowance. Active craft observation needs no quote. Start at most one fixed Normal Craft per reset: 100 Nano Parts, 43200 seconds, one active craft; use normal/red material-cost display for affordability, with no literal quantity-one caption or balance/debit census. Claim and Start retain separate proofs. Confirmed effects survive later unsent or navigation failures; actual unresolved sent effects remain UNKNOWN without identical retry. No Exclusive Craft or rotating-display selection.",
       "reset_allowance_owner": "one_normal_craft_start_per_reset",
       "parts_required": 100,
       "craft_duration_seconds": 43200,
@@ -554,7 +554,7 @@
       "exclusive_craft_allowed": false,
       "terminal_state": "home_canonical",
       "prior_maintenance_product_record_id": "nano_material_production",
-      "prior_maintenance_product_record_revision": "nano_material_production-v1",
+      "prior_maintenance_product_record_revision": "nano_material_production-v2",
       "same_visit_prior_maintenance_required": true,
       "maintenance_substitutes_for_normal_craft": false,
       "maintenance_consumes_normal_craft_reset_allowance": false,
@@ -564,7 +564,7 @@
       "policy_id": "nano-material-production-maintenance",
       "scope": "nanoweapon.material_production",
       "status": "explicitly_approved",
-      "decision": "Nano Material Production is independent maintenance. On the Nanoweapon screen select Material Production; claim completed production and start the next, refresh the due time when active, or start when idle. Exactly one production may be active, duration is exactly 21600 seconds, and no base resources, boxes, currency, or items may be consumed. Return to canonical Home.",
+      "decision": "Fixed free zero-resource 21600-second production, one active slot. Idle: Produce once. Completed: Claim once then Produce once. Active: observe remaining timer and defer. No Info visit, dynamic start quote or literal free/cost/duration disclosure. Preserve confirmed Claim separately if later unsent Produce or navigation fails; known partial is not UNKNOWN. Return to canonical Home without coupling effect proof to navigation success.",
       "maintenance_owner": "nano_material_production",
       "production_duration_seconds": 21600,
       "maximum_active_productions": 1,
@@ -749,7 +749,7 @@
       "source": "REC-D01_explicit_completion_boundary"
     }
   ],
-  "authority_revision": "flow-delivery-product-authority-v2-r24",
+  "authority_revision": "flow-delivery-product-authority-v2-r25",
   "product_records": [
     {
       "record_id": "use_resource_item",
@@ -2828,12 +2828,14 @@
         "disabled_craft_defer": true,
         "prior_material_production": {
           "product_record_id": "nano_material_production",
-          "product_record_revision": "nano_material_production-v1",
+          "product_record_revision": "nano_material_production-v2",
           "required_same_visit": true,
           "separate_authorization_required": true,
           "positive_effect_must_be_reconciled_before_craft": true,
           "normal_craft_substitution_allowed": false,
-          "normal_craft_reset_allowance_consumed": false
+          "normal_craft_reset_allowance_consumed": false,
+          "verified_active_zero_effects_satisfies_maintenance": true,
+          "claim_without_restart_satisfies_maintenance": false
         },
         "terminal_home": "HOME_CANONICAL"
       },
@@ -2849,7 +2851,7 @@
       "semantic_effect": {
         "effect_ordinal": 1,
         "completed_claim_successor_required": true,
-        "exact_parts_consumption_required": true,
+        "exact_parts_consumption_required": false,
         "single_active_craft_required": true,
         "single_start_per_reset_required": true,
         "exact_duration_required": true,
@@ -2860,7 +2862,17 @@
         "no_currency_box_or_item_input": true,
         "dispatch_is_not_success_proof": true,
         "daily_ownership": "none",
-        "identical_retry": false
+        "identical_retry": false,
+        "completed_claim_free": true,
+        "completed_claim_requires_original_start": false,
+        "completed_claim_requires_new_start_quote": false,
+        "completed_claim_requires_current_affordability": false,
+        "active_craft_requires_new_start_quote": false,
+        "literal_quantity_one_caption_required": false,
+        "affordability_source": "normal_or_red_material_cost_display",
+        "claim_and_start_proofs_separate": true,
+        "confirmed_effect_preserved_after_unsent_failure": true,
+        "navigation_failure_makes_confirmed_effect_unknown": false
       },
       "forbidden_actions": [
         "Material Production as a substitute for Normal Craft",
@@ -2903,8 +2915,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "nanoweapon_normal_craft-v2",
-      "record_digest": "bbf610de5bcddc6c5e31675c856defd6554c236205d2fd7a97dfca064cd54f07"
+      "record_revision": "nanoweapon_normal_craft-v3",
+      "record_digest": "b822fb27b3ce2c1532bf5de15a4cb075249aeb76eeb0b8f4a18372caadc7a6ff"
     },
     {
       "record_id": "nano_material_production",
@@ -2958,7 +2970,14 @@
         "canonical_home_successor_required": true,
         "dispatch_is_not_success_proof": true,
         "daily_ownership": "none",
-        "identical_retry": false
+        "identical_retry": false,
+        "dynamic_start_quote_required": false,
+        "literal_free_cost_or_duration_disclosure_required": false,
+        "info_visit_required": false,
+        "confirmed_claim_preserved_after_unsent_restart_failure": true,
+        "confirmed_effect_independent_of_home_return": true,
+        "claim_and_start_proofs_separate": true,
+        "active_due_time_source": "observed_remaining_timer"
       },
       "forbidden_actions": [
         "base resource",
@@ -2997,8 +3016,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "nano_material_production-v1",
-      "record_digest": "49fe5e4486ea94482a076df2e0332640d74f6be8ef240bb509c29c8ee40198a2"
+      "record_revision": "nano_material_production-v2",
+      "record_digest": "007e877fc1754306c9b478c6aac8c39e911407867690c796bbbf60c64af1a874"
     },
     {
       "record_id": "zombie_lair",
@@ -3826,5 +3845,5 @@
       "record_digest": "73a87b8d13e93bd0bc52748dce924dd79241dcba591f61ef8f78c7798b730ddd"
     }
   ],
-  "authority_digest": "7a40a259d2108e0ad1a246d1daa1d19b650cf167784e321d3216c2fd8b02d012"
+  "authority_digest": "3dccabe3f905a31e3f8a44dda135ae95845329f6de97b87dd4d17f969a1358fd"
 }
