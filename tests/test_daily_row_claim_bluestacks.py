@@ -1432,9 +1432,14 @@ class DailyMilestoneReadinessTests(unittest.TestCase):
         for scan in (opened, removed):
             moved = dict(scan["milestones"][1], milestone_state="ready", milestone_ready=True)
             changed = {**scan, "milestones": (scan["milestones"][0], moved, *scan["milestones"][2:])}
-            self.assertFalse(daily.daily_milestone_postcondition_verified(
-                before, changed, "daily-milestone-slot-1",
-            ))
+            # An exact completion label proves its own chest; appearance-only
+            # removal still needs attribution to the tapped slot.
+            self.assertEqual(
+                daily.daily_milestone_postcondition_verified(
+                    before, changed, "daily-milestone-slot-1",
+                ),
+                scan is opened,
+            )
 
     def test_claimed_label_must_be_unambiguous_current_and_bound_to_the_same_slot(self):
         (before, after), (_, recognition), (_, image) = self._observed_chest_transition()

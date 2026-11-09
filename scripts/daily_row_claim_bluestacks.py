@@ -2363,7 +2363,7 @@ def recognize_daily_milestone_chests(
         token
         for token in daily_recognition.tokens
         if isinstance(token, Mapping)
-        and token.get("text") == "claimed"
+        and token.get("text") in {"claimed", "opened"}
         and _clamp_roi(token.get("roi", ())) is not None
     )
     for slot in range(1, DAILY_MILESTONE_SLOT_COUNT + 1):
@@ -2483,11 +2483,11 @@ def recognize_daily_milestone_chests(
                     and largest_glow_component >= DAILY_MILESTONE_GLOW_READY_COMPONENT
                 )
             ):
-                state = "claimed"
+                state = str(claimed_label["text"])
                 reason = None
             else:
                 state = "unknown"
-                reason = "Claimed label is ambiguous or contradicts a glowing ready chest"
+                reason = "Completion label is ambiguous or contradicts a glowing ready chest"
         elif (
             glow_pixels >= DAILY_MILESTONE_GLOW_READY_PIXELS
             and largest_glow_component >= DAILY_MILESTONE_GLOW_READY_COMPONENT
@@ -2518,6 +2518,8 @@ def recognize_daily_milestone_chests(
                 "supported_chest_skin": supported_skin,
                 "claimed_label_roi": tuple(claimed_label["roi"]) if state == "claimed" else None,
                 "claimed_label_proven": state == "claimed",
+                "opened_label_roi": tuple(claimed_label["roi"]) if state == "opened" and claimed_label else None,
+                "opened_label_proven": state == "opened" and claimed_label is not None,
                 "threshold_label_proven": threshold_proven,
                 "replacement_label_proven": replacement_label,
                 "reason": reason,
@@ -2579,11 +2581,8 @@ def daily_milestone_postcondition_verified(
     if len(source) != 1 or len(successor) != 1:
         return False
     state = successor[0].get("milestone_state")
-    if state == "claimed":
-        successor_proven = (
-            successor[0].get("claimed_label_proven") is True
-            and successor[0].get("claimed_label_roi") is not None
-        )
+    if state in {"claimed", "opened"} and successor[0].get(f"{state}_label_proven") is True:
+        successor_proven = successor[0].get(f"{state}_label_roi") is not None
     else:
         # Appearance-only successors must be local to the tapped slot.
         other_before = {
