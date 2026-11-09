@@ -208,6 +208,24 @@ class HeroDuelVision:
         return values[0] if len(values) == 1 else None
 
     @staticmethod
+    def _entry_allowance(lines, state):
+        free = HeroDuelVision.free_counter(lines)
+        if free is not None:
+            return free
+        # Exhaustion replaces "Free N/1" with a paid pass quote above Challenge.
+        # The positive cost-one state means no free entry, not a pass inventory
+        # census. Absence of the word Free alone never establishes exhaustion.
+        if state != "hero_duel_overview" or any("free" in row["norm"] for row in lines):
+            return None
+        challenges = [row for row in lines if row["norm"] == "challenge"]
+        if len(challenges) != 1:
+            return None
+        x, y = challenges[0]["center"]
+        paid = [row for row in lines if re.search(r"(?:^|\s)1\s*/", row["text"])
+            and 0 < y - row["center"][1] < 90 and abs(x - row["center"][0]) < 160]
+        return 0 if len(paid) == 1 else None
+
+    @staticmethod
     def first_free_opponent_row(lines):
         """Choose the topmost uniquely bound Free opponent row from the current list."""
         rows = []
@@ -307,6 +325,39 @@ class HeroDuelVision:
                 horizontal.add(round((int(y0) + int(y1)) / 16))
         return len(vertical) >= 5 and len(horizontal) >= 5
 
+    def _overview_controls(self, frame, lines):
+        """Read the measured gold Challenge and its adjacent current entry quote."""
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        contours, _ = cv2.findContours(cv2.inRange(hsv, (10, 80, 90), (40, 255, 255)),
+            cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        buttons = [cv2.boundingRect(contour) for contour in contours
+            if 180 < cv2.boundingRect(contour)[2] < 400
+            and 40 < cv2.boundingRect(contour)[3] < 120
+            and cv2.boundingRect(contour)[1] > 1000]
+        if len(buttons) != 1:
+            return lines
+        x, y, width, height = buttons[0]
+        button = frame[y + 5:y + height - 5, x + 5:x + width - 5]
+        white = 255 - cv2.inRange(button, (175, 175, 175), (255, 255, 255))
+        labels = self._lines(cv2.resize(white, None, fx=3, fy=3), psm=7, scale=3)
+        if len(labels) != 1 or labels[0]["norm"] != "challenge":
+            return lines
+        quote_top, quote_bottom = y - 50, y - 5
+        quote = cv2.cvtColor(frame[quote_top:quote_bottom, x:x + width], cv2.COLOR_BGR2GRAY)
+        quotes = self._lines(cv2.resize(quote, None, fx=3, fy=3), psm=7, scale=3)
+
+        def placed(row, left, top):
+            x0, y0, x1, y1 = row["box"]
+            box = (left + x0 // 3, top + y0 // 3,
+                left + (x1 + 2) // 3, top + (y1 + 2) // 3)
+            return {**row, "box": box,
+                "center": ((box[0] + box[2]) // 2, (box[1] + box[3]) // 2), "word_boxes": ()}
+
+        retained = tuple(row for row in lines if not (
+            x <= row["center"][0] <= x + width and quote_top <= row["center"][1] <= y + height))
+        return (*retained, placed(labels[0], x + 5, y + 5),
+            *(placed(row, x, quote_top) for row in quotes))
+
     def _emergency_controls(self, captured, lines):
         """Read the actual Confirm control, independent of the changing banned roster."""
         frame = captured.frame
@@ -355,8 +406,11 @@ class HeroDuelVision:
         contours, _ = cv2.findContours(mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         plus = np.array(((0, 12), (12, 12), (12, 0), (24, 0), (24, 12),
             (36, 12), (36, 24), (24, 24), (24, 36), (12, 36), (12, 24), (0, 24)), np.int32)
-        return any(35 <= cv2.boundingRect(c)[2] <= 65
-            and 35 <= cv2.boundingRect(c)[3] <= 65
+        height, width = gray.shape
+        return any(35 <= (box := cv2.boundingRect(c))[2] <= 65
+            and 35 <= box[3] <= 65 and .9 <= box[2] / box[3] <= 1.1
+            and abs(box[0] + box[2] / 2 - width / 2) < 10
+            and abs(box[1] + box[3] / 2 - height / 2) < 10
             and cv2.matchShapes(c, plus, cv2.CONTOURS_MATCH_I1, 0) < .15 for c in contours)
 
     @staticmethod
@@ -372,6 +426,41 @@ class HeroDuelVision:
         if np.mean(crop[y - 2:y + 3, x - 7:x + 8]) < 65:
             return None
         return left + x - radius, 470 + y - radius, left + x + radius, 470 + y + radius
+
+    @staticmethod
+    def _defense_keep_slots(frame, cards, expected):
+        """Match checked wanted portraits to slots without clearing valid members."""
+        wanted = [card for card in cards if card["id"] in expected and card["state"] == "selected"]
+        if not wanted:
+            return ()
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        sift = cv2.SIFT_create(nfeatures=400)
+        matcher = cv2.BFMatcher()
+        contrast = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(4, 4))
+
+        def descriptors(image):
+            _points, result = sift.detectAndCompute(contrast.apply(image), None)
+            return result if result is not None and len(result) >= 20 else None
+
+        def pairs(left, right):
+            return {(pair[0].queryIdx, pair[0].trainIdx)
+                for pair in matcher.knnMatch(left, right, k=2)
+                if len(pair) == 2 and pair[0].distance < .7 * pair[1].distance}
+
+        slots = [descriptors(gray[95:380, 42 + 144 * i:182 + 144 * i]) for i in range(5)]
+        keep = []
+        for card in wanted:
+            x0, y0, x1, y1 = card["roi"]
+            portrait = descriptors(gray[y0 + 20:y1 - 35, x0 + 5:x1 - 5])
+            if portrait is None:
+                return None
+            scores = [0 if slot is None else len(pairs(portrait, slot)
+                & {(j, i) for i, j in pairs(slot, portrait)}) for slot in slots]
+            ranked = sorted(range(5), key=lambda i: scores[i], reverse=True)
+            if scores[ranked[0]] < 6 or scores[ranked[0]] - scores[ranked[1]] < 4:
+                return None
+            keep.append(ranked[0])
+        return tuple(keep) if len(set(keep)) == len(keep) else None
 
     def _formation_facts(self, frame, state, lines=()):
         """Native portrait widget state: checked, bright deployable stars, or dimmed.
@@ -570,6 +659,8 @@ class HeroDuelVision:
                                     "center": ((box[0] + box[2]) // 2, (box[1] + box[3]) // 2)})
             if len(buttons) == 1:
                 lines = (*lines, buttons[0])
+        if state == "hero_duel_overview" and overlay == "none":
+            lines = self._overview_controls(captured.frame, lines)
         target_roi = None
         if target_hint and state != "unknown" and overlay == "none":
             if target_hint == ("hero-duel-emergency-close-x", "emergency close x"):
@@ -591,7 +682,7 @@ class HeroDuelVision:
         return {
             "screen_state": state, "lines": lines, "text": text, "event_identity": event_identity,
             "event_timer_visible": event_timer_visible,
-            "event_active": event_active, "free_entries_remaining": self.free_counter(lines),
+            "event_active": event_active, "free_entries_remaining": self._entry_allowance(lines, state),
             "displayed_hero_ids": displayed, "eligible_hero_ids": eligible,
             "defense_hero_ids": defense, "formation_slot_states": slots, "portrait_cards": cards,
             "defense_save_acknowledged": self.defense_saved,
@@ -1080,14 +1171,16 @@ class HeroDuelNativeFlow:
             return None
         self.result["expected_defense_hero_ids"] = list(expected)
         if not hero_duel_defense_lineup_valid(game, expected):
-            # Defense may be rebuilt; attack is never cleared. Minus controls
-            # leave the other slots in place on the observed native formation.
+            keep = self.vision._defense_keep_slots(captured.frame, page.get("portrait_cards", ()), expected)
+            if keep is None:
+                self.result["reason"] = "defense_selected_portrait_slot_correspondence_unproven"
+                return None
             for index in reversed(range(5)):
-                if game.formation_slot_states[index] == "active":
+                if game.formation_slot_states[index] == "active" and index not in keep:
                     if not self._formation_input("defense", remove_index=index):
                         return None
             for hero in expected:
-                if not self._formation_input("defense", hero=hero):
+                if hero not in game.defense_hero_ids and not self._formation_input("defense", hero=hero):
                     return None
             captured = self.capture("hero-duel-defense-verify")
             page = self.observe(captured)
@@ -1106,9 +1199,24 @@ class HeroDuelNativeFlow:
                 effect_reconciliation_required=action.get("effect_reconciliation_required", False),
                 identical_retry_denied=dispatched)
             return None
+        # A save acknowledgement is not a reusable view. Reopen from a fresh
+        # overview binding and read the actual saved members before proceeding.
+        reopened = self._navigation_tap("verify-saved-defense", "defense",
+            {"defense_formation"}, "hero-duel-defense-open")
+        if reopened is None:
+            return None
+        readback = self.capture("hero-duel-saved-defense-readback")
+        saved_page = self.observe(readback)
+        saved = self._observation(readback, saved_page, 1)
+        if (saved_page["screen_state"] != "defense_formation"
+                or hero_duel_first_five_eligible(saved) != expected
+                or not hero_duel_defense_lineup_valid(saved, expected)):
+            self.result["reason"] = "saved_defense_first_five_readback_unverified"
+            return None
         self.vision.defense_saved = True
         self.result["defense_save_confirmed"] = True
-        return self.observe(action["successor"])
+        step = self._defense_back("saved-defense-readback-close")
+        return step["page"] if step else None
 
     def _formation_input(self, mode, *, hero=None, remove_index=None):
         state = "defense_formation" if mode == "defense" else "attack_formation"

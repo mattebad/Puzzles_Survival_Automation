@@ -134,6 +134,17 @@ class HeroDuelVisionReplayTests(unittest.TestCase):
         )))
         self.assertIsNone(self.vision.first_free_opponent_row((self._line("Player One Free", 200),)))
 
+    def test_exhausted_free_quota_requires_the_current_paid_quote_not_absent_free_text(self):
+        challenge = self._line("Challenge", 1140, 300)
+        paid = self._line("1/125", 1080, 330)
+        self.assertEqual(self.vision._entry_allowance((paid, challenge), "hero_duel_overview"), 0)
+        self.assertIsNone(self.vision._entry_allowance((challenge,), "hero_duel_overview"))
+        self.assertIsNone(self.vision._entry_allowance((paid, challenge), "attack_formation"))
+        distant = self._line("1/125", 200, 330)
+        self.assertIsNone(self.vision._entry_allowance((distant, challenge), "hero_duel_overview"))
+        free = self._line("Free 1/1", 1080, 330)
+        self.assertEqual(self.vision._entry_allowance((free, challenge), "hero_duel_overview"), 1)
+
 
 
 
@@ -318,6 +329,72 @@ class HeroDuelNativeObserverRegressionTests(unittest.TestCase):
         blank = self.flow.vision._formation_facts(np.zeros_like(image), "defense_formation")
         self.assertIsNone(blank[2])
         self.assertNotEqual(blank[0], ("active",) * 5)
+
+    def test_walkthrough_current_candidates_preserve_four_members_and_verify_saved_five(self):
+        root = Path(__file__).resolve().parents[2] / "Puzzle_Survival_Runtime_POC" / ".local-captures" / "manual-walkthrough-2026-11-09T04-42-35-490Z"
+        if not root.is_dir():
+            self.skipTest("retained walkthrough formation required")
+        for filename, expected_count in (
+                ("0140-duel75-defense-remove-sixth-candidate.jpg", 4),
+                ("0145-duel75-defense-readback.jpg", 5)):
+            with self.subTest(source=filename):
+                window = cv2.imread(str(root / filename))
+                self.assertIsNotNone(window)
+                # Retained App Player window: remove its title/sidebar, then
+                # restore the actual 800x1280 game viewport for native readers.
+                image = cv2.resize(window[32:1212, :738], (800, 1280))
+                slots, displayed, eligible, selected, cards = self.flow.vision._formation_facts(
+                    image, "defense_formation")
+                expected = tuple(hero for hero in displayed if hero in eligible)[:5]
+                self.assertEqual(len(expected), 5)
+                self.assertEqual(len(selected), expected_count)
+                keep = self.flow.vision._defense_keep_slots(image, cards, expected)
+                self.assertIsNotNone(keep)
+                self.assertEqual(set(keep), set(range(expected_count)))
+                self.assertEqual(slots.count("active"), expected_count)
+                if expected_count == 5:
+                    self.assertEqual(set(selected), set(expected))
+
+    def test_saved_defense_is_reopened_and_read_before_any_continuation(self):
+        heroes = tuple(f"portrait:0:{index}" for index in range(5))
+        game = route.HeroDuelObservation(screen_state="defense_formation",
+            source_frame_sha256="a" * 64, displayed_hero_ids=heroes,
+            eligible_hero_ids=heroes, defense_hero_ids=heroes,
+            formation_slot_states=("active",) * 5)
+        for readback in (game, route.HeroDuelObservation(screen_state="hero_duel_overview",
+                source_frame_sha256="b" * 64)):
+            with self.subTest(readback=readback.screen_state):
+                calls = []
+                self.flow.vision.defense_saved = False
+                self.flow.capture = lambda _label: self.capture
+                self.flow.observe = lambda _captured: {"screen_state": "defense_formation"}
+                self.flow._navigation_tap = lambda *_args: (
+                    calls.append("reopen") or {"page": {"screen_state": "defense_formation"}})
+                self.flow._defense_back = lambda _label: (
+                    calls.append("back") or {"page": {"screen_state": "hero_duel_overview"}})
+                self.flow._effect = lambda **_kwargs: (
+                    calls.append("save") or {"status": "confirmed", "transport_calls": 1,
+                        "successor": self.capture})
+                with patch.object(self.flow, "_observation", side_effect=(game, readback)):
+                    result = self.flow._prepare_defense({"screen_state": "defense_formation"})
+                if readback is game:
+                    self.assertEqual(calls, ["save", "reopen", "back"])
+                    self.assertEqual(result["screen_state"], "hero_duel_overview")
+                else:
+                    self.assertEqual(calls, ["save", "reopen"])
+                    self.assertIsNone(result)
+                    self.assertFalse(self.flow.vision.defense_saved)
+
+    def test_walkthrough_exhausted_overview_uses_paid_cost_without_inventory_census(self):
+        source = Path(__file__).resolve().parents[2] / "Puzzle_Survival_Runtime_POC" / ".local-captures" / "manual-walkthrough-2026-11-09T04-42-35-490Z" / "0170-duel75-cycle3-overview-count.jpg"
+        if not source.is_file() or shutil.which("tesseract") is None:
+            self.skipTest("retained walkthrough frame and local OCR required")
+        window = cv2.imread(str(source))
+        self.assertIsNotNone(window)
+        image = cv2.resize(window[32:1212, :738], (800, 1280))
+        page = self.flow.vision.recognize(SimpleNamespace(frame=image))
+        self.assertEqual(page["screen_state"], "hero_duel_overview")
+        self.assertEqual(page["free_entries_remaining"], 0)
 
 
     def test_retained_actual_images_use_real_observer_when_evidence_and_ocr_exist(self):
