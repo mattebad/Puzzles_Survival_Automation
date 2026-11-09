@@ -195,6 +195,9 @@ class ShopOffer:
     ``price_shortage`` is the game's own red cost rendering: the row is unaffordable even
     when its numeric balance, stock or Owned fields are not read. Owned is optional display
     evidence only; no purchase decision or success proof depends on it.
+    For exact Timed Recruit Coin paid in Diamonds, ``balance`` may be the
+    conservative lower bound read from this visit's Home HUD; it is never the
+    Alliance Coin header balance. Product eligibility is not a premium budget grant.
     """
 
     shop_identity: str
@@ -250,10 +253,21 @@ def alliance_shop_choice(
         if (
             not row.recognized
             or row.shop_identity != ALLIANCE_WEEKLY_SHOP
-            or row.currency_identity != ALLIANCE_CURRENCY
-            or row.premium
+            or row.currency_identity not in (
+                (ALLIANCE_CURRENCY, "Diamonds")
+                if row.item_identity == "Timed Recruit Coin" else (ALLIANCE_CURRENCY,)
+            )
+            or (row.premium and row.currency_identity != "Diamonds")
         ):
             return AlliancePurchaseChoice("blocked", "PREFERRED_OFFER_EVIDENCE_CHANGED")
+        # A diamond quote cannot borrow the Alliance Coin header balance. If its
+        # current-visit balance is unreadable, it cannot displace an exact fallback.
+        if row.currency_identity == "Diamonds" and row.balance is None:
+            if (not _known_positive(row.unit_price) or not _known_nonnegative(row.stock)
+                    or type(row.available) is not bool or row.available != (row.stock > 0)):
+                return AlliancePurchaseChoice("blocked", "PREFERRED_OFFER_EVIDENCE_CHANGED")
+            matched[row.item_identity] = row
+            continue
         if not row.price_shortage and (
             type(row.available) is not bool
             or not _known_positive(row.unit_price)
@@ -266,7 +280,8 @@ def alliance_shop_choice(
     for item in ALLIANCE_WEEKLY_ITEMS:
         row = matched.get(item)
         if (row is not None and not row.price_shortage
-                and row.available and row.balance >= row.unit_price):
+                and row.available and _known_nonnegative(row.balance)
+                and row.balance >= row.unit_price):
             return AlliancePurchaseChoice("selected", "AFFORDABLE_PREFERRED_OFFER", row, 1)
     if not fallback_inventory_complete:
         return AlliancePurchaseChoice("blocked", "FALLBACK_INVENTORY_INCOMPLETE")
@@ -348,9 +363,9 @@ def purchase_dialog_matches(
     elif (
         offer.shop_identity == ALLIANCE_WEEKLY_SHOP
         and offer.item_identity in ALLIANCE_WEEKLY_ITEMS
-        and offer.currency_identity == ALLIANCE_CURRENCY
+        and (offer.currency_identity == ALLIANCE_CURRENCY and not offer.premium
+             or offer.item_identity == "Timed Recruit Coin" and offer.currency_identity == "Diamonds")
         and offer.recognized
-        and not offer.premium
         and not offer.price_shortage
         and offer.available is True
         and _known_nonnegative(offer.balance)

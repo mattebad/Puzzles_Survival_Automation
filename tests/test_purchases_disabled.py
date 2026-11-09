@@ -211,8 +211,6 @@ class ApprovedPurchasePolicyTests(unittest.TestCase):
             7, 10, 6, 2, rarity=1,
         )
         for changed in (
-            shop_offer(ALLIANCE_WEEKLY_SHOP, "Timed Recruit Coin", "Diamonds",
-                       1, 50, 2, 0),
             shop_offer(ALLIANCE_WEEKLY_SHOP, "Bioenhance Scheme", ALLIANCE_CURRENCY,
                        7, 10, 2, 0, premium=True),
             shop_offer(ALLIANCE_WEEKLY_SHOP, "Joy Coin", ALLIANCE_CURRENCY,
@@ -234,6 +232,30 @@ class ApprovedPurchasePolicyTests(unittest.TestCase):
             fallback_inventory_complete=True,
         )
         self.assertEqual((choice.status, choice.offer), ("selected", fallback))
+
+    def test_exact_timed_coin_uses_current_diamond_affordability_not_old_exclusion(self):
+        fallback = shop_offer(
+            ALLIANCE_OTHER_SHOP, ALLIANCE_FALLBACK_ITEM, ALLIANCE_CURRENCY,
+            7, 10, 6, 2, rarity=1,
+        )
+        timed = shop_offer(
+            ALLIANCE_WEEKLY_SHOP, "Timed Recruit Coin", "Diamonds",
+            1000, 1000, 5, 98, premium=True,
+        )
+        for balance, expected in ((1000, timed), (999, fallback), (None, fallback)):
+            row = replace(timed, balance=balance)
+            choice = alliance_shop_choice(
+                (row,), fallback, weekly_inventory_complete=True,
+                fallback_inventory_complete=True,
+            )
+            self.assertEqual(choice.offer, row if expected is timed else fallback)
+            self.assertEqual(choice.quantity, 1)
+        self.assertTrue(purchase_dialog_matches(
+            timed, quantity=1, selected_quantity=1, displayed_total=1000,
+        ))
+        self.assertFalse(purchase_dialog_matches(
+            timed, quantity=1, selected_quantity=1, displayed_total=999,
+        ))
 
     def test_alliance_inventory_ambiguity_and_fallback_limits_fail_closed(self):
         valid = shop_offer(

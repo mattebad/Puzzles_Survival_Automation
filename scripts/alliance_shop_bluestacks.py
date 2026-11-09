@@ -136,6 +136,7 @@ def _offer_readiness(offer: ShopOffer | None) -> Mapping[str, Any] | None:
         "balance": offer.balance,
         "stock": offer.stock,
         "rarity": offer.rarity,
+        "balance_semantics": "lower_bound" if offer.currency_identity == "Diamonds" else "exact",
         "available": offer.available,
         "premium": offer.premium,
         "recognized": offer.recognized,
@@ -211,6 +212,7 @@ class AllianceShopPurchaseRoute:
             "rarity": offer.rarity,
             "unit_price": offer.unit_price,
             "balance_before": offer.balance,
+            "balance_semantics": "lower_bound" if offer.currency_identity == "Diamonds" else "exact",
             "stock_before": offer.stock,
             "item_quantity_before": offer.item_quantity,
             "quantity": 1,
@@ -631,6 +633,7 @@ def _purchase_request_terms(action, request, reset_id):
     price = int(preconditions[3].removeprefix("unit_price="))
     stock = int(preconditions[4].removeprefix("stock="))
     balance = int(preconditions[5].removeprefix("balance="))
+    currency = preconditions[2].removeprefix("currency=")
     quantity = int(preconditions[6].removeprefix("quantity="))
     total = int(preconditions[7].removeprefix("total="))
     source = (
@@ -638,7 +641,7 @@ def _purchase_request_terms(action, request, reset_id):
         else "ALLIANCE_SHOP_OTHER_QUANTITY_DIALOG" if shop == "other" else None
     )
     expected_preconditions = (
-        f"shop={shop}", f"item={subject}", "currency=ALLIANCE_COINS",
+        f"shop={shop}", f"item={subject}", f"currency={currency}",
         f"unit_price={price}", f"stock={stock}", f"balance={balance}",
         "quantity=1", f"total={price}",
         f"alliance_shop_reset_id={reset_id}",
@@ -650,6 +653,9 @@ def _purchase_request_terms(action, request, reset_id):
     ) or (shop == "other" and subject == "one_star_gear_enhance_material")
     if (
         source is None or not allowed_subject or quantity != 1 or total != price
+        or currency not in {"ALLIANCE_COINS", "DIAMONDS"}
+        or (currency == "DIAMONDS" and (shop != "weekly_offers" or subject != "timed_recruit_coin"))
+        or action.get("cost_type") != currency
         or stock < 1 or balance < price
         or action.get("cost_amount") != price
         or request.get("task_id") != FLOW_ID
@@ -657,7 +663,7 @@ def _purchase_request_terms(action, request, reset_id):
         or request.get("action_kind") != "alliance_shop_purchase-v2"
         or request.get("semantic_action") != "PURCHASE_ALLIANCE_SHOP_OFFER"
         or request.get("subject") != subject
-        or request.get("resource_or_currency") != "ALLIANCE_COINS"
+        or request.get("resource_or_currency") != currency
         or request.get("maximum_cost") != price
         or request.get("free_only") is not False
         or request.get("semantic_preconditions") != list(expected_preconditions)
@@ -665,7 +671,7 @@ def _purchase_request_terms(action, request, reset_id):
         or request.get("allowed_confirmation_dialogs") != [source]
     ):
         return None
-    return {"shop": shop, "subject": subject, "unit_price": price, "stock": stock, "balance": balance}
+    return {"shop": shop, "subject": subject, "currency": currency, "unit_price": price, "stock": stock, "balance": balance}
 
 
 
@@ -681,6 +687,8 @@ class AllianceShopLivePort:
         self.currency_icons: dict[str, np.ndarray] = {}
         self.last_dialog = None
         self.offer_evidence = {}
+        self.diamond_balance = None
+        self.diamond_balance_source = None
         # Logical navigation identity: each (phase, step, exact source) dispatches at most once,
         # and a phase whose step made no positive progress never gets another blind attempt.
         self.navigation_keys: set[str] = set()
@@ -738,7 +746,6 @@ class AllianceShopLivePort:
             "target_identity": "alliance-shop:inner-buy",
             "game_day_id": self.context.identity.reset_id,
             "expected_postcondition": "ALLIANCE_SHOP_PURCHASE_RECONCILED",
-            "cost_type": "ALLIANCE_COINS",
             "quantity": 1,
             "runtime_profile_id": self.context.runtime_profile_id,
         }
@@ -785,7 +792,8 @@ class AllianceShopLivePort:
                 expected_tab = "weekly" if terms["shop"] == "weekly_offers" else "other"
                 row = ShopOffer(
                     "Weekly Offers" if expected_tab == "weekly" else "Other",
-                    item, "Alliance Coins", terms["unit_price"], terms["balance"], terms["stock"],
+                    item, "Diamonds" if terms["currency"] == "DIAMONDS" else "Alliance Coins",
+                    terms["unit_price"], terms["balance"], terms["stock"],
                 )
                 if (self._page(captured)[0] != expected_tab
                         or not purchase_acknowledged(
@@ -867,8 +875,12 @@ class AllianceShopLivePort:
         )
 
     def enter_weekly_offers(self):
-        if not self._home(self._capture("alliance-shop-home-source")):
+        source = self._capture("alliance-shop-home-source")
+        if not self._home(source):
             return False
+        from scripts.food_farm_boost_bluestacks import _home_diamond_balance
+        self.diamond_balance = _home_diamond_balance(source.frame)
+        self.diamond_balance_source = source
         from scripts.alliance_donation_bluestacks import _home_alliance_target
         def bind_home(before):
             if not self._home(before):
@@ -922,6 +934,14 @@ class AllianceShopLivePort:
             amount_words = _ocr_words(captured, (coin[2] + 1, y0, x1 - 2, mid + 2), psm=7)
             amounts = [(value, word) for line in _lines(amount_words) for value, word in _numbers(line)]
             price = amounts[0] if len(amounts) == 1 else None
+        diamond = None
+        if coin is None and item == "Timed Recruit Coin" and shop == "Weekly Offers" and _has(buy_words, "Buy"):
+            from scripts.food_farm_boost_bluestacks import _has_blue_diamond_before
+            words = _ocr_words(captured, (x0 + 2, y0, x1 - 2, mid + 2), psm=7)
+            amounts = [(value, word) for line in _lines(words) for value, word in _numbers(line)]
+            if len(amounts) == 1 and _has_blue_diamond_before(captured.frame, amounts[0][1]):
+                price = amounts[0]
+                diamond = True
         price_shortage = False
         if coin is not None and _has(buy_words, "Buy"):
             hsv = cv2.cvtColor(captured.frame[y0:mid + 2, coin[2] + 1:x1 - 2], cv2.COLOR_BGR2HSV)
@@ -938,22 +958,25 @@ class AllianceShopLivePort:
         balance_words = _ocr_words(captured, (610, 12, 750, 58), psm=7)
         balances = [value for line in _lines(balance_words) for value, _word in _numbers(line)]
         coin_known = coin is not None and _has(buy_words, "Buy")
-        balance = balances[0] if len(balances) == 1 and coin_known else None
+        balance = self.diamond_balance if diamond else balances[0] if len(balances) == 1 and coin_known else None
         if price is not None and coin_known:
             self.currency_icons[f"{shop}:{item}"] = _header_coin(captured)
         return ShopOffer(
             shop_identity=shop,
             item_identity=item,
-            currency_identity="Alliance Coins" if coin_known else "UNKNOWN",
+            currency_identity="Diamonds" if diamond else "Alliance Coins" if coin_known else "UNKNOWN",
             unit_price=price[0] if price else None,
             balance=balance,
             stock=stock,
             item_quantity=owned,
             rarity=rarity,
             available=(stock > 0 if stock is not None else None),
-            recognized=bool(coin_known and (price_shortage or (
-                balance is not None and price is not None and stock is not None
-            ))),
+            premium=bool(diamond),
+            recognized=bool((diamond and price is not None and stock is not None) or (
+                coin_known and (price_shortage or (
+                    balance is not None and price is not None and stock is not None
+                ))
+            )),
             offer_identity=f"{shop}:{item}",
             price_shortage=price_shortage,
         )
@@ -996,10 +1019,15 @@ class AllianceShopLivePort:
         offers = {}
         scanned = []
         def scan_result(complete, reason=""):
+            evidence = tuple(scanned)
+            if self.diamond_balance_source is not None and any(
+                row.currency_identity == "Diamonds" for row in offers.values()
+            ):
+                evidence += (self.diamond_balance_source,)
             return OfferScan(
                 tuple(offers.values()), complete, reason,
-                tuple(str(frame.path) for frame in scanned),
-                tuple(frame.sha256 for frame in scanned),
+                tuple(str(frame.path) for frame in evidence),
+                tuple(frame.sha256 for frame in evidence),
             )
         for ordinal in range(5):
             captured = self._capture(f"alliance-shop-weekly-scan-{ordinal + 1}")
@@ -1094,6 +1122,12 @@ class AllianceShopLivePort:
             totals = [value for line in _lines(words) for value, _word in _numbers(line)]
             if len(words) == 2 and _norm(words[0].text) == "total" and len(totals) == 1:
                 total = totals[0]
+        if offer.currency_identity == "Diamonds":
+            from scripts.food_farm_boost_bluestacks import _has_blue_diamond_before
+            words = _ocr_words(captured, (max(0, title[0] - 40), title[3], 760, layout.select[1]), psm=7)
+            amounts = [(value, word) for line in _lines(words) for value, word in _numbers(line)]
+            if _has(words, "Total") and len(amounts) == 1 and _has_blue_diamond_before(captured.frame, amounts[0][1]):
+                total = amounts[0][0]
         return QuantityDialog(
             offer.shop_identity, offer.item_identity,
             offer.currency_identity if total is not None else "UNKNOWN",
@@ -1190,7 +1224,10 @@ def _purchase_alliance_offer(context, port, offer, dialog, action_key, *, settle
         "weekly_offers": {"joy_coin", "timed_recruit_coin", "bioenhance_scheme"},
         "other": {"one_star_gear_enhance_material"},
     }
-    if subject not in expected_subjects[shop] or offer.currency_identity != "Alliance Coins":
+    currency = "DIAMONDS" if offer.currency_identity == "Diamonds" else "ALLIANCE_COINS"
+    if (subject not in expected_subjects[shop]
+            or offer.currency_identity not in {"Alliance Coins", "Diamonds"}
+            or (currency == "DIAMONDS" and (shop != "weekly_offers" or subject != "timed_recruit_coin"))):
         return PurchaseEffect(
             "blocked", None, False, 0, None, None, None, "", "", False,
             action_key=action_key, reason="ALLIANCE_POLICY_ITEM_OR_CURRENCY_NOT_ALLOWLISTED",
@@ -1236,7 +1273,7 @@ def _purchase_alliance_offer(context, port, offer, dialog, action_key, *, settle
         ambiguous=False,
         control_class="BUY",
         consequence="alliance_shop_purchase",
-        cost_type="ALLIANCE_COINS",
+        cost_type=currency,
         cost_amount=offer.unit_price,
         quantity=1,
         expected_postcondition=postcondition,
@@ -1255,7 +1292,7 @@ def _purchase_alliance_offer(context, port, offer, dialog, action_key, *, settle
     preconditions = (
         f"shop={shop}",
         f"item={subject}",
-        "currency=ALLIANCE_COINS",
+        f"currency={currency}",
         f"unit_price={offer.unit_price}",
         f"stock={offer.stock}",
         f"balance={offer.balance}",
@@ -1285,7 +1322,7 @@ def _purchase_alliance_offer(context, port, offer, dialog, action_key, *, settle
         action_class=ActionClass.SPEND_OR_STRATEGIC,
         action_kind="alliance_shop_purchase-v2",
         subject=subject,
-        resource_or_currency="ALLIANCE_COINS",
+        resource_or_currency=currency,
         maximum_cost=offer.unit_price,
         free_only=False,
         allowed_confirmation_dialogs=(source_state,),
@@ -1296,6 +1333,8 @@ def _purchase_alliance_offer(context, port, offer, dialog, action_key, *, settle
     policy = CentralPolicy({FLOW_ID})
     offer_source = port.offer_evidence.get(offer.item_identity)
     frames = {"policy_source": page_source, "current": page_source, "offer_source": offer_source}
+    if currency == "DIAMONDS":
+        frames["balance_source"] = port.diamond_balance_source
     effect_data: dict[str, Any] = {}
 
     def as_observation(captured, *, source, roi, positive=False):
@@ -1324,7 +1363,7 @@ def _purchase_alliance_offer(context, port, offer, dialog, action_key, *, settle
             ambiguous=not positive,
             control_class="BUY" if bound_target else None,
             consequence="alliance_shop_purchase" if positive else None,
-            cost_type="ALLIANCE_COINS" if positive else None,
+            cost_type=currency if positive else None,
             cost_amount=offer.unit_price if positive else None,
             quantity=1 if positive else None,
             expected_postcondition=postcondition if positive else None,
@@ -1369,7 +1408,7 @@ def _purchase_alliance_offer(context, port, offer, dialog, action_key, *, settle
             black=not bool(np.any(captured.frame)), source_state=source_state,
             overlay_state="none", target_identity=target_identity, target_roi=roi,
             recognized=True, clipped=False, ambiguous=False, control_class="BUY",
-            consequence="alliance_shop_purchase", cost_type="ALLIANCE_COINS",
+            consequence="alliance_shop_purchase", cost_type=currency,
             cost_amount=offer.unit_price, quantity=1, expected_postcondition=postcondition,
             evidence_refs=(str(captured.path),),
             critical_roi_hashes=(("inner-buy", hashlib.sha256(captured.frame[top:bottom, left:right].tobytes()).hexdigest()),),

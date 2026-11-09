@@ -564,72 +564,69 @@ class DailyShopsNativeReplayTests(unittest.TestCase):
 
 
 
-class RuinsOverviewActualPixelTests(unittest.TestCase):
+class DailyShopEntryBoundaryTests(unittest.TestCase):
     @requires_tesseract
-    def test_actual_overview_binds_exchange_without_claiming_ready_chests(self):
+    def test_ruins_overview_is_not_owned_shop_navigation(self):
         source = Path(__file__).resolve().parent / "fixtures/daily_shop_entry/ruins-overview-successor.png"
         with tempfile.TemporaryDirectory() as directory:
             store = SafetyStore(Path(directory) / "actions.sqlite3")
             try:
                 port, runtime = native_daily_shop_entry_port(directory, store, source)
-                synthetic_successor = port._ocr
-
-                def current_source_ocr(captured):
-                    if runtime.state == "home":
-                        return DailyShopsLivePort._ocr(port, captured)
-                    return synthetic_successor(captured)
-
-                port._ocr = current_source_ocr
-                self.assertTrue(port._tap_text(
-                    "Exchange", "daily-shops:ruins-exchange",
-                    lambda after: port._page(after)[0] == RUINS_TAB,
-                ))
-                self.assertEqual(runtime.taps, ["daily-shops:ruins-exchange"])
-                self.assertEqual(runtime.input_count, 1)
-            finally:
-                store.close()
-
-    @requires_tesseract
-    def test_missing_exchange_does_not_authorize_overview_navigation(self):
-        import cv2
-        source = Path(__file__).resolve().parent / "fixtures/daily_shop_entry/ruins-overview-successor.png"
-        with tempfile.TemporaryDirectory() as directory:
-            frame = cv2.imread(str(source))
-            frame[100:175, 190:375] = 0
-            masked = Path(directory) / "exchange-not-visible.png"
-            self.assertTrue(cv2.imwrite(str(masked), frame))
-            store = SafetyStore(Path(directory) / "actions.sqlite3")
-            try:
-                port, runtime = native_daily_shop_entry_port(directory, store, masked)
                 port._ocr = lambda captured: DailyShopsLivePort._ocr(port, captured)
-                self.assertFalse(port._tap_text(
-                    "Exchange", "daily-shops:ruins-exchange", lambda _after: True,
-                ))
+                self.assertEqual(port._page(runtime.capture("overview"))[0], "unknown")
+                self.assertFalse(port.return_home())
+                self.assertEqual(runtime.backs, [])
                 self.assertEqual(runtime.taps, [])
-                self.assertEqual(runtime.input_count, 0)
             finally:
                 store.close()
 
-    @requires_tesseract
-    def test_owned_overview_returns_home_but_unknown_context_sends_no_back(self):
-        root = Path(__file__).resolve().parents[1]
-        source = root / "tests/fixtures/daily_shop_entry/ruins-overview-successor.png"
-        home = root / "tasks/assets/home_atlas/bluestacks/800x1280/tiles/viewport-001.png"
-        for recognized in (True, False):
-            with self.subTest(recognized=recognized), tempfile.TemporaryDirectory() as directory:
-                store = SafetyStore(Path(directory) / "actions.sqlite3")
-                try:
-                    port, runtime = native_daily_shop_entry_port(
-                        directory, store, source, home_source=home,
-                    )
-                    if not recognized:
-                        runtime.state = "unknown"
-                    self.assertEqual(port.return_home(), recognized)
-                    self.assertEqual(len(runtime.backs), int(recognized))
-                    self.assertEqual(runtime.input_count, int(recognized))
-                    self.assertEqual(runtime.taps, [])
-                finally:
-                    store.close()
+    def test_unchanged_mystery_strip_does_not_repeat_reveal(self):
+        port = object.__new__(DailyShopsLivePort)
+        frame = SimpleNamespace(sha256="same", frame=np.zeros((1280, 800, 3), dtype=np.uint8))
+        port._capture = lambda _label: frame
+        port._page = lambda _capture: ("mystery_shop", ())
+        port._selector_labels = lambda _lines, _label: []
+        port.context = SimpleNamespace(checkpoint=lambda: None)
+        swipes = []
+        port.runtime = SimpleNamespace(swipe=lambda *args, **kwargs: swipes.append(kwargs))
+        port.settle_seconds = 0
+        self.assertFalse(port._select_ruins_tab())
+        self.assertEqual(len(swipes), 1)
+
+    def test_endpoint_99_requires_plus_and_numeric_100_before_buy(self):
+        port = object.__new__(DailyShopsLivePort)
+        row = offer(RUINS_TAB)
+        port.last_dialog = (RUINS_TAB, row, None)
+        quantities = iter((1, 99, 100))
+        port._capture = lambda label: SimpleNamespace(sha256=label)
+        port._dialog = lambda captured, offer: QuantityDialog(
+            offer.shop_identity, offer.item_identity, offer.currency_identity,
+            offer.unit_price, (quantity := next(quantities)),
+            quantity * offer.unit_price, (300, 700, 500, 750),
+        )
+        minus, plus = (100, 600, 140, 640), (600, 600, 640, 640)
+        port._slider_track = lambda *_args: (150, 620, 590, 620, minus, plus)
+        port.context = SimpleNamespace(checkpoint=lambda: None)
+        swipes, corrections = [], []
+        port.runtime = SimpleNamespace(swipe=lambda *args, **kwargs: swipes.append(kwargs))
+        port._tap = lambda source, roi, *_args: corrections.append(roi) or True
+        dialog = port.select_quantity(RUINS_TAB, row, 100, None)
+        self.assertEqual(len(swipes), 1)
+        self.assertEqual(corrections, [plus])
+        self.assertEqual((dialog.selected_quantity, dialog.total), (100, 1500))
+
+    def test_offscreen_selected_tab_allows_only_exact_ruins_selector_navigation(self):
+        port = object.__new__(DailyShopsLivePort)
+        captured = SimpleNamespace(sha256="strip", frame=np.zeros((1280, 800, 3), dtype=np.uint8))
+        lines = ((("Shop", (300, 15, 450, 55)),),
+                 (("Ruins", (200, 180, 250, 210)), ("Shop", (255, 180, 300, 210))))
+        port._capture = lambda _label: captured
+        port._page = lambda _capture: ("unknown", lines)
+        taps = []
+        port._tap = lambda source, roi, target, *args: taps.append((roi, target)) or True
+        self.assertTrue(port._select_ruins_tab())
+        self.assertEqual(taps, [((200, 180, 300, 210), "daily-shops:ruins-tab")])
+
 
 
 class DailyShopActualSelectorTests(unittest.TestCase):
@@ -803,7 +800,7 @@ class NativeDailyShopEntryRuntime:
         if self.state == "home":
             frame = cv2.imread(str(self.source))
         else:
-            marker = {"unknown": 0, "overview": 31, "shop": 63}[self.state]
+            marker = {"unknown": 0, "mystery": 31, "shop": 63}[self.state]
             frame = np.full((1280, 800, 3), marker, dtype=np.uint8)
         # Deliberately encode a different PNG representation than frame_digest.
         ok, encoded = cv2.imencode(".png", frame, [cv2.IMWRITE_PNG_COMPRESSION, 1])
@@ -817,8 +814,8 @@ class NativeDailyShopEntryRuntime:
         self.input_count += 1
         self.taps.append(target["target_identity"])
         self.state = {
-            "home.building.ruins": "overview",
-            "daily-shops:ruins-exchange": "shop",
+            "home.building.mystery_shop": "mystery",
+            "daily-shops:ruins-tab": "shop",
         }[target["target_identity"]]
 
     def swipe(self, captured, **gesture):
@@ -890,7 +887,7 @@ def native_daily_shop_entry_port(directory, store, source, *, lease_held=True, *
     def successor_ocr(captured):
         marker = int(captured.frame[0, 0, 0])
         phrases = {
-            31: ("Ruins Challenge", "Exchange"),
+            31: ("Mystery Shop", "Ruins Shop"),
             63: ("3★ Chip Enhance Material",),
         }.get(marker, ())
         return tuple(
@@ -900,6 +897,15 @@ def native_daily_shop_entry_port(directory, store, source, *, lease_held=True, *
             for row, phrase in enumerate(phrases)
         )
     port._ocr = successor_ocr
+    native_page = port._page
+    def successor_page(captured):
+        marker = int(captured.frame[0, 0, 0])
+        if marker == 31:
+            lines = ((("Ruins", (200, 180, 250, 210)),
+                      ("Shop", (255, 180, 300, 210))),)
+            return "mystery_shop", lines
+        return native_page(captured)
+    port._page = successor_page
     return port, runtime
 
 
@@ -915,33 +921,33 @@ class DailyShopMappedEntryTests(unittest.TestCase):
             ),
         ))
 
-    def test_native_visible_binding_uses_semantic_not_transport_digest_and_exchange(self):
+    def test_native_visible_mystery_binding_uses_semantic_not_transport_digest(self):
         from tasks.home_atlas_vision import frame_digest
         with tempfile.TemporaryDirectory() as directory:
             store = SafetyStore(Path(directory) / "actions.sqlite3")
             try:
                 port, runtime = native_daily_shop_entry_port(
-                    directory, store, self.TILES / "viewport-001.png",
+                    directory, store, self.TILES / "viewport-003.png",
                 )
                 source = runtime.capture("digest-proof")
                 self.assertNotEqual(source.sha256, frame_digest(source.frame))
-                self.assertIsNotNone(port._mapped_ruins(source.frame))
+                self.assertIsNotNone(port._mapped_mystery_shop(source.frame))
                 self.assertTrue(port.enter_ruins_shop())
                 self.assertEqual(runtime.taps, [
-                    "home.building.ruins", "daily-shops:ruins-exchange",
+                    "home.building.mystery_shop", "daily-shops:ruins-tab",
                 ])
                 self.assertEqual(runtime.swipes, [])
                 self.assertEqual(port.current_tab, RUINS_TAB)
             finally:
                 store.close()
 
-    def test_unverified_overview_or_exchange_never_advances_to_shop(self):
-        for denied_target in ("home.building.ruins", "daily-shops:ruins-exchange"):
+    def test_unverified_mystery_shop_or_ruins_tab_never_advances(self):
+        for denied_target in ("home.building.mystery_shop", "daily-shops:ruins-tab"):
             with self.subTest(target=denied_target), tempfile.TemporaryDirectory() as directory:
                 store = SafetyStore(Path(directory) / "actions.sqlite3")
                 try:
                     port, runtime = native_daily_shop_entry_port(
-                        directory, store, self.TILES / "viewport-001.png",
+                        directory, store, self.TILES / "viewport-003.png",
                     )
                     tap = runtime.tap
                     def unknown_successor(captured, **target):
@@ -950,8 +956,8 @@ class DailyShopMappedEntryTests(unittest.TestCase):
                             runtime.state = "unknown"
                     runtime.tap = unknown_successor
                     self.assertFalse(port.enter_ruins_shop())
-                    expected = (["home.building.ruins"] if denied_target == "home.building.ruins"
-                                else ["home.building.ruins", "daily-shops:ruins-exchange"])
+                    expected = (["home.building.mystery_shop"] if denied_target == "home.building.mystery_shop"
+                                else ["home.building.mystery_shop", "daily-shops:ruins-tab"])
                     self.assertEqual(runtime.taps, expected)
                     self.assertEqual(port.current_tab, "")
                 finally:
@@ -969,20 +975,20 @@ class DailyShopMappedEntryTests(unittest.TestCase):
             finally:
                 store.close()
 
-    def test_actual_source_sdk_zoom_then_native_binding_and_exchange(self):
+    def test_actual_source_sdk_zoom_then_native_mystery_binding(self):
         source = self.ROOT / "tests/fixtures/daily_shop_entry/canonical-home-source.png"
         with tempfile.TemporaryDirectory() as directory:
             store = SafetyStore(Path(directory) / "actions.sqlite3")
             try:
                 port, runtime = native_daily_shop_entry_port(
                     directory, store, source,
-                    zoom_successor=self.TILES / "viewport-001.png",
+                    zoom_successor=self.TILES / "viewport-003.png",
                 )
                 self.assertTrue(port.enter_ruins_shop())
                 self.assertEqual(len(runtime.zooms), 1)
                 self.assertEqual(runtime.input_count, 3)
                 self.assertEqual(runtime.taps, [
-                    "home.building.ruins", "daily-shops:ruins-exchange",
+                    "home.building.mystery_shop", "daily-shops:ruins-tab",
                 ])
                 self.assertEqual(runtime.swipes, [])
             finally:
@@ -1089,7 +1095,7 @@ class DailyShopMappedEntryTests(unittest.TestCase):
                 for successor in (cv2.imread(str(runtime.source)),
                                   np.zeros((1280, 800, 3), dtype=np.uint8)):
                     navigator = DirectPanNavigator(
-                        atlas, "home.building.ruins", safe, calibration, maximum_pans=1,
+                        atlas, "home.building.mystery_shop", safe, calibration, maximum_pans=1,
                     )
                     plan = navigator.plan(initial)
                     self.assertIs(plan.disposition, PlanDisposition.PAN)
@@ -1099,7 +1105,7 @@ class DailyShopMappedEntryTests(unittest.TestCase):
                     )
                     progress = navigator.record_progress(initial, localizer.localize(successor))
                     self.assertFalse(progress.accepted)
-                    self.assertIsNone(port._mapped_ruins(successor))
+                    self.assertIsNone(port._mapped_mystery_shop(successor))
                     self.assertEqual(runtime.taps, [])
             finally:
                 store.close()

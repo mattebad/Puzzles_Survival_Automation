@@ -130,14 +130,15 @@ def _validate_offer_evidence(row: Any, *, shop: str, item: str, rarity: int | No
         raise ValueError("Alliance Shop selection offer evidence is malformed")
     price, balance, stock = row.get("unit_price"), row.get("balance"), row.get("stock")
     available = row.get("available")
+    timed_diamonds = shop == ALLIANCE_WEEKLY_SHOP and item == "Timed Recruit Coin" and row.get("currency_identity") == "Diamonds"
     if (
         row.get("shop_identity") != shop or row.get("item_identity") != item
-        or row.get("currency_identity") != ALLIANCE_CURRENCY or row.get("rarity") != rarity
-        or row.get("recognized") is not True or row.get("premium") is not False
+        or (row.get("currency_identity") != ALLIANCE_CURRENCY and not timed_diamonds) or row.get("rarity") != rarity
+        or row.get("recognized") is not True or (row.get("premium") is not False and not timed_diamonds)
         or not isinstance(row.get("offer_identity"), str) or not row["offer_identity"]
         or (row.get("price_shortage") is not True and (
             type(price) is not int or price <= 0
-            or type(balance) is not int or balance < 0
+            or (not (timed_diamonds and balance is None) and (type(balance) is not int or balance < 0))
             or type(stock) is not int or stock < 0
             or type(available) is not bool or available != (stock > 0)))
     ):
@@ -183,6 +184,7 @@ def _validate_selection_evidence(result: Mapping[str, Any], selected: Mapping[st
             raise ValueError("Alliance Shop Weekly selection contains an unrelated fallback scan")
         matching = [row for row in weekly_offers if row.get("item_identity") == item]
         if (len(matching) != 1 or matching[0].get("price_shortage") is True or not matching[0].get("available")
+                or type(matching[0].get("balance")) is not int
                 or matching[0].get("balance", 0) < matching[0].get("unit_price", 1)
                 or not _selected_offer_matches_row(selected, matching[0])):
             raise ValueError("Alliance Shop Weekly purchase was not the exact affordable scanned offer")
@@ -215,7 +217,8 @@ def _validate_selection_evidence(result: Mapping[str, Any], selected: Mapping[st
 
 def _validate_unaffordable_offer(row: Any, *, shop: str, item: str, rarity: int | None) -> None:
     _validate_offer_evidence(row, shop=shop, item=item, rarity=rarity)
-    if row.get("price_shortage") is not True and row["available"] and row["balance"] >= row["unit_price"]:
+    if (row.get("price_shortage") is not True and row["available"]
+            and row["balance"] is not None and row["balance"] >= row["unit_price"]):
         raise ValueError("Alliance Shop offer is affordable")
 
 
@@ -282,7 +285,10 @@ def alliance_shop_next_due(
                 or type(offer.get("balance_before")) is not int
                 or offer["balance_before"] < offer["unit_price"]
                 or type(offer.get("stock_before")) is not int or offer["stock_before"] < 1
-                or offer.get("currency_identity") != ALLIANCE_CURRENCY
+                or (offer.get("currency_identity") != ALLIANCE_CURRENCY and not (
+                    offer.get("shop_identity") == ALLIANCE_WEEKLY_SHOP
+                    and offer.get("item_identity") == "Timed Recruit Coin"
+                    and offer.get("currency_identity") == "Diamonds"))
                 or not isinstance(offer.get("offer_identity"), str) or not offer["offer_identity"]):
             raise ValueError("Alliance Shop completion lacks its exact paired purchase proof")
         shop, item, rarity = offer.get("shop_identity"), offer.get("item_identity"), offer.get("rarity")

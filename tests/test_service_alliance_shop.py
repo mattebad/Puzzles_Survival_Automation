@@ -158,6 +158,26 @@ def fallback_purchase_result(*, weekly_balance=1000, weekly_complete=True):
 
 
 class AllianceShopServiceAdapterTests(unittest.TestCase):
+    def test_timed_diamond_affordability_and_exact_currency_admission(self):
+        from automation_service.alliance_shop import _validate_offer_evidence, _validate_unaffordable_offer
+        row = {
+            "shop_identity": "Weekly Offers", "item_identity": "Timed Recruit Coin",
+            "currency_identity": "Diamonds", "unit_price": 1000, "balance": 1000,
+            "stock": 5, "available": True, "rarity": None, "premium": True,
+            "recognized": True, "offer_identity": "Weekly Offers:Timed Recruit Coin",
+        }
+        _validate_offer_evidence(row, shop="Weekly Offers", item="Timed Recruit Coin", rarity=None)
+        with self.assertRaises(ValueError):
+            _validate_unaffordable_offer(row, shop="Weekly Offers", item="Timed Recruit Coin", rarity=None)
+        for balance in (999, None):
+            _validate_unaffordable_offer(
+                {**row, "balance": balance}, shop="Weekly Offers", item="Timed Recruit Coin", rarity=None,
+            )
+        with self.assertRaises(ValueError):
+            _validate_offer_evidence(
+                {**row, "item_identity": "Int. Recruit Coin"}, shop="Weekly Offers", item="Int. Recruit Coin", rarity=None,
+            )
+
     def _identity(self, now=1_700_000_000.0):
         binding = resource_fixed_runtime_binding()
         backend = derive_resource_runtime_identity(binding, datetime.fromtimestamp(now, timezone.utc))

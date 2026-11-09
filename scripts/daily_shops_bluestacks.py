@@ -280,7 +280,7 @@ class DailyShopsPurchaseRoute:
         if not self.port.enter_ruins_shop():
             self.result.reason = getattr(
                 self.port, "entry_reason", ""
-            ) or "RUINS_SHOP_HOME_ATLAS_PATH_NOT_VERIFIED"
+            ) or "DAILY_SHOPS_MYSTERY_SHOP_HOME_ATLAS_PATH_NOT_VERIFIED"
             self.result.home_return_attempted = True
             self.result.home_returned = self.port.return_home()
             self.result.terminal_home_verified = self.result.home_returned
@@ -355,7 +355,7 @@ def run_daily_shops_route(
 
     return DailyShopsPurchaseRoute(port, action_keys=action_keys).run().to_mapping()
 class DailyShopsLivePort:
-    """Mapped Ruins entry, exact current-frame shop binding and purchase acknowledgement."""
+    """Mapped Mystery Shop entry and exact current-frame purchase acknowledgement."""
 
     def __init__(self, context, *, action_keys: Mapping[str, str], settle_seconds: float):
         self.context, self.session, self.runtime = context, context.session, context.runtime
@@ -511,6 +511,12 @@ class DailyShopsLivePort:
                 tab for tab, labels in (
                     (RUINS_TAB, self._hits(selectors, "Ruins Shop")),
                     (RARE_EARTH_TAB, rare_labels),
+                    ("mystery_shop", self._hits(selectors, "Mystery Shop")),
+                    ("other_shop", [
+                        roi for label in ("Fan Shop", "Curio Shop", "Skin Shop",
+                                          "Reservoir Shop", "Flag Capture Shop", "Prison Shop")
+                        for roi in self._hits(selectors, label)
+                    ]),
                 )
                 for roi in labels if self._shop_selected(captured.frame, roi)
             ]
@@ -520,18 +526,6 @@ class DailyShopsLivePort:
             return "ruins", lines
         if self._hits(lines, "3★ Module Enhance Material"):
             return "rare_earth", lines
-        if self._hits(lines, "Ruins Challenge") and self._hits(lines, "Exchange"):
-            return "ruins_challenge", lines
-        from tasks.ruins_challenge_vision import (
-            RUINS_OVERVIEW_CONTROLS_ROI, RUINS_OVERVIEW_HEADER_ROI,
-        )
-        navigation = (
-            self._ocr_region(captured.frame, RUINS_OVERVIEW_HEADER_ROI, psm=7)
-            + self._ocr_region(captured.frame, RUINS_OVERVIEW_CONTROLS_ROI)
-        )
-        if self._hits(navigation, "Ruins Challenge") and self._hits(navigation, "Exchange"):
-            body = tuple(line for line in lines if all(word[1][1] >= 210 for word in line))
-            return "ruins_challenge", navigation + body
         if self.context.is_clean_home(captured.frame):
             return "home", lines
         return "unknown", lines
@@ -549,17 +543,6 @@ class DailyShopsLivePort:
             time.sleep(self.settle_seconds)
         return bool(recognize(self._capture(f"daily-shops-{target_identity.replace(':', '-')}-settled")))
 
-    def _tap_text(self, label, target_identity, recognize):
-        before = self._capture(f"daily-shops-{label.replace(' ', '-')}-source")
-        _page, lines = self._page(before)
-        matches = self._hits(lines, label)
-        if len(matches) != 1:
-            return False
-        return self._tap(
-            before, matches[0], target_identity,
-            f"daily-shops:{target_identity}:{before.sha256}",
-            lambda after: bool(recognize(after)),
-        )
 
     def _home_mapping(self):
         from pathlib import Path
@@ -571,12 +554,12 @@ class DailyShopsLivePort:
             self._home_localizer = BlueStacksHomeLocalizer(self._home_atlas, atlas_path)
         return self._home_atlas, self._home_localizer
 
-    def _mapped_ruins(self, frame):
+    def _mapped_mystery_shop(self, frame):
         from tasks.home_atlas_vision import bind_visible_building, frame_digest
         atlas, localizer = self._home_mapping()
         localization = localizer.localize(frame)
         binding = bind_visible_building(
-            frame, localization, atlas.lookup_building("home.building.ruins"),
+            frame, localization, atlas.lookup_building("home.building.mystery_shop"),
             home_is_clean=self.context.is_clean_home,
         )
         # Atlas bindings use the decoded-frame semantic digest, not the native
@@ -607,10 +590,10 @@ class DailyShopsLivePort:
             self.entry_reason = f"DAILY_SHOPS_ENTRY_DEFERRED:{exc}"
             return None
 
-    def _open_ruins_shop(self):
+    def _open_mapped_shop(self):
         from scripts.home_atlas_bluestacks import bind_or_pan_mapped_home_building
         self.entry_reason = ""
-        home = self._capture("daily-shops-ruins-home-source")
+        home = self._capture("daily-shops-mystery-shop-home-source")
         if not self.context.is_clean_home(home.frame):
             self.entry_reason = "DAILY_SHOPS_ENTRY_REQUIRES_CLEAN_HOME"
             return False
@@ -620,31 +603,80 @@ class DailyShopsLivePort:
         atlas, localizer = self._home_mapping()
         home, binding, reason = bind_or_pan_mapped_home_building(
             self.context, current=home, atlas=atlas, localizer=localizer,
-            building_id="home.building.ruins", product_id=PRODUCT_ID,
-            binding_for_frame=self._mapped_ruins, maximum_pans=8,
+            building_id="home.building.mystery_shop", product_id=PRODUCT_ID,
+            binding_for_frame=self._mapped_mystery_shop, maximum_pans=8,
         )
         if home is None or binding is None:
             self.entry_reason = f"DAILY_SHOPS_ENTRY_DEFERRED:{reason}"
             return False
         if not self._tap(
-            home, tuple(binding.target_roi), "home.building.ruins",
-            f"daily-shops:home-ruins:{home.sha256}",
-            lambda after: self._page(after)[0] == "ruins_challenge",
+            home, tuple(binding.target_roi), "home.building.mystery_shop",
+            f"daily-shops:home-mystery-shop:{home.sha256}",
+            lambda after: self._page(after)[0] == "mystery_shop",
         ):
-            self.entry_reason = "DAILY_SHOPS_RUINS_OVERVIEW_NOT_VERIFIED"
+            self.entry_reason = "DAILY_SHOPS_MYSTERY_SHOP_SUCCESSOR_NOT_VERIFIED"
             return False
-        if not self._tap_text(
-            "Exchange", "daily-shops:ruins-exchange",
-            lambda after: self._page(after)[0] == "ruins",
-        ):
-            self.entry_reason = "DAILY_SHOPS_EXCHANGE_SUCCESSOR_NOT_VERIFIED"
+        if not self._select_ruins_tab():
+            self.entry_reason = "DAILY_SHOPS_RUINS_TAB_NOT_VERIFIED"
             return False
         self.current_tab = "ruins"
         return True
 
     def enter_ruins_shop(self):
         self.backend_identity = getattr(self.context, "backend_identity", None)
-        return self._open_ruins_shop()
+        return self._open_mapped_shop()
+
+    def _select_ruins_tab(self):
+        """Reveal the earlier tabs once per changed strip, then bind the exact label."""
+        import hashlib
+        seen_strips = set()
+        def owns_selector(page, lines):
+            if page in {"mystery_shop", "other_shop", RUINS_TAB, RARE_EARTH_TAB}:
+                return True
+            # Scrolling can move the selected tab offscreen. Only this bounded
+            # selector reveal admits the Shop shell; purchases still need a tab.
+            header = tuple(line for line in lines if all(word[1][3] <= 65 for word in line))
+            return page == "unknown" and bool(self._hits(header, "Shop")) and any(
+                self._selector_labels(lines, label)
+                for label in ("Mystery Shop", "Fan Shop", "Curio Shop", "Skin Shop",
+                              "Reservoir Shop", "Flag Capture Shop", "Prison Shop",
+                              "Ruins Shop", "Rare Earth Shop")
+            )
+        for ordinal in range(9):
+            source = self._capture("daily-shops-ruins-selector-source")
+            page, lines = self._page(source)
+            if page == RUINS_TAB:
+                return True
+            if not owns_selector(page, lines):
+                return False
+            strip_digest = hashlib.sha256(source.frame[90:230].tobytes()).hexdigest()
+            if strip_digest in seen_strips:
+                return False
+            seen_strips.add(strip_digest)
+            labels = self._selector_labels(lines, "Ruins Shop")
+            if len(labels) == 1:
+                return self._tap(
+                    source, labels[0], "daily-shops:ruins-tab",
+                    f"daily-shops:ruins-tab:{source.sha256}",
+                    lambda after: self._page(after)[0] == RUINS_TAB,
+                )
+            if labels or ordinal == 8:
+                return False
+            self.context.checkpoint()
+            self.runtime.swipe(
+                source, start=(220, 145), end=(500, 145),
+                action_key=f"daily-shops:reveal-ruins:{ordinal}:{source.sha256}",
+                target_identity="daily-shops:shop-selector",
+            )
+            if self.settle_seconds:
+                import time
+                time.sleep(self.settle_seconds)
+            after = self._capture("daily-shops-ruins-selector-successor")
+            after_page, after_lines = self._page(after)
+            if (hashlib.sha256(after.frame[90:230].tobytes()).hexdigest() == strip_digest
+                    or not owns_selector(after_page, after_lines)):
+                return False
+        return False
 
     def _read_offer(self, captured, tab):
         lines = self._ocr(captured)
@@ -773,7 +805,7 @@ class DailyShopsLivePort:
                     or request.get("task_mode") != "supervised_validation"
                     or request.get("game_day_id") != self.context.identity.reset_id
                     or request.get("semantic_action") != "PURCHASE_DAILY_SHOP_MATERIAL"
-                    or request.get("action_kind") != PRODUCT_REVISION
+                    or request.get("action_kind") != "daily_shops_purchase-v1"
                     or request.get("action_class") != "spend_or_strategic"
                     or request.get("subject") != item
                     or request.get("resource_or_currency") != currency
@@ -1028,29 +1060,19 @@ class DailyShopsLivePort:
                                      settle_seconds=self.settle_seconds)
 
 
-    def _back(self):
-        captured = self._capture("daily-shops-back-source")
-        page = self._page(captured)[0]
-        if page not in {RUINS_TAB, RARE_EARTH_TAB, "ruins_challenge"}:
-            return False
-        self.context.checkpoint()
-        self.runtime.back(captured, action_key=f"daily-shops:back:{captured.sha256}")
-        after = self._capture("daily-shops-back-successor")
-        return self._page(after)[0] in {RUINS_TAB, RARE_EARTH_TAB, "ruins_challenge", "home"}
-
     def return_home(self):
         for _ in range(3):
             captured = self._capture("daily-shops-terminal-home-source")
             if self.context.is_clean_home(captured.frame):
                 return True
-            if self._page(captured)[0] not in {RUINS_TAB, RARE_EARTH_TAB, "ruins_challenge"}:
+            if self._page(captured)[0] not in {RUINS_TAB, RARE_EARTH_TAB, "mystery_shop", "other_shop"}:
                 return False
             self.context.checkpoint()
             self.runtime.back(captured, action_key=f"daily-shops:return-home:{captured.sha256}")
             successor = self._capture("daily-shops-return-home-successor")
             if self.context.is_clean_home(successor.frame):
                 return True
-            if self._page(successor)[0] not in {RUINS_TAB, RARE_EARTH_TAB, "ruins_challenge"}:
+            if self._page(successor)[0] not in {RUINS_TAB, RARE_EARTH_TAB, "mystery_shop", "other_shop"}:
                 return False
         return self.context.is_clean_home(self._capture("daily-shops-terminal-home-final").frame)
 

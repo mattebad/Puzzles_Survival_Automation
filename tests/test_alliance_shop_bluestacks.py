@@ -238,6 +238,23 @@ def native_menu_entry_smoke(directory, *, shop_pixels=False):
 
 
 class AllianceShopEntryPixelTests(unittest.TestCase):
+    def test_exact_timed_offer_and_fallback_share_one_purchase_limit(self):
+        timed = replace(
+            offer(ALLIANCE_WEEKLY_SHOP, "Timed Recruit Coin", "Diamonds",
+                  price=1000, balance=1000, stock=5, owned=98),
+            premium=True,
+        )
+        fallback = offer(ALLIANCE_OTHER_SHOP, ALLIANCE_FALLBACK_ITEM, price=9, rarity=1)
+        for balance in (1000, 999, None):
+            with self.subTest(balance=balance):
+                port = ReplayAllianceShopPort(weekly=(replace(timed, balance=balance),), fallback=fallback)
+                result = AllianceShopPurchaseRoute(port, action_key="reset:one-total").run()
+                self.assertEqual(result.committed_action_count, 1)
+                self.assertEqual(result.purchase_transport_calls, 1)
+                self.assertEqual(result.selected_offer["item_identity"],
+                                 timed.item_identity if balance == 1000 else fallback.item_identity)
+                self.assertEqual(port.other_entered, balance != 1000)
+
     def captured(self, name):
         from scripts.bluestacks_native_runtime import captured_native_frame_from_png
         path = ENTRY_FIXTURES / name
@@ -313,6 +330,23 @@ class AllianceShopEntryPixelTests(unittest.TestCase):
 
 
 class AllianceShopInventoryPixelTests(unittest.TestCase):
+    def test_manual_rotation_exact_timed_label_and_diamond_quote(self):
+        # Immutable manual screenshot, not a fabricated replacement of another SKU.
+        root = Path(__file__).resolve().parents[2] / "Puzzle_Survival_Runtime_POC"
+        path = root / ".local-captures/manual-walkthrough-2026-11-09T04-42-35-490Z/0081-shop73-open.jpg"
+        if not path.is_file():
+            self.skipTest("immutable manual walkthrough capture is not installed")
+        frame = cv2.imread(str(path), cv2.IMREAD_COLOR)
+        captured = SimpleNamespace(frame=frame)
+        title = native._ocr_words(captured, (180, 580, 500, 620), psm=7)
+        self.assertTrue(native._has(title, "Timed Recruit Coin"))
+        self.assertFalse(native._has(title, "Int. Recruit Coin"))
+        quote = native._ocr_words(captured, (505, 615, 664, 646), psm=7)
+        amounts = [(value, word) for line in native._lines(quote) for value, word in native._numbers(line)]
+        self.assertEqual([value for value, _word in amounts], [1000])
+        from scripts.food_farm_boost_bluestacks import _has_blue_diamond_before
+        self.assertTrue(_has_blue_diamond_before(frame, amounts[0][1]))
+
     def captured(self, name):
         from scripts.bluestacks_native_runtime import captured_native_frame_from_png
         path = ENTRY_FIXTURES / name
