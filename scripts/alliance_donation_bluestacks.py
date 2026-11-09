@@ -282,7 +282,11 @@ def _panel_observation(
     captured: Any, *, reset_id: str, evidence_ref: str, words: tuple[TextWord, ...], ocr_reader=None,
 ) -> DonationSurface | None:
     lines = _lines(words)
-    attempt_lines = [line for line in lines if "donation attempts" in _normalize(line.text)]
+    # The game's "Tap and hold" hint can cover the start of "Donation", while
+    # leaving "attempts: N/N" readable. Bind that exact label token, never the
+    # reward amounts above it; HOT, title, and disjoint priced buttons are still
+    # independently measured below before any donation can be authorized.
+    attempt_lines = [line for line in lines if "attempts" in _normalize(line.text).split()]
     if len(attempt_lines) != 1:
         return None
     attempts_line = attempt_lines[0]
@@ -1108,9 +1112,21 @@ def run_alliance_donation(context: Any, arguments: Mapping[str, object]) -> Mapp
 
 def _finish(context: Any, result: dict[str, Any], current: tuple[CapturedNativeFrame, DonationSurface] | None,
             committed_this_run: int):
-    returned, home_verified = _return_home(context, current)
-    if returned is not None:
-        current = returned
+    home_return_failure = None
+    try:
+        returned, home_verified = _return_home(context, current)
+        if returned is not None:
+            current = returned
+    except Exception as exc:
+        # Return navigation is not an effect authority. Its failure must not
+        # discard the already persisted confirmed prefix or unresolved fencing.
+        home_verified = False
+        home_return_failure = f"{type(exc).__name__}:{exc}"
+        result["home_return_failure"] = home_return_failure
+        try:
+            current = _capture(context, "alliance-donation-home-return-error")
+        except Exception:
+            current = None
     result["terminal_home_verified"] = home_verified
     result["daily_committed_action_count"] = 0
     try:
@@ -1145,7 +1161,10 @@ def _finish(context: Any, result: dict[str, Any], current: tuple[CapturedNativeF
         result["terminal_frame_sha256"] = current[0].sha256
         result["evidence_refs"] = (current[1].evidence_ref,)
     if not home_verified:
-        result["home_return_reason"] = "alliance_donation_terminal_home_not_verified"
+        result["home_return_reason"] = (
+            f"alliance_donation_home_return_failed:{home_return_failure}" if home_return_failure
+            else "alliance_donation_terminal_home_not_verified"
+        )
         if result.get("status") not in {"reconciliation_required", "unresolved"}:
             result["status"] = "blocked"
             result["reason"] = result.get("home_return_reason")

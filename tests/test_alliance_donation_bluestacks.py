@@ -337,6 +337,38 @@ class AllianceDonationNativeSmokeTests(unittest.TestCase):
             finally:
                 store.close()
 
+    def test_return_source_failure_retains_confirmed_prefix_and_unresolved_fence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SafetyStore(Path(directory) / "actions.sqlite3")
+            try:
+                store.acquire_lease("automation-service:alliance-donation", 1_700_000_000.0, 3600.0)
+                context = self._context(Path(directory), store)
+
+                def unchanged_counter(captured, **kwargs):
+                    surface = _surface_for(context, captured, **kwargs)
+                    if surface.donation is not None and context.runtime.donation_count >= 3:
+                        return replace(surface, donation=replace(surface.donation, available_attempts=18))
+                    return surface
+
+                with patch.object(route, "_home_alliance_target", return_value=("home-nav:alliance", (600, 1213, 680, 1280))), \
+                     patch.object(route, "recognize_surface", side_effect=unchanged_counter), \
+                     patch.object(route, "_back_action", side_effect=RuntimeError("Back source changed")), \
+                     patch.object(route.time, "sleep", return_value=None):
+                    result = route.run_alliance_donation(context, {})
+                self.assertEqual(result["donation_transport_calls"], 3)
+                self.assertEqual(result["committed_action_count"], 2)
+                self.assertEqual(result["daily_committed_action_count"], 2)
+                self.assertEqual(result["status"], "reconciliation_required")
+                self.assertTrue(result["effect_reconciliation_required"])
+                self.assertTrue(result["identical_retry_denied"])
+                self.assertFalse(result["terminal_home_verified"])
+                self.assertEqual(result["terminal_status"], "evidence_required")
+                self.assertEqual(result["home_return_failure"], "RuntimeError:Back source changed")
+                self.assertEqual(context.runtime.input_count, 6)
+                self.assertTrue(store.has_action_block())
+            finally:
+                store.close()
+
     def test_recharge_countdown_tick_between_captures_keeps_consecutive_donations_available(self):
         with tempfile.TemporaryDirectory() as directory:
             store = SafetyStore(Path(directory) / "actions.sqlite3")
@@ -562,6 +594,37 @@ class AllianceDonationActualFrameTests(unittest.TestCase):
             with self.subTest(name=name):
                 surface = route.recognize_surface(self._captured(frame, fixture=fixture), reset_id="d", evidence_ref="mutated")
                 self.assertFalse(route.donation_authorizeable(surface.donation))
+
+    def test_partially_occluded_donation_label_still_reads_attempt_counter_not_rewards(self):
+        frame = np.zeros((1280, 800, 3), np.uint8)
+        frame[747:772, 535:610] = 255
+        captured = self._captured(frame)
+        title_word = route.TextWord("Alliance Steel Plant Cap II", (257, 391, 560, 411), (1, 1, 1), 95)
+        title = route.TextLine(title_word.text, title_word.roi, (title_word,))
+        hot = route.TextWord("HOT", (110, 318, 160, 339), (1, 1, 1), 95)
+        ordinary = (route.TextWord("1,000", (535, 747, 610, 772), (1, 1, 1), 95),
+                    1000, (434, 735, 677, 811))
+        premium = (route.TextWord("10", (250, 747, 280, 772), (1, 1, 1), 95),
+                   10, (126, 735, 369, 811))
+        for label in ("Donation attempts: 14/20", "ation attempts: 14/20", "attempts: 14/20"):
+            words = (
+                route.TextWord("250 250 250", (145, 658, 680, 682), (1, 1, 1), 95),
+                route.TextWord(label, (435, 703, 713, 728), (1, 1, 2), 95),
+            )
+            with self.subTest(label=label), \
+                 patch.object(route, "_modal_hot_ribbon", return_value=(hot, (62, 304, 203, 355))), \
+                 patch.object(route, "_modal_title", return_value=title), \
+                 patch.object(route, "_modal_buttons", return_value=(ordinary, premium)):
+                surface = route._panel_observation(captured, reset_id="d", evidence_ref="synthetic:occluded-attempt-label", words=words)
+            self.assertEqual(surface.state, "DONATION_PANEL")
+            self.assertEqual(surface.tech_identity, title.text)
+            self.assertEqual(surface.donation.available_attempts, 14)
+            self.assertEqual(surface.donation.attempt_capacity, 20)
+            self.assertEqual(surface.donation.donation_amount, 1000)
+            self.assertIs(donation_disposition(surface.donation, 0), DonationDisposition.READY)
+        for label in ("Donate to get 250", "NotAttempts: 14/20"):
+            words = (route.TextWord(label, (435, 703, 713, 728), (1, 1, 1), 95),)
+            self.assertIsNone(route._panel_observation(captured, reset_id="d", evidence_ref="synthetic:occluded-attempt-label", words=words))
 
     def test_measured_modal_title_accepts_short_digit_names(self):
         for name in ("II", "2", "A", "Tech 2"):
