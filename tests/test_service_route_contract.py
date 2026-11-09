@@ -234,6 +234,7 @@ class RuinsProgressionTests(unittest.TestCase):
                 rig.runner.challenge_paused = paused
                 report, = rig.once()
                 run, = rig.runs()
+                assert run is not None
                 result = report["result"]
                 self.assertEqual(run.consumed_actions, 3)
                 self.assertEqual(len(result["challenge_stages"]), 2)
@@ -241,9 +242,11 @@ class RuinsProgressionTests(unittest.TestCase):
                 self.assertFalse(result["effect_reconciliation_required"])
                 self.assertEqual(run.state, RunState.DEFERRED if paused else RunState.SUCCEEDED)
                 if paused:
-                    self.assertFalse(rig.state.get_flow(RUINS_FLOW_ID).blocked)
+                    flow = rig.state.get_flow(RUINS_FLOW_ID)
+                    assert flow is not None and flow.next_due_at_utc is not None
+                    self.assertFalse(flow.blocked)
                     self.assertLess(
-                        rig.state.get_flow(RUINS_FLOW_ID).next_due_at_utc,
+                        flow.next_due_at_utc,
                         (datetime.fromtimestamp(rig.stop.now, timezone.utc)
                          .replace(hour=0, minute=0, second=0, microsecond=0)
                          + timedelta(days=1)).timestamp(),

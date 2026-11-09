@@ -126,7 +126,7 @@ class RuinsChallengeRow:
     last_successful_level: Optional[int]
     challenge_control: RuinsControlState
     chest_state: RuinsChestState
-    target_roi: Optional[ROI] = None
+    target_roi: Optional[tuple[int, int, int, int]] = None
     hq_restriction: Optional[int] = None
     premium: bool = False
     paid: bool = False
@@ -382,5 +382,3 @@ def chest_claim_postcondition_verified(before: RuinsChallengeRow, after: RuinsCh
     )
 
 
-def blocked_ruins_result(reason: str, *, state: str = "RUINS_CHALLENGE") -> TaskResult:
-    return TaskResult(TaskOutcome.BLOCKED, reason, verified=True, state=state)

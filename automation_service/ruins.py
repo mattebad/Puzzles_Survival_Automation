@@ -23,9 +23,6 @@ from safe_action_core.store import is_no_effect_cancelled
 from tasks.ruins_challenge import (
     KNOWN_CHALLENGE_IDENTITIES,
     RUINS_CHALLENGE_DISPATCH_ACTION,
-    RUINS_CHALLENGE_RESULT_POSTCONDITION,
-    RUINS_CHEST_CLAIM_ACTION,
-    RUINS_CHEST_CLAIM_POSTCONDITION,
 )
 from tasks.runtime_identity import (
     BLUESTACKS_ADB,
