@@ -532,6 +532,20 @@ def _attempt_sequences(values: Iterable[int]) -> frozenset[int]:
     return frozenset(sequences)
 
 
+def _inspection_run_ids(values: Iterable[str]) -> frozenset[str]:
+    """Validate explicit legacy run identities without inventing ledger sequences."""
+
+    if isinstance(values, (str, bytes)):
+        raise ValueError("attested_zero_gameplay_runs must be distinct run IDs")
+    run_ids = tuple(values)
+    if any(
+        not isinstance(value, str) or not value or value.strip() != value
+        for value in run_ids
+    ) or len(set(run_ids)) != len(run_ids):
+        raise ValueError("attested_zero_gameplay_runs must be distinct normalized non-empty run IDs")
+    return frozenset(run_ids)
+
+
 def _row_value(row: sqlite3.Row, name: str, default: Any = None) -> Any:
     """Read additive columns without fabricating authority for old schemas."""
 
@@ -1868,6 +1882,7 @@ class BotStateManager:
         now: float,
         attested_untracked_failures: int,
         attested_zero_gameplay_attempts: frozenset[int] = frozenset(),
+        attested_zero_gameplay_runs: frozenset[str] = frozenset(),
     ) -> FlowInspectionReview:
         """Evaluate every canonical fact required for a zero-effect rearm."""
 
@@ -1885,6 +1900,8 @@ class BotStateManager:
         if attested_zero_gameplay_attempts:
             # Immutable audit scope of the operator's per-attempt attestation.
             summary["attested_zero_gameplay_attempts"] = sorted(attested_zero_gameplay_attempts)
+        if attested_zero_gameplay_runs:
+            summary["attested_zero_gameplay_runs"] = sorted(attested_zero_gameplay_runs)
         last_seq: int | None = None
         required: int | None = None
 
@@ -1953,6 +1970,9 @@ class BotStateManager:
             {
                 "run_id": run["run_id"],
                 "occurrence_key": run["occurrence_key"],
+                "reset_id": run["reset_id"],
+                "claimed_flow_generation": int(run["claimed_flow_generation"]),
+                "row_version": int(run["row_version"]),
                 "state": run["state"],
                 "terminal_outcome": run["terminal_outcome"],
                 "terminal_reason": run["terminal_reason"],
@@ -1962,10 +1982,22 @@ class BotStateManager:
             }
             for run in window_runs
         ]
+        accounting_legacy_runs: set[str] = set()
         for run in window_runs:
             denial = self._inspection_attempt_denial(
                 run["state"], run["terminal_outcome"], run["terminal_reason"], int(run["consumed_actions"])
             )
+            if denial == "ACCOUNTING_UNVERIFIED" and run["terminal_at_utc"] is not None and (
+                not self._table_exists(db, "flow_attempts")
+                or db.execute(
+                    "SELECT 1 FROM flow_attempts WHERE run_id = ? LIMIT 1", (run["run_id"],)
+                ).fetchone() is None
+            ):
+                # Only pre-ledger run rows have no per-attempt identity to
+                # attest. Any ledger row for this run keeps modern guards.
+                accounting_legacy_runs.add(run["run_id"])
+                if run["run_id"] in attested_zero_gameplay_runs:
+                    denial = None
             # A run row mirrors its latest attempt; an attested ledger attempt
             # with that exact terminal covers it, never a different attempt.
             if denial == "ACCOUNTING_UNVERIFIED" and attested_zero_gameplay_attempts and self._table_exists(
@@ -1989,6 +2021,8 @@ class BotStateManager:
                 (run["run_id"],),
             ).fetchone() is not None:
                 return deny("CONSEQUENTIAL_ATTEMPT")
+        if set(attested_zero_gameplay_runs) != accounting_legacy_runs:
+            return deny("LEGACY_ACCOUNTING_ATTESTATION_MISMATCH")
         if not any(run["state"] in {RunState.BLOCKED.value, RunState.FAILED.value} for run in window_runs):
             return deny("FAILURE_HISTORY_MISMATCH")
 
@@ -2082,6 +2116,7 @@ class BotStateManager:
         *,
         attested_untracked_failures: int = 0,
         attested_zero_gameplay_attempts: Iterable[int] = (),
+        attested_zero_gameplay_runs: Iterable[str] = (),
         now_utc_epoch: float | None = None,
     ) -> FlowInspectionReview:
         """Read-only preview of :meth:`inspect_rearm_flow` eligibility; never mutates."""
@@ -2089,6 +2124,7 @@ class BotStateManager:
         flow_id = _text(flow_id, "flow_id")
         _nonnegative_int(attested_untracked_failures, "attested_untracked_failures")
         attested_attempts = _attempt_sequences(attested_zero_gameplay_attempts)
+        attested_runs = _inspection_run_ids(attested_zero_gameplay_runs)
         now = _epoch(_now() if now_utc_epoch is None else now_utc_epoch, "now", allow_none=False)
         assert now is not None
         with self._lock:
@@ -2098,6 +2134,7 @@ class BotStateManager:
             return self._inspection_review(
                 self._db, flow, now=now, attested_untracked_failures=attested_untracked_failures,
                 attested_zero_gameplay_attempts=attested_attempts,
+                attested_zero_gameplay_runs=attested_runs,
             )
 
     def inspect_rearm_flow(
@@ -2111,6 +2148,7 @@ class BotStateManager:
         evidence_path: str | os.PathLike[str],
         attested_untracked_failures: int = 0,
         attested_zero_gameplay_attempts: Iterable[int] = (),
+        attested_zero_gameplay_runs: Iterable[str] = (),
         now_utc_epoch: float | None = None,
     ) -> FlowInspection:
         """Rearm one exhausted, zero-effect, operator-inspected blocked flow.
@@ -2127,6 +2165,11 @@ class BotStateManager:
         retained evidence.  The set must match the window exactly; it is kept
         in the immutable audit summary and never admits uncertain outcomes,
         consumed actions, abandoned attempts or canonical dispatched actions.
+
+        ``attested_zero_gameplay_runs`` covers exactly the accounting-unverified
+        window run IDs with no ledger rows. It never substitutes for modern
+        per-attempt attestation or the exact untracked-failure count. Their
+        terminal identities and the attested IDs are retained in window_summary.
         """
 
         flow_id = _text(flow_id, "flow_id")
@@ -2138,6 +2181,7 @@ class BotStateManager:
         ):
             _nonnegative_int(value, name)
         attested_attempts = _attempt_sequences(attested_zero_gameplay_attempts)
+        attested_runs = _inspection_run_ids(attested_zero_gameplay_runs)
         reason = _text(reason, "reason")
         now = _epoch(_now() if now_utc_epoch is None else now_utc_epoch, "now", allow_none=False)
         assert now is not None
@@ -2155,6 +2199,7 @@ class BotStateManager:
             review = self._inspection_review(
                 db, flow, now=now, attested_untracked_failures=attested_untracked_failures,
                 attested_zero_gameplay_attempts=attested_attempts,
+                attested_zero_gameplay_runs=attested_runs,
             )
             if not review.eligible:
                 raise FlowInspectionDenied(review.reason)

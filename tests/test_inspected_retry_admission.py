@@ -186,6 +186,7 @@ def inspect(
     flow_id: str = FLOW,
     evidence: Path = EVIDENCE[0],
     attest: int = 0,
+    attest_runs: tuple[str, ...] = (),
     reason: str = INSPECTION_REASON,
     expected_generation: int | None = None,
     expected_row_version: int | None = None,
@@ -206,6 +207,7 @@ def inspect(
         reason=reason,
         evidence_path=evidence,
         attested_untracked_failures=attest,
+        attested_zero_gameplay_runs=attest_runs,
         now_utc_epoch=now,
     )
 
@@ -439,7 +441,7 @@ class InspectedRetryAdmissionTests(unittest.TestCase):
 
     def test_unverified_accounting_needs_exact_per_attempt_zero_gameplay_attestation(self) -> None:
         accounting = AttemptSpec(reason=NAVIGATION_BLOCK + "; accounting_rejected:CONSUMPTION_ACCOUNTING_MISSING")
-        exhaust(self.state, 1_000.0, third=accounting)
+        runs = exhaust(self.state, 1_000.0, third=accounting)
         seqs = [int(row[0]) for row in ledger(self.path)]
         self.assertEqual(len(seqs), 3)
         for attested, reason in (
@@ -456,6 +458,16 @@ class InspectedRetryAdmissionTests(unittest.TestCase):
             self.state.review_flow_inspection(
                 FLOW, attested_zero_gameplay_attempts=(seqs[2], seqs[2]), now_utc_epoch=1_400.0
             )
+        modern_run_id = runs[-1].run_id
+        for attempts, reason in (
+            ((), "ACCOUNTING_UNVERIFIED"),
+            ((seqs[2],), "LEGACY_ACCOUNTING_ATTESTATION_MISMATCH"),
+        ):
+            review = self.state.review_flow_inspection(
+                FLOW, attested_zero_gameplay_attempts=attempts,
+                attested_zero_gameplay_runs=(modern_run_id,), now_utc_epoch=1_400.0,
+            )
+            self.assertEqual((review.eligible, review.reason), (False, reason))
 
         before = flow_of(self.state)
         output = io.StringIO()
@@ -482,24 +494,41 @@ class InspectedRetryAdmissionTests(unittest.TestCase):
         cases = {
             "UNRESOLVED_ACTION": AttemptSpec(unknown_action=True, reason=NAVIGATION_BLOCK + "; accounting_rejected:x"),
             "CONSEQUENTIAL_ATTEMPT": AttemptSpec(inputs=3, actions=1, reason=NAVIGATION_BLOCK + "; accounting_rejected:x"),
+            "UNCERTAIN_OUTCOME": AttemptSpec(
+                target=RunState.FAILED, outcome="unresolved",
+                reason=NAVIGATION_BLOCK + "; accounting_rejected:CONSUMPTION_ACCOUNTING_MISSING",
+            ),
         }
         for reason, third in cases.items():
             with self.subTest(reason=reason):
                 self.state.close()
                 self.path = self.folder / f"attested-{reason}.sqlite3"
                 self.state = open_state(self.path)
-                exhaust(self.state, 1_000.0, third=third)
+                runs = exhaust(self.state, 1_000.0, third=third)
                 third_seq = int(ledger(self.path)[-1][0])
                 self.assert_denied(reason, lambda: self.state.inspect_rearm_flow(
                     FLOW, expected_generation=flow_of(self.state).generation,
                     expected_row_version=flow_of(self.state).row_version,
                     expected_consecutive_failures=3, reason=INSPECTION_REASON,
                     evidence_path=EVIDENCE[0], attested_zero_gameplay_attempts=(third_seq,),
+                    attested_zero_gameplay_runs=(runs[-1].run_id,),
                     now_utc_epoch=1_400.0,
+                ))
+                self.state.close()
+                with contextlib.closing(sqlite3.connect(self.path)) as db:
+                    db.execute("DROP TRIGGER flow_attempts_append_only_delete")
+                    db.execute("DELETE FROM flow_attempts")
+                    db.commit()
+                self.state = open_state(self.path)
+                self.assert_denied(reason, lambda: inspect(
+                    self.state, 1_400.0, attest=3, attest_runs=(runs[-1].run_id,),
                 ))
 
     def test_pre_ledger_failures_require_exact_audited_attestation(self) -> None:
-        exhaust(self.state, 1_000.0)
+        runs = exhaust(self.state, 1_000.0, third=AttemptSpec(
+            inputs=1, reason=NAVIGATION_BLOCK + "; accounting_rejected:CONSUMPTION_ACCOUNTING_MISSING",
+        ))
+        legacy_run_id = runs[-1].run_id
         self.state.close()
         with contextlib.closing(sqlite3.connect(self.path)) as db:
             # Reconstruct a database whose failures predate the attempt ledger.
@@ -508,17 +537,72 @@ class InspectedRetryAdmissionTests(unittest.TestCase):
             db.commit()
         self.state = open_state(self.path)
 
+        before = flow_of(self.state)
+        run_before = present(self.state.get_run(legacy_run_id), "retained legacy run")
+        self.assertEqual(ledger(self.path), [])
         review = self.state.review_flow_inspection(FLOW, now_utc_epoch=1_400.0)
+        self.assertEqual(review.reason, "ACCOUNTING_UNVERIFIED")
+        for run_ids, reason in (
+            (("not-in-this-window",), "ACCOUNTING_UNVERIFIED"),
+            ((legacy_run_id, "not-in-this-window"), "LEGACY_ACCOUNTING_ATTESTATION_MISMATCH"),
+        ):
+            self.assert_denied(reason, lambda: inspect(
+                self.state, 1_400.0, attest=3, attest_runs=run_ids,
+            ))
+        for malformed in ((legacy_run_id, legacy_run_id), (" ",), (1,), legacy_run_id):
+            with self.subTest(malformed=malformed), self.assertRaises(ValueError):
+                self.state.review_flow_inspection(
+                    FLOW, attested_zero_gameplay_runs=malformed, now_utc_epoch=1_400.0,
+                )
+        review = self.state.review_flow_inspection(
+            FLOW, attested_zero_gameplay_runs=(legacy_run_id,), now_utc_epoch=1_400.0,
+        )
         self.assertEqual(review.reason, "UNTRACKED_FAILURE_ATTESTATION_MISMATCH")
         self.assertEqual(review.untracked_failures, 3)
         for attest in (0, 2, 4):
             with self.subTest(attest=attest):
                 self.assert_denied(
                     "UNTRACKED_FAILURE_ATTESTATION_MISMATCH",
-                    lambda: inspect(self.state, 1_400.0, attest=attest),
+                    lambda: inspect(self.state, 1_400.0, attest=attest, attest_runs=(legacy_run_id,)),
                 )
-        first = inspect(self.state, 1_400.0, attest=3)
+        common = [
+            "--state-path", str(self.path), "inspect-rearm", FLOW,
+            "--attest-zero-gameplay-run", legacy_run_id,
+            "--attest-untracked-failures", "3", "--now-utc-epoch", "1400",
+        ]
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = cli_main([*common, "--preview"])
+        self.assertEqual((code, json_object(json.loads(output.getvalue()))["status"]), (0, "eligible"))
+        self.assertEqual(flow_of(self.state), before)
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = cli_main([
+                *common, "--expected-generation", str(before.generation),
+                "--expected-row-version", str(before.row_version),
+                "--expected-consecutive-failures", "3",
+                "--evidence", str(EVIDENCE[0]), "--reason", INSPECTION_REASON,
+            ])
+        self.assertEqual((code, json_object(json.loads(output.getvalue()))["status"]), (0, "rearmed"))
+        (first,) = self.state.list_flow_inspections(FLOW)
         self.assertEqual((first.attested_untracked_failures, first.last_attempt_seq), (3, None))
+        self.assertEqual(first.window_summary["attested_zero_gameplay_runs"], [legacy_run_id])
+        self.assertEqual(first.window_summary["runs"], [{
+            "run_id": legacy_run_id, "occurrence_key": runs[-1].occurrence_key,
+            "reset_id": run_before.reset_id, "claimed_flow_generation": run_before.claimed_flow_generation,
+            "row_version": run_before.row_version, "state": run_before.state.value,
+            "terminal_outcome": run_before.terminal_outcome, "terminal_reason": run_before.terminal_reason,
+            "consumed_inputs": 1, "consumed_actions": 0, "terminal_at_utc": run_before.terminal_at_utc,
+        }])
+        flow = flow_of(self.state)
+        self.assertEqual((flow.consecutive_failures, flow.inspected_failure_baseline), (3, 3))
+        self.assertEqual((flow.generation, flow.max_attempts), (before.generation, before.max_attempts))
+        self.assertEqual((flow.enabled, flow.blocked), (False, False))
+        self.assertEqual(self.state.get_run(legacy_run_id), run_before)
+        self.assertEqual(ledger(self.path), [])
+        self.state.close()
+        self.state = open_state(self.path)
+        self.assertEqual(self.state.list_flow_inspections(FLOW), (first,))
 
         arm(self.state, 1_500.0)
         for index in range(3):
@@ -528,6 +612,10 @@ class InspectedRetryAdmissionTests(unittest.TestCase):
         self.assert_denied(
             "UNTRACKED_FAILURE_ATTESTATION_MISMATCH",
             lambda: inspect(self.state, 1_900.0, evidence=EVIDENCE[1], attest=3),
+        )
+        self.assert_denied(
+            "LEGACY_ACCOUNTING_ATTESTATION_MISMATCH",
+            lambda: inspect(self.state, 1_900.0, evidence=EVIDENCE[1], attest_runs=(legacy_run_id,)),
         )
         second = inspect(self.state, 1_900.0, evidence=EVIDENCE[1])
         self.assertEqual((second.attested_untracked_failures, second.failure_baseline), (0, 6))
