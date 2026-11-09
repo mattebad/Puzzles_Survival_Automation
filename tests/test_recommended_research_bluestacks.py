@@ -87,6 +87,7 @@ def _listing_ocr() -> dict[str, list[object]]:
         ("Research", 545, 195),
         ("Research Speed II", 160, 305),
         ("Research", 545, 305),
+        ("Idle", 210, 1170),
     ])
 
 
@@ -213,6 +214,39 @@ class RecommendedResearchNativeParserTests(unittest.TestCase):
             ocr_data=_ocr([("Research", 20, 350), ("(1/1)", 25, 375), ("00:12:11", 20, 405)]),
         )
         self.assertEqual((busy.queue1_state, busy.queue1_remaining_seconds), ("busy", 731))
+
+    def test_center_queue1_inspection_needs_no_recommendation_or_home_counter(self) -> None:
+        base = [
+            ("Research Center", 290, 35),
+            ("Development", 175, 270), ("Economy", 445, 270),
+            ("Military", 90, 470), ("Inactive", 550, 1170),
+        ]
+        radial = route.ResearchScreenObservation(
+            "RESEARCH_RADIAL", "a" * 64, (), "", (),
+            owner_building_id=route.RESEARCH_CENTER_ID,
+            owner_screen_anchor=(400.0, 360.0), recognized=True,
+        )
+        for clock, x, expected in (
+            ("01:23:20", 210, ("busy", 5000)),
+            ("00:00:00", 210, ("unknown", None)),
+            ("01:23:20", 550, ("unknown", None)),
+            ("", 210, ("unknown", None)),
+        ):
+            with self.subTest(clock=clock, x=x):
+                screen = route.recognize_research_screen(
+                    _frame(), source_frame_sha256="b" * 64, evidence_refs=("synthetic:center",),
+                    ocr_data=_ocr([*base, (clock, x, 1170)]),
+                )
+                self.assertEqual(screen.screen_state, route.CENTER_SCREEN)
+                self.assertTrue(route.research_center_successor_verified(radial, screen))
+                self.assertEqual((screen.queue1_state, screen.queue1_remaining_seconds), expected)
+                self.assertIsNone(screen.first_recommendation_identity)
+                self.assertIsNone(screen.list_research_target_roi)
+        conflict = route.recognize_research_screen(
+            _frame(), source_frame_sha256="c" * 64, evidence_refs=(),
+            ocr_data=_ocr([*base, ("01:23:20", 210, 1170), ("Idle", 210, 1145)]),
+        )
+        self.assertEqual(conflict.queue1_state, "unknown")
 
     def test_scrolled_rows_merge_only_with_exact_unique_wood_overlap(self) -> None:
         top = route.recognize_research_screen(
@@ -382,6 +416,49 @@ class RecommendedResearchNativeParserTests(unittest.TestCase):
             home_recognized=False, ocr_data=_ocr([("Research", 640, 550)]),
         ))
 
+    @requires_local_captures
+    def test_retained_busy_owner_radial_binds_exact_flask_research_not_researching(self) -> None:
+        invocation = "RECOMMENDED-RESEARCH-BLUESTACKS-INTEGRATION-20261109T101754697567Z-ac230368"
+        frames = (
+            RESEARCH_CAPTURE_DIR.parents[1]
+            / "canonical-owner-replay-20261109T080850495633Z"
+            / "research-owned-center-after-inspected-unblock" / invocation
+            / "recommended-research-native-20261109T101754796800Z" / "frames"
+        )
+        label = (
+            "RECOMMENDED-RESEARCH-BLUESTACKS-INTEGRATION-cooldown-1794133236.9905357-"
+            f"{invocation}-recommended-research-open-center"
+        )
+        before_path = require_capture(frames / f"0014-{label}-immediate-before.png")
+        radial_path = require_capture(frames / f"0016-{label}-settled-successor.png")
+        before = cv2.imread(str(before_path), cv2.IMREAD_COLOR)
+        frame = cv2.imread(str(radial_path), cv2.IMREAD_COLOR)
+        atlas = route.load_home_atlas(route.ATLAS_PATH)
+        localizer = BlueStacksHomeLocalizer(atlas, route.ATLAS_PATH)
+        binding = bind_visible_building(
+            before, localizer.localize(before, home_recognized=True),
+            atlas.lookup_building(route.RESEARCH_CENTER_ID), home_is_clean=lambda _frame: True,
+        )
+        self.assertIsNotNone(binding)
+        radial = route.recognize_research_radial(
+            frame, source_frame_sha256=hashlib.sha256(radial_path.read_bytes()).hexdigest(),
+            evidence_refs=(str(radial_path),), building_binding=binding, home_recognized=True,
+        )
+        self.assertIsNotNone(radial)
+        self.assertEqual(radial.owner_building_id, route.RESEARCH_CENTER_ID)
+        x0, y0, x1, y1 = radial.list_research_target_roi
+        # Independent actual-pixel annotation: right flask caption, not the
+        # lower central hammer/hourglass "Researching..." speedup control.
+        self.assertTrue(x0 <= 554 <= x1 and y0 <= 689 <= y1)
+        self.assertLess(y1, 719)
+        for caption in ("Researching...", "Researc", "Research Now"):
+            rejected = route.recognize_research_radial(
+                _frame(), source_frame_sha256="e" * 64, evidence_refs=(),
+                building_binding=binding, home_recognized=True,
+                ocr_data=_ocr([(caption, 508, 679)]),
+            )
+            self.assertIsNone(rejected)
+
     def test_busy_queue_and_exact_shortage_contract_do_not_require_or_infer_free_costs(self) -> None:
         listing, detail = _task_listing(), _task_detail()
         costs = (100, 20, 0, 0)
@@ -495,6 +572,24 @@ class RecommendedResearchNativeParserTests(unittest.TestCase):
         self.assertTrue(tech_upgrade_postcondition_verified(
             _task_detail(), active, _task_listing(),
         ))
+
+    @requires_local_captures
+    def test_walkthrough_center_active_queue1_without_recommendation_selection(self) -> None:
+        path = (
+            RESEARCH_CAPTURE_DIR.parents[1]
+            / "manual-walkthrough-2026-11-09T04-42-35-490Z"
+            / "0181-research76-back-center.jpg"
+        )
+        require_capture(path)
+        source = cv2.imread(str(path), cv2.IMREAD_COLOR)
+        frame = cv2.resize(source[34:1212, 0:738], (800, 1280), interpolation=cv2.INTER_CUBIC)
+        screen = route.recognize_research_screen(
+            frame, source_frame_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+            evidence_refs=(str(path),),
+        )
+        self.assertEqual(screen.screen_state, route.CENTER_SCREEN)
+        self.assertEqual((screen.queue1_state, screen.queue1_remaining_seconds), ("busy", 21_395))
+        self.assertIsNone(screen.first_recommendation_identity)
 
 
     @requires_local_captures
@@ -611,6 +706,15 @@ class ResearchFinalFenceRegressionTests(unittest.TestCase):
                         quote_capture=captures[4], quote_screen=quote, expected=expected,
                     )
                 self.assertTrue(tech_upgrade_authorizeable(rebuild(), listing))
+                idle_listing = rows[2]
+                for queue_text in ("", "00:01:30"):
+                    changed = {key: list(value) for key, value in idle_listing.items()}
+                    changed["text"] = [queue_text if text == "Idle" else text for text in changed["text"]]
+                    rows[2] = changed
+                    context._recommended_research_screen_cache.clear()
+                    self.assertIsNone(rebuild())
+                rows[2] = idle_listing
+                context._recommended_research_screen_cache.clear()
                 for old, new in (("47,775/0", "47,775/1"), ("3,003,682/0", "0/1"),
                                  ("757,050/0", "757,049/0"), ("Troop", "Rider")):
                     changed = {key: list(value) for key, value in complete.items()}

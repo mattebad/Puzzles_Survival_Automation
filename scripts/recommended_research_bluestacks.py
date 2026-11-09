@@ -69,6 +69,7 @@ _DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 # category's technology tree under its white header (actual Research Center
 # categories: Development, Economy, Military, Fortification, Unit Tactics).
 TREE_SCREEN = "RESEARCH_TREE"
+CENTER_SCREEN = "RESEARCH_CENTER"
 _RESEARCH_TREE_CATEGORIES = frozenset({"development", "economy", "military", "fortification", "unittactics"})
 _UNSAFE_OVERLAY_MARKERS = (
     "insufficientresource",
@@ -429,8 +430,9 @@ def _research_page_words(frame: Any, words: tuple[ResearchWord, ...]) -> tuple[R
     The white header band is always reread when no title was found there.
     With exactly one recommendation header the Research buttons and their
     anchored row titles are reread; with exactly one Original/Actual Time pair
-    the detail title row and bottom controls are. Nothing is added without a
-    confident current read.
+    the detail title row and bottom controls are. A Center title also permits
+    rereading only the measured ordinary Queue 1 strip, excluding Queue 2.
+    Nothing is added without a confident current read.
     """
 
     lines = _line_groups(words)
@@ -450,7 +452,19 @@ def _research_page_words(frame: Any, words: tuple[ResearchWord, ...]) -> tuple[R
         len(_phrase_lines(lines, "Original Time")) == 1 and len(_phrase_lines(lines, "Actual Time")) == 1
     ) or len(_detail_title_lines(lines)) == 1:
         block = _reread_detail_controls(frame, words, lines, block, added, replaced)
-    if not added:
+    if (
+        _phrase_lines(_line_groups((*words, *added)), "Research Center")
+        and _center_queue1_from_lines(lines)[0] == "unknown"
+    ):
+        # Measured ordinary Queue 1 countdown/Idle strip, excluding Queue 2.
+        queue_roi = (170, 1140, 330, 1205)
+        queue_words = _prepared_crop_words(frame, queue_roi, _white_ink, "--psm 7")
+        replaced.append(queue_roi)
+        added.extend(
+            ResearchWord(word.text, word.normalized, word.roi, word.confidence, (block, 1, 1))
+            for word in queue_words if word.confidence >= _RESEARCH_PAGE_MIN_CONFIDENCE
+        )
+    if not added and not replaced:
         return words
     retained = tuple(
         word for word in words
@@ -481,7 +495,10 @@ def _home_research_hud_words(frame: Any, words: tuple[ResearchWord, ...]) -> tup
         if _CLOCK_RE.fullmatch(word.text)
     )
     label = ResearchWord(anchor.text, anchor.normalized, anchor.roi, anchor.confidence, (block, 0, 0))
-    fraction_band = (left, anchor.roi[3] + 3, right, min(hud[3], anchor.roi[3] + _HUD_FRACTION_BAND_BELOW_LABEL))
+    # The fraction belongs beneath the label itself. Its padded clock/label ROI
+    # also includes changing map art, whose neutral strokes are not queue glyphs.
+    fraction_band = (anchor.roi[0], anchor.roi[3] + 3, anchor.roi[2],
+                     min(hud[3], anchor.roi[3] + _HUD_FRACTION_BAND_BELOW_LABEL))
     fraction = _hud_queue_fraction_word(frame, fraction_band, (block + 1, 0, 0))
     return (*retained, label, *((fraction,) if fraction is not None else ()), *clocks)
 
@@ -655,6 +672,30 @@ def _queue1_from_lines(lines: Sequence[tuple[ResearchWord, ...]]) -> tuple[str, 
     return "unknown", None
 
 
+def _center_queue1_from_lines(
+    lines: Sequence[tuple[ResearchWord, ...]],
+) -> tuple[str, int | None]:
+    """Read only the ordinary Queue 1 strip on the owned Research Center page.
+
+    Manual 0181 places its countdown left of Queue 2's Inactive/lock strip.
+    Neither Home Help text nor clocks elsewhere on the page are queue proof.
+    """
+    words = [
+        word for line in lines for word in line
+        if _inside((170, 1140, 330, 1205), word.roi)
+        and word.confidence >= _RESEARCH_PAGE_MIN_CONFIDENCE
+    ]
+    clocks = [word for word in words if _CLOCK_RE.fullmatch(word.text.strip())]
+    idle = [word for word in words if word.normalized == "idle"]
+    if len(clocks) == 1 and not idle:
+        remaining = _clock_seconds(clocks[0].text)
+        if remaining is not None and remaining > 0:
+            return "busy", remaining
+    if len(idle) == 1 and not clocks:
+        return "idle", None
+    return "unknown", None
+
+
 def _resource_pairs_from_lines(
     lines: Sequence[tuple[ResearchWord, ...]], *, after_y: int
 ) -> tuple[tuple[int, int], ...]:
@@ -724,7 +765,7 @@ def recognize_research_screen(
     ocr_data: Mapping[str, object] | None = None,
     expected_detail_identity: str | None = None,
 ) -> ResearchScreenObservation:
-    """Recognize a recommendation list/detail only from their complete current UI markers."""
+    """Recognize the owned Center, recommendation list, or detail from current UI markers."""
 
     refs = tuple(str(item) for item in evidence_refs)
     if not native_frame_guard(frame) or not _DIGEST_RE.fullmatch(source_frame_sha256 or ""):
@@ -762,6 +803,7 @@ def recognize_research_screen(
     time_actual_lines = _phrase_lines(lines, "Actual Time")
     time_original_lines = _phrase_lines(lines, "Original Time")
     research_now_lines = _phrase_lines(lines, "Research Now")
+    center_queue = _center_queue1_from_lines(lines) if title_lines else ("unknown", None)
 
     if title_lines and recommendation_lines:
         header = min(recommendation_lines, key=lambda line: _line_bounds(line)[1])
@@ -800,9 +842,26 @@ def recognize_research_screen(
                         recommendation_position=1,
                         list_research_target_roi=button_roi,
                         panel_bounds=page_bounds,
-                        queue1_state="unknown",
+                        queue1_state=center_queue[0],
+                        queue1_remaining_seconds=center_queue[1],
                         recognized=True,
                     )
+
+    # A busy Center has categories and the ordinary queue strip, but no
+    # recommendation rows. Inspect it without selecting an unrelated technology.
+    center_categories = {
+        word.normalized for word in words
+        if 180 < word.roi[1] < 600
+        and word.confidence >= _RESEARCH_PAGE_MIN_CONFIDENCE
+        and word.normalized in _RESEARCH_TREE_CATEGORIES
+    }
+    if title_lines and len(center_categories) >= 2:
+        return ResearchScreenObservation(
+            screen_state=CENTER_SCREEN, frame_sha256=source_frame_sha256,
+            evidence_refs=refs, text=text, words=words,
+            queue1_state=center_queue[0], queue1_remaining_seconds=center_queue[1],
+            recognized=True,
+        )
 
     detail_title_line = None
     selected_title = None
@@ -1100,6 +1159,27 @@ def recognize_research_radial(
             word for word in _radial_caption_words(frame, (ax, ay))
             if word.confidence >= _RADIAL_CAPTION_MIN_CONFIDENCE
         ]
+        details_words = [word for word in captions if word.normalized == "details"]
+        if len(details_words) == 1 and not any(word.normalized == "research" for word in captions):
+            details = details_words[0]
+            if details.center[0] < ax and 35 <= math.hypot(details.center[0] - ax, details.center[1] - ay) <= 240:
+                # Actual busy-owner 0016: sparse OCR reads the flask caption
+                # as "Researc" amid city art. Its opposite Details caption
+                # binds a single caption-height component, above the distinct
+                # lower "Researching..." speedup control. Require a new exact
+                # Research read, never complete or prefix-match the old word.
+                mirror_x = 2 * ax - details.center[0]
+                half_width = max(48, details.roi[2] - details.roi[0])
+                roi = (
+                    max(0, int(mirror_x - half_width)), max(0, details.roi[1] - 4),
+                    min(800, int(mirror_x + half_width)), min(1280, details.roi[3] + 6),
+                )
+                reread = _prepared_crop_words(frame, roi, _white_ink, "--psm 7")
+                if (
+                    len(reread) == 1 and reread[0].normalized == "research"
+                    and reread[0].confidence >= _RADIAL_CAPTION_MIN_CONFIDENCE
+                ):
+                    captions.append(reread[0])
         if any(sum(word.normalized == name for word in captions) != 1 for name in _RADIAL_REQUIRED_CAPTIONS):
             return None
         details = next(word for word in captions if word.normalized == "details")
@@ -1159,12 +1239,17 @@ def research_center_successor_verified(
         and source.owner_building_id == RESEARCH_CENTER_ID
         and source.owner_screen_anchor is not None
         and successor is not None
-        and successor.screen_state == LIST_SCREEN
+        and successor.screen_state in {LIST_SCREEN, CENTER_SCREEN}
         and successor.recognized is True
         and successor.frame_sha256 != source.frame_sha256
-        and successor.first_recommendation_identity
-        and successor.recommendation_position == 1
-        and successor.list_research_target_roi is not None
+        and (
+            successor.screen_state == CENTER_SCREEN
+            or (
+                successor.first_recommendation_identity
+                and successor.recommendation_position == 1
+                and successor.list_research_target_roi is not None
+            )
+        )
     )
 
 
@@ -1205,6 +1290,26 @@ def _source_screen(
             expected_detail_identity=expected_detail_identity,
         )
     return cache[key]
+
+
+def _queue1_for_visit(context: Any, screen: ResearchScreenObservation) -> tuple[str, int | None]:
+    """Keep the original Home queue proof when the recommendation list omits it."""
+    if screen.queue1_state != "unknown" or screen.screen_state != LIST_SCREEN:
+        return screen.queue1_state, screen.queue1_remaining_seconds
+    visit = getattr(context, "_recommended_research_visit", None)
+    home = visit.get("home_screen") if isinstance(visit, dict) else None
+    if (
+        isinstance(visit, dict)
+        and screen.recognized
+        and _research_visit_valid(context)
+        and isinstance(home, ResearchScreenObservation)
+        and home.recognized
+        and home.screen_state == "HOME_BASE"
+        and home.queue1_state == "idle"
+        and visit.get("home_ref")
+    ):
+        return "idle", None
+    return screen.queue1_state, screen.queue1_remaining_seconds
 
 
 def _binding_for_home(context: Any, frame: Any, localizer: BlueStacksHomeLocalizer, building: Any) -> BuildingBinding | None:
@@ -1463,7 +1568,7 @@ def _research_visit_valid(context: Any) -> bool:
     return bool(
         isinstance(proof, dict) and proof.get("valid") is True
         and proof.get("identity") == _research_visit_identity(context)
-        and proof.get("action_keys") == tuple(context.runtime.action_keys)
+        and proof.get("action_keys") == frozenset(context.runtime.action_keys)
         and proof.get("input_count") == context.runtime.input_count
         and accounting.verified is True
         and accounting.input_count == accounting.session_input_count
@@ -1526,17 +1631,18 @@ def _fresh_start_detail(
         and proof.get("transitions")
     ):
         return None
-    home_screen = proof["home_screen"]
+    list_screen = _source_screen(context, listing_capture)
     fresh_listing = proof["listing"]
+    list_queue_state, _ = _queue1_for_visit(context, list_screen)
     queue_state, queue_remaining = _queue1_from_lines(_line_groups(screen.words))
     if (
-        home_screen.queue1_state != "idle" or queue_state not in {"unknown", "idle"}
+        list_queue_state != "idle" or queue_state not in {"unknown", "idle"}
         or fresh_listing.first_recommendation_identity != listing.first_recommendation_identity
         or screen.selected_technology_identity != fresh_listing.first_recommendation_identity
     ):
         return None
     context._recommended_research_center_level = proof["center_level"]
-    context._recommended_research_queue1_state = home_screen.queue1_state
+    context._recommended_research_queue1_state = list_queue_state
     context._recommended_research_queue1_remaining = queue_remaining
     fresh_quote = _source_screen(context, quote_capture, expected_detail_identity=fresh_listing.first_recommendation_identity)
     if fresh_quote != quote_screen:
@@ -1837,11 +1943,15 @@ def _guarded_action(
         except Exception as exc:
             raise RuntimeError("RECOMMENDED_RESEARCH_CANONICAL_RECONCILIATION_FAILED") from exc
     if visit is not None and action_class is ActionClass.NAVIGATION_ONLY:
-        keys = tuple(context.runtime.action_keys)
+        # Runtime keys are a set, not an insertion-ordered navigation journal.
+        # Continuity requires exactly this new key and one input; transitions
+        # below retain the verified order independently.
+        keys = frozenset(context.runtime.action_keys)
         verified_chain = (
             result.status == "completed" and action_state.get("post_ok") is True
             and context.runtime.input_count == visit["input_count"] + 1
-            and keys == visit["action_keys"] + (action_key,)
+            and action_key not in visit["action_keys"]
+            and keys == visit["action_keys"] | {action_key}
             and visit["identity"] == _research_visit_identity(context)
         )
         visit["valid"] = verified_chain
@@ -1928,10 +2038,11 @@ def _page_plan(screen: ResearchScreenObservation, *, state: str, target: str, co
 # The Back arrow walks detail -> tree -> Research Center -> Home. Each hop must
 # land on a recognized page strictly nearer Home, or on verified clean Home.
 _RETURN_PARENT_STATES: dict[str, frozenset[str]] = {
-    DETAIL_SCREEN: frozenset({TREE_SCREEN, LIST_SCREEN}),
-    TREE_SCREEN: frozenset({LIST_SCREEN}),
+    DETAIL_SCREEN: frozenset({TREE_SCREEN, LIST_SCREEN, CENTER_SCREEN}),
+    TREE_SCREEN: frozenset({LIST_SCREEN, CENTER_SCREEN}),
     LIST_SCREEN: frozenset(),
-    ACTIVE_SCREEN: frozenset({TREE_SCREEN, LIST_SCREEN}),
+    CENTER_SCREEN: frozenset(),
+    ACTIVE_SCREEN: frozenset({TREE_SCREEN, LIST_SCREEN, CENTER_SCREEN}),
 }
 _RETURN_HOME_MAX_BACKS = 3
 
@@ -2257,26 +2368,6 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
         home = context.session.observe(context.runtime.capture, label="recommended-research-home-source")
         if not context.is_clean_home(home.frame):
             return _normal_result(context, status="blocked", reason="fresh_clean_home_not_proven", game_day_id=game_day_id)
-        home_screen = _source_screen(context, home)
-        queue_state = home_screen.queue1_state
-        queue_remaining = home_screen.queue1_remaining_seconds
-        if queue_state == "busy":
-            return _normal_result(
-                context,
-                status="deferred",
-                reason="research_queue1_busy",
-                game_day_id=game_day_id,
-                queue1_state="busy",
-                queue1_remaining_seconds=queue_remaining,
-                observation_interval_seconds=OBSERVATION_INTERVAL_SECONDS,
-                terminal_home_verified=True,
-            )
-        if queue_state != "idle":
-            return _normal_result(
-                context, status="blocked", reason="research_queue1_state_unknown_or_timer_unproven",
-                game_day_id=game_day_id, queue1_state=queue_state,
-                queue1_remaining_seconds=queue_remaining, terminal_home_verified=True,
-            )
         atlas: HomeAtlas = load_home_atlas(ATLAS_PATH)
         localizer = BlueStacksHomeLocalizer(atlas, ATLAS_PATH)
         building = atlas.lookup_building(RESEARCH_CENTER_ID)
@@ -2291,28 +2382,10 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 reason=binding_error or "fresh_research_center_binding_unavailable",
                 game_day_id=game_day_id,
             )
-        if entry_home is not home:
-            home_screen = _source_screen(context, entry_home)
-            queue_state = home_screen.queue1_state
-            queue_remaining = home_screen.queue1_remaining_seconds
-            if queue_state == "busy":
-                return _normal_result(
-                    context, status="deferred", reason="research_queue1_busy",
-                    game_day_id=game_day_id, queue1_state="busy",
-                    queue1_remaining_seconds=queue_remaining, terminal_home_verified=True,
-                    observation_interval_seconds=OBSERVATION_INTERVAL_SECONDS,
-                )
-            if queue_state != "idle":
-                return _normal_result(
-                    context, status="blocked", reason="research_queue1_state_unknown_or_timer_unproven",
-                    game_day_id=game_day_id, queue1_state=queue_state,
-                    queue1_remaining_seconds=queue_remaining,
-                    terminal_home_verified=home_screen.screen_state == "HOME_BASE" and home_screen.recognized,
-                )
         home = entry_home
         visit = {
             "identity": _research_visit_identity(context), "valid": True,
-            "action_keys": tuple(context.runtime.action_keys),
+            "action_keys": frozenset(context.runtime.action_keys),
             "input_count": context.runtime.input_count, "transitions": [],
         }
         context._recommended_research_visit = visit
@@ -2321,7 +2394,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
         step = 0
 
         def building_plan(captured: Any) -> _ActionPlan | None:
-            nonlocal home, binding, home_screen
+            nonlocal home, binding
             current_binding = _binding_for_home(context, captured.frame, localizer, building)
             if current_binding is None:
                 return None
@@ -2334,13 +2407,11 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 evidence_refs=(_capture_ref(context, captured),),
                 home_recognized=True,
             )
-            home_screen = current_home
             pixels = hashlib.sha256(captured.frame.tobytes()).hexdigest()
             current_level = _research_center_level(captured.frame, current_binding)
             used_at = context.monotonic_clock()
             if (
                 not 0 <= used_at - captured.captured_monotonic <= 10.0
-                or current_home.queue1_state != "idle"
                 or not _research_visit_valid(context)
             ):
                 return None
@@ -2368,7 +2439,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
         def entry_dispatch_plan(captured: Any) -> _ActionPlan | None:
             # SDK immediate-before revalidation on its own actual capture:
             # clean Home plus the Atlas-bound Research Center target, nothing
-            # cached. The queue/level phase proof stays bound to the entry-phase
+            # cached. The level phase proof stays bound to the entry-phase
             # capture with its original timestamps and is not re-dated onto
             # this frame. Re-running that OCR here measured 5.8 s offline on
             # the retained 221908 frames, past the 5 s dispatch age (STALE_FRAME).
@@ -2396,20 +2467,12 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             )
 
         # A real new capture after Atlas planning, not a re-dated source. The
-        # full phase proof (binding, queue idle, center level) is decoded once
-        # here; the SDK immediate-before capture then rebinds only the target.
+        # full phase proof (binding and center level) is decoded once here;
+        # ordinary Queue 1 is inspected after the route-owned radial entry.
         home = context.session.observe(context.runtime.capture, label="recommended-research-entry-phase-source")
         entry_plan = building_plan(home)
         if entry_plan is None:
             context._recommended_research_visit = None
-            if home_screen.queue1_state == "busy":
-                return _normal_result(
-                    context, status="deferred", reason="research_queue1_busy",
-                    game_day_id=game_day_id, queue1_state="busy",
-                    queue1_remaining_seconds=home_screen.queue1_remaining_seconds,
-                    observation_interval_seconds=OBSERVATION_INTERVAL_SECONDS,
-                    terminal_home_verified=context.is_clean_home(home.frame),
-                )
             return _normal_result(
                 context, status="blocked", reason="research_entry_phase_proof_unknown_or_expired",
                 game_day_id=game_day_id, terminal_home_verified=context.is_clean_home(home.frame),
@@ -2503,6 +2566,23 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             return _normal_result(context, status="blocked", reason="research_center_page_successor_unverified", game_day_id=game_day_id, terminal_home_verified=home_verified, route_steps=step)
         list_screen = list_state["value"]
         listing_capture = after
+        queue_state, queue_remaining = _queue1_for_visit(context, list_screen)
+        if queue_state != "idle":
+            current, home_verified, step = _home_from_current(
+                context, policy, current=after, game_day_id=game_day_id,
+                occurrence_key=occurrence, step=step,
+            )
+            busy = queue_state == "busy" and type(queue_remaining) is int and queue_remaining > 0
+            return _normal_result(
+                context, status="deferred" if busy else "blocked",
+                reason="research_queue1_busy" if busy else "research_queue1_state_unknown_or_timer_unproven",
+                game_day_id=game_day_id, queue1_state=queue_state,
+                queue1_remaining_seconds=queue_remaining,
+                observation_interval_seconds=OBSERVATION_INTERVAL_SECONDS,
+                terminal_home_verified=home_verified, route_steps=step,
+            )
+        context._recommended_research_queue1_state = queue_state
+        context._recommended_research_queue1_remaining = queue_remaining
         listing = _list_observation(list_screen, context)
         if listing is None or not research_list_navigation_authorizeable(listing):
             current, home_verified, step = _home_from_current(context, policy, current=after, game_day_id=game_day_id, occurrence_key=occurrence, step=step)
@@ -2514,7 +2594,8 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             fresh_listing = _list_observation(fresh_screen, context)
             if fresh_listing is None or fresh_listing.first_recommendation_identity != listing.first_recommendation_identity:
                 return None
-            if not research_list_navigation_authorizeable(fresh_listing):
+            fresh_queue, _ = _queue1_for_visit(context, fresh_screen)
+            if fresh_queue != "idle" or not research_list_navigation_authorizeable(fresh_listing):
                 return None
             used_at = context.monotonic_clock()
             if not 0 <= used_at - captured.captured_monotonic <= 10.0 or not _research_visit_valid(context):
