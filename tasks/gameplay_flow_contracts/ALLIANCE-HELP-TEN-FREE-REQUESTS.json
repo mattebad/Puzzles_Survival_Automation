@@ -161,7 +161,7 @@
       "postconditions": [
         "fresh enabled bound free Help All control and at least one visible request; prefer Help All over individual Help",
         "no complete request census, pending count or coin balance/delta is required",
-        "exact no-request screen forbids dispatch; observe freshly before every input"
+        "exact empty Help list forbids dispatch; observe freshly before every input"
       ],
       "terminal_outcomes": [
         "action_performed",

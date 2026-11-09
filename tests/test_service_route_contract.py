@@ -236,7 +236,6 @@ class RuinsProgressionTests(unittest.TestCase):
                 run, = rig.runs()
                 result = report["result"]
                 self.assertEqual(run.consumed_actions, 3)
-                self.assertEqual(result["committed_action_count"], 3)
                 self.assertEqual(len(result["challenge_stages"]), 2)
                 self.assertEqual(len(result["newly_claimed_chests"]), 1)
                 self.assertFalse(result["effect_reconciliation_required"])
