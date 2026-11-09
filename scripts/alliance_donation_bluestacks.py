@@ -749,7 +749,19 @@ def _action_once(context: Any, *, captured: CapturedNativeFrame, surface: Donati
     transport_calls = 0
 
     def recapture() -> Observation:
-        return capability_observation
+        fresh, fresh_surface = _capture(
+            context, f"alliance-donation-pre-dispatch-{ordinal:02d}",
+        )
+        if (fresh_surface.state != "DONATION_PANEL" or fresh_surface.donation is None
+                or fresh_surface.tech_slug != capability_surface.tech_slug
+                or fresh_surface.target_identity != capability_surface.target_identity
+                or fresh_surface.target_roi != capability_surface.target_roi
+                or not _same_donation_facts(capability_donation, fresh_surface.donation)
+                or not donation_authorizeable(fresh_surface.donation, ordinal - 1)):
+            return _unknown_policy_observation(fresh, fresh_surface.evidence_ref)
+        before_state["captured"], before_state["surface"] = fresh, fresh_surface
+        before_state["dispatch_target"] = (fresh_surface.target_identity, fresh_surface.target_roi)
+        return to_policy_observation(fresh, fresh_surface)
 
     def transport(_intent: Any) -> TransportResult:
         nonlocal transport_calls
@@ -769,7 +781,7 @@ def _action_once(context: Any, *, captured: CapturedNativeFrame, surface: Donati
                     or fresh_surface.tech_slug != surface.tech_slug
                     or fresh_surface.target_identity != capability_surface.target_identity
                     or fresh_surface.target_roi != capability_surface.target_roi
-                    or not _same_donation_facts(original, fresh_surface.donation)
+                    or not _same_donation_facts(capability_donation, fresh_surface.donation)
                     or not donation_authorizeable(fresh_surface.donation, ordinal - 1)):
                 raise RuntimeError("Alliance donation action changed at immediate-before")
             before_state["captured"], before_state["surface"] = fresh, fresh_surface
