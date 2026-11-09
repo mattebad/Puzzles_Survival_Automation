@@ -251,13 +251,17 @@ Existing layout exceptions:
 
 * **Batch D Nano Material Production and Nanoweapon**: canonical-service-only routes with fixed
   native bindings and no operator rows. Nano Material Production uses a non-reset-scoped timer
-  for exactly one zero-resource 21600-second slot: start when idle, claim then restart when
-  complete, and refresh its observed timer without dispatch while active. Nanoweapon's v2 product
-  policy requires that separately authorized maintenance result earlier in the same visit, then
-  permits at most one reset-scoped Normal Craft start costing exactly 100 Nano Parts for 43200
-  seconds; Exclusive Craft, Daily/D02 ownership, and points attribution are prohibited. Code
-  registration remains separate from production posture and SQLite controls: both routes stay
-  runtime-disabled with live acceptance `evidence_required`; no live acceptance is claimed.
+  for exactly one fixed free 21600-second slot: Produce when idle, Claim then restart when
+  completed, and observe its timer without dispatch while active. No Info visit or textual
+  free/cost/duration quote is required. Nanoweapon v3 accepts verified active production with
+  zero effects as same-visit maintenance. Free completed Craft Claim is independent of its
+  original automated Start, current quote or affordability; active craft needs no new quote.
+  One current-reset Normal Craft Start remains fixed at 100 Nano Parts/43200 seconds, using
+  current affordability with no quantity-one caption requirement. Keep production Claim/Start
+  and Craft Claim/Start proofs separate; an unsent later action or navigation failure does not
+  turn confirmed effects into UNKNOWN. Genuine UNKNOWN still denies identical retry.
+  Exclusive Craft, Daily/D02 ownership and points attribution remain prohibited. Controls
+  stay disabled and native acceptance remains evidence_required.
   Native factory validators inspect requests, not result mappings; production result/effect
   validation remains separate from request admission. Offline startup exercises the actual
   fixed binding with a held temporary runtime lock and device-free transport.
