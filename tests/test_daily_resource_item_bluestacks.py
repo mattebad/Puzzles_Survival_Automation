@@ -130,6 +130,30 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
         rejected = route.recognize_food_item_in_resources(missing)
         self.assertFalse(route.resource_item_authorizeable(rejected))
 
+    @requires_tesseract
+    def test_actual_bag_successor_binds_fragmented_resource_category(self):
+        # Unmodified failed #66 canary, one Bag navigation and zero item Uses:
+        # owner-plan-resource66-20261109T031902577493Z/native/
+        # DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION-20261109T032157116950Z-c792ca4e/
+        # daily-resource-item-native-20261109T032157219542Z/frames/
+        # 0005-daily-resource-item-open-bag-settled.png
+        # SHA256: a8617933ecd517d3c8c636fdc86b1370a1996c3d689629d7b3906430250b5383
+        frame = cv2.imread(str(
+            PORTABLE_FIXTURES / "native-bag-resource66-fragmented-category-20261109.png"
+        ))
+        self.assertIsNotNone(frame)
+        bag = route._recognize_bag(frame)
+        self.assertTrue(bag["recognized"], bag)
+        self.assertEqual(
+            bag["visual_evidence"]["selected_bag_category"], "resource_speedup",
+        )
+        resources = route.recognize_resources_screen(frame)
+        self.assertTrue(resources.recognized, resources)
+        # Recognizing the page must not authorize the clipped 1K Food row.
+        self.assertFalse(route.resource_item_authorizeable(
+            route.recognize_food_item_in_resources(frame),
+        ))
+
     def test_exact_measured_card_authorizes_one_food_use(self):
         measured = {
             "proven": True,

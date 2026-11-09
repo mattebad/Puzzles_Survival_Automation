@@ -414,15 +414,6 @@ def _food_name_line(line: Sequence[OCRToken]) -> bool:
     } or _positive_integer(suffix[0])
 
 
-def _selected_resource_words(words: Sequence[str]) -> bool:
-    """Accept the observed ``Resource & Speedup`` selected tab spelling."""
-
-    compact = tuple(word for word in words if word not in {"&", "and"})
-    return any(
-        compact[index : index + 2] == ("resource", "speedup")
-        for index in range(max(0, len(compact) - 1))
-    )
-
 
 def _union_roi(rois: Sequence[NativeBox]) -> NativeBox | None:
     if not rois or not all(_valid_roi(roi) for roi in rois):
@@ -436,27 +427,31 @@ def _union_roi(rois: Sequence[NativeBox]) -> NativeBox | None:
 
 
 def _selected_resource_tab(tokens: Sequence[OCRToken]) -> NativeBox | None:
-    """Locate one exact Resource & Speedup phrase despite OCR separator joining."""
+    """Bind the exact category phrase, including contiguous OCR word fragments."""
 
-    matches: list[NativeBox] = []
+    matches: set[NativeBox] = set()
     for line in _line_tokens(
         token
         for token in tokens
         if BAG_CATEGORY_TAB_BAND[0] <= _token_center(token)[1] <= BAG_CATEGORY_TAB_BAND[1]
     ):
-        words = tuple(
-            (word, token)
-            for token in line
-            for word in re.findall(r"[a-z]+", token.text)
-            if word != "and"
-        )
-        for index in range(len(words) - 1):
-            pair = words[index : index + 2]
-            if _selected_resource_words(tuple(word for word, _token in pair)):
-                union = _union_roi(tuple(token.roi for _word, token in pair))
+        fragments = tuple(re.sub(r"[^a-z]", "", token.text) for token in line)
+        for start, fragment in enumerate(fragments):
+            if not fragment:
+                continue
+            # The observed small label can split inside Resource (``reso!``
+            # ``urce&speedup``). Rejoin only adjacent tokens and require the
+            # full exact phrase, never a fuzzy prefix or a coordinate fallback.
+            for end in range(start + 1, min(len(line), start + 4) + 1):
+                if not fragments[end - 1]:
+                    continue
+                phrase = "".join(fragments[start:end])
+                if phrase not in {"resourcespeedup", "resourceandspeedup"}:
+                    continue
+                union = _union_roi(tuple(token.roi for token in line[start:end]))
                 if union is not None:
-                    matches.append(union)
-    return matches[0] if len(matches) == 1 else None
+                    matches.add(union)
+    return next(iter(matches)) if len(matches) == 1 else None
 
 
 def _bag_category_tab_rois(tokens: Sequence[OCRToken]) -> dict[str, NativeBox]:
