@@ -119,6 +119,11 @@ earlier source scopes; accepted daily routes are not forced to repeat for covera
     file is hashed, not interpreted: the operator must substantiate every named
     attempt. The exact set is retained in the existing immutable inspection audit.
     This never admits UNKNOWN/dispatched effects or changes resource authority.
+    For accounting-unverified legacy runs with no attempt-ledger rows, repeat
+    `--attest-zero-gameplay-run RUN_ID` for exactly those current-window runs.
+    Their run IDs, reset/generation and terminal facts are retained in the same
+    inspection audit. This cannot replace a modern ledger sequence attestation,
+    and the exact `--attest-untracked-failures N` count is still required.
 
   The rearm writes one immutable `flow_inspections` audit record and clears the block. It sets
   the baseline to the retained failure count, which gives exactly `max_attempts` new attempts.
