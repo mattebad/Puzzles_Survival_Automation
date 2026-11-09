@@ -15,7 +15,8 @@ Current owner direction and planning live in [tracker #53](https://github.com/ma
 - Latest bounded native visits restored service disabled, scheduler ineligible and
   all 24 flows disabled. The observed reset remains game-day-2026-11-09,
   ending November 10 00:00 UTC.
-- Completed manual effects below must not be repeated to manufacture receipts:
+- Historical manual accounting follows. The later explicit bounded replay authorization below
+  supersedes the no-repeat restriction only for its named supervised scenarios, not scheduling.
 
 | Ticket | Actual November 9 effect |
 | --- | --- |
@@ -40,16 +41,16 @@ Current owner direction and planning live in [tracker #53](https://github.com/ma
   exact Timed Recruit Coin currency handling, mapped Mystery Shop entry, Duel defense readback,
   Research active successors, scoped Training confirmation, Hall result and training quantity entry.
 - Timed Tavern Coins are prospectively allowlisted as exact UI `Timed Recruit Coin`; current
-  currency/price/affordability still apply. No new premium purchase is due this reset, and
-  allowlisting/current quote does not supply an independent finite operator spending approval.
-- No unrecorded manual effects have been converted into canonical action receipts or counters.
-  Inspected supported reconciliation APIs handle existing recorded actions, not this unrecorded
-  manual portfolio. Already-completed effects remain excluded this reset; this does
-  not block fresh distinct Help requests or Daily reward batches/chests.
-  Do not fabricate intents, clear counters or replay completed effects.
-- Unknown-cost future talent switches, Economy Apply, Farm premium branch, exact training boxes
-  and continuous completion/restart remain evidence gaps. Historical Training approval is not
-  standing Reset authority. Controls stay disabled; manual proof and native acceptance remain distinct.
+  currency/price/affordability and the applicable finite operator budget still apply.
+  Allowlisting alone does not authorize spending.
+- Manual gameplay has not been fabricated into canonical action receipts or counters.
+  Existing reconciliation settles positively observed, already-recorded Core actions;
+  it does not promote the unrecorded manual portfolio into native acceptance.
+  Preserve counters, historical failures, leases, fencing and raw evidence.
+- The owner now confirms saved Military/Economy/Training Apply has no cost. The observed
+  allocated-points “Reset now?” is the saved-preset confirmation, not talent-tree Reset.
+  Economy native Apply, Farm premium, exact training boxes and continuous completion/restart
+  still require their own proof. Controls remain disabled outside bounded supervised visits.
 
 ### Canonical live continuation (2026-11-09)
 
@@ -79,6 +80,118 @@ Current owner direction and planning live in [tracker #53](https://github.com/ma
 - `final-canonical-service-status.json` proves service OFF, scheduler ineligible,
   all 24 controls OFF. No merge, deployment or permanent enablement occurred.
   Other manual effects above are not promoted to canonical acceptance by these visits.
+
+### Owner-authorized replay continuation (2026-11-09)
+
+- The owner explicitly authorized bounded same-reset replays of Ruins, donations, Alliance Shop,
+  Mystery Shop tabs, Material Production, Hero Duel, Research, Farm boost, talents, Zombie Zero
+  and training. Original `.local-captures/canonical-owner-replay-20261109T080850495633Z/`
+  retains the authorization and per-route duration scope. This is not permanent execution
+  enablement and does not authorize an identical retry of an uncertain effect.
+- **#77 partial effects:** three ordinary donations are now positively confirmed. The third
+  retained immediate-before/after counter is 15/20→14/20; a hold-tooltip obscured “Donation”
+  and caused the reader to reject the successor. The existing third Core action was reconciled
+  from those immutable frames under exclusive ownership, with zero replacement inputs.
+  `donation-03-positive-reconciliation.json` and `donation-03-reconciliation-result.json`
+  retain the proof. The failed whole visit remains failed; no canonical visit acceptance
+  or retry-counter reset is implied.
+- **#69 native recovery passed:** `RUINS_PASS_VERIFIED`, seven SDK/runtime/journal-agreed
+  inputs, zero new gameplay actions and verified Home. The already-confirmed challenge stage
+  was not dispatched again; overview chest handling remained independent.
+  `ruins-confirmed-stage-no-repeat-single-input-owner/` retains this accepted visit.
+  The preceding dispatch's failed mixed-counter visit remains unchanged historical evidence.
+- **#95 manual assistance, not Hall native acceptance:** the first Hall visit reached the exact
+  Military saved-Apply confirmation but missed its buttons. Exclusive manual confirmation
+  completed that already-pending switch; Military Applied was re-read and the existing Core
+  action positively reconciled. The failed Hall visit remains failed.
+- Native fixes now handle the exact generic saved-Apply confirmation, its measured buttons and
+  actual talent-tree successor before reopening Memory. Product authority r30 records the
+  owner-confirmed zero-cost semantics; no talent-tree editing/Reset or extra consumer is allowed.
+- **#95 subsequent native switch verified:** Training→Military completed through the corrected
+  settled-successor path; saved Military Applied was verified without manual confirmation.
+  `zombie-zero-stored-daily-bound-supervised-replay/` retains the preset proof. Economy Apply
+  remains unverified; this does not promote the earlier assisted Training switch to native acceptance.
+- **#96 one native Dispatch, positively reconciled:** after repairing the expired Set 1 toast,
+  mapped Hall entry and quoted Operation caption, the native route verified the populated
+  formation and sent exactly one Dispatch. The result was LOSE, Dmg This Time 2,166,282,036.
+  Decorative LOSE lettering initially defeated OCR; the corrected reader recognizes the
+  corroborating result-panel copy, unique attempt damage and bottom continuation.
+  `hall-dispatch-positive-reconciliation.json` binds the retained native postcondition and a
+  supported zero-input observation to the existing dispatched Core action. That action is
+  confirmed; no replacement Dispatch or reward input was sent. Daily Reward was already
+  Claimed with three green checks. Result dismissal and return Home were manually assisted;
+  the original unresolved native visit remains immutable, not a fully native accepted pass.
+- **#73 actual native purchase:** exactly one Timed Recruit Coin for 1,000 Diamonds;
+  owned 98→99, stock 5→4, Obtained successor and terminal Home verified.
+  `alliance-shop-exact-timed-coin-purchase/` retains source/before/transport/after/Home.
+  The outer service rejected the successful native result for incomplete catalogue evidence.
+  Its positive-selection validator is corrected; two focused adapter regressions passed.
+  Do not repeat this purchase. The failed outer run remains historical, not rewritten acceptance.
+  Retained positive-selection evidence revalidates without inputs. The separate canonical
+  confirmed-history run returned `ALLIANCE_SHOP_PASS_VERIFIED`, zero inputs/buys and verified
+  Home; `alliance-shop-confirmed-purchase-no-repeat-home/` retains this accepted restart path.
+- **#72 native no-work visit accepted:** `DAILY_SHOPS_DEFERRED` /
+  `DAILY_SHOPS_AVAILABLE_TAB_RESULTS_RECONCILED`, fresh Mystery Shop entry, eight navigation
+  inputs, zero purchases and verified Home. Ruins Chip stock was zero; Rare Earth Module
+  balance 4,995 was below the 13,800 unit price, with five stock remaining. Per-tab arithmetic,
+  zero quantities and runtime/journal accounting were accepted by the canonical adapter.
+  `mystery-shop-specific-no-work-after-inspected-zero-purchase-window/` retains this visit.
+  This does not promote the earlier manual purchases to canonical native purchase acceptance.
+- **#75 native no-free path verified:** current Survival countdown and free allowance zero
+  recognized; `HERO_DUEL_DEFERRED`, eight inputs, zero combat entries/flees/defense changes,
+  verified Home. `hero-duel-clean-home-restored-and-recorded-gesture-duration/` retains this
+  visit. Three completed native entry/flee cycles still require fresh free entries; no passes
+  were spent to repeat the manual three-cycle completion.
+- **#76 actual idle queue found; no start:** the native route entered the actual Research
+  Center and first displayed Construction II detail. Its recommendation list has no queue
+  strip; the measured same-visit Home HUD crop correctly reads Research 0/1. The next visit
+  stopped at `research_cross_page_source_expired`, but retained timing bounded the relevant
+  source age below 5.656 seconds. The actual continuity bug compared an unordered action-key
+  set as an append-ordered tuple. Exact set growth plus one authorized input now preserves
+  the ordered transition journal; the consuming fence also reuses valid same-visit idle proof.
+  The 10-second freshness, current prerequisites/costs/balances and generation checks remain.
+  Corrected-source live start/debit/timer acceptance is still `evidence_required`.
+- **#67 pan correction not live-proven:** an earlier nine-navigation visit stopped before
+  its first pan because animated Home failed whole-frame equality. The correction re-localizes
+  and plans from the SDK's actual immediate-before clean Home, preserving finite pan limits.
+  Thirteen existing entry tests passed. The next visit was explicitly stopped during saved
+  Training preparation after six inputs, including Apply and its confirmation; zero new
+  training starts/claims. Fresh supported zero-input observation subsequently showed exact
+  Training Applied. `training-preset-positive-reconciliation.json` confirms only that existing
+  Core switch, with zero replacement Apply/confirmation inputs. Readback and return Home
+  were assisted; no native training acceptance or zero-effect whole-visit attestation is claimed.
+- Farm's actual zoomed Home now uses existing bounded Atlas normalization. The fresh mapped
+  target comparison now uses the semantic pixel digest rather than comparing it with PNG bytes.
+  A later visit collected available output, then stopped at the same-Farm radial with its
+  caption occluded. The mapped-owner-relative radial correction passed its retained-pixel
+  regression. No new Boost was sent; the existing exhausted failure window remains a blocker.
+- **Canonical continuation blocker, not missing live permission:** supported inspection refuses
+  the retained positive-effect windows (#77/#70/#78/#67) and Research's interrupted marker.
+  Source investigation found no durable service-run-to-Core-effect journal join in native
+  request/outcome, and `record_executor_consumption()` does not persist its
+  `terminal_accounting` proof. Individual positive Core reconciliation does not establish
+  complete whole-visit accounting. No permissive continuation, fabricated receipt, historical
+  counter reset or future-only receipt/schema scaffold was added. The earlier direct Training
+  marker acknowledgement was not used as final admission proof; the following run was fenced
+  OFF and its failure retained. Existing blocked records require authoritative run/attempt-bound
+  complete accounting and supported terminal reconciliation before those canaries resume.
+- **Final current posture:** `post-replay-disabled-state-20261109T143957577458Z.json`
+  records service OFF, scheduler ineligible, all 24 flows OFF, zero consequential Core UNKNOWN
+  and an empty runtime input-lock table. Home return was assisted; Training Applied was
+  positively observed. Historical zero-cost navigation rows, original failed native results
+  and all gameplay counts/evidence remain intact. No merge, deployment or permanent enablement.
+- **Current correction commits:** shared Home `2829636`, runtime `3b1b5db`, saved presets /
+  Hall / Training `d7410fd`, Mystery Shop `c0e6361`, Ruins `cfb200d`, Duel `dc767bf`,
+  Farm `0169eec`, Research `318baef`; Alliance Shop `5cf7937` and donations `c3ec958`.
+  These are local focused commits on `fix/manual-walkthrough-corrections-20261109`, not
+  published PRs or a claim that every live acceptance is complete.
+- **Latest batch checks:** device-free `scripts/check.py` ran 413 tests: 412 passed, one
+  previously observed host-profile guard failed on the retained
+  `tests/fixtures/alliance_shop_menu/inventory-repaired-entry/provenance.json`.
+  Source provenance was not rewritten to manufacture a pass. The immutable-main static
+  ratchet against `c6f0e2fba509dacde136226a7519568550f6b066` also failed on integrated-branch
+  findings; no budgets or suppressions were changed. Research changed-file Ruff passed;
+  Hall/Training changed-file Ruff and existing file diagnostics are not clean.
 
 ### Offline verification and limits
 
