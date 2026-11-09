@@ -40,7 +40,7 @@ RESET = "reset-1"
 OWNER = "owner-a"
 PROCESS = "process-a"
 EVIDENCE = (
-    Path(__file__).resolve(),
+    REPOSITORY_ROOT / "tests" / Path(__file__).name,
     REPOSITORY_ROOT / "docs" / "automation-service.md",
     REPOSITORY_ROOT / "automation_service" / "cli.py",
 )
@@ -76,6 +76,7 @@ class AttemptSpec:
     inputs: int = 0
     actions: int = 0
     unknown_action: bool = False
+    pending_action: ActionState | None = None
 
 
 BEFORE_INPUT = AttemptSpec()
@@ -127,16 +128,19 @@ def attempt(
             owner_instance_id=OWNER, process_start_token=PROCESS, run_token=token,
             lease_generation=generation,
         ), "running transition")
-        if spec.unknown_action:
+        if spec.unknown_action or spec.pending_action is not None:
             action = present(state.reserve_action(
                 run.run_id, f"use-{now}", "use-1k-food", now_utc_epoch=now,
                 owner_instance_id=OWNER, process_start_token=PROCESS, run_token=token,
                 lease_generation=generation,
             ), "reserved action")
+            pending_state = spec.pending_action or ActionState.UNKNOWN
             for target, expected in (
                 (ActionState.DISPATCHING, ActionState.RESERVED),
                 (ActionState.UNKNOWN, ActionState.DISPATCHING),
             ):
+                if pending_state == expected:
+                    break
                 present(state.transition_action(
                     action.action_id, target, expected_state=expected, now_utc_epoch=now,
                     owner_instance_id=OWNER, process_start_token=PROCESS, run_token=token,
@@ -489,6 +493,97 @@ class InspectedRetryAdmissionTests(unittest.TestCase):
         flow = flow_of(self.state)
         self.assertEqual((flow.consecutive_failures, flow.inspected_failure_baseline), (3, 3))
         self.assertEqual((flow.enabled, flow.blocked), (False, False))
+
+    def test_zero_counter_orphans_require_exact_ledger_attestation_and_retain_history(self) -> None:
+        orphan = AttemptSpec(target=RunState.FAILED, outcome="FAILED", reason="ORPHANED")
+        runs = exhaust(self.state, 1_000.0, first=orphan, third=orphan)
+        before_ledger = ledger(self.path)
+        first_seq, _, third_seq = [int(row[0]) for row in before_ledger]
+        before_run = self.state.get_run(runs[-1].run_id)
+        for attested, reason in (
+            ((), "ZERO_GAMEPLAY_UNVERIFIED"),
+            ((first_seq,), "ZERO_GAMEPLAY_UNVERIFIED"),
+            ((third_seq,), "ZERO_GAMEPLAY_UNVERIFIED"),
+            ((first_seq, first_seq + 1, third_seq), "ACCOUNTING_ATTESTATION_MISMATCH"),
+        ):
+            with self.subTest(attested=attested):
+                flow = flow_of(self.state)
+                self.assert_denied(reason, lambda: self.state.inspect_rearm_flow(
+                    FLOW, expected_generation=flow.generation, expected_row_version=flow.row_version,
+                    expected_consecutive_failures=3, reason=INSPECTION_REASON,
+                    evidence_path=EVIDENCE[0], attested_zero_gameplay_attempts=attested,
+                    now_utc_epoch=1_400.0,
+                ))
+        before = flow_of(self.state)
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = cli_main([
+                "--state-path", str(self.path), "inspect-rearm", FLOW,
+                "--expected-generation", str(before.generation),
+                "--expected-row-version", str(before.row_version),
+                "--expected-consecutive-failures", "3",
+                "--attest-zero-gameplay-attempt", str(first_seq),
+                "--attest-zero-gameplay-attempt", str(third_seq),
+                "--evidence", str(EVIDENCE[0]), "--reason", INSPECTION_REASON,
+                "--now-utc-epoch", "1400",
+            ])
+        result = json_object(json.loads(output.getvalue().strip().splitlines()[-1]))
+        self.assertEqual((code, result["status"]), (0, "rearmed"))
+        self.assertEqual(ledger(self.path), before_ledger)
+        self.assertEqual(self.state.get_run(runs[-1].run_id), before_run)
+        after = flow_of(self.state)
+        self.assertEqual((after.consecutive_failures, after.inspected_failure_baseline), (3, 3))
+        self.assertEqual((after.max_attempts, after.enabled, after.blocked), (3, False, False))
+        (audit,) = self.state.list_flow_inspections(FLOW)
+        self.assertEqual(audit.window_summary["attested_zero_gameplay_attempts"], [first_seq, third_seq])
+        self.assertEqual(audit.attested_untracked_failures, 0)
+
+    def test_orphan_attestation_rejects_nonzero_effects_uncertainty_and_other_failed_causes(self) -> None:
+        cases = (
+            ("inputs", "UNCERTAIN_OUTCOME", AttemptSpec(
+                target=RunState.FAILED, outcome="FAILED", reason="ORPHANED", inputs=1,
+            )),
+            ("actions", "UNCERTAIN_OUTCOME", AttemptSpec(
+                target=RunState.FAILED, outcome="FAILED", reason="ORPHANED", actions=1,
+            )),
+            ("other_failure", "UNCERTAIN_OUTCOME", AttemptSpec(
+                target=RunState.FAILED, outcome="FAILED", reason="EXECUTOR_FAILURE",
+            )),
+            *((outcome, "UNCERTAIN_OUTCOME", AttemptSpec(
+                target=RunState.FAILED, outcome=outcome, reason="ORPHANED",
+            )) for outcome in ("unknown", "unresolved", "reconciliation_required")),
+            *((pending.value, "UNRESOLVED_ACTION", AttemptSpec(
+                target=RunState.FAILED, outcome="FAILED", reason="ORPHANED", pending_action=pending,
+            )) for pending in (ActionState.RESERVED, ActionState.DISPATCHING, ActionState.UNKNOWN)),
+        )
+        for index, (name, reason, third) in enumerate(cases):
+            with self.subTest(name=name):
+                self.state.close()
+                self.path = self.folder / f"orphan-{index}-{name}.sqlite3"
+                self.state = open_state(self.path)
+                exhaust(self.state, 1_000.0, third=third)
+                third_seq = int(ledger(self.path)[-1][0])
+                flow = flow_of(self.state)
+                self.assert_denied(reason, lambda: self.state.inspect_rearm_flow(
+                    FLOW, expected_generation=flow.generation, expected_row_version=flow.row_version,
+                    expected_consecutive_failures=3, reason=INSPECTION_REASON,
+                    evidence_path=EVIDENCE[0], attested_zero_gameplay_attempts=(third_seq,),
+                    now_utc_epoch=1_400.0,
+                ))
+
+    def test_orphan_attestation_does_not_extend_legacy_untracked_admission(self) -> None:
+        runs = exhaust(self.state, 1_000.0, third=AttemptSpec(
+            target=RunState.FAILED, outcome="FAILED", reason="ORPHANED",
+        ))
+        self.state.close()
+        with contextlib.closing(sqlite3.connect(self.path)) as db:
+            db.execute("DROP TRIGGER flow_attempts_append_only_delete")
+            db.execute("DELETE FROM flow_attempts")
+            db.commit()
+        self.state = open_state(self.path)
+        self.assert_denied("ZERO_GAMEPLAY_UNVERIFIED", lambda: inspect(
+            self.state, 1_400.0, attest=3, attest_runs=(runs[-1].run_id,),
+        ))
 
     def test_zero_gameplay_attestation_never_clears_dispatched_or_unknown_effects(self) -> None:
         cases = {

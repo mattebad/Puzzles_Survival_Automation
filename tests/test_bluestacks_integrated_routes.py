@@ -106,7 +106,7 @@ class FakeADBRunner:
     def dispatch_tap(self, point):
         self.taps.append(point)
 
-    def dispatch_swipe(self, start, end, *, duration_ms=400):
+    def dispatch_swipe(self, start, end, duration_ms=400):
         self.swipes.append((start, end, duration_ms))
 
     def dispatch_back(self):

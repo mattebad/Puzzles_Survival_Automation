@@ -371,12 +371,12 @@ Batch F adds canonical-only Hall of War and Troop Training native service routes
 legacy Troop Training operator runner/validator/aliases, leaving eleven operator routes, and keeps
 supported manual-only `pnsctl bluestacks recover-home`; no compatibility route or standalone
 Commander flow is added. The shared helper binds exact saved Economy/Military/Training rows.
-An explicit applicable scenario approval, not a fabricated free-switch capability, must bind
-switch cost and allowed confirmations. The observed Training allocated-points `Reset now?`
-dialog requires its exact Training permit; historical one-time approval is not future Reset
-authority. Its actual debit was not inspected, so unknown-cost switches defer and are not
-described as free. No talent-tree edits are admitted. Same-session proof reuse still requires
-valid generation, context, runtime and lock bindings; already-Applied presets are not switched again.
+The owner confirms saved-preset Apply has zero cost. Existing consumer-owned canonical approval
+binds the exact preset, current source and generic Apply confirmation; no fabricated capability
+is admitted. The allocated-points `Reset now?` text is the saved-preset confirmation for the
+selected memory, not permission for talent-tree Reset or edits. Same-session proof reuse still
+requires valid generation, context, runtime and lock bindings; already-Applied presets are not
+switched again.
 Only the existing Hall→Military and Training→Training consumers admit switches. Economy stays
 in the helper contract, but no authorized production/helper-inspection consumer exists yet;
 its switch acceptance remains unproven, and test-route is not gameplay authority.

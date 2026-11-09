@@ -38,6 +38,7 @@ class FakeRunner:
         self,
         start: tuple[int, int],
         end: tuple[int, int],
+        duration_ms: int = 400,
     ) -> None:
         self.swipes.append((start, end))
 

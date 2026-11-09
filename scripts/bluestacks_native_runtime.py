@@ -636,6 +636,7 @@ class LocalBlueStacksRuntime:
         target_identity: str = "tier-carousel-swipe",
         duration_ms: int = 500,
     ) -> None:
+        """Forward the recorded gesture duration explicitly, independent of runner defaults."""
         if type(duration_ms) is not int or not 1 <= duration_ms <= 10000:
             raise ValueError("swipe duration_ms must be an integer between 1 and 10000")
         if not all(0 <= point[0] < 800 and 0 <= point[1] < 1280 for point in (start, end)):
@@ -671,10 +672,9 @@ class LocalBlueStacksRuntime:
         )
         if not self.execute:
             raise RuntimeError("runtime is dry-run; input was not dispatched")
-        self._dispatch_transport(action_key, lambda: (
-            self.runner.dispatch_swipe(start, end) if duration_ms == 500
-            else self.runner.dispatch_swipe(start, end, duration_ms)
-        ))
+        self._dispatch_transport(
+            action_key, lambda: self.runner.dispatch_swipe(start, end, duration_ms)
+        )
 
     def long_press(
         self,

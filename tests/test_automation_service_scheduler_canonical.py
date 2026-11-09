@@ -540,6 +540,47 @@ class CanonicalSchedulerTests(unittest.TestCase):
                 )
             finally:
                 state.close()
+
+    def test_explicit_manual_stored_daily_completion_preserves_cooldown_schedule(self) -> None:
+        descriptor = make_descriptor(
+            cadence="cooldown_pulse",
+            recurrence=RecurrenceProjection(
+                recurrence_class=RecurrenceClass.COOLDOWN,
+                observed_at_utc=100.0,
+                next_eligible_at=200.0,
+            ),
+        )
+        for mode, permit, expected in (
+            ("scheduled", True, False),
+            ("manual", False, False),
+            ("manual", True, True),
+        ):
+            with self.subTest(mode=mode, permit=permit), tempfile.TemporaryDirectory() as folder:
+                state, _, handler = initialize(Path(folder) / "state.sqlite3", descriptor)
+                try:
+                    state.update_reset(FLOW_ID, RESET, now_utc_epoch=100.0)
+                    state.update_schedule(
+                        FLOW_ID, next_due_at_utc=200.0, next_occurrence_key=1,
+                        next_occurrence_kind="daily", now_utc_epoch=100.0,
+                    )
+                    coordinator = UtcPulseCoordinator(
+                        state, [descriptor], {FLOW_ID: handler},
+                        allow_completed_daily=permit,
+                    )
+                    facts = make_facts(now=101.0)
+                    decision = (
+                        coordinator.run_manual(
+                            FLOW_ID, facts, operator_request_id="explicit-current-reset-replay",
+                        )
+                        if mode == "manual" else coordinator.pulse(facts)
+                    )
+                    self.assertEqual(decision.candidate is not None, expected)
+                    self.assertEqual(handler.plan_calls, int(expected))
+                    flow = state.get_flow(FLOW_ID)
+                    self.assertEqual((flow.next_due_at_utc, flow.next_occurrence_key), (200.0, 1))
+                finally:
+                    state.close()
+
     def test_all_public_selection_paths_apply_external_and_static_gates(self) -> None:
 
         descriptor = make_descriptor()

@@ -1858,10 +1858,21 @@ class BotStateManager:
 
     @staticmethod
     def _inspection_attempt_denial(
-        state: str, outcome: str | None, reason: str | None, consumed_actions: int
+        state: str, outcome: str | None, reason: str | None, consumed_actions: int,
+        consumed_inputs: int,
     ) -> str | None:
         """Classify one terminal attempt that cannot be rearmed without effect review."""
 
+        # Only the canonical no-effect orphan terminal can be reviewed with an
+        # exact ledger attestation. Other FAILED causes remain uncertain.
+        if (
+            state == RunState.FAILED.value
+            and outcome == "FAILED"
+            and reason == "ORPHANED"
+            and consumed_inputs == 0
+            and consumed_actions == 0
+        ):
+            return "ZERO_GAMEPLAY_UNVERIFIED"
         # The scheduler records an exhausted unresolved/reconciliation result
         # as BLOCKED with reason RETRY_EXHAUSTED, so that reason is uncertain too.
         if (
@@ -1989,7 +2000,8 @@ class BotStateManager:
         accounting_legacy_runs: set[str] = set()
         for run in window_runs:
             denial = self._inspection_attempt_denial(
-                run["state"], run["terminal_outcome"], run["terminal_reason"], int(run["consumed_actions"])
+                run["state"], run["terminal_outcome"], run["terminal_reason"],
+                int(run["consumed_actions"]), int(run["consumed_inputs"]),
             )
             if denial == "ACCOUNTING_UNVERIFIED" and run["terminal_at_utc"] is not None and (
                 not self._table_exists(db, "flow_attempts")
@@ -2004,14 +2016,15 @@ class BotStateManager:
                     denial = None
             # A run row mirrors its latest attempt; an attested ledger attempt
             # with that exact terminal covers it, never a different attempt.
-            if denial == "ACCOUNTING_UNVERIFIED" and attested_zero_gameplay_attempts and self._table_exists(
+            if denial in {"ACCOUNTING_UNVERIFIED", "ZERO_GAMEPLAY_UNVERIFIED"} and attested_zero_gameplay_attempts and self._table_exists(
                 db, "flow_attempts"
             ) and db.execute(
                 f"""SELECT 1 FROM flow_attempts WHERE run_id = ? AND terminal_at_utc = ?
                    AND terminal_reason IS ? AND terminal_outcome IS ? AND consumed_actions = 0
+                   AND (? <> 'ZERO_GAMEPLAY_UNVERIFIED' OR (attempt_state = 'FAILED' AND consumed_inputs = 0))
                    AND attempt_seq IN ({", ".join("?" for _ in attested_zero_gameplay_attempts)})
                    LIMIT 1""",
-                (run["run_id"], run["terminal_at_utc"], run["terminal_reason"], run["terminal_outcome"],
+                (run["run_id"], run["terminal_at_utc"], run["terminal_reason"], run["terminal_outcome"], denial,
                  *sorted(attested_zero_gameplay_attempts)),
             ).fetchone() is not None:
                 denial = None
@@ -2068,11 +2081,11 @@ class BotStateManager:
         for attempt in attempts:
             denial = self._inspection_attempt_denial(
                 attempt["attempt_state"], attempt["terminal_outcome"],
-                attempt["terminal_reason"], int(attempt["consumed_actions"]),
+                attempt["terminal_reason"], int(attempt["consumed_actions"]), int(attempt["consumed_inputs"]),
             )
-            # Only a missing/unverified accounting record is attestable, and
-            # only per exact attempt; every other denial stays unconditional.
-            if denial == "ACCOUNTING_UNVERIFIED":
+            # A zero-counter orphan or unverified accounting record requires an
+            # exact modern attempt attestation; no legacy orphan bypass exists.
+            if denial in {"ACCOUNTING_UNVERIFIED", "ZERO_GAMEPLAY_UNVERIFIED"}:
                 accounting_attempts.add(int(attempt["attempt_seq"]))
                 if int(attempt["attempt_seq"]) in attested_zero_gameplay_attempts:
                     continue
@@ -2598,9 +2611,20 @@ class BotStateManager:
                 if not _is_non_reset_occurrence_kind(kind):
                     release_claim_lease(db)
                     return None
-            repeat_daily = (allow_completed_daily is True and mode == "manual"
-                and kind == "manual" and flow["cadence"] == "daily_once_per_reset"
-                and isinstance(operator_request_id, str) and bool(operator_request_id.strip()))
+            repeat_daily = (
+                allow_completed_daily is True
+                and mode == "manual"
+                and kind == "manual"
+                and (
+                    flow["cadence"] == "daily_once_per_reset"
+                    or (
+                        flow["reset_id"] == reset_id
+                        and flow["next_occurrence_kind"] == "daily"
+                    )
+                )
+                and isinstance(operator_request_id, str)
+                and bool(operator_request_id.strip())
+            )
             if allow_completed_daily and not repeat_daily:
                 release_claim_lease(db)
                 return None

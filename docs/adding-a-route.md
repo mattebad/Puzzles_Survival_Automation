@@ -308,17 +308,19 @@ Existing layout exceptions:
   bindings; no compatibility runner, validator, operator-registry row, or second input-budget owner
   is retained for Training. The supported manual-only `pnsctl bluestacks recover-home` remains
   distinct. Commander presets are a shared helper, not a standalone flow: exact saved Economy,
-  Military and Training rows are resolved and Applied is verified. Do not assume switches are
-  free: the manual Training switch displayed no price, and its debit was not inspected.
-  An explicit applicable scenario approval must bind cost and any allowed confirmation.
-  The observed allocated-points `Reset now?` confirmation is Training-specific and requires
-  its exact permit; historical one-time approval does not authorize future resets or edits.
-  Unknown-cost future switches defer. Already-Applied presets are not switched again; proof
+  Military and Training rows are resolved and Applied is verified. The owner confirms these
+  saved-preset switches have zero cost. Existing consumer-owned canonical approval binds the
+  exact preset, current source, generation and generic Apply confirmation. The allocated-points
+  `Reset now?` text is that saved-preset confirmation, not talent-tree Reset; arbitrary Reset
+  or talent edits remain prohibited. Already-Applied presets are not switched again; proof
   reuse requires the same session, generation, context and runtime ownership.
   Hall requires Military, populated saved Troop Set1, one Zombie Zero dispatch/result and one
   glowing daily reward row changing to Claimed. Its fixed zero-resource/zero-loss mechanic needs
   no literal disclosure, full troop capacity, TodayDamage zero or Sets2/3 labels. Its three-effect
   visit budget includes an optional preset switch, dispatch and reward, not extra reset dispatches.
+  An explicit supervised Hall `--operator-request-id` binds an extra manual occurrence
+  to that exact native request; it does not permit scheduled replay or a second confirmed
+  Core reset dispatch. Existing confirmed/UNKNOWN keys remain nonrepeatable.
   Training requires Training Applied before starts and reuses valid proof instead of reopening
   the helper mid-training. FighterT8/VehicleT1 use each new batch's current numeric maximum
   continuously; ShooterT8/RiderT1 use250 once/reset. Active/completed batches retain the immutable

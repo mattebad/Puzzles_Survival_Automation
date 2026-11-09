@@ -46,20 +46,29 @@ class AuthorizedDailyRepeatTests(unittest.TestCase):
                     delivery._select_family_state(root, self.CURRENT, operator_request_id=request)
 
     def test_only_explicit_manual_daily_claim_ignores_daily_due(self):
-        for cadence, mode, permit, expected in (
-            ("daily_once_per_reset", "manual", False, False),
-            ("daily_once_per_reset", "manual", True, True),
-            ("daily_once_per_reset", "scheduled", True, False),
-            ("cooldown_pulse", "manual", True, False),
+        reset = "game-day-2026-11-01"
+        for cadence, mode, permit, stored_daily_reset, expected in (
+            ("daily_once_per_reset", "manual", False, None, False),
+            ("daily_once_per_reset", "manual", True, None, True),
+            ("daily_once_per_reset", "scheduled", True, None, False),
+            ("cooldown_pulse", "manual", True, None, False),
+            ("cooldown_pulse", "manual", True, reset, True),
+            ("cooldown_pulse", "manual", False, reset, False),
+            ("cooldown_pulse", "scheduled", True, reset, False),
+            ("cooldown_pulse", "manual", True, "game-day-2026-10-31", False),
         ):
-            with self.subTest(cadence=cadence, mode=mode, permit=permit), tempfile.TemporaryDirectory() as folder:
+            with self.subTest(cadence=cadence, mode=mode, permit=permit,
+                              stored_daily_reset=stored_daily_reset), tempfile.TemporaryDirectory() as folder:
                 with BotStateManager(Path(folder) / "state.sqlite3") as state:
                     state.initialize_flows([FlowSpec("daily", cadence=cadence)])
                     state.set_service_enabled(True, now_utc_epoch=100)
                     state.set_flow_enabled("daily", True, now_utc_epoch=100)
+                    if stored_daily_reset is not None:
+                        state.update_reset("daily", stored_daily_reset, now_utc_epoch=100)
+                        state.update_schedule("daily", next_occurrence_kind="daily", now_utc_epoch=100)
                     state.update_schedule("daily", next_due_at_utc=200, next_occurrence_key=1,
                                           now_utc_epoch=100)
-                    run = state.claim_occurrence("daily", "game-day-2026-11-01", mode=mode,
+                    run = state.claim_occurrence("daily", reset, mode=mode,
                         operator_request_id="explicit-extra", allow_completed_daily=permit,
                         now_utc_epoch=101)
                     self.assertEqual(run is not None, expected)

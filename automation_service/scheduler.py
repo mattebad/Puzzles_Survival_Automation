@@ -495,7 +495,8 @@ class _CanonicalPulseCoordinator:
 
     @classmethod
     def _recurrence_allows(
-        cls, descriptor: FlowDescriptor, facts: SchedulerFacts, now: float
+        cls, descriptor: FlowDescriptor, facts: SchedulerFacts, now: float,
+        *, ignore_next_eligible: bool = False,
     ) -> bool:
         expected = descriptor.recurrence_class
         projection = cls._recurrence_projection(descriptor, facts)
@@ -556,10 +557,22 @@ class _CanonicalPulseCoordinator:
             or not (projection.window_open_at <= now < projection.window_close_at)
         ):
             return False
-        return not (
+        return ignore_next_eligible or not (
             projection is not None
             and projection.next_eligible_at is not None
             and projection.next_eligible_at > now
+        )
+
+    def _allows_completed_daily_manual(
+        self, descriptor: FlowDescriptor, facts: SchedulerFacts,
+        state: FlowState, *, mode: str,
+    ) -> bool:
+        return self.allow_completed_daily and mode == "manual" and (
+            descriptor.recurrence_class is RecurrenceClass.DAILY_ONCE_PER_RESET
+            or (
+                state.reset_id == facts.reset_id
+                and state.next_occurrence_kind == "daily"
+            )
         )
 
     @staticmethod
@@ -678,9 +691,11 @@ class _CanonicalPulseCoordinator:
                     state.last_revision_within_reset,
                 ):
                     continue
+            manual_daily_replay = self._allows_completed_daily_manual(
+                descriptor, facts, state, mode=mode,
+            )
             if (state.next_due_at_utc is not None and state.next_due_at_utc > now
-                    and not (self.allow_completed_daily and mode == "manual"
-                             and descriptor.recurrence_class is RecurrenceClass.DAILY_ONCE_PER_RESET)):
+                    and not manual_daily_replay):
                 continue
             if state.retry_window_failures >= state.max_attempts:
                 continue
@@ -689,7 +704,9 @@ class _CanonicalPulseCoordinator:
                 and state.retry_not_before_utc > now
             ):
                 continue
-            if not self._recurrence_allows(descriptor, facts, now):
+            if not self._recurrence_allows(
+                descriptor, facts, now, ignore_next_eligible=manual_daily_replay,
+            ):
                 continue
             projection_key = self._projection_key(projection)
             if (
@@ -820,8 +837,9 @@ class _CanonicalPulseCoordinator:
             )
         if state is None or (
             state.next_due_at_utc is not None and state.next_due_at_utc > now
-            and not (self.allow_completed_daily and mode == "manual"
-                     and descriptor.recurrence_class is RecurrenceClass.DAILY_ONCE_PER_RESET)
+            and not self._allows_completed_daily_manual(
+                descriptor, facts, state, mode=mode,
+            )
         ):
             return
         ordinal = 0 if reset_changed else state.next_occurrence_key
@@ -1285,8 +1303,9 @@ class _CanonicalPulseCoordinator:
                     lease_generation=lease_generation,
                     max_inputs=getattr(handler, "max_inputs", 1),
                     max_actions=getattr(handler, "max_actions", 1),
-                    allow_completed_daily=(self.allow_completed_daily and mode == "manual"
-                        and candidate.descriptor.recurrence_class is RecurrenceClass.DAILY_ONCE_PER_RESET),
+                    allow_completed_daily=self._allows_completed_daily_manual(
+                        candidate.descriptor, facts, prepared_state, mode=mode,
+                    ),
                     **claim_values,
                 )
             except StateBusyError:

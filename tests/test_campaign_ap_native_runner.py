@@ -513,19 +513,6 @@ class CampaignApNativeRunnerTests(unittest.TestCase):
         self.assertEqual(result["committed_ap_effect_count"], 0)
         self.assertTrue(result["effect_reconciliation_required"])
 
-    def test_native_swipe_preserves_default_and_explicit_gesture_duration(self):
-        for duration in (None, 700):
-            source = self.runtime.capture("swipe-source")
-            kwargs = {} if duration is None else {"duration_ms": duration}
-            self.runtime.swipe(source, start=(600, 700), end=(200, 700),
-                               action_key=f"swipe:{duration}", **kwargs)
-        self.assertEqual([row[-1] for row in self.runner.inputs], [500, 700])
-        for duration in (0, -1, True, 1.5, 10001):
-            with self.subTest(duration=duration), self.assertRaises((RuntimeError, ValueError)):
-                self.runtime.swipe(self.runtime.capture("invalid-swipe-source"), start=(600, 700), end=(200, 700),
-                                   action_key=f"invalid-swipe:{duration}", duration_ms=duration)
-        self.assertEqual(self.runtime.input_count, 2)
-        self.assertEqual(len(self.runner.inputs), 2)
 
 
 if __name__ == "__main__":

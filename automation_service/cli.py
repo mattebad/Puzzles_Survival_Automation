@@ -53,7 +53,7 @@ def _application_startup_directory(root: Path, run_id: str) -> Path:
 
 
 _MAX_SERVE_DURATION_SECONDS = 600.0
-_ONCE_TERMINAL_STATUSES = frozenset({"completed", "deferred", "blocked"})
+_ONCE_TERMINAL_STATUSES = frozenset({"completed", "deferred", "blocked", "paused"})
 
 
 def _serve_duration_seconds(value: str) -> float:
@@ -102,7 +102,7 @@ def build_parser() -> argparse.ArgumentParser:
                        help="required route to serve; repeat to select routes")
     serve.add_argument("--campaign-stage", default="1-15-9")
     serve.add_argument("--operator-request-id", default=None,
-                       help="one explicit extra Enhancement/Ultimate run; preserves daily completion")
+                       help="one explicit supervised Enhancement/Ultimate/Hall visit; preserves daily completion")
     serve.add_argument("--campaign-cadence-seconds", type=float, default=300.0,
                        help="wait after a completed AP drain before checking Campaign again (default: 300 seconds)")
     serve.add_argument("--adb", default="adb")

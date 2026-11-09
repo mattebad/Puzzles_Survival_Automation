@@ -851,8 +851,8 @@ class AutomationService:
         if operator_request_id is not None:
             if (not isinstance(operator_request_id, str) or not operator_request_id.strip()
                     or len(operator_request_id) > 256
-                    or any(item not in {ENHANCEMENT_FLOW_ID, ULTIMATE_FLOW_ID} for item in selected)):
-                raise ServiceError("one-time repeat requires a nonempty request and only Enhancement/Ultimate")
+                    or any(item not in {ENHANCEMENT_FLOW_ID, ULTIMATE_FLOW_ID, HALL_OF_WAR_FLOW_ID} for item in selected)):
+                raise ServiceError("one-time repeat requires a nonempty request and only Enhancement/Ultimate/Hall")
             operator_request_id = operator_request_id.strip()
         if not selected or any(item not in servable_flow_names().values() for item in selected):
             raise ServiceError("serve requires an explicitly supported native route")

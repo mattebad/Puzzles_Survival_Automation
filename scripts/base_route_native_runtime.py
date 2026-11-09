@@ -530,7 +530,14 @@ class _BoundNativeRoute:
                         f"{failure}; canonical store teardown failed: {store_failure}"
                     )
         accounting = _accounting_snapshot(session, runtime, self.max_inputs)
-        if not accounting.verified and failure is None:
+        accounting_verified = accounting.verified and all(
+            recorded_result is None or (
+                recorded_result.get("accounting_verified") is not False
+                and recorded_result.get("journal_verified") is not False
+            )
+            for recorded_result in (native_result, partial_result)
+        )
+        if not accounting_verified and failure is None:
             failure = NativeExecutionError("native route input accounting is inconsistent")
         if failure is not None and native_result:
             partial_result = partial_result or native_result
@@ -548,7 +555,7 @@ class _BoundNativeRoute:
             input_count=accounting.input_count,
             session_input_count=accounting.session_input_count,
             runtime_input_count=accounting.runtime_input_count,
-            accounting_verified=accounting.verified,
+            accounting_verified=accounting_verified,
         )
 
 
