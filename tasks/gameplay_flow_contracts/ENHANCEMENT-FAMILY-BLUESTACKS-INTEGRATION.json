@@ -417,8 +417,8 @@
   "registration_state": "disabled",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r27",
-    "product_authority_digest": "b0b24bb5e184ecf72a614d35db20bbcbde16c1e274aff7d8e418e0f18105df78",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r29",
+    "product_authority_digest": "46535b514795c59e5c1ddff00eeee0c2b3f111e22b3f788ae3d4cbded6929de4",
     "product_record_id": "enhancement_family",
     "product_record_revision": "enhancement_family-v1",
     "product_record_digest": "a03673be99435a70811467c8d989d380c24a7a824035b906ae865e34ecece095",

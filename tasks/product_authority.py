@@ -21,7 +21,7 @@ DEFAULT_AUTHORITY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.jso
 DEFAULT_POLICY_PATH = DEFAULT_AUTHORITY_PATH
 AUTHORITY_SCHEMA_VERSION = 2
 AUTHORITY_REGISTRY_KIND = "flow_delivery_product_policy"
-AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r27"
+AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r29"
 PRODUCT_AUTHORITY_SCHEMA_VERSION = AUTHORITY_SCHEMA_VERSION
 PRODUCT_AUTHORITY_REVISION = AUTHORITY_REVISION
 PRODUCT_RECORDS_FIELD = "product_records"
@@ -1163,8 +1163,8 @@ def _validate_troop_training_record(record: Mapping[str, Any]) -> None:
         raise ProductAuthorityError(
             "Troop Training recurrence must be queue_slot_and_daily_reset"
         )
-    if record.get("record_revision") != "troop_training-v4":
-        raise ProductAuthorityError("Troop Training record revision must be troop_training-v4")
+    if record.get("record_revision") != "troop_training-v6":
+        raise ProductAuthorityError("Troop Training record revision must be troop_training-v6")
     route = record["semantic_entry_route"]
     if route.get("source_home_authorities") != ["HOME_CANONICAL"] or route.get(
         "route"
@@ -1225,7 +1225,7 @@ def _validate_troop_training_record(record: Mapping[str, Any]) -> None:
         "policy_id": "commander-talent-preset-helper",
         "required_preset": "Training",
         "verification_before_each_start": True,
-        "switch_cost_allowance": "owner_fixed_free_no_cooldown",
+        "switch_cost_allowance": "current_known_cost_and_explicit_scoped_approval",
         "route_approval_required": True,
     }:
         raise ProductAuthorityError("Troop Training must verify the saved Training preset")
@@ -1237,7 +1237,6 @@ def _validate_troop_training_record(record: Mapping[str, Any]) -> None:
         "warehouse_only_rejected": True,
         "effect_authority_required_before_consumption": True,
         "shooter_or_rider_allowed": False,
-        "implementation_status": 'evidence_required',
         "missing_native_evidence": ['exact_popup_box_identity', 'owned_quantity', 'consumption_count'],
         "consumption_allowed_without_exact_box_evidence": False,
     }:
@@ -1803,7 +1802,7 @@ def _validate_hall_of_war_zombie_zero_record(record: Mapping[str, Any]) -> None:
             "policy_id": "commander-talent-preset-helper",
             "required_preset": "Military",
             "verification_before_dispatch": True,
-            "switch_policy": "owner_fixed_free_no_cooldown",
+            "switch_policy": "current_known_cost_and_explicit_scoped_approval",
             "route_approval_required": True,
         },
         "saved_troop_set_identity": "Troop Set 1",
@@ -1887,7 +1886,7 @@ def _validate_hall_of_war_zombie_zero_record(record: Mapping[str, Any]) -> None:
     ) is not True:
         raise ProductAuthorityError("Hall of War must return to canonical Home")
 
-    if record.get("record_revision") != "hall_of_war_zombie_zero-v2":
+    if record.get("record_revision") != "hall_of_war_zombie_zero-v3":
         raise ProductAuthorityError("Hall of War record revision is not the current product version")
     forbidden = json.dumps(record.get("forbidden_actions", ()), sort_keys=True).casefold()
     for marker in (
@@ -2117,6 +2116,13 @@ def _validate_alliance_shop_purchase_record(record: Mapping[str, Any]) -> None:
         "preferred_shop": "Weekly Offers",
         "preferred_items": ["Joy Coin", "Timed Recruit Coin", "Bioenhance Scheme"],
         "preferred_currency": "Alliance Coins",
+        "approved_item_currency_pairs": [
+            ["joy_coin", "ALLIANCE_COINS"],
+            ["timed_recruit_coin", "ALLIANCE_COINS"],
+            ["bioenhance_scheme", "ALLIANCE_COINS"],
+            ["one_star_gear_enhance_material", "ALLIANCE_COINS"],
+            ["timed_recruit_coin", "DIAMONDS"],
+        ],
         "fallback_shop": "Other",
         "fallback_item": "1★ Gear Enhance Material",
         "fallback_rarity": 1,
@@ -2154,7 +2160,7 @@ def _validate_alliance_shop_purchase_record(record: Mapping[str, Any]) -> None:
         or not isinstance(cost, Mapping)
         or cost.get("kind") != "current_observed_currency_cost"
         or cost.get("amount") is not None
-        or cost.get("unit") != "Alliance Coins"
+        or cost.get("unit") != "CURRENT_ALLOWLISTED_OFFER_CURRENCY"
         or cost.get("free_only") is not False
     ):
         raise ProductAuthorityError("Alliance Shop must bind exact current cost evidence")
@@ -2170,6 +2176,9 @@ def _validate_alliance_shop_purchase_record(record: Mapping[str, Any]) -> None:
         "no_affordable_fallback_yields_no_purchase": True,
         "changed_or_ambiguous_offer_blocks": True,
         "premium_purchase_allowed": False,
+        "timed_recruit_coin_diamonds_pair_allowed": True,
+        "premium_requires_finite_explicit_operator_approval": True,
+        "current_quote_maximum_cost_is_operator_budget": False,
         "cash_purchase_allowed": False,
         "alternative_currency_allowed": False,
         "daily_screen_or_points_inspection_required": False,
@@ -2321,8 +2330,8 @@ def _validate_daily_shops_purchase_record(record: Mapping[str, Any]) -> None:
     route = record["semantic_entry_route"]
     if route.get("source_home_authorities") != ["HOME_CANONICAL"] or route.get(
         "route"
-    ) != ["RUINS", "EXCHANGE", "RUINS_SHOP", "RARE_EARTH_SHOP"]:
-        raise ProductAuthorityError("Daily Shops must visit both tabs from the Ruins shop screen")
+    ) != ["HOME_ATLAS_MYSTERY_SHOP", "SHARED_SHOP", "RUINS_SHOP", "RARE_EARTH_SHOP"]:
+        raise ProductAuthorityError("Daily Shops must visit both shared Shop tabs from Home atlas Mystery Shop")
     target = record["target"]
     expected_shops = [
         {
@@ -3872,11 +3881,21 @@ def _validate_f_product_decision_policies(payload: Mapping[str, Any]) -> None:
                 "relevant_context_loss",
             ],
             "switch_requires_current_bound_apply_control": True,
-            "switch_cooldown_seconds": 0,
+            "switch_cooldown_seconds": None,
             "optional_actual_confirmation_only": True,
             "consumer_restrictions": {'Military': 'existing_hall_of_war_consumer', 'Training': 'existing_troop_training_consumer', 'Economy': 'no_existing_authorized_consumer_switch_acceptance_unproven'},
             "generic_free_strategic_action_allowed": False,
-            "switch_cost_allowance": "owner_fixed_free_no_cooldown",
+            "switch_cost_allowance": "current_known_cost_and_explicit_scoped_approval",
+            "unknown_switch_cost": "blocked_under_current_authority_schema",
+            "switch_approval_interface": "CommanderTalentSwitchApproval",
+            "default_switch_approval": None,
+            "recognized_confirmation_dialogs": [
+                "commander_talent_apply_confirmation",
+                "commander_talent_training_allocated_points_reset_confirmation",
+            ],
+            "allocated_points_reset_confirmation_preset": "Training",
+            "allocated_points_reset_requires_explicit_scoped_approval": True,
+            "standing_reset_permission": False,
             "route_approval_required": True,
             "changed_or_unknown_switch_facts": "defer",
             "positive_successor": "same_named_preset_row_applied",
@@ -3919,7 +3938,6 @@ def _validate_f_product_decision_policies(payload: Mapping[str, Any]) -> None:
                 "warehouse_only_rejected": True,
                 "effect_authority_required_before_consumption": True,
                 "shooter_or_rider_allowed": False,
-                "implementation_status": 'evidence_required',
                 "missing_native_evidence": ['exact_popup_box_identity', 'owned_quantity', 'consumption_count'],
                 "consumption_allowed_without_exact_box_evidence": False,
             },

@@ -99,13 +99,13 @@ class GameplayFlowContractTests(unittest.TestCase):
             "alliance-shop-purchase-policy",
         )
         self.assertEqual(binding["product_record_id"], "alliance_shop_purchase")
-        self.assertEqual(binding["product_record_revision"], "alliance_shop_purchase-v3")
+        self.assertEqual(binding["product_record_revision"], "alliance_shop_purchase-v4")
         self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(contract["cost_quantity_requirements"]["quantity"], 1)
         self.assertIsNone(contract["cost_quantity_requirements"]["maximum_cost"])
         self.assertEqual(
             contract["cost_quantity_requirements"]["resource_or_currency"],
-            "Alliance Coins",
+            "CURRENT_ALLOWLISTED_OFFER_CURRENCY",
         )
         transitions = {
             item["transition_id"]: item for item in contract["transition_contracts"]
@@ -200,7 +200,7 @@ class GameplayFlowContractTests(unittest.TestCase):
         contract = load_flow_contract("DAILY-SHOPS-PURCHASE-EVIDENCE-GATE")
         binding = contract["product_authority_binding"]
         self.assertEqual(binding["product_record_id"], "daily_shops_purchase")
-        self.assertEqual(binding["product_record_revision"], "daily_shops_purchase-v2")
+        self.assertEqual(binding["product_record_revision"], "daily_shops_purchase-v3")
         self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
         self.assertIsNone(contract["cost_quantity_requirements"]["quantity"])
         self.assertEqual(
@@ -210,6 +210,12 @@ class GameplayFlowContractTests(unittest.TestCase):
         transitions = {
             item["transition_id"]: item for item in contract["transition_contracts"]
         }
+        self.assertEqual(transitions["open_mystery_shop_from_current_home"]["from"], "home_canonical")
+        self.assertEqual(transitions["open_mystery_shop_from_current_home"]["to"], "mystery_shop_selected")
+        self.assertEqual(transitions["open_shared_shop"]["to"], "shared_shop_current")
+        self.assertEqual(transitions["bind_ruins_tab_offer_and_quantity"]["from"], "shared_shop_current")
+        self.assertNotIn("open_ruins_from_current_home", contract["permitted_inputs"])
+        self.assertNotIn("open_exchange_from_current_ruins_overview", contract["permitted_inputs"])
         self.assertEqual(
             transitions["skip_zero_or_unavailable_tab"]["to"],
             "zero_quantity_tab_skipped",
@@ -248,8 +254,8 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(
             partial["required_transitions"],
             [
-                "open_ruins_from_current_home",
-                "open_shared_shop_exchange",
+                "open_mystery_shop_from_current_home",
+                "open_shared_shop",
                 "bind_ruins_tab_offer_and_quantity",
                 "skip_zero_or_unavailable_tab",
                 "continue_after_ruins_tab_skipped",
@@ -447,8 +453,15 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(contract["schema_version"], 2)
         self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(binding["product_record_id"], "troop_training")
-        self.assertEqual(binding["product_record_revision"], "troop_training-v4")
+        self.assertEqual(binding["product_record_revision"], "troop_training-v6")
         self.assertNotIn("Fighter_or_Vehicle_resource_box_confirmation", contract["permitted_inputs"])
+        self.assertEqual(contract["prohibited_inputs"], [
+            "Train Now", "premium", "speedup", "Cash Mall",
+            "Shooter_or_Rider_resource_boxes", "registration",
+            "scheduler_promotion", "arbitrary_adb",
+        ])
+        for scenario in contract["scenarios"]:
+            self.assertLessEqual(set(scenario["forbidden_inputs"]), set(contract["permitted_inputs"]))
         box_gate = next(gate for gate in contract["evidence_gates"] if gate["gate_id"] == "troop_training_exact_resource_box_continuation")
         self.assertEqual(box_gate["status"], "evidence_required")
         self.assertEqual(box_gate["permitted_inputs"], [])
@@ -657,7 +670,7 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(contract["trigger_cadence_type"], "daily_once")
         self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(binding["product_record_id"], "hall_of_war_zombie_zero")
-        self.assertEqual(binding["product_record_revision"], "hall_of_war_zombie_zero-v2")
+        self.assertEqual(binding["product_record_revision"], "hall_of_war_zombie_zero-v3")
         self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
         self.assertFalse(binding["selected_daily_prerequisite"])
         self.assertEqual(

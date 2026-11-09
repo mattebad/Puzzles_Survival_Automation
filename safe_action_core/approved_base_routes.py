@@ -12,6 +12,7 @@ import hashlib
 import json
 import re
 from typing import Optional, Tuple
+from urllib.parse import quote, unquote
 
 # Fixed policy allowlist, independent of runtime composition and registration.
 DONATION_TASK = "ALLIANCE-TECH-DONATION-BLUESTACKS-INTEGRATION"
@@ -283,7 +284,7 @@ def _donation(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
         or hold != "true"
     ):
         return deny
-    if not re.fullmatch(r"(?:[1-9]|1[0-9]|20)/20", attempts_text or "", flags=re.ASCII):
+    if attempts_text is None or not re.fullmatch(r"(?:[1-9]|1[0-9]|20)/20", attempts_text, flags=re.ASCII):
         return deny
     attempts = int(attempts_text.split("/", 1)[0])
     cost = _integer_token(cost_text, minimum=1)
@@ -349,6 +350,8 @@ def _alliance_shop(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
     ordinal = _integer_token(_field(tokens[9], "alliance_shop_action_ordinal="), minimum=1, maximum=1)
     count_before = _integer_token(_field(tokens[10], "alliance_shop_action_count_before="), maximum=1)
     limit = _integer_token(_field(tokens[11], "alliance_shop_action_limit="), minimum=1, maximum=1)
+    if shop is None:
+        return deny
     source = {"weekly_offers": "ALLIANCE_SHOP_WEEKLY_QUANTITY_DIALOG", "other": "ALLIANCE_SHOP_OTHER_QUANTITY_DIALOG"}.get(shop)
     allowed_shop_item = (
         (shop == "weekly_offers" and item in {"joy_coin", "timed_recruit_coin", "bioenhance_scheme"})
@@ -357,7 +360,10 @@ def _alliance_shop(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
     if (
         source is None
         or item_token != item
-        or currency != "ALLIANCE_COINS"
+        or not (
+            currency == "ALLIANCE_COINS"
+            or (shop == "weekly_offers" and item == "timed_recruit_coin" and currency == "DIAMONDS")
+        )
         or not allowed_shop_item
         or stock is None or balance is None or price is None or qty is None or total is None
         or stock < 1 or balance < price or total != price
@@ -375,16 +381,16 @@ def _alliance_shop(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
         control_class="BUY",
         consequence="alliance_shop_purchase",
         postcondition="ALLIANCE_SHOP_PURCHASE_RECONCILED",
-        cost_type="ALLIANCE_COINS",
+        cost_type=currency,
         cost_amount=total,
         quantity=1,
-        resource_or_currency="ALLIANCE_COINS",
+        resource_or_currency=currency,
         maximum_cost=total,
         free_only=False,
     ):
         return deny
     expected = (
-        f"shop={shop}", f"item={item}", "currency=ALLIANCE_COINS",
+        f"shop={shop}", f"item={item}", f"currency={currency}",
         f"unit_price={price}", f"stock={stock}", f"balance={balance}", "quantity=1", f"total={total}",
         f"alliance_shop_reset_id={request.game_day_id}", "alliance_shop_action_ordinal=1",
         "alliance_shop_action_count_before=0", "alliance_shop_action_limit=1",
@@ -701,6 +707,8 @@ def _ruins(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
         (product, revision, flow, account, server, reset, game_day, category, identity,
          challenge_day, availability, control, cost_type, cost_text, premium, paid,
          ticketed, npc_troops, stage, count_text, limit_text) = fields
+        if stage is None:
+            return deny
         stage_parts = stage.split("/")
         if len(stage_parts) != 2:
             return deny
@@ -893,8 +901,8 @@ def _hero_duel(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
 def _commander_talent_preset(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
     deny = _deny("COMMANDER_TALENT_PRESET_NOT_EXACT", "only an exact saved preset Apply for its approved consumer is allowed")
     name = request.subject
-    # Saved presets do not confer generic permission for free strategic actions.
-    if (request.task_id, name) not in {
+    # A named preset is not standing switch/reset authority or a cost declaration.
+    if not isinstance(name, str) or (request.task_id, name) not in {
         (HALL_OF_WAR_TASK, "Military"), (TROOP_TRAINING_TASK, "Training"),
     }:
         return deny
@@ -904,17 +912,23 @@ def _commander_talent_preset(request: PolicyRequest) -> Tuple[PolicyDecision, st
     previous = _field(tokens[2], "previous-applied-preset:")
     generation = _field(tokens[4], "source-generation:")
     context = _field(tokens[5], "context-sha256:")
+    dialogs = request.allowed_confirmation_dialogs
+    permitted_dialogs = {(), ("commander_talent_apply_confirmation",)}
+    if name == "Training":
+        permitted_dialogs.add(("commander_talent_training_allocated_points_reset_confirmation",))
+    bound_terms = json.dumps([request.action_key, list(tokens), list(dialogs)], ensure_ascii=True, separators=(",", ":"))
     if (
         previous not in {"Military", "Economy", "Training"} or previous == name
         or generation is None or any(char.isspace() for char in generation)
         or not _hash(context)
         or request.action_key != f"commander-talent-switch:{name.lower()}:{generation}"
+        or request.action_id != "commander-talent-switch:" + hashlib.sha256(bound_terms.encode("utf-8")).hexdigest()
         or tokens != (
             f"saved-preset-name:{name}", f"currently-Apply:{name}",
-            f"previous-applied-preset:{previous}", "owner-fixed-free-no-cooldown-switch",
+            f"previous-applied-preset:{previous}", "applicable-scenario-switch-authority",
             f"source-generation:{generation}", f"context-sha256:{context}",
         )
-        or request.allowed_confirmation_dialogs != ("commander_talent_free_apply_confirmation",)
+        or dialogs not in permitted_dialogs
         or type(request.observation.quantity) is not int
         or not _contract_matches(
             request, action_class=ActionClass.ZERO_COST_CONSEQUENTIAL,
@@ -930,7 +944,7 @@ def _commander_talent_preset(request: PolicyRequest) -> Tuple[PolicyDecision, st
     guard = _route_runtime_guard(request)
     if guard is not None:
         return guard
-    return PolicyDecision.AUTHORIZE, "AUTHORIZED_COMMANDER_TALENT_PRESET", "exact consumer, saved Apply row, generation, context and fixed-free switch contract passed"
+    return PolicyDecision.AUTHORIZE, "AUTHORIZED_COMMANDER_TALENT_PRESET", "exact consumer, current known cost, scoped confirmation, generation and context passed"
 
 
 def _hall_of_war(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
@@ -959,7 +973,7 @@ def _hall_of_war(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
             "troop_set_1_application_toast_verified",
             "five_hero_slots_populated",
             "current_troop_count_positive",
-            f"dispatch_source_frame={frame_hash}",
+            f"dispatch_source_frame={source_frame}",
             f"hall_of_war_saved_formation={formation_roi}" if formation_roi is not None else "",
             f"hall_of_war_dispatch_control={dispatch_roi}" if dispatch_roi is not None else "",
             "fixed_zero_resource_zero_loss_zombie_zero_mechanic",
@@ -967,9 +981,12 @@ def _hall_of_war(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
         )
         roi_hashes = request.observation.critical_roi_hashes
         action_key_pattern = rf"hall-of-war:dispatch:daily:{re.escape(request.game_day_id or '')}:attempt-1:[0-9a-f]{{64}}"
+        bound_terms = json.dumps([request.action_key, list(tokens)], ensure_ascii=True, separators=(",", ":"))
         if (
             reset != request.game_day_id or not _slug(reset)
-            or frame_hash != source_frame
+            or not _hash(source_frame)
+            or (request.policy_phase == "proposal" and frame_hash != source_frame)
+            or request.action_id != "hall-of-war:dispatch:" + hashlib.sha256(bound_terms.encode("utf-8")).hexdigest()
             or not _hash(formation_roi) or not _hash(dispatch_roi)
             or sum(name == "hall_of_war_saved_formation" for name, _digest in roi_hashes) != 1
             or sum(name == "hall_of_war_dispatch_control" for name, _digest in roi_hashes) != 1
@@ -1376,10 +1393,16 @@ def _food_farm(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
     if tokens is None:
         return deny
     farm = _field(tokens[4], "current_food_farm_boost_panel_binding:")
-    item_name = _field(tokens[5], "exact_current_food_farm_item_name:")
+    encoded_item_name = _field(tokens[5], "exact_current_food_farm_item_name:")
+    if encoded_item_name is None:
+        return deny
+    try:
+        item_name = unquote(encoded_item_name, errors="strict")
+    except UnicodeError:
+        return deny
     if (
         farm is None or re.fullmatch(r"home\.building\.farm\.[0-9]{2}", farm, flags=re.ASCII) is None
-        or item_name is None or not item_name.strip()
+        or not item_name.strip() or quote(item_name, safe="") != encoded_item_name
         or type(request.action_key) is not str
         or re.fullmatch(r"food-farm-output-boost:daily:boost:[0-9a-f]{64}", request.action_key, flags=re.ASCII) is None
         or tokens[:4] != (

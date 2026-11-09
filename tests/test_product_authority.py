@@ -244,11 +244,18 @@ class ProductAuthorityTests(unittest.TestCase):
         )
         self.assertEqual(policy["status"], "explicitly_approved")
         self.assertFalse(policy["purchase_dispatch_allowed"])
-        self.assertEqual(record["record_revision"], "alliance_shop_purchase-v3")
+        self.assertEqual(record["record_revision"], "alliance_shop_purchase-v4")
         target = record["target"]
         self.assertEqual(target["preferred_items"], list(ALLIANCE_WEEKLY_ITEMS))
         self.assertEqual(target["preferred_shop"], ALLIANCE_WEEKLY_SHOP)
         self.assertEqual(target["preferred_currency"], ALLIANCE_CURRENCY)
+        self.assertEqual(target["approved_item_currency_pairs"], [
+            ["joy_coin", "ALLIANCE_COINS"],
+            ["timed_recruit_coin", "ALLIANCE_COINS"],
+            ["bioenhance_scheme", "ALLIANCE_COINS"],
+            ["one_star_gear_enhance_material", "ALLIANCE_COINS"],
+            ["timed_recruit_coin", "DIAMONDS"],
+        ])
         self.assertEqual(target["fallback_shop"], ALLIANCE_OTHER_SHOP)
         self.assertEqual(target["fallback_item"], ALLIANCE_FALLBACK_ITEM)
         self.assertEqual(target["fallback_rarity"], 1)
@@ -267,6 +274,9 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertTrue(effect["historical_home_digest_receipts_remain_valid"])
         self.assertTrue(effect["red_price_shortage_permits_fallback_without_owned_balance_or_stock"])
         self.assertFalse(effect["owned_baseline_required"])
+        self.assertTrue(effect["timed_recruit_coin_diamonds_pair_allowed"])
+        self.assertTrue(effect["premium_requires_finite_explicit_operator_approval"])
+        self.assertFalse(effect["current_quote_maximum_cost_is_operator_budget"])
 
     def test_alliance_shop_typed_fallback_and_quantity_guards_fail_closed(self) -> None:
         mutations = (
@@ -276,6 +286,9 @@ class ProductAuthorityTests(unittest.TestCase):
             ("fallback_affordability", lambda changed: changed["semantic_effect"].__setitem__("fallback_offer_must_be_current_and_affordable", False)),
             ("unaffordable_fallback", lambda changed: changed["semantic_effect"].__setitem__("no_affordable_fallback_yields_no_purchase", False)),
             ("premium", lambda changed: changed["target"].__setitem__("premium_allowed", True)),
+            ("premium_pair", lambda changed: changed["target"]["approved_item_currency_pairs"].append(["joy_coin", "DIAMONDS"])),
+            ("premium_approval", lambda changed: changed["semantic_effect"].__setitem__("premium_requires_finite_explicit_operator_approval", False)),
+            ("quote_as_budget", lambda changed: changed["semantic_effect"].__setitem__("current_quote_maximum_cost_is_operator_budget", True)),
             ("daily_gate", lambda changed: changed["semantic_effect"].__setitem__("daily_screen_or_points_inspection_required", True)),
             ("acknowledgement", lambda changed: changed["semantic_effect"].__setitem__("exact_item_quantity_one_purchase_acknowledgement_required", False)),
             ("home_effect_gate", lambda changed: changed["semantic_effect"].__setitem__("purchase_effect_independent_of_home_return", False)),
@@ -410,7 +423,9 @@ class ProductAuthorityTests(unittest.TestCase):
         record = self.records["daily_shops_purchase"]
         shops = record["target"]["shops"]
         self.assertEqual(record["record_type"], "daily_shops_purchase")
-        self.assertEqual(record["record_revision"], "daily_shops_purchase-v2")
+        self.assertEqual(record["record_revision"], "daily_shops_purchase-v3")
+        self.assertEqual(record["semantic_entry_route"]["route"],
+                         ["HOME_ATLAS_MYSTERY_SHOP", "SHARED_SHOP", "RUINS_SHOP", "RARE_EARTH_SHOP"])
         self.assertEqual(
             [(shop["shop"], shop["item"], shop["rarity"], shop["currency"]) for shop in shops],
             [
@@ -461,6 +476,7 @@ class ProductAuthorityTests(unittest.TestCase):
         )
         mutations = (
             ("wrong_item", lambda changed: changed["target"]["shops"][1].__setitem__("item", "Module Promoter")),
+            ("obsolete_ruins_exchange", lambda changed: changed["semantic_entry_route"].__setitem__("route", ["RUINS", "EXCHANGE", "RUINS_SHOP", "RARE_EARTH_SHOP"])),
             ("wrong_rarity", lambda changed: changed["target"]["shops"][0].__setitem__("rarity", 1)),
             ("stock_only_cap", lambda changed: changed["target"]["shops"][1].__setitem__("quantity_formula", "current_stock")),
             ("shared_tab_result", lambda changed: changed["target"].__setitem__("per_tab_result_independent", False)),
@@ -896,9 +912,22 @@ class ProductAuthorityTests(unittest.TestCase):
             validate_product_authority(changed)
 
     def test_f_policy_guards_saved_preset_costs_hall_quota_and_box_scope(self) -> None:
+        preset_policy = next(
+            policy for policy in self.authority["policies"]
+            if policy["policy_id"] == "commander-talent-preset-helper"
+        )
+        self.assertIsNone(preset_policy["switch_cooldown_seconds"])
+        self.assertIsNone(preset_policy["default_switch_approval"])
+        self.assertEqual(preset_policy["unknown_switch_cost"], "blocked_under_current_authority_schema")
+        self.assertFalse(preset_policy["standing_reset_permission"])
+        self.assertEqual(preset_policy["allocated_points_reset_confirmation_preset"], "Training")
+        self.assertTrue(preset_policy["allocated_points_reset_requires_explicit_scoped_approval"])
         mutations = (
             ("commander-talent-preset-helper", lambda policy: policy.__setitem__("generic_free_strategic_action_allowed", True)),
             ("commander-talent-preset-helper", lambda policy: policy.__setitem__("optional_actual_confirmation_only", False)),
+            ("commander-talent-preset-helper", lambda policy: policy.__setitem__("standing_reset_permission", True)),
+            ("commander-talent-preset-helper", lambda policy: policy.__setitem__("unknown_switch_cost", "assumed_free")),
+            ("commander-talent-preset-helper", lambda policy: policy.__setitem__("switch_cooldown_seconds", 0)),
             ("hall-of-war-zombie-zero-policy", lambda policy: policy.__setitem__("maximum_consequential_actions_per_visit", 4)),
             ("troop-training-resource-policy", lambda policy: policy["resource_box_continuation"].__setitem__("consumption_allowed_without_exact_box_evidence", True)),
             ("troop-training-resource-policy", lambda policy: policy.__setitem__("existing_batch_retains_start_quantity", False)),
@@ -951,7 +980,7 @@ class ProductAuthorityTests(unittest.TestCase):
         )
         self.assertFalse(policy["premium_or_refill_allowed"])
         self.assertTrue(policy["owner_fixed_zero_loss_mechanic"])
-        self.assertEqual(record["record_revision"], "hall_of_war_zombie_zero-v2")
+        self.assertEqual(record["record_revision"], "hall_of_war_zombie_zero-v3")
         self.assertEqual(
             record["semantic_entry_route"]["route"], ["HALL_OF_WAR", "ZOMBIE_ZERO"]
         )
@@ -1365,7 +1394,7 @@ class ProductAuthorityTests(unittest.TestCase):
     def test_troop_training_record_preserves_four_type_queue_and_daily_policy(self) -> None:
         record = self.records["troop_training"]
         self.assertEqual(record["record_type"], "troop_training")
-        self.assertEqual(record["record_revision"], "troop_training-v4")
+        self.assertEqual(record["record_revision"], "troop_training-v6")
         self.assertEqual(record["semantic_entry_route"]["target"], "TRAINING_FACILITIES")
         variants = record["target"]["per_type_contract"]
         self.assertEqual(variants["fighter"]["target_tier"], 8)
@@ -1392,6 +1421,16 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertTrue(
             record["target"]["commander_talent_requirement"]["route_approval_required"]
         )
+        boxes = record["target"]["resource_box_continuation"]
+        self.assertNotIn("implementation_status", boxes)
+        self.assertEqual(boxes["missing_native_evidence"],
+                         ["exact_popup_box_identity", "owned_quantity", "consumption_count"])
+        self.assertFalse(boxes["consumption_allowed_without_exact_box_evidence"])
+        metadata_record = deepcopy(record)
+        metadata_record["target"]["resource_box_continuation"]["implementation_status"] = "evidence_required"
+        metadata_record["record_digest"] = record_digest(metadata_record)
+        with self.assertRaises(ProductAuthorityError):
+            validate_product_record(metadata_record)
 
         invalid_maximum = deepcopy(record)
         invalid_maximum["target"]["current_max_fixed_fallback"] = 1000

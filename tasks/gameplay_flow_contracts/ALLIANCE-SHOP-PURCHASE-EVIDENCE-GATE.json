@@ -53,7 +53,7 @@
       "permitted_input": null,
       "postconditions": [
         "complete current Weekly Offers inventory is checked against Joy Coin, Timed Recruit Coin, and Bioenhance Scheme in source allowlist order",
-        "only Alliance Coins are accepted as the currency"
+        "Alliance Coins remain accepted for older exact pairs; only exact weekly_offers timed_recruit_coin additionally permits DIAMONDS with applicable finite explicit operator approval"
       ],
       "terminal_outcomes": [
         "blocked",
@@ -205,8 +205,8 @@
     "free_only": false,
     "maximum_cost": null,
     "quantity": 1,
-    "resource_or_currency": "Alliance Coins",
-    "notes": "The exact live unit price and balance are read from the current offer; no rotating cost or reset time is guessed. Product approval is not runtime dispatch authority."
+    "resource_or_currency": "CURRENT_ALLOWLISTED_OFFER_CURRENCY",
+    "notes": "Read current unit price and affordability; quantity remains one. Only exact weekly_offers timed_recruit_coin permits DIAMONDS, requiring an existing finite explicit operator budget independent of the current quote/maximum_cost; no static price or new ledger. A conservative current Home HUD balance lower bound may establish affordability, never a guessed balance. Product approval is not runtime dispatch authority."
   },
   "completion_identity": "alliance-shop:one-allowlisted-quantity-one-purchase-per-reset",
   "terminal_outcomes": [
@@ -219,7 +219,7 @@
   "cooldown_deferred_behavior": "Recheck current availability and the exact visible offer on a configured pulse. Never infer a weekly refresh time or permit a second purchase in the same reset.",
   "bounded_recovery_behavior": "Stop on unresolved preferred inventory, ambiguous item/currency, unknown selected affordable-offer cost/balance/stock, unaffordable fallback, quantity mismatch, or unknown effect. Red price shortage permits fallback without Owned, numeric balance or stock. Preserve confirmed acknowledgement effects even if Home return fails; preserve uncertain effects without identical retry.",
   "evidence_requirements": [
-    "Current preferred allowlist evaluation and exact fallback when needed; selected affordable offer binds item, Alliance Coins, unit cost/balance, availability, stock, and numeric quantity-one dialog. Red shortage needs no Owned, numeric balance or stock.",
+    "Current preferred allowlist evaluation and exact fallback when needed; selected affordable offer binds exact item/currency pair, current unit cost/balance, availability, stock, and numeric quantity-one dialog. DIAMONDS requires exact timed_recruit_coin and applicable finite explicit operator approval; all other premium pairs block. Red shortage needs no Owned, numeric balance or stock.",
     "A bounded current Obtained [exact selected item]x1 acknowledgement on the expected tab establishes the purchase effect independently of terminal Home and without Owned, stock or wallet arithmetic. Historical Home-digest receipts remain valid and must not cause a duplicate Buy.",
     "Current canonical Home return and controller authorization remain required; registration stays disabled."
   ],
@@ -308,7 +308,7 @@
     "unallowlisted item",
     "unknown or alternative currency",
     "Int. Recruit Coin",
-    "premium offer or currency",
+    "premium offer or currency outside exact weekly_offers timed_recruit_coin DIAMONDS with finite explicit operator approval",
     "real-money confirmation",
     "ambiguous item/currency or unknown selected affordable-offer price, balance, stock, or availability",
     "quantity greater than one",
@@ -334,11 +334,11 @@
   "production_eligible": false,
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r27",
-    "product_authority_digest": "b0b24bb5e184ecf72a614d35db20bbcbde16c1e274aff7d8e418e0f18105df78",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r29",
+    "product_authority_digest": "46535b514795c59e5c1ddff00eeee0c2b3f111e22b3f788ae3d4cbded6929de4",
     "product_record_id": "alliance_shop_purchase",
-    "product_record_revision": "alliance_shop_purchase-v3",
-    "product_record_digest": "12b2dc6aaf156225732e0c94f2df682d75c7a2259f89f03f982245f4efbc5ac0",
+    "product_record_revision": "alliance_shop_purchase-v4",
+    "product_record_digest": "9eb2fef629228f52822b56f442b32875b0611fc7493a363b071bfd99b06d1b9b",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",

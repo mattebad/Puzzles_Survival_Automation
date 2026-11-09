@@ -60,6 +60,7 @@
     "each new current_max start uses the freshly recognized numeric maximum",
     "existing active or completed batches retain immutable prior_batch_quantities recorded at start, not later carousel maximum",
     "Training Applied is required before starts; reuse the same-visit generation/context/runtime/lock-bound proof without reopening the helper",
+    "A needed Training switch requires current known cost facts and explicit scoped CommanderTalentSwitchApproval; unknown cost or absent approval blocks. The exact allocated-points Reset-now dialog is Training-only and needs applicable scoped approval, not standing Reset permission.",
     "timers use captured UTC and dispatched starts retain actual tap UTC",
     "fixed selected quantity equals configured numeric quantity",
     "queue label identifies same troop type and configured tier and exact numeric quantity",
@@ -130,7 +131,7 @@
       "planner": "fresh_atlas_facility_binding",
       "permitted_input": "home_to_facility_navigation",
       "postconditions": [
-        "Training Applied verified or switched through the authorized fixed-free, no-cooldown helper before entry; reuse valid same-visit proof",
+        "Training Applied verified or switched through current known cost facts and explicit scoped approval before entry; reuse valid same-visit proof, never infer free/no-cooldown switching",
         "exact canonical facility entry"
       ],
       "terminal_outcomes": [
@@ -216,16 +217,7 @@
         "normal_timed_train",
             "safe_home_return"
       ],
-      "forbidden_inputs": [
-        "train_now",
-        "premium",
-        "speedup",
-        "cash_mall",
-        "shooter_or_rider_resource_boxes",
-        "registration",
-        "scheduler_promotion",
-        "arbitrary_adb"
-      ],
+      "forbidden_inputs": [],
       "required_transitions": [
         "home_to_facility",
         "facility_to_training",
@@ -259,7 +251,7 @@
     {
       "gate_id": "troop_training_exact_resource_box_continuation",
       "status": "evidence_required",
-      "blocks": ["Fighter_or_Vehicle_resource_box_confirmation"],
+      "blocks": ["start_timed_training"],
       "required_evidence": ["actual shortage Normal Train popup exact box identity, owned quantity and consumption count; four projected resource totals are insufficient"],
       "permitted_inputs": []
     }
@@ -296,11 +288,11 @@
   "recovery_behavior": "observe-only or safe canonical Home return; never retry unresolved Train",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r27",
-    "product_authority_digest": "b0b24bb5e184ecf72a614d35db20bbcbde16c1e274aff7d8e418e0f18105df78",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r29",
+    "product_authority_digest": "46535b514795c59e5c1ddff00eeee0c2b3f111e22b3f788ae3d4cbded6929de4",
     "product_record_id": "troop_training",
-    "product_record_revision": "troop_training-v4",
-    "product_record_digest": "4272aafc0f9cee755f81e3ec64b655c3bda740e59d53da649fcd64e13623cc8e",
+    "product_record_revision": "troop_training-v6",
+    "product_record_digest": "b84ea9ae8b2ff3984d67d5972143707735ef9bf0aa3e2a065e56bcc4900c47cd",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",

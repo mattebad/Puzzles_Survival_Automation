@@ -16,8 +16,8 @@
   ],
   "recognized_states": [
     "home_canonical",
-    "ruins_overview",
-    "exchange_screen",
+    "mystery_shop_selected",
+    "shared_shop_current",
     "shared_shop_ruins_tab",
     "ruins_offer_current",
     "ruins_quantity_verified",
@@ -36,13 +36,13 @@
   ],
   "transition_contracts": [
     {
-      "transition_id": "open_ruins_from_current_home",
+      "transition_id": "open_mystery_shop_from_current_home",
       "from": "home_canonical",
-      "to": "ruins_overview",
+      "to": "mystery_shop_selected",
       "planner": "scripts/daily_shops_bluestacks.py",
-      "permitted_input": "open_ruins_from_current_home",
+      "permitted_input": "open_mystery_shop_from_current_home",
       "postconditions": [
-        "current Ruins route and source are positively recognized without challenge or reward-claim input"
+        "current Home atlas home.building.mystery_shop is bound and its selected Mystery Shop successor is positively recognized"
       ],
       "terminal_outcomes": [
         "blocked",
@@ -51,13 +51,13 @@
       "evidence_gate_id": "daily_shops_current_native_acceptance"
     },
     {
-      "transition_id": "open_shared_shop_exchange",
-      "from": "ruins_overview",
-      "to": "exchange_screen",
+      "transition_id": "open_shared_shop",
+      "from": "mystery_shop_selected",
+      "to": "shared_shop_current",
       "planner": "scripts/daily_shops_bluestacks.py",
-      "permitted_input": "open_exchange_from_current_ruins_overview",
+      "permitted_input": "open_shop_from_selected_mystery_shop",
       "postconditions": [
-        "current Ruins overview source and shared Shop destination are positively recognized"
+        "current selected Mystery Shop opens the positively recognized shared Shop destination"
       ],
       "terminal_outcomes": [
         "blocked",
@@ -67,13 +67,14 @@
     },
     {
       "transition_id": "bind_ruins_tab_offer_and_quantity",
-      "from": "exchange_screen",
+      "from": "shared_shop_current",
       "to": "ruins_offer_current",
       "planner": "scripts/daily_shops_bluestacks.py",
-      "permitted_input": null,
+      "permitted_input": "select_current_ruins_shop_tab",
       "postconditions": [
         "Ruins Shop exact 3★ Chip Enhance Material, current Ruins Coins unit price, balance, availability, and stock are rebound",
-        "maximum quantity is min(current stock, floor(current balance/current unit price))"
+        "maximum quantity is min(current stock, floor(current balance/current unit price))",
+        "the Shop selector is searched through at most eight changed strips, stopping on an unchanged strip; daily-shops:ruins-tab binds the current tab before use"
       ],
       "terminal_outcomes": [
         "action_performed",
@@ -314,8 +315,9 @@
     }
   ],
   "permitted_inputs": [
-    "open_ruins_from_current_home",
-    "open_exchange_from_current_ruins_overview",
+    "open_mystery_shop_from_current_home",
+    "open_shop_from_selected_mystery_shop",
+    "select_current_ruins_shop_tab",
     "buy_current_verified_ruins_chip_quantity",
     "switch_to_adjacent_rare_earth_shop_tab",
     "buy_current_verified_rare_earth_module_quantity",
@@ -351,8 +353,8 @@
       "gate_id": "daily_shops_current_native_acceptance",
       "status": "evidence_required",
       "blocks": [
-        "open_ruins_from_current_home",
-        "open_shared_shop_exchange",
+        "open_mystery_shop_from_current_home",
+        "open_shared_shop",
         "bind_ruins_tab_offer_and_quantity",
         "verify_ruins_numeric_quantity_and_total",
         "buy_ruins_verified_quantity",
@@ -389,8 +391,8 @@
         "buy_current_verified_rare_earth_module_quantity"
       ],
       "required_transitions": [
-        "open_ruins_from_current_home",
-        "open_shared_shop_exchange",
+        "open_mystery_shop_from_current_home",
+        "open_shared_shop",
         "bind_ruins_tab_offer_and_quantity",
         "verify_ruins_numeric_quantity_and_total",
         "buy_ruins_verified_quantity",
@@ -418,8 +420,8 @@
         "buy_current_verified_rare_earth_module_quantity"
       ],
       "required_transitions": [
-        "open_ruins_from_current_home",
-        "open_shared_shop_exchange",
+        "open_mystery_shop_from_current_home",
+        "open_shared_shop",
         "bind_ruins_tab_offer_and_quantity",
         "skip_zero_or_unavailable_tab",
         "continue_after_ruins_tab_skipped",
@@ -471,11 +473,11 @@
   "production_eligible": false,
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r27",
-    "product_authority_digest": "b0b24bb5e184ecf72a614d35db20bbcbde16c1e274aff7d8e418e0f18105df78",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r29",
+    "product_authority_digest": "46535b514795c59e5c1ddff00eeee0c2b3f111e22b3f788ae3d4cbded6929de4",
     "product_record_id": "daily_shops_purchase",
-    "product_record_revision": "daily_shops_purchase-v2",
-    "product_record_digest": "e97b9d4fe21f67801e0a38aec1e8c05ee52191bd6d6e7d6fea55bc61994c3088",
+    "product_record_revision": "daily_shops_purchase-v3",
+    "product_record_digest": "c575de0e404a65b48af676b4b8f77dbaa950635652e22906b1973e515fb9dbde",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",

@@ -254,7 +254,6 @@
         "warehouse_only_rejected": true,
         "effect_authority_required_before_consumption": true,
         "shooter_or_rider_allowed": false,
-        "implementation_status": "evidence_required",
         "missing_native_evidence": ["exact_popup_box_identity", "owned_quantity", "consumption_count"],
         "consumption_allowed_without_exact_box_evidence": false
       }
@@ -358,7 +357,7 @@
       "policy_id": "commander-talent-preset-helper",
       "scope": "commander_talents.saved_preset_precondition",
       "status": "explicitly_approved",
-      "decision": "Use exactly saved Military, Economy or Training through the existing caller-owned session and declared consumer only. The owner establishes fixed free switching with no cooldown. Bind the current Apply row, acknowledge only an actual recognized free confirmation if shown, and verify the same named Applied successor; no cost/cooldown disclosure is required. Reuse same-visit generation/context/runtime/lock-bound proof, avoiding redundant switches or reopening the helper from training. Invalidate after manual/external change, restart, generation change or relevant context loss. No generic strategic authority, talent-tree edits, Reset or preset alteration.",
+      "decision": "Use exactly saved Military, Economy or Training through the existing caller-owned session and declared consumer only. Reuse valid same-visit Applied proof and avoid redundant switches. Any switch requires current known cost facts matched through existing effect authority and explicit CommanderTalentSwitchApproval; no current consumer supplies a default approval. Unknown cost is blocked under the current authority schema, never inferred free from an absent displayed price. Recognize an actual generic Apply confirmation or the exact Training-only allocated-points Reset-now confirmation only with applicable scoped approval; no standing Reset, free-switch or no-cooldown permission. The Nov9 Training switch was manually approved once; its inventory debit was not inspected and it establishes no future authority or canonical acceptance. Preserve generation/context/runtime/lock-bound proof invalidation and prohibit tree editing or preset alteration.",
       "saved_presets": [
         "Military",
         "Economy",
@@ -376,11 +375,21 @@
         "relevant_context_loss"
       ],
       "switch_requires_current_bound_apply_control": true,
-      "switch_cooldown_seconds": 0,
+      "switch_cooldown_seconds": null,
       "optional_actual_confirmation_only": true,
       "consumer_restrictions": {"Military": "existing_hall_of_war_consumer", "Training": "existing_troop_training_consumer", "Economy": "no_existing_authorized_consumer_switch_acceptance_unproven"},
       "generic_free_strategic_action_allowed": false,
-      "switch_cost_allowance": "owner_fixed_free_no_cooldown",
+      "switch_cost_allowance": "current_known_cost_and_explicit_scoped_approval",
+      "unknown_switch_cost": "blocked_under_current_authority_schema",
+      "switch_approval_interface": "CommanderTalentSwitchApproval",
+      "default_switch_approval": null,
+      "recognized_confirmation_dialogs": [
+        "commander_talent_apply_confirmation",
+        "commander_talent_training_allocated_points_reset_confirmation"
+      ],
+      "allocated_points_reset_confirmation_preset": "Training",
+      "allocated_points_reset_requires_explicit_scoped_approval": true,
+      "standing_reset_permission": false,
       "route_approval_required": true,
       "changed_or_unknown_switch_facts": "defer",
       "positive_successor": "same_named_preset_row_applied",
@@ -470,6 +479,9 @@
         "Bioenhance Scheme"
       ],
       "preferred_currency": "Alliance Coins",
+      "timed_recruit_coin_diamonds_pair_allowed": true,
+      "premium_requires_finite_explicit_operator_approval": true,
+      "current_quote_maximum_cost_is_operator_budget": false,
       "fallback_shop": "Other",
       "fallback_item": "1\u2605 Gear Enhance Material",
       "fallback_rarity": 1,
@@ -638,7 +650,7 @@
       "policy_id": "premium-spending",
       "scope": "global.premium_spending",
       "status": "prohibited",
-      "decision": "Premium spending is not approved.",
+      "decision": "Premium spending is prohibited unless an exact dedicated product policy permits the item/currency pair and an applicable finite explicit operator approval authorizes its current cost. A current quote or request maximum_cost alone is not an independent operator budget.",
       "source": "explicit_user_direction"
     },
     {
@@ -762,7 +774,7 @@
       "source": "REC-D01_explicit_completion_boundary"
     }
   ],
-  "authority_revision": "flow-delivery-product-authority-v2-r27",
+  "authority_revision": "flow-delivery-product-authority-v2-r29",
   "product_records": [
     {
       "record_id": "use_resource_item",
@@ -1527,7 +1539,7 @@
           "policy_id": "commander-talent-preset-helper",
           "required_preset": "Training",
           "verification_before_each_start": true,
-          "switch_cost_allowance": "owner_fixed_free_no_cooldown",
+          "switch_cost_allowance": "current_known_cost_and_explicit_scoped_approval",
           "route_approval_required": true
         },
         "resource_box_continuation": {
@@ -1541,7 +1553,6 @@
           "warehouse_only_rejected": true,
           "effect_authority_required_before_consumption": true,
           "shooter_or_rider_allowed": false,
-          "implementation_status": "evidence_required",
           "missing_native_evidence": ["exact_popup_box_identity", "owned_quantity", "consumption_count"],
           "consumption_allowed_without_exact_box_evidence": false
         }
@@ -1619,8 +1630,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "troop_training-v4",
-      "record_digest": "4272aafc0f9cee755f81e3ec64b655c3bda740e59d53da649fcd64e13623cc8e"
+      "record_revision": "troop_training-v6",
+      "record_digest": "b84ea9ae8b2ff3984d67d5972143707735ef9bf0aa3e2a065e56bcc4900c47cd"
     },
     {
       "record_id": "hero_duel",
@@ -2012,7 +2023,7 @@
           "policy_id": "commander-talent-preset-helper",
           "required_preset": "Military",
           "verification_before_dispatch": true,
-          "switch_policy": "owner_fixed_free_no_cooldown",
+          "switch_policy": "current_known_cost_and_explicit_scoped_approval",
           "route_approval_required": true
         },
         "saved_troop_set_identity": "Troop Set 1",
@@ -2119,8 +2130,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "hall_of_war_zombie_zero-v2",
-      "record_digest": "05d88d0cf184c00c321f93f6327f370cb22cf61ce891ed460948746e104240a0"
+      "record_revision": "hall_of_war_zombie_zero-v3",
+      "record_digest": "f2683d4ce5c62347bbb7e48c55fd2905b31f170a0ef16c60955bbcfafdfeeb98"
     },
     {
       "record_id": "hero_upgrade",
@@ -2306,6 +2317,13 @@
           "Bioenhance Scheme"
         ],
         "preferred_currency": "Alliance Coins",
+        "approved_item_currency_pairs": [
+          ["joy_coin", "ALLIANCE_COINS"],
+          ["timed_recruit_coin", "ALLIANCE_COINS"],
+          ["bioenhance_scheme", "ALLIANCE_COINS"],
+          ["one_star_gear_enhance_material", "ALLIANCE_COINS"],
+          ["timed_recruit_coin", "DIAMONDS"]
+        ],
         "fallback_shop": "Other",
         "fallback_item": "1\u2605 Gear Enhance Material",
         "fallback_rarity": 1,
@@ -2324,7 +2342,7 @@
         "cost": {
           "kind": "current_observed_currency_cost",
           "amount": null,
-          "unit": "Alliance Coins",
+          "unit": "CURRENT_ALLOWLISTED_OFFER_CURRENCY",
           "free_only": false
         }
       },
@@ -2340,6 +2358,9 @@
         "no_affordable_fallback_yields_no_purchase": true,
         "changed_or_ambiguous_offer_blocks": true,
         "premium_purchase_allowed": false,
+        "timed_recruit_coin_diamonds_pair_allowed": true,
+        "premium_requires_finite_explicit_operator_approval": true,
+        "current_quote_maximum_cost_is_operator_budget": false,
         "cash_purchase_allowed": false,
         "alternative_currency_allowed": false,
         "daily_screen_or_points_inspection_required": false,
@@ -2364,7 +2385,7 @@
         "ambiguous item",
         "ambiguous currency",
         "ambiguous cost",
-        "premium currency or offer",
+        "premium currency or offer outside exact timed_recruit_coin DIAMONDS pair with finite explicit operator approval",
         "quantity greater than one",
         "buy both preferred and fallback",
         "unaffordable fallback purchase",
@@ -2394,8 +2415,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "alliance_shop_purchase-v3",
-      "record_digest": "12b2dc6aaf156225732e0c94f2df682d75c7a2259f89f03f982245f4efbc5ac0"
+      "record_revision": "alliance_shop_purchase-v4",
+      "record_digest": "9eb2fef629228f52822b56f442b32875b0611fc7493a363b071bfd99b06d1b9b"
     },
     {
       "record_id": "alliance_donation",
@@ -2510,8 +2531,8 @@
         ],
         "target": "RUINS_SHOP",
         "route": [
-          "RUINS",
-          "EXCHANGE",
+          "HOME_ATLAS_MYSTERY_SHOP",
+          "SHARED_SHOP",
           "RUINS_SHOP",
           "RARE_EARTH_SHOP"
         ]
@@ -2621,8 +2642,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "daily_shops_purchase-v2",
-      "record_digest": "e97b9d4fe21f67801e0a38aec1e8c05ee52191bd6d6e7d6fea55bc61994c3088"
+      "record_revision": "daily_shops_purchase-v3",
+      "record_digest": "c575de0e404a65b48af676b4b8f77dbaa950635652e22906b1973e515fb9dbde"
     },
     {
       "record_id": "rare_earth_shop_purchase",
@@ -3858,5 +3879,5 @@
       "record_digest": "73a87b8d13e93bd0bc52748dce924dd79241dcba591f61ef8f78c7798b730ddd"
     }
   ],
-  "authority_digest": "b0b24bb5e184ecf72a614d35db20bbcbde16c1e274aff7d8e418e0f18105df78"
+  "authority_digest": "46535b514795c59e5c1ddff00eeee0c2b3f111e22b3f788ae3d4cbded6929de4"
 }

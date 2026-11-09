@@ -4,6 +4,7 @@ import hashlib
 import json
 import unittest
 from dataclasses import replace
+from urllib.parse import quote
 
 from automation_service.registry import (
     ALLIANCE_DONATION_FLOW_ID as DONATION,
@@ -193,7 +194,7 @@ def alliance_shop_request(item="joy_coin", shop="weekly_offers", currency="ALLIA
         task=ALLIANCE_SHOP, action="PURCHASE_ALLIANCE_SHOP_OFFER", action_class=ActionClass.SPEND_OR_STRATEGIC,
         kind=ALLIANCE_SHOP_ACTION_KIND, subject=item, source=source, target="alliance-shop:inner-buy",
         control="BUY", consequence="alliance_shop_purchase", post="ALLIANCE_SHOP_PURCHASE_RECONCILED",
-        cost_type="ALLIANCE_COINS", cost=total, quantity=quantity, resource=currency, maximum=total,
+        cost_type=currency, cost=total, quantity=quantity, resource=currency, maximum=total,
         free=False, preconditions=tokens,
     )
 
@@ -523,7 +524,7 @@ def farm_boost_request(diamonds=False, *, cost=None, balance=100):
         f"product_id:{FARM_PRODUCT}", f"product_revision:{FARM_REVISION}",
         f"reset_identity:{DAY}", "effect_ordinal:boost=1",
         f"current_food_farm_boost_panel_binding:{farm}",
-        "exact_current_food_farm_item_name:Food Output Boost (24h)",
+        f"exact_current_food_farm_item_name:{quote('Food Output Boost (24h)', safe='')}",
         "exact_current_food_farm_item_duration_seconds:86400",
         f"canonical_food_farm_boost_action_key_unclaimed:{key}", "current_runtime_lease_valid",
         "current_food_farm_owned_item_unavailable" if diamonds else "current_food_farm_owned_item_usable",
@@ -544,9 +545,9 @@ def farm_boost_request(diamonds=False, *, cost=None, balance=100):
     )
 
 
-def preset_switch_request(task=HALL, name="Military", generation="visit-1"):
+def preset_switch_request(task=HALL, name="Military", generation="visit-1", *, dialogs=("commander_talent_apply_confirmation",)):
     post = f"talent-memory-applied:{name}"
-    return replace(route_request(
+    req = replace(route_request(
         task=task, action=f"switch_commander_talent_preset:{name.lower()}",
         action_class=ActionClass.ZERO_COST_CONSEQUENTIAL,
         kind="commander_talent_preset_switch", subject=name, source="TALENT_MEMORY",
@@ -556,10 +557,12 @@ def preset_switch_request(task=HALL, name="Military", generation="visit-1"):
         action_key=f"commander-talent-switch:{name.lower()}:{generation}",
         preconditions=(
             f"saved-preset-name:{name}", f"currently-Apply:{name}",
-            "previous-applied-preset:Economy", "owner-fixed-free-no-cooldown-switch",
+            "previous-applied-preset:Economy", "applicable-scenario-switch-authority",
             f"source-generation:{generation}", f"context-sha256:{FRAME}",
         ),
-    ), allowed_confirmation_dialogs=("commander_talent_free_apply_confirmation",))
+    ), allowed_confirmation_dialogs=dialogs)
+    bound_terms = json.dumps([req.action_key, list(req.semantic_preconditions), list(dialogs)], ensure_ascii=True, separators=(",", ":"))
+    return replace(req, action_id="commander-talent-switch:" + hashlib.sha256(bound_terms.encode("utf-8")).hexdigest())
 
 
 def hall_dispatch_request(*, proof=True, frame=FRAME):
@@ -579,7 +582,7 @@ def hall_dispatch_request(*, proof=True, frame=FRAME):
         "one_dispatch_transport_remaining",
     )
     hashes = (("hall_of_war_saved_formation", formation_roi), ("hall_of_war_dispatch_control", dispatch_roi)) if proof else ()
-    return route_request(
+    req = route_request(
         task=HALL, action="HALL_OF_WAR_ZOMBIE_ZERO_DISPATCH", action_class=ActionClass.ZERO_COST_CONSEQUENTIAL,
         kind="HALL_OF_WAR_ZOMBIE_ZERO_DISPATCH", subject=None, source="HALL_OF_WAR_ZOMBIE_ZERO_DISPATCH",
         target="hall-of-war:zombie-zero:dispatch", control="DISPATCH", consequence="hall_of_war_zombie_zero_attempt",
@@ -587,6 +590,8 @@ def hall_dispatch_request(*, proof=True, frame=FRAME):
         resource=None, maximum=0, free=True, preconditions=tokens, roi_hashes=hashes,
         action_key=f"hall-of-war:dispatch:daily:{DAY}:attempt-1:{'a' * 64}",
     )
+    bound_terms = json.dumps([req.action_key, list(req.semantic_preconditions)], ensure_ascii=True, separators=(",", ":"))
+    return replace(req, action_id="hall-of-war:dispatch:" + hashlib.sha256(bound_terms.encode("utf-8")).hexdigest())
 
 
 def hall_reward_request():
@@ -697,6 +702,23 @@ class ApprovedBaseRoutePolicyTests(unittest.TestCase):
         tokens = list(req.semantic_preconditions)
         tokens[1] = "item=unknown_item"
         self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+
+    def test_alliance_shop_diamonds_are_scoped_to_exact_timed_recruit_coin(self):
+        self.assert_authorized(alliance_shop_request(
+            item="timed_recruit_coin", currency="DIAMONDS", price=17, balance=30,
+        ))
+        self.assert_denied(alliance_shop_request(
+            item="timed_recruit_coin", currency="DIAMONDS", price=17, balance=16,
+        ))
+        self.assert_denied(alliance_shop_request(
+            item="timed_recruit_coin", currency="DIAMONDS", quantity=2,
+        ))
+        for item, shop in (
+            ("joy_coin", "weekly_offers"), ("bioenhance_scheme", "weekly_offers"),
+            ("one_star_gear_enhance_material", "other"), ("timed_recruit_coin", "other"),
+        ):
+            with self.subTest(item=item, shop=shop):
+                self.assert_denied(alliance_shop_request(item=item, shop=shop, currency="DIAMONDS"))
 
     def test_daily_shop_quantity_is_exact_affordable_stock_maximum(self):
         self.assert_authorized(daily_shop_request())
@@ -1113,7 +1135,7 @@ class ApprovedBaseRoutePolicyTests(unittest.TestCase):
         self.assertFalse(consumed.binding_matched)
         self.assertEqual(consumed.reason_code, "CAPABILITY_TARGET_MISMATCH")
 
-    def test_saved_preset_switch_is_exact_and_consumer_scoped(self):
+    def test_saved_preset_switch_requires_known_cost_and_exact_consumer_scope(self):
         for task, name in ((HALL, "Military"), (TRAINING, "Training")):
             req = preset_switch_request(task, name)
             self.assert_authorized(req)
@@ -1122,7 +1144,6 @@ class ApprovedBaseRoutePolicyTests(unittest.TestCase):
                 {"semantic_action": "switch_commander_talent_preset:economy"},
                 {"action_key": req.action_key + ":other"},
                 {"allowed_confirmation_dialogs": ("unknown_confirmation",)},
-                {"allowed_confirmation_dialogs": ()},
                 {"action_class": ActionClass.SPEND_OR_STRATEGIC},
                 {"action_class": ActionClass.OWNED_ITEM_NON_IDEMPOTENT},
                 {"resource_or_currency": None}, {"free_only": False},
@@ -1138,7 +1159,7 @@ class ApprovedBaseRoutePolicyTests(unittest.TestCase):
             for index, token in (
                 (0, "saved-preset-name:Unknown"), (1, f"currently-Applied:{name}"),
                 (2, f"previous-applied-preset:{name}"), (2, "previous-applied-preset:Unknown"),
-                (3, "owner-fixed-free-no-cooldown-switch=false"),
+                (3, "owner-fixed-free-no-cooldown-switch"),
                 (4, "source-generation:other"), (4, "source-generation:"),
                 (4, "source-generation:visit 1"), (5, "context-sha256:invalid"),
             ):
@@ -1149,6 +1170,12 @@ class ApprovedBaseRoutePolicyTests(unittest.TestCase):
         self.assert_denied(preset_switch_request(TRAINING, "Military"))
         self.assert_denied(preset_switch_request(FOOD_FARM, "Economy"))
         self.assert_authorized(preset_switch_request(generation="0"))
+        req = preset_switch_request(TRAINING, "Training")
+        self.assert_authorized(preset_switch_request(TRAINING, "Training", dialogs=()))
+        reset_dialog = ("commander_talent_training_allocated_points_reset_confirmation",)
+        self.assert_authorized(preset_switch_request(TRAINING, "Training", dialogs=reset_dialog))
+        self.assert_denied(preset_switch_request(dialogs=reset_dialog))
+        self.assert_denied(replace(req, observation=replace(req.observation, cost_type=None, cost_amount=None)))
 
     def test_f_actions_preserve_runtime_and_capability_fences(self):
         for req in (preset_switch_request(), hall_dispatch_request(), hall_reward_request()):
