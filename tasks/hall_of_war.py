@@ -12,6 +12,10 @@ from automation_service.registry import (
     HALL_OF_WAR_PRODUCT_ID as PRODUCT_ID,
     HALL_OF_WAR_PRODUCT_REVISION as PRODUCT_REVISION,
 )
+
+# Core's native semantic-token schema is independent of product-record revisions.
+_NATIVE_SEMANTIC_REVISION = "hall_of_war_zombie_zero-v1"
+
 DISPATCH_ACTION = "HALL_OF_WAR_ZOMBIE_ZERO_DISPATCH"
 DISPATCH_SOURCE = "HALL_OF_WAR_ZOMBIE_ZERO_DISPATCH"
 DISPATCH_TARGET = "hall-of-war:zombie-zero:dispatch"
@@ -180,7 +184,7 @@ def dispatch_policy_preconditions(
     dispatch = _source_digest(dispatch_roi_sha256, "dispatch control ROI")
     return (
         f"hall_of_war_product={PRODUCT_ID}",
-        f"hall_of_war_product_revision={PRODUCT_REVISION}",
+        f"hall_of_war_product_revision={_NATIVE_SEMANTIC_REVISION}",
         f"hall_of_war_reset={reset_id}",
         "current_reset_id_bound_to_game_day_id",
         "challenge_action_ordinal=1",
@@ -206,7 +210,7 @@ def reward_policy_preconditions(*, reset_id: str, action_key: str) -> tuple[str,
     _current_action_key(action_key, category="reward", reset_id=reset_id, ordinal="claim")
     return (
         f"hall_of_war_product={PRODUCT_ID}",
-        f"hall_of_war_product_revision={PRODUCT_REVISION}",
+        f"hall_of_war_product_revision={_NATIVE_SEMANTIC_REVISION}",
         f"hall_of_war_reset={reset_id}",
         "current_reset_id_bound_to_game_day_id",
         "daily_reward_claim_ordinal=1",

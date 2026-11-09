@@ -49,6 +49,7 @@ from scripts.commander_talents_bluestacks import (
     run_commander_talent_preset,
 )
 from scripts.bluestacks_native_runtime import NativeRuntimePort
+from scripts.enhancement_bluestacks import _default_ocr
 from scripts.home_atlas_bluestacks import (
     BlueStacksLocalizeFirstHomeDriver,
     HomeDriverDisposition,
@@ -95,6 +96,8 @@ from tasks.troop_training_vision import (
 )
 
 
+# Native semantic-token schema; product-record revisions remain service bindings.
+_NATIVE_SEMANTIC_REVISION = "troop_training-v3"
 DEFAULT_HOME_ATLAS = ROOT / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
 
 
@@ -1574,7 +1577,7 @@ class TroopTrainingIntegratedRoute:
         configured = "current_max" if config.quantity_mode == "current_max" else str(config.quantity)
         preconditions = (
             f"troop_training_product={PRODUCT_ID}",
-            f"troop_training_product_revision={PRODUCT_REVISION}",
+            f"troop_training_product_revision={_NATIVE_SEMANTIC_REVISION}",
             "approved_profile=true",
             f"runtime_scope={resource_fixed_runtime_binding().runtime_scope}",
             f"account_id={self.native_context.identity.account_id}",
@@ -1826,6 +1829,26 @@ class TroopTrainingIntegratedRoute:
             if not window or window in seen_windows or ordinal == self.max_tier_swipes:
                 return None, None, "tier carousel repeated, had no progress, or exceeded bound"
             seen_windows.add(window)
+            # Selecting a visible lower candidate reveals the next lower
+            # window in the observed T8 -> T6 -> T4 -> T2 -> T1 path.
+            # Do not keep swiping a carousel whose drag may be ignored.
+            if config.target_tier < window[0] and observation.selected_tier is not None and window[0] < observation.selected_tier:
+                selected_tier = window[0]
+                fresh_capture, fresh = self._capture_training(f"tier-step-{troop_type}-before")
+                step = fresh.tier(selected_tier)
+                if (not fresh.recognized or fresh.troop_type != troop_type
+                        or fresh.queue_active or fresh.overlay_state != "none"
+                        or step is None or step.locked or step.question_mark or step.target_roi is None):
+                    return None, None, "visible lower tier could not be freshly rebound"
+                self._navigation_tap(
+                    fresh_capture, identity=f"tier:{selected_tier}", roi=step.target_roi,
+                    action_key=f"training:navigation:tier-step:{troop_type}:{selected_tier}:{fresh_capture.sha256}",
+                )
+                captured, observation = self._capture_training(f"tier-step-{troop_type}-post")
+                if (not observation.recognized or observation.troop_type != troop_type
+                        or observation.selected_tier != selected_tier):
+                    return None, None, "visible lower tier selection was not verified"
+                continue
             lower_target = config.target_tier < window[0]
             upper_target = config.target_tier > window[-1]
             blocking_locked = (
@@ -1968,13 +1991,15 @@ class TroopTrainingIntegratedRoute:
         )
         self.actions_completed += 1
         typed_capture = self.runtime.capture("quantity-editor-after-text")
-        self.runtime.press_key(
-            typed_capture,
-            key="ENTER",
-            action_key=f"training:navigation:quantity-enter:{troop_type}:{typed_capture.sha256}",
+        editor_hits = _default_ocr(typed_capture.frame, (0, 1180, 800, 1280))
+        values = [hit for hit in editor_hits if hit.text.strip() == str(quantity)]
+        commits = [hit for hit in editor_hits if hit.text.strip().casefold() == "ok"]
+        if len(values) != 1 or len(commits) != 1 or values[0].bounds[0] >= commits[0].bounds[0]:
+            return None, None, "numeric editor value or OK control was not verified"
+        self._navigation_tap(
+            typed_capture, identity="quantity-editor-commit", roi=commits[0].bounds,
+            action_key=f"training:navigation:quantity-commit:{troop_type}:{typed_capture.sha256}",
         )
-        self.actions_completed += 1
-        self._wait()
         post_capture, post = self._capture_training(f"quantity-{troop_type}-post")
         if not post.recognized or post.selected_quantity != quantity:
             return None, None, "configured quantity was not displayed exactly"
@@ -2074,7 +2099,7 @@ class TroopTrainingIntegratedRoute:
         facility = FACILITY_BY_TYPE[troop_type].casefold().replace(" ", "_")
         preconditions = (
             f"troop_training_product={PRODUCT_ID}",
-            f"troop_training_product_revision={PRODUCT_REVISION}",
+            f"troop_training_product_revision={_NATIVE_SEMANTIC_REVISION}",
             f"runtime_scope={resource_fixed_runtime_binding().runtime_scope}",
             f"account_id={context.identity.account_id}",
             f"server_id={context.identity.server_id}",

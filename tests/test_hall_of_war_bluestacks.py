@@ -11,6 +11,7 @@ from unittest.mock import patch
 import numpy as np
 
 from safe_action_core import SafetyStore
+from safe_action_core.store import LeaseError
 from scripts.bluestacks_native_runtime import (
     CapturedNativeFrame,
     NATIVE_HEIGHT,
@@ -187,15 +188,39 @@ def _perform(route: HallOfWarBoundary, category: str):
 
 
 class HallOfWarNativeReplayTests(unittest.TestCase):
+    def test_observed_lose_damage_and_continue_establish_participation(self):
+        vision = HallOfWarVision()
+        frame = np.zeros((NATIVE_HEIGHT, NATIVE_WIDTH, 3), dtype=np.uint8)
+        continuation = (260, 1210, 530, 1245)
+        with patch.object(vision, "text", return_value="LOSE Dmg This Time: 2,166,282,036 Tap to continue"), patch.object(
+            vision, "_phrase_boxes", return_value=(continuation,)
+        ):
+            self.assertEqual(vision.result_modal(frame), (True, 2_166_282_036))
+            self.assertEqual(vision.bind_result_confirm(frame).target_roi, continuation)
+        with patch.object(vision, "text", return_value="LOSE Tap to continue"), patch.object(
+            vision, "_phrase_boxes", return_value=(continuation,)
+        ):
+            self.assertEqual(vision.result_modal(frame), (False, None))
+            self.assertIsNone(vision.bind_result_confirm(frame))
+
     def test_vision_normalizes_unicode_and_recognizes_zombie_zero_page(self):
         vision = HallOfWarVision()
         frame = np.zeros((NATIVE_HEIGHT, NATIVE_WIDTH, 3), dtype=np.uint8)
         self.assertEqual(vision._normal("  TÓDAY's   Highest   Dmg  "), "today's highest dmg")
-        with patch.object(
-            vision, "text", return_value="Zombie Zero Today's Highest Dmg Daily Reward"
-        ):
+        labels = {
+            vision._MENU_TITLE_BAND: ("zombie zero",),
+            vision._MENU_DAMAGE_BAND: ("today's highest dmg: ?",),
+            vision._MENU_REWARD_BAND: ("daily reward",),
+            vision._MENU_FOOTER_BAND: (),
+        }
+
+        def lines(_frame, band, _colour):
+            return tuple(SimpleNamespace(text=text, roi=band) for text in labels[band])
+
+        with patch.object(vision, "_text_lines", side_effect=lines):
             self.assertTrue(vision.zombie_zero_page(frame))
-        with patch.object(vision, "text", return_value="Zombie Zero Daily Reward"):
+            self.assertIsNone(vision.today_highest_damage(frame))
+            labels[vision._MENU_TITLE_BAND] = ()
             self.assertFalse(vision.zombie_zero_page(frame))
 
     def test_real_executor_and_temporary_safety_store_confirm_both_effects(self):
@@ -249,26 +274,37 @@ class HallOfWarNativeReplayTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             route, runtime, store = _route(root, effects_confirmed=True)
+            lease_held = True
             try:
                 self.assertEqual(_perform(route, "dispatch")[:2], ("confirmed", 1))
                 runtime.effects_confirmed = False
                 self.assertEqual(_perform(route, "reward")[:2], ("unresolved", 1))
                 store.release_lease(OWNER, NOW)
+                lease_held = False
                 store.close()
                 store = SafetyStore(root / "safety.sqlite3")
-                store.acquire_lease(OWNER, NOW, 3600.0)
+                with self.assertRaises(LeaseError):
+                    store.acquire_lease(OWNER, NOW, 3600.0)
                 route.store = store
                 dispatch_key = action_key(
                     category="dispatch", runtime_scope="replay-slot", account_id="account",
                     server_id="server", reset_id=RESET_ID,
                 )
                 self.assertEqual(store.get_action_by_key(dispatch_key)["final_status"], "confirmed")
+                reward_key = action_key(
+                    category="reward", runtime_scope="replay-slot", account_id="account",
+                    server_id="server", reset_id=RESET_ID,
+                )
+                self.assertEqual(store.get_action_by_key(reward_key)["final_status"], "unresolved")
                 with self.assertRaises(HallOfWarRouteError):
                     _perform(route, "reward")
                 self.assertEqual(runtime.tap_count, 2)
             finally:
-                store.release_lease(OWNER, NOW)
-                store.close()
+                try:
+                    if lease_held:
+                        store.release_lease(OWNER, NOW)
+                finally:
+                    store.close()
 
     def test_unknown_dispatch_is_durable_and_same_action_cannot_be_retried(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from pathlib import Path
+import hashlib
+import json
 import tempfile
 import time
 from types import SimpleNamespace
@@ -122,11 +124,13 @@ def _approved_switch(facts, generation, context_sha256):
     post = f"talent-memory-applied:{name}"
     preconditions = (
         f"saved-preset-name:{name}", f"currently-Apply:{name}",
-        f"previous-applied-preset:{facts.applied_preset}", "owner-fixed-free-no-cooldown-switch",
+        f"previous-applied-preset:{facts.applied_preset}", "applicable-scenario-switch-authority",
         f"source-generation:{generation}", f"context-sha256:{context_sha256}",
     )
     intent = ActionIntent(
-        action_id=key, action_key=key, task_id="test_route",
+        action_id="commander-talent-switch:" + hashlib.sha256(json.dumps(
+            [key, list(preconditions), []], ensure_ascii=True, separators=(",", ":"),
+        ).encode("utf-8")).hexdigest(), action_key=key, task_id="test_route",
         semantic_action=f"switch_commander_talent_preset:{name.casefold()}", source_state="TALENT_MEMORY",
         target_identity=f"talent-memory-row:{name}:apply", target_roi=facts.apply_target,
         source_frame_sha256=facts.source_frame_sha256, source_frame_captured_at=1.0,
@@ -139,8 +143,9 @@ def _approved_switch(facts, generation, context_sha256):
     )
     snapshot = {key: getattr(intent, key) for key in (
         "action_id", "action_key", "task_id", "semantic_action", "action_kind", "subject",
-        "resource_or_currency", "free_only", "maximum_cost")}
+        "resource_or_currency", "free_only", "maximum_cost", "allowed_confirmation_dialogs")}
     snapshot.update(
+        allowed_confirmation_dialogs=[],
         action_class=ActionClass.ZERO_COST_CONSEQUENTIAL.value, semantic_preconditions=list(preconditions),
         semantic_postconditions=[post], expected_runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID,
         observation={"frame_sha256": facts.source_frame_sha256, "source_state": "TALENT_MEMORY",
@@ -273,7 +278,7 @@ class CanonicalCommanderTalentTests(unittest.TestCase):
         self.assertEqual(store.actions, {})
 
 
-    def test_default_training_switch_uses_real_core_and_canonical_journal_without_quote(self):
+    def test_uninspected_switch_cost_does_not_mint_a_free_capability(self):
         session = CanonicalTalentSession()
         facts = replace(_switch_facts(), preset_name="Training")
         context = {"flow_id": TROOP_TRAINING_FLOW_ID, "required_preset": "Training",
@@ -282,12 +287,9 @@ class CanonicalCommanderTalentTests(unittest.TestCase):
         def native(_session, _runtime, required, **kwargs):
             frame = SimpleNamespace(sha256=facts.source_frame_sha256, captured_monotonic=time.monotonic())
             permit = kwargs["switch_approval"](facts, frame)
-            self.assertIsInstance(permit, TalentSwitchPermit)
-            applied = replace(facts, row_state=PresetRowState.APPLIED, applied_preset="Training",
-                              apply_target=None, source_frame_sha256="e" * 64)
-            kwargs["switch_outcome"](permit.action_key, "switched", True, applied)
-            return TalentPresetNativeResult("switched", True, required, "APPLIED", ("frame:training-applied",),
-                                            1, permit.action_key, True)
+            self.assertIsNone(permit)
+            return TalentPresetNativeResult("deferred", False, required, "SWITCH_NOT_APPROVED",
+                                            ("frame:training-apply",), 0)
 
         with tempfile.TemporaryDirectory() as directory:
             store = SafetyStore(Path(directory) / "actions.sqlite3")
@@ -299,11 +301,8 @@ class CanonicalCommanderTalentTests(unittest.TestCase):
                     runtime_input_lock=session.runtime_input_lock, action_store=store,
                     source_generation=session.invocation_id, context=context, native_port=native,
                 )
-                self.assertTrue(result.verified)
-                actions = store.list_actions_for_task(TROOP_TRAINING_FLOW_ID)
-                self.assertEqual(len(actions), 1)
-                self.assertEqual(actions[0]["final_status"], "confirmed")
-                self.assertEqual(actions[0]["cost_amount"], 0)
+                self.assertFalse(result.verified)
+                self.assertEqual(store.list_actions_for_task(TROOP_TRAINING_FLOW_ID), [])
             finally:
                 store.close()
 

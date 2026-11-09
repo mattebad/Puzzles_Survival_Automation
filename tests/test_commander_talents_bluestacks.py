@@ -65,17 +65,17 @@ class FakeRuntime:
             if self.switch_mode == "applied":
                 self.applied = self.requested
                 self.page = "memory"
-            elif self.switch_mode in {"confirmation", "paid_confirmation"}:
+            elif self.switch_mode in {"confirmation", "paid_confirmation", "allocated_reset"}:
                 self.page = self.switch_mode
             else:
                 self.page = "unknown"
         elif target_identity.startswith("talent-memory-confirm:"):
             self.applied = self.requested
-            self.page = "memory"
+            self.page = "commander_talent" if self.switch_mode == "allocated_reset" else "memory"
 
 
 _PAGE_CODES = {"home": 1, "commander_info": 2, "commander_talent": 3, "memory": 4,
-               "confirmation": 5, "paid_confirmation": 6, "unknown": 9}
+               "confirmation": 5, "paid_confirmation": 6, "allocated_reset": 7, "unknown": 9}
 
 
 def _memory_hits(applied: str) -> tuple[Hit, ...]:
@@ -102,9 +102,16 @@ def _page_hits(frame: np.ndarray, runtime: FakeRuntime) -> tuple[Hit, ...]:
             Hit("Economy", (50, 190, 200, 225)),
             Hit("Military", (290, 190, 420, 225)),
             Hit("Balance", (520, 190, 650, 225)),
-        )
+        ) + ((Hit("Talent memory applied", (180, 400, 580, 435)),)
+             if runtime.switch_mode == "allocated_reset" else ())
     if page == "memory":
         return _memory_hits(runtime.applied)
+    if page == "allocated_reset":
+        return (
+            Hit("Some of the talent pts have been allocated.", (110, 460, 630, 490)),
+            Hit("Unable to apply. Reset now?", (110, 500, 560, 530)),
+            Hit("Confirm", (450, 650, 580, 690)), Hit("Cancel", (200, 650, 330, 690)),
+        )
     if page in {"confirmation", "paid_confirmation"}:
         hits = (
             Hit(f"Apply {runtime.requested} talent preset?", (220, 450, 580, 480)),
@@ -249,7 +256,8 @@ class CommanderTalentNativeTests(unittest.TestCase):
         runtime = FakeRuntime(page="memory", applied="Military", switch_mode="confirmation")
         outcomes = []
         result, session, _store = self._run(
-            runtime, "Economy", switch_approval=lambda *_: TalentSwitchPermit("switch-economy"),
+            runtime, "Economy", switch_approval=lambda *_: TalentSwitchPermit(
+                "switch-economy", ("commander_talent_apply_confirmation",)),
             switch_outcome=lambda *args: outcomes.append(args),
         )
         self.assertTrue(result.verified)
@@ -262,13 +270,33 @@ class CommanderTalentNativeTests(unittest.TestCase):
     def test_unexpected_paid_confirmation_is_not_pressed_or_retried(self):
         runtime = FakeRuntime(page="memory", applied="Military", switch_mode="paid_confirmation")
         result, session, _store = self._run(
-            runtime, "Economy", switch_approval=lambda *_: TalentSwitchPermit("switch-economy"),
+            runtime, "Economy", switch_approval=lambda *_: TalentSwitchPermit(
+                "switch-economy", ("commander_talent_apply_confirmation",)),
             switch_outcome=lambda *args: None,
         )
         self.assertFalse(result.verified)
         self.assertEqual(result.status, "unknown")
         self.assertEqual(session.input_count, 1)
         self.assertEqual(len(runtime.taps), 1)
+
+    def test_allocated_points_reset_requires_current_scoped_training_authority(self):
+        dialog = "commander_talent_training_allocated_points_reset_confirmation"
+        for preset, dialogs, expected in (
+            ("Training", (), False), ("Economy", (dialog,), False),
+            ("Training", (dialog,), True),
+        ):
+            with self.subTest(preset=preset, dialogs=dialogs):
+                runtime = FakeRuntime(page="memory", switch_mode="allocated_reset")
+                result, session, _ = self._run(
+                    runtime, preset,
+                    switch_approval=lambda *_: TalentSwitchPermit("scoped-switch", dialogs),
+                    switch_outcome=lambda *_: None,
+                )
+                self.assertEqual(result.verified, expected)
+                self.assertEqual(session.input_count, 3 if expected else 1)
+                if expected:
+                    self.assertEqual(runtime.applied, "Training")
+                    self.assertEqual(runtime.page, "memory")
 
     def test_unknown_switch_is_persistently_blocked_from_identical_retry(self) -> None:
         runtime = FakeRuntime(page="memory", applied="Military", switch_mode="unknown")

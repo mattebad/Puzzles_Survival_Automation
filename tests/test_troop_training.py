@@ -437,6 +437,7 @@ class TroopTrainingContractTests(unittest.TestCase):
         route = TroopTrainingIntegratedRoute.__new__(TroopTrainingIntegratedRoute)
         route.controller = SimpleNamespace(semantic=controller)
         route.training = []
+        route.pending_start_action_keys = {}
         route._record_reconciled_queue(SimpleNamespace(sha256="c" * 64), active, "rider")
         self.assertEqual(route.training[0]["selected_tier"], 1)
         self.assertEqual(route.training[0]["quantity"], 250)
@@ -1297,38 +1298,68 @@ class TroopTrainingContractTests(unittest.TestCase):
         locked = replace(current, visible_tiers=(visible[0], replace(visible[1], question_mark=True)))
         self.assertEqual(controller.plan_tier(locked, "rider"), "reject_ambiguous_tier")
 
-    def test_integrated_tier_selector_swipes_toward_offscreen_tier_and_rebinds(self):
-        from scripts.troop_training_bluestacks import TroopTrainingIntegratedRoute
-
-        visible = tuple(
-            TierObservation(
-                number,
-                visible=True,
-                unlocked=number < 9,
-                selected=number == 8,
-                question_mark=number >= 9,
-                target_roi=(100 + number * 20, 825, 170 + number * 20, 975),
-            )
-            for number in (6, 7, 8, 9, 10)
-        )
-        current = replace(observation("rider", tier=8), visible_tiers=visible)
-        selected = replace(observation("rider", tier=1), selected_tier=1)
-        runtime = SimpleNamespace(swipes=[], swipe=lambda captured, *, start, end, action_key: runtime.swipes.append((start, end, action_key)))
+    def test_visible_lower_candidates_reveal_exact_rider_t1_without_drag(self):
         route = TroopTrainingIntegratedRoute.__new__(TroopTrainingIntegratedRoute)
         route.config = config(tier=1)
         route.controller = TroopTrainingRuntimeController(route.config, reset_identity=RESET)
-        route.runtime = runtime
-        route.max_tier_swipes = 2
-        route.actions_completed = 0
-        route._wait = lambda: None
-        route._capture_training = lambda _label: (SimpleNamespace(sha256="b" * 64, frame=object()), selected)
-        before = SimpleNamespace(sha256="a" * 64, frame=object())
-        captured, result, error = route._select_tier(before, current, "rider")
+        route.max_tier_swipes = 12
+        sequence = (8, 6, 4, 2, 1)
+        selected_index = 0
+        selections = []
+        frame = SimpleNamespace(sha256="b" * 64, frame=object())
+
+        def current():
+            tier = sequence[selected_index]
+            visible = tuple(
+                TierObservation(number, visible=True, unlocked=number <= 8,
+                    selected=number == tier, question_mark=number > 8,
+                    target_roi=(50 + number * 20, 825, 120 + number * 20, 975))
+                for number in range(max(1, tier - 2), min(10, tier + 2) + 1)
+            )
+            return replace(observation("rider", tier=tier), visible_tiers=visible)
+
+        def select(_frame, *, identity, **_kwargs):
+            nonlocal selected_index
+            selected_index += 1
+            self.assertEqual(identity, f"tier:{sequence[selected_index]}")
+            selections.append(sequence[selected_index])
+
+        route._navigation_tap = select
+        route._capture_training = lambda _label: (frame, current())
+        captured, result, error = route._select_tier(frame, current(), "rider")
         self.assertIsNotNone(captured)
         self.assertIsNone(error)
         self.assertEqual(result.selected_tier, 1)
-        self.assertEqual(len(runtime.swipes), 1)
-        self.assertLess(runtime.swipes[0][0][0], runtime.swipes[0][1][0])
+        self.assertEqual(selections, [6, 4, 2, 1])
+
+    def test_quantity_editor_must_verify_value_commit_ok_and_reread_quote(self):
+        for editor_value, quote_quantity, expected in ((50, 250, False), (250, 50, False), (250, 250, True)):
+            with self.subTest(editor_value=editor_value, quote_quantity=quote_quantity):
+                route = TroopTrainingIntegratedRoute.__new__(TroopTrainingIntegratedRoute)
+                route.config = config()
+                frame = SimpleNamespace(sha256="a" * 64, frame=object())
+                before = observation("shooter", quantity=1510)
+                after = observation("shooter", quantity=quote_quantity)
+                captures = iter(((frame, before), (frame, after)))
+                route._capture_training = lambda _label: next(captures)
+                inputs = []
+                route._navigation_tap = lambda _frame, **kwargs: inputs.append(kwargs["identity"])
+                route.runtime = SimpleNamespace(
+                    capture=lambda _label: frame,
+                    clear_numeric_text=lambda *_args, **_kwargs: None,
+                    type_text=lambda *_args, **_kwargs: None,
+                )
+                route.actions_completed = 0
+                route._wait = lambda: None
+                hits = [
+                    SimpleNamespace(text=str(editor_value), bounds=(10, 1210, 80, 1240)),
+                    SimpleNamespace(text="OK", bounds=(730, 1210, 780, 1240)),
+                ]
+                with patch("scripts.troop_training_bluestacks._default_ocr", return_value=hits):
+                    _captured, result, error = route._set_quantity(frame, before, "shooter")
+                self.assertEqual(error is None, expected)
+                self.assertEqual(result is not None, expected)
+                self.assertEqual("quantity-editor-commit" in inputs, editor_value == 250)
 
     @requires_local_captures
     def test_retained_rider_tier_strip_marks_question_cards_locked(self):
@@ -1476,64 +1507,6 @@ class TroopTrainingContractTests(unittest.TestCase):
         self.assertEqual(runtime.inputs[0][0], "tap")
         self.assertEqual(runtime.inputs[0][2], post.tier(1).target_roi)
         self.assertFalse(any(item[0] == "swipe" for item in runtime.inputs))
-
-    @requires_local_captures
-    def test_latest_retained_rider_window_swipes_from_current_centers_and_rebinds(self):
-        """The retained T6-T8 window drives one bounded lower-direction swipe."""
-        from scripts.troop_training_bluestacks import TroopTrainingIntegratedRoute
-
-        frame_path = LOCAL_CAPTURES / "flow-delivery" / "TROOP-TRAINING-END-TO-END-CONSOLIDATION" / "run-20260813T194304476354Z" / "troop-training-20260813T194305096396Z" / "frames" / "0006-rider-training-screen-source.png"
-        require_capture(frame_path)
-        current = recognize_training(cv2.imread(str(frame_path), cv2.IMREAD_COLOR))
-        post = observation("rider", tier=1)
-
-        class Runtime:
-            execute = True
-            in_flight_action = None
-            session = Path("retained-rider-tier-strip")
-
-            def __init__(self):
-                self.inputs: list[tuple[str, object]] = []
-                self.frame = CapturedNativeFrame(
-                    np.zeros((1280, 800, 3), dtype=np.uint8),
-                    b"native",
-                    "n" * 64,
-                    0.0,
-                    Path("frame.png"),
-                )
-
-            def swipe(self, _frame, *, start, end, action_key):
-                self.inputs.append(("swipe", (start, end, action_key)))
-
-            def capture(self, _label):
-                return self.frame
-
-        runtime = Runtime()
-        with TemporaryDirectory() as directory, patch(
-            "scripts.troop_training_bluestacks.recognize_training", return_value=post
-        ):
-            route = TroopTrainingIntegratedRoute(
-                runtime,
-                config=config(tier=1),
-                reset_identity=RESET,
-                post_input_delay=0,
-                max_tier_swipes=1,
-            )
-            selected_capture, selected, error = route._select_tier(runtime.frame, current, "rider")
-        self.assertIsNotNone(selected_capture)
-        self.assertIsNone(error)
-        self.assertEqual(selected.selected_tier, 1)
-        self.assertEqual(len(runtime.inputs), 1)
-        start, end, _action = runtime.inputs[0][1]
-        self.assertEqual(start, (122, 895))
-        self.assertEqual(end, (680, 895))
-        self.assertGreaterEqual(start[0], 100)
-        self.assertLessEqual(end[0], 680)
-        self.assertGreaterEqual(end[0] - start[0], 200)
-        self.assertGreaterEqual(start[1], 840)
-        self.assertLessEqual(start[1], 960)
-        self.assertEqual(start[1], end[1])
-        self.assertIn("training:navigation:swipe:rider:0", runtime.inputs[0][1][2])
 
     @requires_local_captures
     def test_latest_retained_rider_window_rejects_gapped_or_lower_locked_cards(self):

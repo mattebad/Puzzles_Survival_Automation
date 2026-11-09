@@ -332,8 +332,8 @@ def session_result_frame(session: Any, runtime: Any, label: str) -> CapturedNati
     return session.observe(runtime.capture, label=f"commander-talent-{label}-settled")
 
 
-def _switch_confirmation_target(frame, required_preset: str, *, ocr_engine=None) -> NativeBox | None:
-    """Bind only a real, non-payment preset confirmation; never assume a dialog exists."""
+def _switch_confirmation_target(frame, required_preset: str, *, allowed_dialogs=(), ocr_engine=None) -> NativeBox | None:
+    """Bind an observed confirmation only within the prepared action's dialog authority."""
     hits = _all_hits(frame, ocr_engine)
     confirms = _label_hits(hits, "Confirm")
     cancels = _label_hits(hits, "Cancel")
@@ -347,6 +347,12 @@ def _switch_confirmation_target(frame, required_preset: str, *, ocr_engine=None)
     body = " ".join(_normalize(getattr(hit, "text", "")) for hit in hits
                     if _hit_box(hit) is not None and left <= _hit_box(hit)[0] < right
                     and top <= _hit_box(hit)[1] < bottom)
+    allocated_reset = "some of the talent pts have been allocated. unable to apply. reset now?"
+    if body == allocated_reset:
+        return confirm if (required_preset == "Training" and
+            "commander_talent_training_allocated_points_reset_confirmation" in allowed_dialogs) else None
+    if "commander_talent_apply_confirmation" not in allowed_dialogs:
+        return None
     if (not re.search(r"\b(?:apply|switch|change|use)\b", body)
             or not re.search(r"\btalent\b", body)
             or re.search(r"\b(?:diamond|gem|gold|cost|price|pay|purchase|reset|unlock|cooldown)\b|[0-9]", body)):
@@ -371,7 +377,7 @@ def run_commander_talent_preset(
     switch_approval: Callable[[TalentMemoryObservation, CapturedNativeFrame], NativeSwitchPermit | None] | None = None,
     switch_outcome: Callable[[str, str, bool, TalentMemoryObservation | None], None] | None = None,
 ) -> NativePresetResult:
-    """Verify Applied, or send one canonically approved free Apply and any actual confirmation."""
+    """Verify Applied, or perform a canonically approved Apply and scoped confirmation."""
 
     if required_preset not in PRESET_NAMES:
         raise ValueError("required preset must be Military, Economy, or Training")
@@ -504,12 +510,18 @@ def run_commander_talent_preset(
 
         def switch_recognize(frame: CapturedNativeFrame) -> str:
             pending["post_frame"] = frame
-            if _switch_confirmation_target(frame, required_preset, ocr_engine=ocr_engine) is not None:
+            permit = pending.get("permit")
+            if (isinstance(permit, NativeSwitchPermit) and _switch_confirmation_target(
+                    frame, required_preset, allowed_dialogs=permit.allowed_confirmation_dialogs,
+                    ocr_engine=ocr_engine) is not None):
                 return "confirmation"
             found = _recognized_page(frame, required_preset=required_preset, ocr_engine=ocr_engine)
             if (found.recognized and found.page == TALENT_MEMORY and found.preset is not None
                     and found.preset.row_state is PresetRowState.APPLIED):
                 return "applied"
+            if (found.recognized and found.page == COMMANDER_TALENT
+                    and _label_hits(_all_hits(frame, ocr_engine), "Talent memory applied")):
+                return "applied_return"
             return UNKNOWN
 
         try:
@@ -522,7 +534,11 @@ def run_commander_talent_preset(
             )
             if getattr(switch_result, "state", "") == "confirmation":
                 def confirm_authorize(frame):
-                    target = _switch_confirmation_target(frame, required_preset, ocr_engine=ocr_engine)
+                    permit = pending.get("permit")
+                    target = _switch_confirmation_target(
+                        frame, required_preset,
+                        allowed_dialogs=permit.allowed_confirmation_dialogs if isinstance(permit, NativeSwitchPermit) else (),
+                        ocr_engine=ocr_engine)
                     if target is None:
                         raise RuntimeError("TALENT_SWITCH_CONFIRMATION_CHANGED")
                     pending["confirmation_target"] = target
@@ -571,13 +587,30 @@ def run_commander_talent_preset(
             return NativePresetResult("deferred", False, required_preset, "SWITCH_NOT_APPROVED",
                                       tuple(dict.fromkeys((*refs, observation.evidence_ref))),
                                       int(getattr(session, "input_count", 0)) - start_count)
+        if getattr(switch_result, "state", "") == "applied_return":
+            try:
+                _run_navigation_action(
+                    session, runtime, source_generation=source_generation,
+                    label="commander-talent-switch-applied-readback", source_page=COMMANDER_TALENT,
+                    destination_page=TALENT_MEMORY,
+                    target_identity=f"commander-talent-navigation:{COMMANDER_TALENT}:{TALENT_MEMORY}",
+                    target_getter=lambda observed: observed.target, required_preset=required_preset,
+                    ocr_engine=ocr_engine, checkpoint=checkpoint, runtime_input_lock=runtime_input_lock,
+                )
+            except Exception as exc:
+                switch_outcome(permit.action_key, "unknown", dispatch_returned, None)
+                return NativePresetResult(
+                    "unknown", False, required_preset, f"APPLIED_READBACK_FAILED:{exc}",
+                    tuple(dict.fromkeys(refs)), int(getattr(session, "input_count", 0)) - start_count,
+                    permit.action_key, dispatch_returned,
+                )
         switch_frame = session.observe(runtime.capture, label="commander-talent-switch-settled")
         refs.append(_evidence(switch_frame))
         successor = _recognized_page(switch_frame, required_preset=required_preset, ocr_engine=ocr_engine)
         switched = bool(
             dispatch_returned
             and getattr(switch_result, "status", "") == "completed"
-            and getattr(switch_result, "state", "") == "applied"
+            and getattr(switch_result, "state", "") in {"applied", "applied_return"}
             and successor.recognized
             and successor.page == TALENT_MEMORY
             and successor.preset is not None

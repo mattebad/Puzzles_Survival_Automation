@@ -743,6 +743,13 @@ class HallOfWarVision:
 
     def result_modal(self, frame: np.ndarray) -> tuple[bool, int | None]:
         text = self._normal(self.text(frame))
+        if self._contains(text, "LOSE"):
+            damage = re.findall(r"\bdmg this time\s*:\s*([0-9][0-9,]*)\b", text)
+            continuation = self._phrase_boxes(frame, "Tap to continue")
+            if (len(damage) == 1 and len(continuation) == 1
+                    and continuation[0][1] >= NATIVE_HEIGHT * 0.8):
+                return True, int(damage[0].replace(",", ""))
+            return False, None
         if not self._contains(text, "History High"):
             return False, None
         numeric = self.text(frame, (90, 520, 710, 680))
@@ -754,7 +761,12 @@ class HallOfWarVision:
 
     def bind_result_confirm(self, frame: np.ndarray) -> BoundTarget | None:
         recognized, damage = self.result_modal(frame)
-        return self.bind_text_target(frame, "Confirm", RESULT_CONFIRM_TARGET) if recognized and damage is not None else None
+        if not recognized or damage is None:
+            return None
+        continuation = self._phrase_boxes(frame, "Tap to continue")
+        if len(continuation) == 1 and continuation[0][1] >= NATIVE_HEIGHT * 0.8:
+            return BoundTarget(RESULT_CONFIRM_TARGET, continuation[0])
+        return self.bind_text_target(frame, "Confirm", RESULT_CONFIRM_TARGET)
 
 
 class HallOfWarBoundary:
@@ -1033,6 +1045,7 @@ class HallOfWarBoundary:
             return "blocked", 0, {"reason": f"{category}_target_not_bound"}
 
         try:
+            proposal_rois = self._action_critical_rois(proposal_capture.frame, category, target)
             pre_dispatch_capture = self._capture(f"hall-of-war-{category}-pre-dispatch")
             pre_dispatch_target = binder(pre_dispatch_capture.frame)
             if (
@@ -1044,6 +1057,8 @@ class HallOfWarBoundary:
             pre_dispatch_rois = self._action_critical_rois(
                 pre_dispatch_capture.frame, category, pre_dispatch_target
             )
+            if proposal_rois != pre_dispatch_rois:
+                return "blocked", 0, {"reason": f"{category}_critical_proof_changed"}
         except HallOfWarRouteError as exc:
             return "blocked", 0, {"reason": str(exc)}
         pre_dispatch_observation = self._action_observation(
@@ -1051,14 +1066,22 @@ class HallOfWarBoundary:
             consequence=consequence, postcondition=postcondition,
             critical_roi_hashes=pre_dispatch_rois,
         )
+        proposal_observation = self._action_observation(
+            proposal_capture, source_state=source_state, target=target,
+            consequence=consequence, postcondition=postcondition,
+            critical_roi_hashes=proposal_rois,
+        )
         if category == "dispatch":
             roi_digests = dict(pre_dispatch_rois)
             route_preconditions = dispatch_policy_preconditions(
                 reset_id=self.game_day_id, action_key=key,
-                source_frame_sha256=pre_dispatch_capture.sha256,
+                source_frame_sha256=proposal_capture.sha256,
                 formation_roi_sha256=roi_digests["hall_of_war_saved_formation"],
                 dispatch_roi_sha256=roi_digests["hall_of_war_dispatch_control"],
             )
+            action_id = "hall-of-war:dispatch:" + hashlib.sha256(json.dumps(
+                [key, list(route_preconditions)], ensure_ascii=True, separators=(",", ":"),
+            ).encode("utf-8")).hexdigest()
         else:
             route_preconditions = reward_policy_preconditions(reset_id=self.game_day_id, action_key=key)
         self._checkpoint()
@@ -1066,7 +1089,7 @@ class HallOfWarBoundary:
             action_id=action_id, action_key=key, task_id=FLOW_ID,
             task_mode="supervised_validation", semantic_action=semantic_action,
             expected_runtime_profile_id=PROFILE_ID,
-            observation=pre_dispatch_observation, monotonic_now=self.monotonic_clock(),
+            observation=proposal_observation, monotonic_now=self.monotonic_clock(),
             observation_max_age_seconds=15.0, dispatch_max_age_seconds=5.0,
             lease_owner=self.session.owner,
             lease_valid=self.store.lease_valid_for(self.session.owner, self.wall_clock()),
@@ -1084,6 +1107,7 @@ class HallOfWarBoundary:
             request,
             observation=pre_dispatch_observation,
             monotonic_now=self.monotonic_clock(),
+            policy_phase="pre_dispatch",
         )
         issued = policy.issue_capability(issue_request)
         self.store.audit(FLOW_ID, "capability_issued", self.wall_clock(), issued.audit, action_id)

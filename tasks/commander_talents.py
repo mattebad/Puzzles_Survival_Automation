@@ -92,9 +92,15 @@ class TalentSwitchPermit:
 
     action_key: str
 
+    allowed_confirmation_dialogs: tuple[str, ...] = ()
+
     def __post_init__(self) -> None:
         if type(self.action_key) is not str or not self.action_key.strip():
             raise ValueError("talent switch permit requires a canonical action key")
+        if (type(self.allowed_confirmation_dialogs) is not tuple
+                or any(type(dialog) is not str or not dialog.strip()
+                       for dialog in self.allowed_confirmation_dialogs)):
+            raise ValueError("talent switch confirmation authority must contain exact dialog identities")
 
 
 
