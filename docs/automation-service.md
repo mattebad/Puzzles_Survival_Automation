@@ -206,8 +206,9 @@ Ruins confirms each freshly identified free NPC stage result, advances after win
 stops further challenges at the first loss for that reset. A finite-budget pause is resumable,
 not daily completion. Independently green-ready overview chests remain eligible when the
 challenge is unavailable; each requires its own positive claim successor, not medal arithmetic
-or exhaustive category coverage. Help prefers one bound free Help All batch per visit when
-requests exist, otherwise individual Help, with no coin gate or complete request census.
+or exhaustive category coverage. Help prefers one independently identified free Help All batch
+with a ready-request context, without requester/name OCR. The still-gold empty-page footer alone
+is not readiness. Individual Help remains a fallback; no coin gate or request census is required.
 Numeric success evidence credits actual requests toward ten, even if a batch exceeds the
 remaining goal; a positively successful batch with unreadable count is retained and deferred
 without fabricated completion or UNKNOWN. A genuinely ambiguous effect remains fenced against
@@ -222,6 +223,12 @@ Alliance Shop buys one affordable allowlisted Weekly offer or exact Other one-st
 quantity one total per reset. Red shortage on a preferred offer permits fallback without Owned
 evidence. Exact item x1 acknowledgement confirms the effect before Home return; no Owned/stock/
 wallet triple is required. Historical recovered Bioenhance receipts still suppress duplicate Buy.
+Timed Tavern Coins use exact UI identity `Timed Recruit Coin`, with its current currency/price
+and affordability. The observed Diamonds quote is supported for that item, not a premium
+substitute. A lower-bound HUD balance is not an exact wallet receipt; the current-quote
+maximum cost is not independent operator approval of a future premium budget.
+Enter both Daily Shops tabs through the freshly Atlas-bound Mystery Shop building, not a
+copied investigative Ruins/Exchange navigation path.
 Daily Shops handles both approved three-star Chip/Module tabs in one visit, bounded by current
 stock and affordability. Re-read numeric quantity/total before inner Buy, then require exact item
 xN acknowledgement plus stock decrease on that tab, not Owned or wallet-delta arithmetic.
@@ -349,10 +356,12 @@ Batch F adds canonical-only Hall of War and Troop Training native service routes
 legacy Troop Training operator runner/validator/aliases, leaving eleven operator routes, and keeps
 supported manual-only `pnsctl bluestacks recover-home`; no compatibility route or standalone
 Commander flow is added. The shared helper binds exact saved Economy/Military/Training rows.
-Switching is owner-established free/no-cooldown: Apply, acknowledge an actual optional free
-confirmation, then verify Applied. No cost/cooldown disclosure is needed; no paid/unknown/reset
-dialog or talent-tree edit is authorized. Same-session proof is reusable only while generation,
-context, runtime and lock bindings remain valid; already-Applied presets are not switched again.
+An explicit applicable scenario approval, not a fabricated free-switch capability, must bind
+switch cost and allowed confirmations. The observed Training allocated-points `Reset now?`
+dialog requires its exact Training permit; historical one-time approval is not future Reset
+authority. Its actual debit was not inspected, so unknown-cost switches defer and are not
+described as free. No talent-tree edits are admitted. Same-session proof reuse still requires
+valid generation, context, runtime and lock bindings; already-Applied presets are not switched again.
 Only the existing Hall→Military and Training→Training consumers admit switches. Economy stays
 in the helper contract, but no authorized production/helper-inspection consumer exists yet;
 its switch acceptance remains unproven, and test-route is not gameplay authority.

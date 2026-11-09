@@ -196,6 +196,12 @@ Existing layout exceptions:
   Alliance Shop buys one affordable exact allowlisted Weekly offer or the exact Other one-star
   Gear fallback, never both. A red preferred-price shortage permits fallback without Owned
   evidence. Exact item x1 purchase acknowledgement proves the effect before terminal Home.
+  Timed Tavern Coins match the observed exact UI name `Timed Recruit Coin`; this preferred
+  item may use the current Diamonds quote, unlike ordinary Alliance Coins offers. Read its
+  current price and affordable balance; a conservative HUD balance is a lower bound, not
+  an exact wallet receipt. Product allowlisting is not standing premium-spend authorization:
+  any future live scenario must separately record its finite applicable resource budget.
+  The current-quote `maximum_cost` alone does not establish that independent approval.
   Daily Shops evaluates both approved three-star tabs in one visit, using min(stock, affordability)
   and fresh numeric quantity/total before inner Buy. Exact item xN acknowledgement plus stock
   decrease confirms a tab; Owned and wallet arithmetic are not effect gates. Confirmed prefixes
@@ -234,14 +240,13 @@ Existing layout exceptions:
   Daily Shops reuses canonical Atlas startup normalization and its scrcpy simultaneous-pointer
   transport for at most two accounted zoom inputs; the sequential virtual-touch pinch is not
   a substitute for an observed camera transition. It then uses shared bounded calculated pans,
-  fresh mapped Ruins binding and route-owned Ruins/Exchange successors. Unknown or unchanged
-  navigation stops; an absent action-store lease dispatches nothing. These are offline-proven
-  entry guards, not purchase-effect or route-level live acceptance.
-  Ruins title and navigation controls use isolated current-frame regions shared with the
-  Ruins observer, rather than full-page OCR over decorative Back art. A supervised native
-  visit reached the actual Ruins overview after one scrcpy zoom and mapped entry; it made
-  no purchase and remains unaccepted. On restart, Daily Shops may return from its positively
-  recognized overview/shop context to freshly verified Home before a new mapped entry.
+  fresh mapped Mystery Shop binding and route-owned Mystery Shop/shop-tab successors.
+  Select the exact Ruins and Rare Earth tabs inside that shop. Unknown or unchanged navigation
+  stops; an absent action-store lease dispatches nothing. The walkthrough's Ruins/Exchange
+  entry was historical manual navigation, not a production entry binding. Earlier canonical
+  Ruins-overview visits proved no purchase or acceptance of this revised entry route.
+  On restart, Daily Shops may return from a positively recognized shop context to freshly
+  verified Home before a new mapped Mystery Shop entry.
   Unknown contexts receive no speculative Back; recovery inputs remain in canonical totals.
   Shop identity uses the isolated title and uniquely gold-selected current Shop label,
   not incidental item-description OCR. A clipped Rare Earth label permits one bounded
@@ -303,11 +308,13 @@ Existing layout exceptions:
   bindings; no compatibility runner, validator, operator-registry row, or second input-budget owner
   is retained for Training. The supported manual-only `pnsctl bluestacks recover-home` remains
   distinct. Commander presets are a shared helper, not a standalone flow: exact saved Economy,
-  Military and Training memories switch with the owner-established free/no-cooldown mechanic.
-  Apply only the requested named row, acknowledge an actual optional free confirmation, then
-  verify Applied. No cost/cooldown disclosure, talent-tree edits, paid dialog or Reset is admitted.
-  An already-Applied preset is not switched again; proof reuse requires the same session,
-  generation, context and runtime ownership, not a bare readiness boolean.
+  Military and Training rows are resolved and Applied is verified. Do not assume switches are
+  free: the manual Training switch displayed no price, and its debit was not inspected.
+  An explicit applicable scenario approval must bind cost and any allowed confirmation.
+  The observed allocated-points `Reset now?` confirmation is Training-specific and requires
+  its exact permit; historical one-time approval does not authorize future resets or edits.
+  Unknown-cost future switches defer. Already-Applied presets are not switched again; proof
+  reuse requires the same session, generation, context and runtime ownership.
   Hall requires Military, populated saved Troop Set1, one Zombie Zero dispatch/result and one
   glowing daily reward row changing to Claimed. Its fixed zero-resource/zero-loss mechanic needs
   no literal disclosure, full troop capacity, TodayDamage zero or Sets2/3 labels. Its three-effect

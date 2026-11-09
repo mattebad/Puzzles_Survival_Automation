@@ -1,9 +1,83 @@
 # Current handoff
 
-Updated 2026-11-08. This file is volatile session state.
+Updated 2026-11-09. This file is volatile session state.
 Current owner direction and planning live in [tracker #53](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53) and its tickets.
 
-## Current resumed development state
+## Manual walkthrough correction state (2026-11-09)
+
+- Source: the original workspace's immutable
+  `.local-captures/manual-walkthrough-2026-11-09T04-42-35-490Z/walkthrough-report.txt`,
+  SHA-256 `61bdd23c6740a54b28931ab4ccf3b0d80dd440bb203fdfb8ba1725c18059725b`.
+  Its 261 screenshots/accounting document manual gameplay, not native acceptance.
+- Fresh correction branch: `fix/manual-walkthrough-corrections-20261109` in sibling
+  `Puzzle_Survival_walkthrough_corrections_20261109`. Original unrelated changes,
+  canonical state and raw evidence are not modified.
+- Read-only current-state inspection found the service disabled, scheduler ineligible,
+  all 24 flows disabled and no runtime-input lock holder. No live input was issued.
+  At 06:21 UTC the static reset was still game-day-2026-11-09, ending November 10 00:00 UTC.
+- Completed manual effects below must not be repeated to manufacture receipts:
+
+| Ticket | Actual November 9 effect |
+| --- | --- |
+| #54 | Later aggregate batch 5→35 and first 30-point chest; earlier batch 0→5 already complete. |
+| #66 | Separate canonical use 129,809→129,808; walkthrough inspection only. |
+| #69 | Floor 61 defeat, then eight independent green chests totaling 2,927 medals. |
+| #56 | One Help All served three requests; later empty despite gold footer. |
+| #77 | Ten ordinary HOT donations, attempts 20→10; quota remains complete despite regeneration. |
+| #73 | One 1★ Gear fallback for 1,000 Alliance Coins; no additional Weekly buy due. |
+| #72 | Chip x100 and Module x15 bought; revised Mystery Shop entry must not repeat purchases. |
+| #70 | Free six-hour Material Production started; observe active/completed slot before maintenance. |
+| #71 | Old craft claimed, one 100-part/12-hour Normal Craft started; post-start parts unobserved. |
+| #75 | Three free entry/flee cycles, allowance 3→0; passes unchanged. |
+| #76 | Queue 1 Troop Load II started with 05:56:53 initial timer. |
+| #78 | One Farm-specific item boost; same Farm Boosting 23:59:39. |
+| #95 | Specifically approved Training confirmation once, then Training Applied; debit unobserved. |
+| #96 | One saved Set 1 dispatch, LOSE/damage result, one reward-row claim and three checks. |
+| #67 | Four starts: Fighter/Vehicle current maximum 1,510, Shooter/Rider 250. Old claims are separate. |
+
+- Implementation comparisons preserve working Daily/Food/Ruins, Nano transitions and Farm
+  behavior. Corrections address Help readiness without name OCR, capture-bound donation grants,
+  exact Timed Recruit Coin currency handling, mapped Mystery Shop entry, Duel defense readback,
+  Research active successors, scoped Training confirmation, Hall result and training quantity entry.
+- Timed Tavern Coins are prospectively allowlisted as exact UI `Timed Recruit Coin`; current
+  currency/price/affordability still apply. No new premium purchase is due this reset, and
+  allowlisting/current quote does not supply an independent finite operator spending approval.
+- No unrecorded manual effects have been converted into canonical action receipts or counters.
+  Inspected supported reconciliation APIs handle existing recorded actions, not this unrecorded
+  manual portfolio. Consequential same-reset native acceptance remains blocked on legitimate
+  reconciliation; do not fabricate intents, clear counters or replay completed effects.
+- Unknown-cost future talent switches, Economy Apply, Farm premium branch, exact training boxes
+  and continuous completion/restart remain evidence gaps. Historical Training approval is not
+  standing Reset authority. Controls stay disabled; manual proof and native acceptance remain distinct.
+
+### Offline verification and limits
+
+- Help retained ready/success/empty frames, five-chest loop, exact Food decrement, Ruins,
+  donation freshness/regeneration/UNKNOWN and current Duel portrait cases pass focused checks.
+  Shop policy, actual Timed Coin quote and mapped Mystery Shop binding cases pass; broader
+  shop pixel groups timed out and are not reported as complete suite passes.
+- Core/product/gameplay/route metadata/service-route integration: 196 pass. Hall native
+  dispatch/reward/UNKNOWN/restart cases pass. Farm native: 22 pass. Commander/recipe: 26 pass.
+  Training: 45 pass, seven optional retained-evidence skips. Hall/Training pytest service: 50 pass.
+  Other passed service cases: Alliance Shop, Daily Shops, Nanoweapon, Duel and Research.
+- Material Production completed claim/start native case passes. Existing Nanoweapon same-visit
+  smoke emitted the production/claim/start inputs but fails its old terminal `KEY:BACK`
+  expectation; it is not a successful whole-route proof. The unchanged Material Production
+  negative-output adapter test also expects `blocked` where the current adapter returns `unresolved`.
+  The legacy daily-Nanoweapon test, already deleted in the original dirty workspace, has a stale
+  successor expectation; that original deletion is untouched.
+- `scripts/check.py` ran its fixed 412-case set: an existing host-profile path in
+  `tests/fixtures/alliance_shop_menu/inventory-repaired-entry/provenance.json` fails its guard.
+  Its 66 contract-loading errors were subsequently repaired and covered by the passing
+  196-case integration group; the whole command is not claimed green.
+- Immutable-main static ratchet failed on aggregate integrated-branch debt. Budgets were not
+  raised and no suppressions were added. An earlier changed-file Ruff run reported 54 findings.
+  Final Core and talent-adapter Pyright have no errors; Help retains optional-ROI diagnostics
+  in unchanged code. This is not a clean whole-branch static result.
+- All three supported `pnsctl --help` / `automation-service --help` / `serve --help` surfaces
+  start with repository `PYTHONPATH` unset. These are offline checks, not native acceptance.
+
+## Earlier resumed development state (historical; superseded above)
 
 - **Acceptance is not queue completion.** #66 has a fully accepted native route
   receipt: integrated source `a4811874`, one owned 1K Food, 129810 to 129809,
