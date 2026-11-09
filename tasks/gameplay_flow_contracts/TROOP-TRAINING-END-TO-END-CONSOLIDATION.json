@@ -59,8 +59,8 @@
   "required_postconditions": [
     "each new current_max start uses the freshly recognized numeric maximum",
     "existing active or completed batches retain immutable prior_batch_quantities recorded at start, not later carousel maximum",
-    "Training Applied is required before starts; reuse the same-visit generation/context/runtime/lock-bound proof without reopening the helper",
-    "A needed Training switch requires current known cost facts and explicit scoped CommanderTalentSwitchApproval; unknown cost or absent approval blocks. The exact allocated-points Reset-now dialog is Training-only and needs applicable scoped approval, not standing Reset permission.",
+    "Training Applied is required before starts; reuse same-visit generation/context/runtime/lock-bound Applied proof without redundant switching or reopening the helper, invalidating it on manual/external change, restart, generation change or relevant context/runtime/lock loss",
+    "OWNER CONFIRMED: saved preset switches cost zero. A needed Training switch uses the canonical automation_service.commander_talents.commander_talent_switch_approval zero-cost factory and explicit CommanderTalentSwitchApproval bound to the exact current saved Training Apply control. Only an actually shown commander_talent_apply_confirmation is allowed, including mistranslated allocated-points Reset-now wording; verify the same row Applied. No talent-tree Reset/edits, preset alteration, Economy consumer or scheduler is authorized.",
     "timers use captured UTC and dispatched starts retain actual tap UTC",
     "fixed selected quantity equals configured numeric quantity",
     "queue label identifies same troop type and configured tier and exact numeric quantity",
@@ -288,11 +288,11 @@
   "recovery_behavior": "observe-only or safe canonical Home return; never retry unresolved Train",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r29",
-    "product_authority_digest": "46535b514795c59e5c1ddff00eeee0c2b3f111e22b3f788ae3d4cbded6929de4",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r30",
+    "product_authority_digest": "7dd7a712d8766cfbb976bcb1ca43c659022840ad12d202c8c7279b2109462ac1",
     "product_record_id": "troop_training",
-    "product_record_revision": "troop_training-v6",
-    "product_record_digest": "b84ea9ae8b2ff3984d67d5972143707735ef9bf0aa3e2a065e56bcc4900c47cd",
+    "product_record_revision": "troop_training-v7",
+    "product_record_digest": "e125f1dccb80d8f09d5aad6c7e7def8055838bccc697d140e554ecd829be83dd",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",

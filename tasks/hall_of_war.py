@@ -223,7 +223,10 @@ def reward_policy_preconditions(*, reset_id: str, action_key: str) -> tuple[str,
     )
 
 
-def plan_dispatch(observation: ChallengeObservation, *, saved_military_verified: bool) -> Decision:
+def plan_dispatch(
+    observation: ChallengeObservation, *, saved_military_verified: bool,
+    supervised_manual_replay: bool = False,
+) -> Decision:
     """Authorize the fixed free mechanic using the observed saved populated formation."""
 
     if observation.page_identity != "ZOMBIE_ZERO" or observation.page_exact is not True:
@@ -235,7 +238,8 @@ def plan_dispatch(observation: ChallengeObservation, *, saved_military_verified:
         return Decision(Action.BLOCKED, "challenge_attempt_ordinal_not_one")
     if not saved_military_verified or not observation.saved_military_verified:
         return Decision(Action.BLOCKED, "saved_military_preset_not_verified")
-    if type(observation.today_highest_damage) is int and observation.today_highest_damage > 0:
+    if (type(observation.today_highest_damage) is int and observation.today_highest_damage > 0
+            and supervised_manual_replay is not True):
         return Decision(Action.NO_WORK, "same_reset_participation_already_observed")
     if observation.attempt is AttemptState.BUSY:
         return Decision(Action.NO_WORK, "challenge_attempt_busy_or_cooling_down")

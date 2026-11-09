@@ -88,6 +88,44 @@ def _identity(now):
         PRODUCT_ID,
     )
 
+@pytest.mark.parametrize("operator_request_id", (None, "owner-supervised-hall-canary"))
+def test_claimed_manual_request_reaches_only_matching_native_occurrence(tmp_path, operator_request_id):
+    now = datetime(2025, 1, 2, 12, tzinfo=timezone.utc).timestamp()
+    identity = _identity(now)
+    boundary = FakeBoundary(_fixture_result(now, identity))
+    runner = HallOfWarRunner(
+        native=boundary, output_directory=tmp_path,
+        utc_clock=lambda: now, monotonic_clock=lambda: 10.0,
+    )
+    result = runner(
+        identity, None, lambda: None, runtime_input_lock=object(),
+        occurrence_key="claimed-hall-occurrence", operator_request_id=operator_request_id,
+    )
+    assert result["status"] == "deferred"
+    assert dict(boundary.request.arguments) == (
+        {} if operator_request_id is None else {
+            "operator_request_id": operator_request_id,
+            "manual_occurrence_key": "claimed-hall-occurrence",
+        }
+    )
+
+
+@pytest.mark.parametrize("operator_request_id", ("", " ", " request ", True, "x" * 257))
+def test_invalid_manual_request_never_enters_native_boundary(tmp_path, operator_request_id):
+    now = datetime(2025, 1, 2, 12, tzinfo=timezone.utc).timestamp()
+    identity = _identity(now)
+    boundary = FakeBoundary(_fixture_result(now, identity))
+    result = HallOfWarRunner(
+        native=boundary, output_directory=tmp_path, utc_clock=lambda: now,
+    )(
+        identity, None, lambda: None, runtime_input_lock=object(),
+        occurrence_key="claimed-hall-occurrence", operator_request_id=operator_request_id,
+    )
+    assert result["status"] == "blocked"
+    assert boundary.request is None
+    assert result["dispatch_transport_calls"] == 0
+
+
 
 
 @pytest.mark.parametrize(

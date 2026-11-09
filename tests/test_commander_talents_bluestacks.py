@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from tasks.commander_talents import TalentPresetNativeResult, TalentSwitchPermit
+from tasks.commander_talents import APPLY_CONFIRMATION_DIALOG, PRESET_NAMES, TalentPresetNativeResult, TalentSwitchPermit
 from scripts import commander_talents_bluestacks as native
 
 
@@ -279,24 +279,50 @@ class CommanderTalentNativeTests(unittest.TestCase):
         self.assertEqual(session.input_count, 1)
         self.assertEqual(len(runtime.taps), 1)
 
-    def test_allocated_points_reset_requires_current_scoped_training_authority(self):
-        dialog = "commander_talent_training_allocated_points_reset_confirmation"
-        for preset, dialogs, expected in (
-            ("Training", (), False), ("Economy", (dialog,), False),
-            ("Training", (dialog,), True),
+    def test_allocated_points_translation_is_scoped_apply_for_every_saved_preset(self):
+        for preset in PRESET_NAMES:
+            for dialogs in ((), (APPLY_CONFIRMATION_DIALOG,)):
+                with self.subTest(preset=preset, dialogs=dialogs):
+                    previous = "Economy" if preset == "Military" else "Military"
+                    runtime = FakeRuntime(page="memory", applied=previous, switch_mode="allocated_reset")
+                    outcomes = []
+                    result, session, _ = self._run(
+                        runtime, preset,
+                        switch_approval=lambda *_: TalentSwitchPermit("scoped-switch", dialogs),
+                        switch_outcome=lambda *args: outcomes.append(args),
+                    )
+                    expected = bool(dialogs)
+                    self.assertEqual(result.verified, expected)
+                    self.assertEqual(session.input_count, 3 if expected else 1)
+                    self.assertEqual([tap[0] for tap in runtime.taps[:2]], [
+                        f"talent-memory-row:{preset}:apply",
+                        *([f"talent-memory-confirm:{preset}"] if expected else []),
+                    ])
+                    if expected:
+                        self.assertEqual(runtime.applied, preset)
+                        self.assertEqual(runtime.page, "memory")
+                        self.assertEqual(outcomes[0][1], "switched")
+                        self.assertEqual(outcomes[0][3].applied_preset, preset)
+                    else:
+                        self.assertEqual(result.status, "unknown")
+                        self.assertEqual(runtime.applied, previous)
+
+    def test_apply_permit_does_not_authorize_arbitrary_talent_reset_or_changed_text(self):
+        for body in (
+            "Reset talent points now?",
+            "Some of the talent pts have been allocated. Unable to apply. Reset now? Cost: 25 diamonds",
+            "Some of the talent pts have been allocated. Unable to apply. Reset now? Unlock",
         ):
-            with self.subTest(preset=preset, dialogs=dialogs):
-                runtime = FakeRuntime(page="memory", switch_mode="allocated_reset")
-                result, session, _ = self._run(
-                    runtime, preset,
-                    switch_approval=lambda *_: TalentSwitchPermit("scoped-switch", dialogs),
-                    switch_outcome=lambda *_: None,
+            with self.subTest(body=body):
+                hits = (
+                    Hit(body, (110, 460, 630, 530)),
+                    Hit("Confirm", (450, 650, 580, 690)),
+                    Hit("Cancel", (200, 650, 330, 690)),
                 )
-                self.assertEqual(result.verified, expected)
-                self.assertEqual(session.input_count, 3 if expected else 1)
-                if expected:
-                    self.assertEqual(runtime.applied, "Training")
-                    self.assertEqual(runtime.page, "memory")
+                with patch.object(native, "_all_hits", return_value=hits):
+                    self.assertIsNone(native._switch_confirmation_target(
+                        object(), "Training", allowed_dialogs=(APPLY_CONFIRMATION_DIALOG,),
+                    ))
 
     def test_unknown_switch_is_persistently_blocked_from_identical_retry(self) -> None:
         runtime = FakeRuntime(page="memory", applied="Military", switch_mode="unknown")

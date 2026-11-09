@@ -9,14 +9,18 @@ import time
 from types import SimpleNamespace
 import unittest
 
+import numpy as np
+
 from automation_service.commander_talents import (
-    CommanderTalentSwitchApproval, ensure_commander_talent_preset, invalidate_commander_talent_preset,
+    CommanderTalentSwitchApproval, commander_talent_switch_approval,
+    ensure_commander_talent_preset, invalidate_commander_talent_preset,
 )
 from safe_action_core import SafetyStore
 from automation_service.registry import TROOP_TRAINING_FLOW_ID
 from safe_action_core.models import ActionClass, ActionIntent, PolicyDecision, PolicyResult
+from safe_action_core.approved_base_routes import HALL_OF_WAR_TASK
 from tasks.commander_talents import (
-    PRESET_NAMES, PresetRowState, TalentMemoryObservation, TalentPresetNativeResult,
+    APPLY_CONFIRMATION_DIALOG, PRESET_NAMES, PresetRowState, TalentMemoryObservation, TalentPresetNativeResult,
     TalentSwitchPermit, context_fingerprint, observe_preset, recognize_talent_memory,
 )
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
@@ -189,7 +193,8 @@ class CanonicalCommanderTalentTests(unittest.TestCase):
                     TalentPresetNativeResult("already_applied", True, "Economy", "APPLIED", ("frame:applied",), 0),
                     TalentPresetNativeResult("deferred", False, "Economy", "CURRENT_PRESET_CHANGED", ("frame:changed",), 0),
                 ))
-                native = lambda *args, **kwargs: next(outcomes)
+                def native(*args, **kwargs):
+                    return next(outcomes)
                 self.assertTrue(self._call(session, store, native).verified)
                 invalidate_commander_talent_preset(session, reason)
                 self.assertFalse(self._call(session, store, native).verified)
@@ -202,7 +207,8 @@ class CanonicalCommanderTalentTests(unittest.TestCase):
                     TalentPresetNativeResult("already_applied", True, "Economy", "APPLIED", ("frame:applied",), 0),
                     TalentPresetNativeResult("deferred", False, "Economy", "NEW_PROOF_REQUIRED", ("frame:changed",), 0),
                 ))
-                native = lambda *args, **kwargs: next(outcomes)
+                def native(*args, **kwargs):
+                    return next(outcomes)
                 self.assertTrue(self._call(session, store, native).verified)
                 context = None
                 if change == "generation":
@@ -217,7 +223,8 @@ class CanonicalCommanderTalentTests(unittest.TestCase):
 
     def test_inactive_session_cannot_reuse_proof(self):
         session, store = CanonicalTalentSession(), CanonicalTalentStore()
-        native = lambda *args, **kwargs: TalentPresetNativeResult("already_applied", True, "Economy", "APPLIED", ("frame:a",), 0)
+        def native(*args, **kwargs):
+            return TalentPresetNativeResult("already_applied", True, "Economy", "APPLIED", ("frame:a",), 0)
         self.assertTrue(self._call(session, store, native).verified)
         session.is_active = False
         with self.assertRaisesRegex(RuntimeError, "active DevelopmentSession"):
@@ -278,7 +285,7 @@ class CanonicalCommanderTalentTests(unittest.TestCase):
         self.assertEqual(store.actions, {})
 
 
-    def test_uninspected_switch_cost_does_not_mint_a_free_capability(self):
+    def test_absent_switch_approval_does_not_prepare_a_canonical_action(self):
         session = CanonicalTalentSession()
         facts = replace(_switch_facts(), preset_name="Training")
         context = {"flow_id": TROOP_TRAINING_FLOW_ID, "required_preset": "Training",
@@ -305,6 +312,77 @@ class CanonicalCommanderTalentTests(unittest.TestCase):
                 self.assertEqual(store.list_actions_for_task(TROOP_TRAINING_FLOW_ID), [])
             finally:
                 store.close()
+
+class CanonicalCommanderTalentApprovalTests(unittest.TestCase):
+    def _approval(self, *, preset="Training", task_id=TROOP_TRAINING_FLOW_ID):
+        session, store = CanonicalTalentSession(), CanonicalTalentStore()
+        facts = replace(_switch_facts(), preset_name=preset,
+                        applied_preset="Economy" if preset == "Military" else "Military")
+        frame = SimpleNamespace(sha256=facts.source_frame_sha256,
+                                captured_monotonic=time.monotonic(),
+                                frame=np.ones((1280, 800, 3), dtype=np.uint8))
+        runtime = SimpleNamespace(measure_foreground_package=lambda: "com.global.ztmslg")
+        context = {"flow_id": task_id, "required_preset": preset}
+        approve = commander_talent_switch_approval(
+            session, runtime, action_store=store, task_id=task_id, game_day_id="test-reset",
+            source_generation=session.invocation_id, context=context,
+        )
+        return session, store, facts, frame, runtime, context, approve
+
+    def test_real_policy_authorizes_free_saved_apply_for_existing_consumers(self):
+        for preset, task_id in (("Training", TROOP_TRAINING_FLOW_ID), ("Military", HALL_OF_WAR_TASK)):
+            with self.subTest(preset=preset):
+                session, store, facts, frame, runtime, context, approve = self._approval(
+                    preset=preset, task_id=task_id)
+                approval = approve(facts, frame)
+                self.assertIsInstance(approval, CommanderTalentSwitchApproval)
+                self.assertTrue(approval.policy_result.authorized)
+                self.assertEqual(approval.intent.cost_type, "none")
+                self.assertEqual(approval.intent.cost_amount, 0)
+                self.assertEqual(approval.intent.allowed_confirmation_dialogs, (APPLY_CONFIRMATION_DIALOG,))
+                self.assertEqual(approval.source_frame_sha256, frame.sha256)
+
+                def native(_session, _runtime, required, **kwargs):
+                    permit = kwargs["switch_approval"](facts, frame)
+                    self.assertIsInstance(permit, TalentSwitchPermit)
+                    applied = replace(facts, row_state=PresetRowState.APPLIED, applied_preset=required,
+                                      apply_target=None, source_frame_sha256="e" * 64,
+                                      evidence_ref="frame:applied")
+                    kwargs["switch_outcome"](permit.action_key, "switched", True, applied)
+                    return TalentPresetNativeResult(
+                        "switched", True, required, "APPLIED", ("frame:applied",), 1, permit.action_key, True)
+
+                result = ensure_commander_talent_preset(
+                    session, runtime, preset, checkpoint=lambda: None,
+                    runtime_input_lock=session.runtime_input_lock, action_store=store,
+                    source_generation=session.invocation_id, context=context,
+                    native_port=native, switch_approval=approve,
+                )
+                self.assertTrue(result.verified)
+                self.assertEqual(store.get_action_by_key(result.switch_action_key)["status"], "confirmed")
+
+    def test_fresh_policy_rejects_changed_stale_unleased_blocked_or_duplicate_source(self):
+        for change in ("hash", "stale", "lease", "block", "duplicate", "foreground", "applied", "consumer"):
+            with self.subTest(change=change):
+                _, store, facts, frame, runtime, _, approve = self._approval()
+                if change == "hash":
+                    frame.sha256 = "f" * 64
+                elif change == "stale":
+                    frame.captured_monotonic -= 60
+                elif change == "lease":
+                    store.lease_valid_for = lambda *_: False
+                elif change == "block":
+                    store.has_action_block = lambda: True
+                elif change == "duplicate":
+                    store.get_action_by_key = lambda *_: {"status": "confirmed"}
+                elif change == "foreground":
+                    runtime.measure_foreground_package = lambda: "other.package"
+                elif change == "applied":
+                    facts = replace(facts, row_state=PresetRowState.APPLIED)
+                elif change == "consumer":
+                    facts = replace(facts, preset_name="Military", applied_preset="Economy")
+                self.assertIsNone(approve(facts, frame))
+
 
 if __name__ == "__main__":
     unittest.main()

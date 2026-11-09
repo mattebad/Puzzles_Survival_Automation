@@ -1173,7 +1173,7 @@ class ApprovedBaseRoutePolicyTests(unittest.TestCase):
         req = preset_switch_request(TRAINING, "Training")
         self.assert_authorized(preset_switch_request(TRAINING, "Training", dialogs=()))
         reset_dialog = ("commander_talent_training_allocated_points_reset_confirmation",)
-        self.assert_authorized(preset_switch_request(TRAINING, "Training", dialogs=reset_dialog))
+        self.assert_denied(preset_switch_request(TRAINING, "Training", dialogs=reset_dialog))
         self.assert_denied(preset_switch_request(dialogs=reset_dialog))
         self.assert_denied(replace(req, observation=replace(req.observation, cost_type=None, cost_amount=None)))
 

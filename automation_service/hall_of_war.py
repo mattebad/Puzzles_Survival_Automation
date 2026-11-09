@@ -1,4 +1,4 @@
-"""Canonical Hall of War → Zombie Zero execution adapter."""
+"""Canonical Hall of War adapter; explicit manual occurrences retain reset-scoped Core keys."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -314,6 +314,7 @@ class HallOfWarRunner:
         *,
         runtime_input_lock,
         occurrence_key,
+        operator_request_id: str | None = None,
     ) -> Mapping[str, object]:
         started = None
         completed = None
@@ -322,6 +323,13 @@ class HallOfWarRunner:
         native_result: dict[str, object] = {}
         native_started = False
         try:
+            if operator_request_id is not None and (
+                not isinstance(operator_request_id, str)
+                or not operator_request_id.strip()
+                or operator_request_id != operator_request_id.strip()
+                or len(operator_request_id) > 256
+            ):
+                raise ValueError("Hall of War replay requires its claimed operator request")
             started = _epoch(self.utc_clock(), "start time")
             if self.native is None:
                 return _failure_mapping(
@@ -368,7 +376,12 @@ class HallOfWarRunner:
                 max_inputs=MAX_INPUTS,
                 max_actions=MAX_ACTIONS,
                 settle_seconds=self.settle_seconds,
-                arguments=MappingProxyType({}),
+                arguments=MappingProxyType(
+                    {} if operator_request_id is None else {
+                        "operator_request_id": operator_request_id,
+                        "manual_occurrence_key": occurrence_key,
+                    }
+                ),
                 utc_clock=self.utc_clock,
                 monotonic_clock=self.monotonic_clock,
             )

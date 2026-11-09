@@ -311,7 +311,9 @@ class HallOfWarVision:
             return None
         found: dict[str, list[tuple[int, int, int, int]]] = {}
         for line in lines:
-            found.setdefault(line.text, []).append(line.roi)
+            # Animated map strokes can OCR as an outer quotation mark; keep
+            # every caption word and the unique-box/stack geometry checks exact.
+            found.setdefault(line.text.strip("'\"‘’“”"), []).append(line.roi)
 
         def single(word: str) -> tuple[int, int, int, int] | None:
             boxes = found.get(word, [])
@@ -743,7 +745,15 @@ class HallOfWarVision:
 
     def result_modal(self, frame: np.ndarray) -> tuple[bool, int | None]:
         text = self._normal(self.text(frame))
-        if self._contains(text, "LOSE"):
+        # The metallic LOSE artwork is not reliably readable as text. Its
+        # exact improvement-panel copy corroborates the same result surface;
+        # damage and the unique bottom continuation remain mandatory below.
+        lose_panel = self._contains(text, "LOSE") or all(
+            self._contains(text, phrase) for phrase in (
+                "Improve Might", "Enhance and promote your heroes", "Get Heroes",
+            )
+        )
+        if lose_panel:
             damage = re.findall(r"\bdmg this time\s*:\s*([0-9][0-9,]*)\b", text)
             continuation = self._phrase_boxes(frame, "Tap to continue")
             if (len(damage) == 1 and len(continuation) == 1
@@ -777,6 +787,7 @@ class HallOfWarBoundary:
         scheduler_identity: SchedulerIdentity, validate_identity: Callable[[], None],
         settle_seconds: float = 0.65, monotonic_clock: Callable[[], float] = time.monotonic,
         wall_clock: Callable[[], float] = time.time, vision: HallOfWarVision | None = None,
+        operator_request_id: str | None = None,
     ) -> None:
         if not callable(validate_identity):
             raise TypeError("Hall of War requires the caller's current identity checkpoint")
@@ -788,6 +799,7 @@ class HallOfWarBoundary:
         self.identity, self.scheduler_identity = backend_identity, scheduler_identity
         self.game_day_id = scheduler_identity.reset_id
         self.validate_identity = validate_identity
+        self.operator_request_id = operator_request_id
         self.settle_seconds, self.monotonic_clock, self.wall_clock = settle_seconds, monotonic_clock, wall_clock
         self.vision = vision or HallOfWarVision()
         self.atlas_path = ROOT / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
@@ -965,6 +977,34 @@ class HallOfWarBoundary:
         if not self.vision.zombie_zero_page(captured.frame):
             return AttemptState.UNKNOWN, None
         return self.vision.attempt_state(captured.frame), self.vision.today_highest_damage(captured.frame)
+
+    def _record_troop_set_one_formation(self, applied) -> None:
+        # Selection's completed successor already verified the transient toast
+        # and five heroes. Carry that evidence, not a second toast requirement.
+        selected = self._last_successor_capture
+        counts = self.vision.troop_counts(applied.frame)
+        signature = self.vision.formation_signature(applied.frame)
+        if (selected is None
+                or self.result.get("verified_navigation", [])[-1:] != ["select-troop-set-one"]
+                or not self.vision.dispatch_page(applied.frame)
+                or self.vision.hero_count(applied.frame) != 5
+                or type(counts[0]) is not int or counts[0] <= 0
+                or len(signature) != 5
+                or signature != self.vision.formation_signature(selected.frame)):
+            raise HallOfWarRouteError("troop_set_one_formation_or_current_troops_not_verified")
+        self.formation_proof = {
+            "applied": True, "selector_row": "Troop Set 1",
+            "source_frame_sha256": applied.sha256,
+            "applied_toast_frame_sha256": selected.sha256,
+            "current_troops": counts[0], "troop_capacity": counts[1],
+            "formation_signature": signature,
+        }
+        self.result["troop_set_one"] = {
+            "selected": True, "applied_toast_verified": True,
+            "applied_toast_frame_sha256": selected.sha256,
+            "hero_count": 5, "current_troops": counts[0],
+            "troop_capacity": counts[1], "source_frame_sha256": applied.sha256,
+        }
 
     def _make_challenge_observation(self, *, dispatch_capture, attempt_capture, attempt, today_damage) -> ChallengeObservation:
         exact_dispatch = self.vision.dispatch_page(dispatch_capture.frame)
@@ -1445,7 +1485,7 @@ class HallOfWarBoundary:
                 if self.result.get("effect_reconciliation_required"):
                     self.result.update(status="unresolved")
                     return self._account(dispatch_calls, reward_calls, committed)
-            elif type(today_damage) is int and today_damage > 0:
+            elif type(today_damage) is int and today_damage > 0 and self.operator_request_id is None:
                 # Manual use proves participation, not a new canonical effect.
                 self.result.update(challenge_status="deferred_unexplained_prior_same_reset_use",
                     challenge_participation_proven=True, challenge_participation_source="positive_current_reset_today_highest_damage",
@@ -1456,7 +1496,8 @@ class HallOfWarBoundary:
                 self.result.update(challenge_status="unavailable", reason="challenge_unavailable")
             elif attempt is not AttemptState.READY:
                 self.result.update(challenge_status="blocked_unknown", reason="challenge_attempt_state_unknown")
-            elif self.vision.challenge_reward(page.frame) is not None and self.vision.challenge_reward(page.frame).reward is RewardState.CLAIMED:
+            elif (self.operator_request_id is None and self.vision.challenge_reward(page.frame) is not None
+                    and self.vision.challenge_reward(page.frame).reward is RewardState.CLAIMED):
                 self.result.update(challenge_status="blocked_inconsistent_claimed_reward",
                     reason="reward_claimed_without_current_participation")
             else:
@@ -1487,24 +1528,7 @@ class HallOfWarBoundary:
                             and self.vision.hero_count(frame) == 5 else "unknown",
                     )
                     applied = self._capture("hall-of-war-troop-set-one-applied")
-                    counts = self.vision.troop_counts(applied.frame)
-                    signature = self.vision.formation_signature(applied.frame)
-                    if (not self.vision.troop_set_one_applied(applied.frame)
-                            or self.vision.hero_count(applied.frame) != 5
-                            or type(counts[0]) is not int or counts[0] <= 0
-                            or len(signature) != 5):
-                        raise HallOfWarRouteError("troop_set_one_formation_or_current_troops_not_verified")
-                    self.formation_proof = {
-                        "applied": True, "selector_row": "Troop Set 1",
-                        "source_frame_sha256": applied.sha256,
-                        "current_troops": counts[0], "troop_capacity": counts[1],
-                        "formation_signature": signature,
-                    }
-                    self.result["troop_set_one"] = {
-                        "selected": True, "applied_toast_verified": True,
-                        "hero_count": 5, "current_troops": counts[0],
-                        "troop_capacity": counts[1], "source_frame_sha256": applied.sha256,
-                    }
+                    self._record_troop_set_one_formation(applied)
                     # Bind the actual saved formation for the fixed free mechanic.
                     dispatch_before = self._capture("hall-of-war-dispatch-preflight")
                     composite = self._make_challenge_observation(
@@ -1513,7 +1537,10 @@ class HallOfWarBoundary:
                     )
                     self.challenge_observation = composite
                     self.result["dispatch_preflight"] = asdict(composite)
-                    decision = plan_dispatch(composite, saved_military_verified=bool(self.result.get("saved_military_verified")))
+                    decision = plan_dispatch(
+                        composite, saved_military_verified=bool(self.result.get("saved_military_verified")),
+                        supervised_manual_replay=self.operator_request_id is not None,
+                    )
                     if decision.action is not Action.DISPATCH:
                         self.result.update(challenge_status="blocked_pre_dispatch", reason=decision.reason,
                             challenge_participation_proven=False)
@@ -1673,7 +1700,10 @@ class HallOfWarBoundary:
     def _bind_dispatch_target(self, frame: np.ndarray, composite: ChallengeObservation) -> BoundTarget | None:
         if not self.vision.dispatch_page(frame):
             return None
-        if plan_dispatch(composite, saved_military_verified=bool(self.result.get("saved_military_verified"))).action is not Action.DISPATCH:
+        if plan_dispatch(
+            composite, saved_military_verified=bool(self.result.get("saved_military_verified")),
+            supervised_manual_replay=self.operator_request_id is not None,
+        ).action is not Action.DISPATCH:
             return None
         current, _capacity = self.vision.troop_counts(frame)
         if current != composite.current_troops or type(current) is not int or current <= 0:
@@ -1689,12 +1719,14 @@ def run_hall_of_war(
     *, session, runtime: LocalBlueStacksRuntime, action_store, backend_identity,
     scheduler_identity: SchedulerIdentity, validate_identity: Callable[[], None],
     preset_result, recognize_talent_page: Callable[..., Any], settle_seconds: float = 0.65,
+    operator_request_id: str | None = None,
 ) -> dict[str, Any]:
     """Run under the held native owner after independent saved-Military verification."""
     route = HallOfWarBoundary(
         session=session, runtime=runtime, action_store=action_store,
         backend_identity=backend_identity, scheduler_identity=scheduler_identity,
         validate_identity=validate_identity, settle_seconds=settle_seconds,
+        operator_request_id=operator_request_id,
     )
     switch_calls = int(bool(getattr(preset_result, "switch_transport_attempted", False)))
     route.result["talent_switch_transport_calls"] = switch_calls
@@ -1746,14 +1778,27 @@ def _fixed_backend_identity(context) -> VerifiedRuntimeIdentity:
 
 def run_hall_of_war_native(context, arguments: Mapping[str, object]) -> Mapping[str, Any]:
     """Fixed static driver; shares the boundary's session, store, owner and native runtime."""
-    from automation_service.commander_talents import ensure_commander_talent_preset
+    from automation_service.commander_talents import (
+        commander_talent_switch_approval, ensure_commander_talent_preset,
+    )
     from scripts.commander_talents_bluestacks import (
         recognize_commander_talent_page,
         run_commander_talent_preset,
     )
 
+    operator_request_id: str | None = None
     if arguments:
-        raise ValueError("Hall of War does not accept caller-supplied route arguments")
+        requested_id = arguments.get("operator_request_id")
+        if (
+            set(arguments) != {"operator_request_id", "manual_occurrence_key"}
+            or not isinstance(requested_id, str)
+            or not requested_id.strip()
+            or requested_id != requested_id.strip()
+            or len(requested_id) > 256
+            or arguments["manual_occurrence_key"] != context.occurrence_key
+        ):
+            raise ValueError("Hall of War replay requires its exact claimed manual occurrence")
+        operator_request_id = requested_id
     if (context.flow_id != FLOW_ID or context.product_id != PRODUCT_ID
             or context.product_revision != PRODUCT_REVISION):
         raise ValueError("Hall of War native context binding does not match this route")
@@ -1788,7 +1833,11 @@ def run_hall_of_war_native(context, arguments: Mapping[str, object]) -> Mapping[
         source_generation=context.invocation_id,
         context=preset_context,
         native_port=run_commander_talent_preset,
-        switch_approval=None,
+        switch_approval=commander_talent_switch_approval(
+            context.session, context.runtime, action_store=context.action_store,
+            task_id=FLOW_ID, game_day_id=identity.reset_id,
+            source_generation=context.invocation_id, context=preset_context,
+        ),
     )
     context.validate_identity()
     result = run_hall_of_war(
@@ -1797,6 +1846,7 @@ def run_hall_of_war_native(context, arguments: Mapping[str, object]) -> Mapping[
         validate_identity=context.validate_identity, preset_result=preset_result,
         recognize_talent_page=recognize_commander_talent_page,
         settle_seconds=context.settle_seconds,
+        operator_request_id=operator_request_id,
     )
     result.update(
         flow_id=FLOW_ID,

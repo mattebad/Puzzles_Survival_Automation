@@ -357,7 +357,7 @@
       "policy_id": "commander-talent-preset-helper",
       "scope": "commander_talents.saved_preset_precondition",
       "status": "explicitly_approved",
-      "decision": "Use exactly saved Military, Economy or Training through the existing caller-owned session and declared consumer only. Reuse valid same-visit Applied proof and avoid redundant switches. Any switch requires current known cost facts matched through existing effect authority and explicit CommanderTalentSwitchApproval; no current consumer supplies a default approval. Unknown cost is blocked under the current authority schema, never inferred free from an absent displayed price. Recognize an actual generic Apply confirmation or the exact Training-only allocated-points Reset-now confirmation only with applicable scoped approval; no standing Reset, free-switch or no-cooldown permission. The Nov9 Training switch was manually approved once; its inventory debit was not inspected and it establishes no future authority or canonical acceptance. Preserve generation/context/runtime/lock-bound proof invalidation and prohibit tree editing or preset alteration.",
+      "decision": "OWNER CONFIRMED: saved Military, Economy and Training preset switches have zero cost. Only the existing Hall of War/Military and Troop Training/Training consumers may switch through their existing caller-owned session using the canonical commander_talent_switch_approval zero-cost factory and explicit CommanderTalentSwitchApproval. Economy has no approved consumer or scheduler. Bind the exact current named saved-preset Apply control and, only if actually shown, the exact commander_talent_apply_confirmation dialog for either approved consumer; allocated-points Reset-now wording is this saved-preset Apply confirmation, not talent-tree Reset authority. Verify the same named row Applied, reuse valid same-visit generation/context/runtime/lock-bound Applied proof and never switch redundantly. Invalidate cached proof on manual/external change, restart, generation change or relevant context/runtime/lock loss. No talent-tree Reset/edits, preset creation/alteration or uncertain retry is authorized.",
       "saved_presets": [
         "Military",
         "Economy",
@@ -372,23 +372,19 @@
         "manual_or_external_change",
         "restart",
         "generation_change",
-        "relevant_context_loss"
+        "relevant_context_runtime_or_lock_loss"
       ],
       "switch_requires_current_bound_apply_control": true,
       "switch_cooldown_seconds": null,
       "optional_actual_confirmation_only": true,
-      "consumer_restrictions": {"Military": "existing_hall_of_war_consumer", "Training": "existing_troop_training_consumer", "Economy": "no_existing_authorized_consumer_switch_acceptance_unproven"},
+      "consumer_restrictions": {"Military": "existing_hall_of_war_consumer", "Training": "existing_troop_training_consumer", "Economy": "no_existing_authorized_consumer_or_scheduler"},
       "generic_free_strategic_action_allowed": false,
-      "switch_cost_allowance": "current_known_cost_and_explicit_scoped_approval",
-      "unknown_switch_cost": "blocked_under_current_authority_schema",
+      "switch_cost_allowance": "owner_confirmed_zero_cost",
       "switch_approval_interface": "CommanderTalentSwitchApproval",
-      "default_switch_approval": null,
+      "switch_approval_factory": "automation_service.commander_talents.commander_talent_switch_approval",
       "recognized_confirmation_dialogs": [
-        "commander_talent_apply_confirmation",
-        "commander_talent_training_allocated_points_reset_confirmation"
+        "commander_talent_apply_confirmation"
       ],
-      "allocated_points_reset_confirmation_preset": "Training",
-      "allocated_points_reset_requires_explicit_scoped_approval": true,
       "standing_reset_permission": false,
       "route_approval_required": true,
       "changed_or_unknown_switch_facts": "defer",
@@ -397,7 +393,7 @@
       "talent_tree_edit_or_reset_allowed": false,
       "preset_creation_or_alteration_allowed": false,
       "dispatch_authority": null,
-      "source": "issue-95-owner-decision-2026-11-06"
+      "source": "issue-95-owner-decision-2026-11-09"
     },
     {
       "policy_id": "hall-of-war-zombie-zero-policy",
@@ -774,7 +770,7 @@
       "source": "REC-D01_explicit_completion_boundary"
     }
   ],
-  "authority_revision": "flow-delivery-product-authority-v2-r29",
+  "authority_revision": "flow-delivery-product-authority-v2-r30",
   "product_records": [
     {
       "record_id": "use_resource_item",
@@ -1539,7 +1535,7 @@
           "policy_id": "commander-talent-preset-helper",
           "required_preset": "Training",
           "verification_before_each_start": true,
-          "switch_cost_allowance": "current_known_cost_and_explicit_scoped_approval",
+          "switch_cost_allowance": "owner_confirmed_zero_cost",
           "route_approval_required": true
         },
         "resource_box_continuation": {
@@ -1630,8 +1626,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "troop_training-v6",
-      "record_digest": "b84ea9ae8b2ff3984d67d5972143707735ef9bf0aa3e2a065e56bcc4900c47cd"
+      "record_revision": "troop_training-v7",
+      "record_digest": "e125f1dccb80d8f09d5aad6c7e7def8055838bccc697d140e554ecd829be83dd"
     },
     {
       "record_id": "hero_duel",
@@ -2023,7 +2019,7 @@
           "policy_id": "commander-talent-preset-helper",
           "required_preset": "Military",
           "verification_before_dispatch": true,
-          "switch_policy": "current_known_cost_and_explicit_scoped_approval",
+          "switch_policy": "owner_confirmed_zero_cost",
           "route_approval_required": true
         },
         "saved_troop_set_identity": "Troop Set 1",
@@ -2130,8 +2126,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "hall_of_war_zombie_zero-v3",
-      "record_digest": "f2683d4ce5c62347bbb7e48c55fd2905b31f170a0ef16c60955bbcfafdfeeb98"
+      "record_revision": "hall_of_war_zombie_zero-v4",
+      "record_digest": "53c1ab143ec4a1c14d79825b1911571e37894e1e7b7cf9fad477ac780c2621de"
     },
     {
       "record_id": "hero_upgrade",
@@ -3879,5 +3875,5 @@
       "record_digest": "73a87b8d13e93bd0bc52748dce924dd79241dcba591f61ef8f78c7798b730ddd"
     }
   ],
-  "authority_digest": "46535b514795c59e5c1ddff00eeee0c2b3f111e22b3f788ae3d4cbded6929de4"
+  "authority_digest": "7dd7a712d8766cfbb976bcb1ca43c659022840ad12d202c8c7279b2109462ac1"
 }

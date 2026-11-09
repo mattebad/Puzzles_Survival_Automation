@@ -65,6 +65,40 @@ def test_dispatch_busy_unavailable_and_prior_same_reset_use_are_not_actions():
     assert plan_dispatch(challenge(attempt=AttemptState.UNAVAILABLE), saved_military_verified=True).action is Action.NO_WORK
     assert plan_dispatch(challenge(today_highest_damage=321), saved_military_verified=True).action is Action.NO_WORK
 
+def test_positive_damage_requires_bound_supervised_manual_replay():
+    observation = challenge(today_highest_damage=2_166_282_036)
+    assert plan_dispatch(observation, saved_military_verified=True).action is Action.NO_WORK
+    assert plan_dispatch(
+        observation, saved_military_verified=True, supervised_manual_replay=True,
+    ).action is Action.DISPATCH
+    assert observation.today_highest_damage == 2_166_282_036
+
+
+@pytest.mark.parametrize("overrides", (
+    {"saved_military_verified": False},
+    {"attempt": AttemptState.BUSY},
+    {"attempt": AttemptState.UNAVAILABLE},
+    {"attempt": AttemptState.UNKNOWN},
+    {"troop_set_one_applied": False},
+    {"troop_set_one_selected": False},
+    {"five_heroes_populated": False},
+    {"current_troops": 0},
+    {"current_troops": None},
+))
+def test_supervised_manual_replay_preserves_all_dispatch_guards(overrides):
+    assert plan_dispatch(
+        challenge(today_highest_damage=321, **overrides),
+        saved_military_verified=True, supervised_manual_replay=True,
+    ).action is not Action.DISPATCH
+
+
+def test_supervised_manual_replay_still_requires_independent_military_verification():
+    assert plan_dispatch(
+        challenge(today_highest_damage=321), saved_military_verified=False,
+        supervised_manual_replay=True,
+    ).action is Action.BLOCKED
+
+
 
 def test_reward_row_is_independent_and_never_fabricates_claim_state():
     ready = RewardObservation("ZOMBIE_ZERO", True, RewardState.READY, True, False, FRAME)

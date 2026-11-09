@@ -22,6 +22,10 @@ class PresetRowState(str, Enum):
 
 
 PRESET_NAMES = tuple(preset.value for preset in TalentPreset)
+# The sole confirmation identity for a saved-preset Apply. It covers the game's
+# mistranslated "Some of the Talent Pts have been allocated. Unable to apply.
+# Reset now?" text, which applies the saved preset at no cost for every preset.
+APPLY_CONFIRMATION_DIALOG = "commander_talent_apply_confirmation"
 
 
 @dataclass(frozen=True)

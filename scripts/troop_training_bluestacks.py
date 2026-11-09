@@ -26,7 +26,9 @@ from safe_action_core import (
     SafeActionExecutor,
     TransportResult,
 )
-from automation_service.commander_talents import ensure_commander_talent_preset
+from automation_service.commander_talents import (
+    commander_talent_switch_approval, ensure_commander_talent_preset,
+)
 from automation_service.troop_training import (
     FLOW_ID,
     MAX_ACTIONS,
@@ -63,7 +65,7 @@ from scripts.navigation_development_boundary import (
     make_source_safety_facts,
 )
 from tasks.home_atlas import ZoomIdentity, load_home_atlas
-from tasks.home_atlas_planner import PlanDisposition, camera_origin
+from tasks.home_atlas_planner import PlanDisposition, camera_origin, plan_direct_pan
 from scripts.startup_normalization import is_clean_home_frame
 from tasks.home_atlas_vision import BLUESTACKS_PLATFORM, BLUESTACKS_PROFILE_ID, BlueStacksHomeLocalizer, bind_visible_building, frame_digest
 from tasks.home_context import HomeReadyObservation
@@ -126,6 +128,14 @@ class _TroopTrainingInputBudgetRuntime:
             action_key = str(kwargs.get("action_key", ""))
             returning_home = name == "back" and "return-home" in action_key
             expected_talent_page = kwargs.pop("expected_talent_page", None)
+            revalidate_home_pan = kwargs.pop("revalidate_home_pan", None)
+            if revalidate_home_pan is not None and (
+                not callable(revalidate_home_pan)
+                or name != "swipe"
+                or kwargs.get("target_identity") != "home-camera-click-drag"
+                or not action_key.startswith("training:navigation:home-pan:")
+            ):
+                raise ValueError("Home pan revalidation requires the owned calculated camera swipe")
             if expected_talent_page is not None and (
                 not returning_home
                 or expected_talent_page not in {TALENT_MEMORY, COMMANDER_TALENT, TALENT_PROFILE}
@@ -148,6 +158,13 @@ class _TroopTrainingInputBudgetRuntime:
             def authorize(before):
                 if callable(self._checkpoint):
                     self._checkpoint()
+                if revalidate_home_pan is not None:
+                    refreshed = revalidate_home_pan(before)
+                    if not isinstance(refreshed, tuple) or len(refreshed) != 2:
+                        raise ValueError("Home pan revalidation requires calculated start/end geometry")
+                    start, end = refreshed
+                    kwargs.update(start=start, end=end)
+                    return
                 if before.sha256 != source.sha256:
                     if expected_talent_page is None:
                         raise RuntimeError("troop-training navigation frame changed before input")
@@ -1006,7 +1023,18 @@ class TroopTrainingIntegratedRoute:
                 return None, None, planner, surface_rejection
             localization = localizer.localize(immediate_before.frame)
             binding = bind_visible_building(immediate_before.frame, localization, building, home_is_clean=is_clean_home_frame) if localization.recognized else None
-            plan = planner.plan(localization, binding)
+            session_owned_pan = (
+                isinstance(self.runtime, _TroopTrainingInputBudgetRuntime)
+                and self.runtime._session is not None
+            )
+            # Preview only: the stateful planner must count/consume the plan
+            # once, on the SDK's actual immediate-before frame.
+            plan = (
+                plan_direct_pan(atlas, localization, target.building_id, safe_region, calibration)
+                if session_owned_pan else planner.plan(localization, binding)
+            )
+            if session_owned_pan and plan.disposition is not PlanDisposition.PAN:
+                plan = planner.plan(localization, binding)
             plan_record = {
                 "ordinal": ordinal,
                 "localization": asdict(localization),
@@ -1020,12 +1048,43 @@ class TroopTrainingIntegratedRoute:
                     return None, None, planner, "dry-run-calculated-pan-not-dispatched"
                 if plan.drag_start is None or plan.drag_end is None:
                     return None, None, planner, "invalid_gesture_calibration"
+                pan_kwargs = {}
+                if session_owned_pan:
+                    def revalidate_home_pan(before):
+                        nonlocal immediate_before, localization, plan
+                        rejected = forbidden_atlas_entry_surface(before.frame)
+                        if rejected is not None or not is_clean_home_frame(before.frame):
+                            raise RuntimeError(rejected or "home_pan_immediate_source_not_clean_home")
+                        fresh_localization = localizer.localize(before.frame)
+                        if not _is_canonical_entry_localization(fresh_localization):
+                            raise RuntimeError("home_pan_immediate_localization_not_canonical")
+                        fresh_binding = bind_visible_building(
+                            before.frame, fresh_localization, building,
+                            home_is_clean=is_clean_home_frame,
+                        )
+                        fresh_plan = planner.plan(fresh_localization, fresh_binding)
+                        if (
+                            fresh_plan.disposition is not PlanDisposition.PAN
+                            or fresh_plan.drag_start is None
+                            or fresh_plan.drag_end is None
+                        ):
+                            raise RuntimeError(f"home_pan_immediate_plan_not_authorized:{fresh_plan.reason}")
+                        plan_record["proposal_sha256"] = immediate_before.sha256
+                        plan_record["localization"] = asdict(fresh_localization)
+                        plan_record["camera_origin"] = camera_origin(fresh_localization)
+                        plan_record["plan"] = asdict(fresh_plan)
+                        plan_record["binding"] = asdict(fresh_binding) if fresh_binding is not None else None
+                        immediate_before, localization, plan = before, fresh_localization, fresh_plan
+                        return fresh_plan.drag_start, fresh_plan.drag_end
+
+                    pan_kwargs["revalidate_home_pan"] = revalidate_home_pan
                 self.runtime.swipe(
                     immediate_before,
                     start=plan.drag_start,
                     end=plan.drag_end,
                     action_key=f"training:navigation:home-pan:{target.troop_type}:{ordinal}:{immediate_before.sha256}",
                     target_identity="home-camera-click-drag",
+                    **pan_kwargs,
                 )
                 self.actions_completed += 1
                 immediate_post = self.runtime.capture(f"entry-pan-{ordinal:02d}-immediate-post")
@@ -1167,10 +1226,16 @@ class TroopTrainingIntegratedRoute:
                 source_generation=context.invocation_id,
                 context=self.preset_context,
                 native_port=run_commander_talent_preset,
-                switch_approval=None,
+                switch_approval=commander_talent_switch_approval(
+                    context.session, context.runtime, action_store=context.action_store,
+                    task_id=FLOW_ID, game_day_id=context.identity.reset_id,
+                    source_generation=context.invocation_id, context=self.preset_context,
+                ),
             )
         except Exception as exc:
             return f"TRAINING_PRESET_VERIFICATION_FAILED:{type(exc).__name__}:{exc}"
+        self.effect_reconciliation_required |= result.effect_reconciliation_required
+        self.identical_retry_denied |= result.identical_retry_denied
         if not result.verified or result.preset_name != "Training":
             return f"TRAINING_PRESET_NOT_VERIFIED:{result.status}:{result.reason}"
         self.saved_training_preset_verified = True
@@ -2719,7 +2784,9 @@ def run_troop_training_native(context, arguments: Mapping[str, object]) -> Mappi
     )
     preset_error = route._ensure_training_preset()
     if preset_error is not None:
-        result = route._result("blocked", preset_error)
+        result = route._result(
+            "unresolved" if route.effect_reconciliation_required else "blocked", preset_error,
+        )
     else:
         _home_capture, home_error = _training_return_to_home_after_preset(
             context,

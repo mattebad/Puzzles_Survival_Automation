@@ -453,7 +453,7 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(contract["schema_version"], 2)
         self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(binding["product_record_id"], "troop_training")
-        self.assertEqual(binding["product_record_revision"], "troop_training-v6")
+        self.assertEqual(binding["product_record_revision"], "troop_training-v7")
         self.assertNotIn("Fighter_or_Vehicle_resource_box_confirmation", contract["permitted_inputs"])
         self.assertEqual(contract["prohibited_inputs"], [
             "Train Now", "premium", "speedup", "Cash Mall",
@@ -670,7 +670,7 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(contract["trigger_cadence_type"], "daily_once")
         self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(binding["product_record_id"], "hall_of_war_zombie_zero")
-        self.assertEqual(binding["product_record_revision"], "hall_of_war_zombie_zero-v3")
+        self.assertEqual(binding["product_record_revision"], "hall_of_war_zombie_zero-v4")
         self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
         self.assertFalse(binding["selected_daily_prerequisite"])
         self.assertEqual(

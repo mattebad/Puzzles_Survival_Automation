@@ -11,6 +11,7 @@ import re
 from typing import Any, Callable, Sequence
 
 from tasks.commander_talents import (
+    APPLY_CONFIRMATION_DIALOG,
     PRESET_NAMES,
     PresetRowState,
     TalentMemoryObservation,
@@ -337,22 +338,36 @@ def _switch_confirmation_target(frame, required_preset: str, *, allowed_dialogs=
     hits = _all_hits(frame, ocr_engine)
     confirms = _label_hits(hits, "Confirm")
     cancels = _label_hits(hits, "Cancel")
+    if ocr_engine is None and (not confirms or not cancels):
+        # Sparse full-frame OCR misses the actual modal's button captions. Re-read
+        # their observed native text bands; only recognized labels supply targets.
+        caption_regions = ((160, 674, 320, 720), (480, 674, 640, 720))
+        refined = tuple(hit for roi in caption_regions
+                        for hit in _region_ocr(frame.frame, roi, psm=7))
+        hits = tuple(hit for hit in hits if not any(
+            hit.bounds[0] < right and left < hit.bounds[2]
+            and hit.bounds[1] < bottom and top < hit.bounds[3]
+            for left, top, right, bottom in caption_regions
+        )) + refined
+        confirms, cancels = _label_hits(hits, "Confirm"), _label_hits(hits, "Cancel")
     if len(confirms) != 1 or len(cancels) != 1:
         return None
     confirm, cancel = _hit_box(confirms[0]), _hit_box(cancels[0])
+    if confirm is None or cancel is None:
+        return None
     if abs((confirm[1] + confirm[3]) - (cancel[1] + cancel[3])) > 60:
         return None
     left, right = min(confirm[0], cancel[0]) - 120, max(confirm[2], cancel[2]) + 120
-    top, bottom = min(confirm[1], cancel[1]) - 300, min(confirm[1], cancel[1]) - 15
+    # Exclude the decorative modal header, which OCR reads as stray words.
+    top, bottom = min(confirm[1], cancel[1]) - 220, min(confirm[1], cancel[1]) - 15
     body = " ".join(_normalize(getattr(hit, "text", "")) for hit in hits
-                    if _hit_box(hit) is not None and left <= _hit_box(hit)[0] < right
-                    and top <= _hit_box(hit)[1] < bottom)
-    allocated_reset = "some of the talent pts have been allocated. unable to apply. reset now?"
-    if body == allocated_reset:
-        return confirm if (required_preset == "Training" and
-            "commander_talent_training_allocated_points_reset_confirmation" in allowed_dialogs) else None
-    if "commander_talent_apply_confirmation" not in allowed_dialogs:
+                    if (box := _hit_box(hit)) is not None and left <= box[0] < right
+                    and top <= box[1] < bottom)
+    if APPLY_CONFIRMATION_DIALOG not in allowed_dialogs:
         return None
+    # Mistranslated saved-preset Apply confirmation; it is not a talent-tree Reset.
+    if body == "some of the talent pts have been allocated. unable to apply. reset now?":
+        return confirm
     if (not re.search(r"\b(?:apply|switch|change|use)\b", body)
             or not re.search(r"\btalent\b", body)
             or re.search(r"\b(?:diamond|gem|gold|cost|price|pay|purchase|reset|unlock|cooldown)\b|[0-9]", body)):
@@ -459,6 +474,12 @@ def run_commander_talent_preset(
             return NativePresetResult("deferred", False, required_preset, "SWITCH_NOT_APPROVED",
                                       tuple(dict.fromkeys((*refs, observation.evidence_ref))),
                                       int(getattr(session, "input_count", 0)) - start_count)
+        def settle_switch(action_key: str, status: str, dispatched: bool,
+                          settled: TalentMemoryObservation | None) -> None:
+            outcome = switch_outcome
+            if outcome is None:
+                raise RuntimeError("TALENT_SWITCH_SETTLEMENT_UNAVAILABLE")
+            outcome(action_key, status, dispatched, settled)
 
         pending: dict[str, Any] = {}
         dispatch_returned = False
@@ -514,13 +535,18 @@ def run_commander_talent_preset(
             if (isinstance(permit, NativeSwitchPermit) and _switch_confirmation_target(
                     frame, required_preset, allowed_dialogs=permit.allowed_confirmation_dialogs,
                     ocr_engine=ocr_engine) is not None):
-                return "confirmation"
+                # The immediate post-Confirm capture can still be the unchanged
+                # modal. It is not a successor: settle read-only, never confirm again.
+                return UNKNOWN if pending.get("confirmation_dispatched") is True else "confirmation"
             found = _recognized_page(frame, required_preset=required_preset, ocr_engine=ocr_engine)
             if (found.recognized and found.page == TALENT_MEMORY and found.preset is not None
                     and found.preset.row_state is PresetRowState.APPLIED):
                 return "applied"
+            # Confirm returns to the talent tree; its transient toast is not
+            # required. This is only a readback transition, never Applied proof.
             if (found.recognized and found.page == COMMANDER_TALENT
-                    and _label_hits(_all_hits(frame, ocr_engine), "Talent memory applied")):
+                    and (pending.get("confirmation_dispatched") is True
+                         or _label_hits(_all_hits(frame, ocr_engine), "Talent memory applied"))):
                 return "applied_return"
             return UNKNOWN
 
@@ -556,6 +582,7 @@ def run_commander_talent_preset(
                                 action_class="commander_talent_preset", consequential=True,
                                 continuation_of=permit.action_key)
                     pending.setdefault("runtime_keys", []).append(f"{permit.action_key}:confirm")
+                    pending["confirmation_dispatched"] = True
 
                 switch_result = session.run_action(
                     action_class="commander_talent_preset", label=f"commander-talent-confirm-{required_preset.casefold()}",
@@ -568,7 +595,7 @@ def run_commander_talent_preset(
             permit = pending.get("permit")
             reason = str(exc) or type(exc).__name__
             if isinstance(permit, NativeSwitchPermit):
-                switch_outcome(permit.action_key, "unknown", dispatch_returned, pending.get("observation"))
+                settle_switch(permit.action_key, "unknown", dispatch_returned, pending.get("observation"))
                 return NativePresetResult(
                     "unknown", False, required_preset, reason,
                     tuple(dict.fromkeys((*refs, observation.evidence_ref))),
@@ -598,7 +625,7 @@ def run_commander_talent_preset(
                     ocr_engine=ocr_engine, checkpoint=checkpoint, runtime_input_lock=runtime_input_lock,
                 )
             except Exception as exc:
-                switch_outcome(permit.action_key, "unknown", dispatch_returned, None)
+                settle_switch(permit.action_key, "unknown", dispatch_returned, None)
                 return NativePresetResult(
                     "unknown", False, required_preset, f"APPLIED_READBACK_FAILED:{exc}",
                     tuple(dict.fromkeys(refs)), int(getattr(session, "input_count", 0)) - start_count,
@@ -623,8 +650,7 @@ def run_commander_talent_preset(
             for key in pending.get("runtime_keys", ()):
                 reconcile_runtime(key, "confirmed" if switched else "unresolved", switch_frame,
                                   "preset Applied verified" if switched else "preset switch successor unknown")
-        if switch_outcome is not None:
-            switch_outcome(permit.action_key, status, dispatch_returned, successor.preset)
+        settle_switch(permit.action_key, status, dispatch_returned, successor.preset)
         return NativePresetResult(
             status,
             switched,

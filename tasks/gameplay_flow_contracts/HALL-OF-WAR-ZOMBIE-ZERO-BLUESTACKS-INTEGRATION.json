@@ -38,8 +38,8 @@
       "planner": "ProductBoundedNativeFlow",
       "permitted_input": "verify_or_apply_saved_military_preset",
       "postconditions": [
-        "The saved commander preset is exactly Military Applied; reuse valid bound proof when already Applied.",
-        "If needed, the exact saved Military row requires current known cost facts and explicit scoped CommanderTalentSwitchApproval; unknown cost or absent approval blocks. Recognize only the applicable Apply confirmation and verify Applied; no standing free-switch, no-cooldown or Reset permission."
+        "The saved commander preset is exactly Military Applied; reuse same-visit generation/context/runtime/lock-bound Applied proof without redundant switching, invalidating it on manual/external change, restart, generation change or relevant context/runtime/lock loss.",
+        "OWNER CONFIRMED: saved preset switches cost zero. If needed, use the canonical automation_service.commander_talents.commander_talent_switch_approval zero-cost factory and explicit CommanderTalentSwitchApproval bound to the exact current saved Military Apply control. Only an actually shown commander_talent_apply_confirmation is allowed, including mistranslated allocated-points Reset-now wording; verify the same row Applied. No talent-tree Reset/edits, preset alteration, Economy consumer or scheduler is authorized."
       ],
       "terminal_outcomes": [
         "blocked",
@@ -395,10 +395,10 @@
       "HOME_CANONICAL"
     ],
     "selected_daily_prerequisite": false,
-    "product_authority_revision": "flow-delivery-product-authority-v2-r29",
-    "product_authority_digest": "46535b514795c59e5c1ddff00eeee0c2b3f111e22b3f788ae3d4cbded6929de4",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r30",
+    "product_authority_digest": "7dd7a712d8766cfbb976bcb1ca43c659022840ad12d202c8c7279b2109462ac1",
     "product_record_id": "hall_of_war_zombie_zero",
-    "product_record_revision": "hall_of_war_zombie_zero-v3",
-    "product_record_digest": "f2683d4ce5c62347bbb7e48c55fd2905b31f170a0ef16c60955bbcfafdfeeb98"
+    "product_record_revision": "hall_of_war_zombie_zero-v4",
+    "product_record_digest": "53c1ab143ec4a1c14d79825b1911571e37894e1e7b7cf9fad477ac780c2621de"
   }
 }

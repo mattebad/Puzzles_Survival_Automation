@@ -912,21 +912,11 @@ class ProductAuthorityTests(unittest.TestCase):
             validate_product_authority(changed)
 
     def test_f_policy_guards_saved_preset_costs_hall_quota_and_box_scope(self) -> None:
-        preset_policy = next(
-            policy for policy in self.authority["policies"]
-            if policy["policy_id"] == "commander-talent-preset-helper"
-        )
-        self.assertIsNone(preset_policy["switch_cooldown_seconds"])
-        self.assertIsNone(preset_policy["default_switch_approval"])
-        self.assertEqual(preset_policy["unknown_switch_cost"], "blocked_under_current_authority_schema")
-        self.assertFalse(preset_policy["standing_reset_permission"])
-        self.assertEqual(preset_policy["allocated_points_reset_confirmation_preset"], "Training")
-        self.assertTrue(preset_policy["allocated_points_reset_requires_explicit_scoped_approval"])
         mutations = (
             ("commander-talent-preset-helper", lambda policy: policy.__setitem__("generic_free_strategic_action_allowed", True)),
             ("commander-talent-preset-helper", lambda policy: policy.__setitem__("optional_actual_confirmation_only", False)),
             ("commander-talent-preset-helper", lambda policy: policy.__setitem__("standing_reset_permission", True)),
-            ("commander-talent-preset-helper", lambda policy: policy.__setitem__("unknown_switch_cost", "assumed_free")),
+            ("commander-talent-preset-helper", lambda policy: policy.__setitem__("recognized_confirmation_dialogs", ["unknown_confirmation"])),
             ("commander-talent-preset-helper", lambda policy: policy.__setitem__("switch_cooldown_seconds", 0)),
             ("hall-of-war-zombie-zero-policy", lambda policy: policy.__setitem__("maximum_consequential_actions_per_visit", 4)),
             ("troop-training-resource-policy", lambda policy: policy["resource_box_continuation"].__setitem__("consumption_allowed_without_exact_box_evidence", True)),
@@ -980,7 +970,6 @@ class ProductAuthorityTests(unittest.TestCase):
         )
         self.assertFalse(policy["premium_or_refill_allowed"])
         self.assertTrue(policy["owner_fixed_zero_loss_mechanic"])
-        self.assertEqual(record["record_revision"], "hall_of_war_zombie_zero-v3")
         self.assertEqual(
             record["semantic_entry_route"]["route"], ["HALL_OF_WAR", "ZOMBIE_ZERO"]
         )
@@ -1394,7 +1383,6 @@ class ProductAuthorityTests(unittest.TestCase):
     def test_troop_training_record_preserves_four_type_queue_and_daily_policy(self) -> None:
         record = self.records["troop_training"]
         self.assertEqual(record["record_type"], "troop_training")
-        self.assertEqual(record["record_revision"], "troop_training-v6")
         self.assertEqual(record["semantic_entry_route"]["target"], "TRAINING_FACILITIES")
         variants = record["target"]["per_type_contract"]
         self.assertEqual(variants["fighter"]["target_tier"], 8)

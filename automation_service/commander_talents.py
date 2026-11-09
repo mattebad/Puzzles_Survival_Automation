@@ -8,11 +8,15 @@ import re
 import time
 from typing import Any, Callable, Protocol
 
-from safe_action_core.models import ActionClass, ActionIntent, PolicyResult, TransportResult
-from tasks.commander_talents import (
-    PRESET_NAMES, PresetRowState, TalentMemoryObservation, TalentPresetNativeResult,
-    TalentSwitchPermit, context_fingerprint,
+from safe_action_core.models import (
+    ActionClass, ActionIntent, Observation, PolicyRequest, PolicyResult, TransportResult,
 )
+from safe_action_core.policy import CentralPolicy
+from tasks.commander_talents import (
+    APPLY_CONFIRMATION_DIALOG, PRESET_NAMES, PresetRowState, TalentMemoryObservation,
+    TalentPresetNativeResult, TalentSwitchPermit, context_fingerprint,
+)
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 _SWITCH_CONSEQUENCE = "commander_talent_preset_switch"
 _PROOF_KEY = "commander_talent_applied_proof"
@@ -29,7 +33,7 @@ class CommanderTalentNativePort(Protocol):
 
 @dataclass(frozen=True)
 class CommanderTalentSwitchApproval:
-    """An applicable scenario/cost policy decision bound to this exact Apply source."""
+    """A canonical zero-cost policy decision bound to this exact saved-preset Apply source."""
     intent: ActionIntent
     policy_result: PolicyResult
     source_frame_sha256: str
@@ -95,14 +99,14 @@ def _policy_snapshot_matches(approval, observation, *, source_generation, contex
         ).encode("utf-8")).hexdigest(),
         "semantic_action": f"switch_commander_talent_preset:{name.casefold()}",
         "action_kind": "commander_talent_preset_switch", "subject": name,
-        "resource_or_currency": intent.resource_or_currency, "maximum_cost": intent.maximum_cost,
-        "free_only": intent.free_only,
+        "resource_or_currency": "none", "maximum_cost": 0, "free_only": True,
         "allowed_confirmation_dialogs": intent.allowed_confirmation_dialogs,
         "semantic_preconditions": _preconditions(observation, source_generation, context_sha256),
         "semantic_postconditions": (expected_post,),
     }
     if (any(getattr(intent, key) != value for key, value in expected.items())
-            or intent.action_class not in {ActionClass.ZERO_COST_CONSEQUENTIAL, ActionClass.SPEND_OR_STRATEGIC}
+            or intent.action_class is not ActionClass.ZERO_COST_CONSEQUENTIAL
+            or intent.cost_type != "none" or intent.cost_amount != 0
             or intent.source_state != "TALENT_MEMORY"
             or intent.target_identity != f"talent-memory-row:{name}:apply"
             or intent.target_roi != observation.apply_target
@@ -125,7 +129,7 @@ def _policy_snapshot_matches(approval, observation, *, source_generation, contex
         "frame_sha256": observation.source_frame_sha256, "source_state": "TALENT_MEMORY",
         "target_identity": intent.target_identity, "target_roi": list(observation.apply_target),
         "control_class": "commander_talent_preset_switch", "consequence": _SWITCH_CONSEQUENCE,
-        "cost_type": intent.cost_type, "cost_amount": intent.cost_amount,
+        "cost_type": "none", "cost_amount": 0,
         "quantity": 1, "expected_postcondition": expected_post,
     }.items())
 
@@ -137,6 +141,97 @@ def _store_lease_valid(action_store, session) -> bool:
         return False
 
 
+def commander_talent_switch_approval(
+    session: Any, runtime: Any, *, action_store: Any, task_id: str, game_day_id: str,
+    source_generation: str | int, context: Any,
+) -> Callable[[TalentMemoryObservation, Any], CommanderTalentSwitchApproval | None]:
+    """Bind a consumer's saved-preset Apply to a fresh canonical zero-cost policy decision.
+
+    Saved talent presets switch at no cost. The only confirmation authority is the
+    saved-preset Apply dialog; talent-tree Reset or edits are never admitted. Each call
+    evaluates the exact current source frame, owner lease, unresolved-action block and
+    duplicate key, so a stale, changed or previously attempted switch is denied.
+    """
+    if not all(type(value) is str and value.strip() == value and value for value in (task_id, game_day_id)):
+        raise ValueError("commander talent switch approval requires exact consumer task and game day")
+    generation = _generation(source_generation)
+    context_sha256 = context_fingerprint(context)
+    policy = CentralPolicy({task_id})
+
+    def approve(observation: TalentMemoryObservation, frame: Any) -> CommanderTalentSwitchApproval | None:
+        name, target = observation.preset_name, observation.apply_target
+        pixels, captured = getattr(frame, "frame", None), getattr(frame, "captured_monotonic", None)
+        if pixels is None:
+            return None
+        owner = getattr(session, "owner", None)
+        if (not observation.recognized or observation.row_state is not PresetRowState.APPLY
+                or name not in PRESET_NAMES or target is None or not observation.evidence_ref
+                or not _source_hash(observation.source_frame_sha256)
+                or getattr(frame, "sha256", None) != observation.source_frame_sha256
+                or getattr(pixels, "ndim", None) != 3 or type(captured) is not float
+                or type(owner) is not str or not owner):
+            return None
+        try:
+            foreground = runtime.measure_foreground_package() == "com.global.ztmslg"
+            lease_valid = bool(action_store.lease_valid_for(owner, time.time()))
+            unresolved = bool(action_store.has_action_block())
+            action_key = f"commander-talent-switch:{name.casefold()}:{generation}"
+            duplicate = action_store.get_action_by_key(action_key) is not None
+        except (AttributeError, TypeError, ValueError):
+            return None
+        x0, y0, x1, y1 = target
+        preconditions = _preconditions(observation, generation, context_sha256)
+        dialogs = (APPLY_CONFIRMATION_DIALOG,)
+        action_id = "commander-talent-switch:" + hashlib.sha256(json.dumps(
+            [action_key, list(preconditions), list(dialogs)], ensure_ascii=True, separators=(",", ":"),
+        ).encode("utf-8")).hexdigest()
+        semantic_action = f"switch_commander_talent_preset:{name.casefold()}"
+        target_identity = f"talent-memory-row:{name}:apply"
+        post = f"talent-memory-applied:{name}"
+        evidence = (observation.evidence_ref,)
+        request = PolicyRequest(
+            action_id=action_id, action_key=action_key, task_id=task_id, task_mode="supervised_validation",
+            semantic_action=semantic_action, expected_runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID,
+            observation=Observation(
+                frame_sha256=frame.sha256, capture_completed_monotonic=captured,
+                runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID, width=int(pixels.shape[1]),
+                height=int(pixels.shape[0]), valid_png=int(pixels.shape[2]) == 3, corrupt=False,
+                black=not bool(pixels.any()), source_state="TALENT_MEMORY", overlay_state="none",
+                target_identity=target_identity, target_roi=target, recognized=True,
+                control_class=_SWITCH_CONSEQUENCE, consequence=_SWITCH_CONSEQUENCE,
+                cost_type="none", cost_amount=0, quantity=1, expected_postcondition=post,
+                evidence_refs=evidence,
+                critical_roi_hashes=(("talent-memory-apply", hashlib.sha256(
+                    pixels[y0:y1, x0:x1].tobytes()).hexdigest()),),
+                ocr_result_frame_sha256=frame.sha256, ocr_result_capture_completed_monotonic=captured,
+                source_family="COMMANDER_TALENT", target_isolated=True, package_foreground=foreground,
+            ),
+            monotonic_now=time.monotonic(), observation_max_age_seconds=30.0, dispatch_max_age_seconds=10.0,
+            lease_owner=owner, lease_valid=lease_valid, unresolved_action=unresolved,
+            duplicate_action_key=duplicate, game_day_id=game_day_id,
+            action_class=ActionClass.ZERO_COST_CONSEQUENTIAL, action_kind=_SWITCH_CONSEQUENCE,
+            subject=name, resource_or_currency="none", maximum_cost=0, free_only=True,
+            allowed_confirmation_dialogs=dialogs, semantic_preconditions=preconditions,
+            semantic_postconditions=(post,),
+        )
+        decision = policy.evaluate(request)
+        if not decision.authorized:
+            return None
+        intent = ActionIntent(
+            action_id=action_id, action_key=action_key, task_id=task_id, semantic_action=semantic_action,
+            source_state="TALENT_MEMORY", target_identity=target_identity, target_roi=target,
+            source_frame_sha256=frame.sha256, source_frame_captured_at=captured,
+            runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID, game_day_id=game_day_id,
+            expected_postcondition=post, consequence=_SWITCH_CONSEQUENCE, cost_type="none",
+            cost_amount=0, quantity=1, evidence_refs=evidence, source_family="COMMANDER_TALENT",
+            target_isolated=True, action_class=ActionClass.ZERO_COST_CONSEQUENTIAL,
+            action_kind=_SWITCH_CONSEQUENCE, subject=name, resource_or_currency="none",
+            maximum_cost=0, free_only=True, allowed_confirmation_dialogs=dialogs,
+            semantic_preconditions=preconditions, semantic_postconditions=(post,),
+        )
+        return CommanderTalentSwitchApproval(intent, decision, frame.sha256, generation, context_sha256)
+
+    return approve
 
 
 def invalidate_commander_talent_preset(session: Any, reason: str) -> None:
@@ -205,8 +300,8 @@ def ensure_commander_talent_preset(
         if (not observation.recognized or observation.row_state is not PresetRowState.APPLY
                 or observation.apply_target is None or frame.sha256 != observation.source_frame_sha256):
             return None
-        # Apply has no inspected cost quote. Do not manufacture zero-cost
-        # capability authority from absent price text or a historical approval.
+        # Saved-preset Apply is zero-cost; authority is the consumer's fresh canonical
+        # policy decision on this exact frame, never a historical approval.
         approval = switch_approval(observation, frame) if switch_approval is not None else None
         if not isinstance(approval, CommanderTalentSwitchApproval) or not _policy_snapshot_matches(
                 approval, observation, source_generation=generation, context_sha256=context_sha256):

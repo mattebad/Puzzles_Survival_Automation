@@ -901,7 +901,7 @@ def _hero_duel(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
 def _commander_talent_preset(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
     deny = _deny("COMMANDER_TALENT_PRESET_NOT_EXACT", "only an exact saved preset Apply for its approved consumer is allowed")
     name = request.subject
-    # A named preset is not standing switch/reset authority or a cost declaration.
+    # Owner-confirmed zero-cost saved Apply authority remains consumer-scoped.
     if not isinstance(name, str) or (request.task_id, name) not in {
         (HALL_OF_WAR_TASK, "Military"), (TROOP_TRAINING_TASK, "Training"),
     }:
@@ -914,8 +914,6 @@ def _commander_talent_preset(request: PolicyRequest) -> Tuple[PolicyDecision, st
     context = _field(tokens[5], "context-sha256:")
     dialogs = request.allowed_confirmation_dialogs
     permitted_dialogs = {(), ("commander_talent_apply_confirmation",)}
-    if name == "Training":
-        permitted_dialogs.add(("commander_talent_training_allocated_points_reset_confirmation",))
     bound_terms = json.dumps([request.action_key, list(tokens), list(dialogs)], ensure_ascii=True, separators=(",", ":"))
     if (
         previous not in {"Military", "Economy", "Training"} or previous == name
@@ -944,7 +942,7 @@ def _commander_talent_preset(request: PolicyRequest) -> Tuple[PolicyDecision, st
     guard = _route_runtime_guard(request)
     if guard is not None:
         return guard
-    return PolicyDecision.AUTHORIZE, "AUTHORIZED_COMMANDER_TALENT_PRESET", "exact consumer, current known cost, scoped confirmation, generation and context passed"
+    return PolicyDecision.AUTHORIZE, "AUTHORIZED_COMMANDER_TALENT_PRESET", "owner-confirmed zero-cost saved Apply, exact approved consumer, scoped Apply confirmation, generation and context passed"
 
 
 def _hall_of_war(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
