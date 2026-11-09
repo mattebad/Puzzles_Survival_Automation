@@ -9,6 +9,7 @@ import time
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Mapping
+from urllib.parse import quote
 
 import cv2
 import numpy as np
@@ -1048,7 +1049,7 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
         f"product_id:{PRODUCT_ID}", f"product_revision:{PRODUCT_REVISION}",
         f"reset_identity:{identity.reset_id}", "effect_ordinal:boost=1",
         f"current_food_farm_boost_panel_binding:{binding.building_id}",
-        f"exact_current_food_farm_item_name:{decision.item_name}",
+        f"exact_current_food_farm_item_name:{quote(decision.item_name, safe='')}",
         f"exact_current_food_farm_item_duration_seconds:{decision.duration_seconds}",
         f"canonical_food_farm_boost_action_key_unclaimed:{boost_key}",
         "current_runtime_lease_valid",

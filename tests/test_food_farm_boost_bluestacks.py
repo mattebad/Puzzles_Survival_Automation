@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
+from urllib.parse import unquote
 
 import cv2
 import numpy as np
@@ -314,6 +315,15 @@ class NativeFoodFarmBoostTests(unittest.TestCase):
             evidence_refs=("evidence/current-farm.png",), runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID)
         self.assertEqual(food_farm_boost_decision(observation).choice, FoodFarmBoostChoice.OWNED_ITEM)
         self.assertIsNone(observation.inventory_item_count)
+        with patch.object(route, "_dispatch_canonical_action", return_value={
+                "status": "blocked", "reason": "dispatch boundary reached", "transport_calls": 0,
+                "effect_reconciliation_required": False}) as dispatch:
+            self._run_from_confirmed_collection(observation, occurrence_key="opaque-owned-item")
+        facts = dispatch.call_args.kwargs["semantic_preconditions"]
+        label = next(fact.split(":", 1)[1] for fact in facts
+            if fact.startswith("exact_current_food_farm_item_name:"))
+        self.assertFalse(any(character.isspace() for character in label))
+        self.assertEqual(unquote(label), observation.option_item_name)
         self.assertEqual(food_farm_boost_decision(replace(observation, option_item_usable=None)).choice,
                          FoodFarmBoostChoice.BLOCKED)
         eligible = replace(observation, option_item_usable=False)
