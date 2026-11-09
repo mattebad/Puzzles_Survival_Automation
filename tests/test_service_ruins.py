@@ -8,6 +8,15 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
+import time
+
+import cv2
+
+from scripts import navigation_development_boundary as development
+from scripts import ruins_challenge_bluestacks as ruins_native
+from scripts.bluestacks_flow_collector import ADBRunner
+from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
 
 from automation_service.recruitment import recruitment_reset
 from automation_service.native_execution import NativeRouteOutcome
@@ -36,6 +45,10 @@ from safe_action_core import (
 from tasks.ruins_challenge import (
     RUINS_CHALLENGE_DISPATCH_ACTION,
     RUINS_CHALLENGE_RESULT_POSTCONDITION,
+    RuinsAvailability,
+    RuinsChallengeRow,
+    RuinsChestState,
+    RuinsControlState,
     ruins_daily_action_key,
 )
 from tasks.runtime_identity import (
@@ -501,6 +514,180 @@ class RuinsServiceTests(unittest.TestCase):
                              ["confirmed", "confirmed"])
         finally:
             reopened.close()
+
+
+class RuinsSingleInputOwnerTests(unittest.TestCase):
+    """Real session, native journal and SQLite Core; only the ADB device is offline."""
+
+    def _visit(self, *, fail_last_transport=False):
+        root = Path(self.enterContext(TemporaryDirectory()))
+        self.enterContext(patch.object(development, "RUNTIME_INPUT_LOCK_PATH", root / "input.sqlite3"))
+        home = cv2.imread(str(Path(__file__).parent / "fixtures/home_base/native-home-20261029.png"))
+        self.assertIsNotNone(home)
+
+        class Device(ADBRunner):
+            def __init__(self):
+                super().__init__("offline-adb", "offline")
+                self.physical_inputs = 0
+
+            def run(self, *args, **kwargs):
+                raise AssertionError("offline fixture must never execute ADB")
+
+            def capture_png(self):
+                frame = home.copy()
+                frame[0, 0] = (self.physical_inputs, 17, 23)
+                ok, payload = cv2.imencode(".png", frame)
+                if not ok:
+                    raise AssertionError("fixture PNG encoding failed")
+                return payload.tobytes()
+
+            def get_state(self):
+                return "device"
+
+            def shell_text(self, *args, **kwargs):
+                return "mCurrentFocus=Window{1 u0 com.global.ztmslg/com.unity3d.player.UnityPlayerActivity}"
+
+            def dispatch_tap(self, point):
+                self.physical_inputs += 1
+                if fail_last_transport and self.physical_inputs == 9:
+                    raise RuntimeError("offline transport failure after ninth input")
+
+        device = Device()
+        runtime = LocalBlueStacksRuntime(device, root / "runtime", execute=True)
+        runtime.max_inputs = MAX_INPUTS
+        session = self.enterContext(development.DevelopmentSession(
+            owner="ruins-single-owner", invocation_id="offline-mixed-visit",
+            session_directory=root / "session", max_inputs=MAX_INPUTS,
+        ))
+        now = datetime(2026, 11, 9, 12, tzinfo=timezone.utc)
+        backend = derive_resource_runtime_identity(resource_fixed_runtime_binding(), now)
+        identity = SchedulerIdentity(backend.account_id, backend.server_id, recruitment_reset(now.timestamp()), PRODUCT_ID)
+        store = SafetyStore(root / "actions.sqlite3")
+        self.addCleanup(store.close)
+        store.acquire_lease(session.owner, now.timestamp(), 600.0)
+        context = SimpleNamespace(
+            session=session, runtime=runtime, action_store=store, invocation_id=session.invocation_id,
+        )
+        boundary = RuinsCanonicalActionBoundary(
+            context, identity, backend, lambda: None,
+            monotonic_clock=time.monotonic, utc_clock=lambda: now.timestamp(), settle_seconds=0,
+        )
+        route = ruins_native.RuinsIntegratedRoute(
+            runtime, session=session, reset_identity=identity.reset_id, current_day="Mon",
+            account_id=identity.account_id, server_id=identity.server_id,
+            runtime_scope=backend.runtime_scope, product_id=PRODUCT_ID, product_revision=PRODUCT_REVISION,
+            runtime_identity=backend, action_executor=boundary, post_input_delay=0,
+        )
+        # Navigation uses the actual route transport wrapper, not a counter shim.
+        def navigation(ordinal):
+            source = runtime.capture(f"navigation-source-{ordinal}")
+            route._ordinary_tap(
+                source, target_identity="ruins-attack", target_roi=(250, 900, 550, 1000),
+                action_key=f"navigation-{ordinal}",
+            )
+
+        for ordinal in range(5):
+            navigation(ordinal)
+        row = RuinsChallengeRow(
+            identity="Hero Challenge", day_label="Mon",
+            availability=RuinsAvailability.AVAILABLE,
+            progress_current=60, progress_maximum=120, last_successful_level=60,
+            challenge_control=RuinsControlState.VISIBLE_ENABLED,
+            chest_state=RuinsChestState.UNKNOWN,
+            source_frame_sha256=runtime.capture("challenge-row-source").sha256,
+            reset_identity=identity.reset_id,
+        )
+        key = route._challenge_key(row)
+        spec = {
+            "action_key": key, "semantic_action": RUINS_CHALLENGE_DISPATCH_ACTION,
+            "action_kind": RUINS_CHALLENGE_DISPATCH_ACTION, "category": "challenge",
+            "subject": "ruins_challenge:hero-challenge", "identity": row.identity,
+            "source_state": "RUINS_CHALLENGE_DETAIL", "target_identity": "ruins-dispatch",
+            "control_class": "DISPATCH", "consequence": "ruins_zero_cost_npc_challenge",
+            "expected_postcondition": RUINS_CHALLENGE_RESULT_POSTCONDITION,
+            "semantic_preconditions": route._challenge_preconditions(row, None),
+            "game_day_id": identity.reset_id,
+        }
+
+        def observe(frame):
+            return route._policy_observation(
+                frame, source_state=spec["source_state"], target_identity=spec["target_identity"],
+                target_roi=(250, 1120, 550, 1230), control_class="DISPATCH",
+                consequence=spec["consequence"], postcondition=spec["expected_postcondition"],
+            )
+
+        def dispatch(frame, observation):
+            route._ordinary_tap(
+                frame, target_identity="ruins-dispatch", target_roi=observation.target_roi,
+                action_key=key, consequential=True,
+            )
+
+        def successor(frame):
+            # The offline device changes the PNG only on a physical dispatch.
+            if int(frame.frame[0, 0, 0]) == 6:
+                spec["result"] = "failure"
+                return RUINS_CHALLENGE_RESULT_POSTCONDITION
+            return "unknown"
+
+        proposal = runtime.capture("dispatch-proposal")
+        result = boundary.execute(
+            spec=spec, proposal_capture=proposal, proposal_observation=observe(proposal),
+            capture=runtime.capture, observe=observe, dispatch=dispatch, successor=successor, settle_seconds=0,
+        )
+        self.assertEqual(result["status"], "confirmed")
+        self.assertEqual(result["transport_calls"], 1)
+        self.assertEqual(store.get_action_by_key(key)["final_status"], "confirmed")
+        self.assertEqual(boundary.reset_progress(route._action_key("challenge")), {
+            "stages_confirmed": 1, "stages_won": 0, "finished": True, "unresolved": False,
+        })
+        for ordinal in (6, 7):
+            navigation(ordinal)
+        if fail_last_transport:
+            with self.assertRaisesRegex(RuntimeError, "ninth input"):
+                navigation(8)
+        else:
+            navigation(8)
+        self.assertEqual((session.input_count, runtime.input_count, device.physical_inputs), (9, 9, 9))
+        self.assertEqual(ruins_native.verify_ruins_route_transports(context), 9)
+        rows = [json.loads(line) for line in runtime.events.read_text(encoding="utf-8").splitlines()]
+        dispatches = [row for row in rows if row["type"] == "dispatch"]
+        self.assertEqual(len(dispatches), 9)
+        self.assertEqual(sum(row["consequential"] for row in dispatches), 1)
+        self.assertEqual(sum(row["action_key"] == key for row in dispatches), 1)
+        self.assertEqual(boundary.transport_calls_by_category, {"challenge": 1, "chest": 0})
+        # A duplicate confirmed Core key cannot cause a tenth physical input.
+        again = boundary.execute(
+            spec=spec, proposal_capture=None, proposal_observation=observe(proposal),
+            capture=lambda _label: self.fail("confirmed stage must not recapture"),
+            observe=observe, dispatch=dispatch, successor=successor, settle_seconds=0,
+        )
+        self.assertEqual((again["status"], again["transport_calls"], device.physical_inputs), ("confirmed", 0, 9))
+        if not fail_last_transport:
+            self.assertEqual(len(session.actions), 9)
+        return context
+
+    def test_mixed_navigation_and_canonical_dispatch_share_nine_real_inputs(self):
+        self._visit()
+
+    def test_failed_navigation_transport_retains_all_nine_owned_inputs(self):
+        self._visit(fail_last_transport=True)
+
+    def test_native_journal_crosscheck_rejects_missing_dispatch_without_adoption(self):
+        context = self._visit()
+        rows = context.runtime.events.read_text(encoding="utf-8").splitlines()
+        removed = False
+        kept = []
+        for line in rows:
+            if not removed and json.loads(line)["type"] == "dispatch":
+                removed = True
+            else:
+                kept.append(line)
+        context.runtime.events.write_text("\n".join(kept) + "\n", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "retained dispatch journal") as caught:
+            ruins_native.verify_ruins_route_transports(context)
+        self.assertEqual((context.session.input_count, context.runtime.input_count), (9, 9))
+        self.assertFalse(caught.exception.partial_result["accounting_verified"])
+        self.assertFalse(caught.exception.partial_result["journal_verified"])
 
 
 if __name__ == "__main__":

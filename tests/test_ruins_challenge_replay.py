@@ -18,6 +18,7 @@ import numpy as np
 from scripts import ruins_challenge_replay as replay
 from scripts import ruins_challenge_bluestacks as native_route
 from scripts.bluestacks_native_runtime import CapturedNativeFrame, IntegratedRouteResult
+from scripts import navigation_development_boundary as development
 from scripts.home_atlas_bluestacks import HomeDriverDisposition
 from tasks.ruins_challenge import (
     RuinsAvailability,
@@ -249,6 +250,12 @@ def _run_native_fake_visit(
     home_driver = SimpleNamespace(
         observe=lambda _frame: SimpleNamespace(disposition=HomeDriverDisposition.COMPLETE)
     )
+    session = development.DevelopmentSession(
+        owner="ruins-offline-replay",
+        invocation_id=f"visit-{runtime.ordinal}",
+        session_directory=root / f"development-{runtime.ordinal}",
+        max_inputs=maximum_inputs,
+    )
     route = native_route.RuinsIntegratedRoute(
         runtime,
         reset_identity=reset_identity,
@@ -260,6 +267,7 @@ def _run_native_fake_visit(
         product_revision=native_route.RUINS_PRODUCT_REVISION,
         runtime_identity=backend,
         action_executor=executor,
+        session=session,
         initial_capture=runtime.capture("offline-home"),
         home_driver=home_driver,
         post_input_delay=0,
@@ -407,7 +415,7 @@ def _run_native_fake_visit(
         native_route, "recognize_ruins_result_with_targets", side_effect=recognize_result,
     ), patch.object(
         native_route, "recognize_ruins_reward_frame", side_effect=recognize_reward,
-    ):
+    ), patch.object(development, "RUNTIME_INPUT_LOCK_PATH", root / "input-lock.sqlite3"), session:
         outcome = route.run()
     return route, runtime, executor, outcome
 

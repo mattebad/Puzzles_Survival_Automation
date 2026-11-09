@@ -103,6 +103,7 @@ class RuinsIntegratedRoute:
         product_revision: str,
         runtime_identity: VerifiedRuntimeIdentity,
         action_executor,
+        session,
         initial_capture: CapturedNativeFrame | None = None,
         home_driver: BlueStacksLocalizeFirstHomeDriver | None = None,
         zoom_transport=None,
@@ -143,6 +144,8 @@ class RuinsIntegratedRoute:
         self.product_id = product_id
         self.product_revision = product_revision
         self.action_executor = action_executor
+        self.session = session
+        self._navigation_identity: str | None = None
         self.initial_capture = initial_capture
         self.post_input_delay = post_input_delay
         self.recognition_timeout = recognition_timeout
@@ -185,6 +188,69 @@ class RuinsIntegratedRoute:
             captured_monotonic=captured.captured_monotonic, target_roi=target_roi,
         ))
 
+    def _navigation_successor(self, captured) -> str:
+        """Classify with the route's readers; an input receipt is not success."""
+        # Clean-Home is the semantic successor, not an Atlas target binding.
+        # The existing Home driver owns settled localization/pan progress and
+        # fresh entry binding below; do not rebuild its full Atlas per input.
+        if is_clean_home_frame(captured.frame):
+            return "HOME_BASE"
+        listed = recognize_ruins_frame(captured.frame, reset_identity=self.reset_identity).observation
+        if listed.recognized and listed.screen_identity == "RUINS_CHALLENGE":
+            return "RUINS_CHALLENGE"
+        identity = self._navigation_identity
+        if identity is not None:
+            detail = recognize_ruins_detail_with_targets(
+                captured.frame, identity, reset_identity=self.reset_identity,
+            ).observation
+            if detail.recognized and detail.overlay_state == "none":
+                return "RUINS_CHALLENGE_DETAIL"
+            reward = recognize_ruins_reward_frame(
+                captured.frame, identity, reset_identity=self.reset_identity,
+            )
+            if reward.recognized and reward.identity == identity:
+                return "RUINS_REWARD_MODAL"
+        return "unknown"
+
+    def _navigation_transport(self, captured, *, action_key, dispatch, target_roi=None):
+        # Consume the already freshly recognized/bound source exactly once.
+        # Session owns the input; native events independently cross-check it.
+        first = True
+
+        def capture(label):
+            nonlocal first
+            if first:
+                first = False
+                return captured
+            return self.runtime.capture(label)
+
+        return self.session.run_action(
+            action_class="navigation",
+            label=action_key,
+            capture=capture,
+            dispatch=dispatch,
+            recognize=self._navigation_successor,
+            target_roi=target_roi,
+        )
+
+    def _navigation_tap(self, captured, **kwargs):
+        return self._navigation_transport(
+            captured, action_key=kwargs["action_key"], target_roi=kwargs.get("target_roi"),
+            dispatch=lambda before: self.runtime.tap(before, **kwargs),
+        )
+
+    def _navigation_back(self, captured, **kwargs):
+        return self._navigation_transport(
+            captured, action_key=kwargs["action_key"],
+            dispatch=lambda before: self.runtime.back(before, **kwargs),
+        )
+
+    def _navigation_swipe(self, captured, **kwargs):
+        return self._navigation_transport(
+            captured, action_key=kwargs["action_key"],
+            dispatch=lambda before: self.runtime.swipe(before, **kwargs),
+        )
+
     def _ordinary_tap(
         self,
         captured,
@@ -195,12 +261,11 @@ class RuinsIntegratedRoute:
         consequential: bool = False,
         continuation_of: str | None = None,
     ) -> None:
-        """Dispatch a gameplay tap through the bounded native runtime.
+        """Keep gameplay targets bounded while the session owns every input.
 
-        Home entry and safe Back remain behind the navigation firewall.  Ruins
-        gameplay controls are ordinary development interactions, so they use
-        the underlying runtime's current-frame, bounds, duplicate-input, and
-        Cash Mall guards without the navigation-only target allowlist.
+        Only consequential taps are already enclosed by the canonical executor's
+        run_action. Other taps enter that same session here, retaining the native
+        current-frame, duplicate-input, bounds and Cash Mall guards underneath.
         """
         allowed = target_identity in _ORDINARY_RUINS_TARGETS
         if target_identity.startswith("challenge:"):
@@ -221,14 +286,23 @@ class RuinsIntegratedRoute:
             raise NavigationBoundaryError(f"undeclared Ruins gameplay target denied: {target_identity}")
         inner = getattr(self.runtime, "_inner", None)
         transport = inner if inner is not None else self.runtime
-        transport.tap(
-            captured,
+        kwargs = dict(
             target_identity=target_identity,
             target_roi=target_roi,
             action_key=action_key,
             consequential=consequential,
             continuation_of=continuation_of,
         )
+        if consequential:
+            # The canonical boundary already owns this transport via run_action.
+            transport.tap(captured, **kwargs)
+        else:
+            if target_identity.startswith(("challenge:", "chest:")):
+                self._navigation_identity = target_identity.split(":", 1)[1]
+            self._navigation_transport(
+                captured, action_key=action_key, target_roi=target_roi,
+                dispatch=lambda before: transport.tap(before, **kwargs),
+            )
 
     @staticmethod
     def _slug(value: str) -> str:
@@ -389,18 +463,21 @@ class RuinsIntegratedRoute:
             if step.disposition is not HomeDriverDisposition.RECOVER_ZOOM:
                 return None, None, f"home_zoom_recovery_unsupported:{step.disposition.value}"
             try:
-                self.runtime.dispatch_zoom_out(
+                self._navigation_transport(
                     before,
-                    make_source_safety_facts(
-                        recognized=True,
-                        source_state="HOME_BASE",
-                        frame_sha256=before.sha256,
-                        captured_monotonic=before.captured_monotonic,
-                    ),
-                    transport=(
-                        self.zoom_transport.zoom_out_once
-                        if self.zoom_transport is not None
-                        else None
+                    action_key=f"ruins:home-zoom:{ordinal}:{before.sha256}",
+                    dispatch=lambda source: self.runtime.dispatch_zoom_out(
+                        source,
+                        make_source_safety_facts(
+                            recognized=True,
+                            source_state="HOME_BASE",
+                            frame_sha256=source.sha256,
+                            captured_monotonic=source.captured_monotonic,
+                        ),
+                        transport=(
+                            self.zoom_transport.zoom_out_once
+                            if self.zoom_transport is not None else None
+                        ),
                     ),
                 )
                 self.home_driver.record_zoom_input_dispatched(step.source_frame_sha256)
@@ -448,7 +525,7 @@ class RuinsIntegratedRoute:
                 return None, "home_atlas_pan_source_not_localized"
             action_key = f"ruins:home-pan:{ordinal}:{captured.sha256}"
             self._prepare_navigation(captured, source_state="HOME_BASE")
-            self.runtime.swipe(
+            self._navigation_swipe(
                 captured,
                 start=plan.drag_start,
                 end=plan.drag_end,
@@ -486,7 +563,7 @@ class RuinsIntegratedRoute:
             reward = recognize_any_ruins_reward_frame(current.frame, reset_identity=self.reset_identity)
             if reward.recognized and reward.reset_identity == self.reset_identity:
                 self._prepare_navigation(current, source_state="RUINS_REWARD_MODAL")
-                self.runtime.back(current, action_key=f"ruins:reward-safe-exit:{current.sha256}")
+                self._navigation_back(current, action_key=f"ruins:reward-safe-exit:{current.sha256}")
                 time.sleep(self.post_input_delay)
                 captured, recognition = self._observe_list("ruins-reward-safe-exit-post")
             else:
@@ -518,7 +595,7 @@ class RuinsIntegratedRoute:
             self._prepare_navigation(immediate_before, source_state="RUINS_CHALLENGE")
         except NavigationBoundaryError as exc:
             return IntegratedRouteResult("blocked", str(exc), actions, str(self.runtime.session))
-        self.runtime.back(immediate_before, action_key=f"ruins:safe-exit:{immediate_before.sha256}")
+        self._navigation_back(immediate_before, action_key=f"ruins:safe-exit:{immediate_before.sha256}")
         time.sleep(self.post_input_delay)
         settled, successor = self._observe_list("ruins-safe-exit-immediate-post")
         if not is_clean_home_frame(settled.frame) or (
@@ -772,7 +849,7 @@ class RuinsIntegratedRoute:
         swipe_roi = (390, end_y, 411, start_y + 1)
         try:
             self._prepare_navigation(captured, source_state="RUINS_CHALLENGE", target_roi=swipe_roi)
-            self.runtime.swipe(
+            self._navigation_swipe(
                 captured,
                 start=start,
                 end=end,
@@ -825,7 +902,7 @@ class RuinsIntegratedRoute:
         )
         try:
             self._prepare_navigation(immediate, source_state=source_state)
-            self.runtime.back(
+            self._navigation_back(
                 immediate,
                 action_key=f"ruins:challenge-unavailable-safe-back:{immediate.sha256}",
             )
@@ -929,7 +1006,7 @@ class RuinsIntegratedRoute:
             )
             try:
                 self._prepare_navigation(current, source_state=source_state)
-                self.runtime.back(
+                self._navigation_back(
                     current,
                     action_key=f"ruins:challenge-problem-safe-back:{identity}:{current.sha256}",
                 )
@@ -1202,7 +1279,7 @@ class RuinsIntegratedRoute:
             return IntegratedRouteResult("blocked", "home_atlas_ruins_not_bound", 0, str(self.runtime.session))
         try:
             self._prepare_navigation(captured, source_state="HOME_BASE", target_roi=target)
-            self.runtime.tap(
+            self._navigation_tap(
                 captured,
                 target_identity=RUINS_HOME_ATLAS_BUILDING_ID,
                 target_roi=target,
@@ -1384,23 +1461,23 @@ def _retained_dispatch_count(events_path) -> int:
     return len(action_keys)
 
 
-def adopt_ruins_route_transports(context) -> int:
-    """Bind the Ruins runtime's journal-proven transports to the borrowed session.
-
-    Ruins dispatches Home zoom, navigation and canonical-executor inputs through
-    the native runtime rather than ``DevelopmentSession.run_action``.  The
-    session owns those inputs by adopting the runtime's cumulative count from
-    the same retained journal used for startup recovery, and only after that
-    count is proven equal to the journal's unique dispatch rows.
-    """
-
+def verify_ruins_route_transports(context) -> int:
+    """Cross-check session ownership against the native journal, never adopt it."""
     runtime_count = context.runtime.input_count
-    retained_count = _retained_dispatch_count(context.runtime.events)
-    if type(runtime_count) is not int or runtime_count != retained_count:
-        raise ValueError("Ruins runtime input count differs from its retained dispatch journal")
-    return context.session.adopt_retained_transport_count(
-        runtime_count, source=str(context.runtime.events)
-    )
+    try:
+        retained_count = _retained_dispatch_count(context.runtime.events)
+        if type(runtime_count) is not int or runtime_count != retained_count:
+            raise ValueError("Ruins runtime input count differs from its retained dispatch journal")
+        if context.session.input_count != runtime_count:
+            raise ValueError("Ruins session input count differs from its retained dispatch journal")
+    except Exception as exc:
+        exc.partial_result = {
+            "accounting_verified": False,
+            "journal_verified": False,
+            "accounting_error": f"{type(exc).__name__}: {exc}",
+        }
+        raise
+    return runtime_count
 
 
 def execute_ruins_route(context, arguments):
@@ -1486,6 +1563,9 @@ def execute_ruins_route(context, arguments):
         partial.setdefault("unresolved_action", unresolved)
         partial.setdefault("challenge_stages", list(route.challenge_stages))
         partial.setdefault("newly_claimed_chests", list(route.newly_claimed_chests))
+        partial.setdefault("session_input_count", context.session.input_count)
+        partial.setdefault("runtime_input_count", context.runtime.input_count)
+        partial.setdefault("input_count", max(context.session.input_count, context.runtime.input_count))
         setattr(exc, "partial_result", partial)
         return exc
 
@@ -1500,6 +1580,7 @@ def execute_ruins_route(context, arguments):
         product_revision=RUINS_PRODUCT_REVISION,
         runtime_identity=runtime_identity,
         action_executor=action_executor,
+        session=context.session,
         initial_capture=initial,
         post_input_delay=context.settle_seconds,
     )
@@ -1507,14 +1588,15 @@ def execute_ruins_route(context, arguments):
         outcome = route.run()
     except Exception as exc:
         try:
-            adopt_ruins_route_transports(context)
+            verify_ruins_route_transports(context)
         except Exception as accounting_exc:
             partial = dict(getattr(exc, "partial_result", {}) or {})
+            partial.update(getattr(accounting_exc, "partial_result", {}) or {})
             partial.setdefault("accounting_error", f"{type(accounting_exc).__name__}: {accounting_exc}")
             setattr(exc, "partial_result", partial)
         raise attach_partial(exc)
     try:
-        adopt_ruins_route_transports(context)
+        verify_ruins_route_transports(context)
         context.validate_identity()
         home_reference = None
         if route.terminal_home_verified and route.terminal_home_capture is not None:
@@ -1581,6 +1663,7 @@ def execute_ruins_route(context, arguments):
         "session_input_count": accounting.session_input_count,
         "runtime_input_count": accounting.runtime_input_count,
         "accounting_verified": accounting.verified,
+        "journal_verified": True,
         "scheduler_reset_id": identity.reset_id,
         "backend_reset_id": runtime_identity.reset_id,
         "runtime_scope": runtime_scope,
