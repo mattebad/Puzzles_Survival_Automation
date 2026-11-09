@@ -880,12 +880,12 @@ class GameplayFlowContractTests(unittest.TestCase):
             (
                 "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
                 "ruins_challenge",
-                "ruins_challenge-v1",
+                "ruins_challenge-v2",
             ),
             (
                 "ALLIANCE-HELP-TEN-FREE-REQUESTS",
                 "alliance_help",
-                "alliance_help-v1",
+                "alliance_help-v2",
             ),
         )
         for flow_id, record_id, record_revision in cases:
@@ -939,6 +939,18 @@ class GameplayFlowContractTests(unittest.TestCase):
             0,
         )
         self.assertIsNone(ruins["cost_quantity_requirements"]["quantity"])
+        self.assertEqual(
+            ruins_transitions["continue-after-verified-win"]["to"],
+            "ruins_challenge_surface",
+        )
+        self.assertEqual(
+            ruins_transitions["pause-challenge-at-finite-budget"]["terminal_outcomes"],
+            ["deferred"],
+        )
+        self.assertIn(
+            "first recognized loss durably stops",
+            " ".join(ruins_transitions["dispatch-allowlisted-zero-cost-challenge"]["postconditions"]),
+        )
 
         help_contract = load_flow_contract("ALLIANCE-HELP-TEN-FREE-REQUESTS")
         self.assertEqual(help_contract["cost_quantity_requirements"]["quantity"], 10)
@@ -962,8 +974,8 @@ class GameplayFlowContractTests(unittest.TestCase):
             help_transitions["preserve-unknown-request-effect"]["permitted_input"]
         )
         self.assertIn(
-            "exact current eligible request count is known",
-            " ".join(help_transitions["bind-help-all-exact-count"]["postconditions"]),
+            "no complete request census",
+            " ".join(help_transitions["bind-preferred-free-help-all"]["postconditions"]),
         )
         self.assertIn(
             "confirmed partial count survives restart",
@@ -974,8 +986,20 @@ class GameplayFlowContractTests(unittest.TestCase):
             "effect_reconciliation_required",
         )
         self.assertIn(
-            "stop at ten actual successful requests",
+            "actual successful numeric credit reaches at least ten",
             help_contract["cooldown_deferred_behavior"],
+        )
+        self.assertEqual(
+            help_transitions["defer-positive-batch-without-count"]["terminal_outcomes"],
+            ["deferred"],
+        )
+        self.assertNotEqual(
+            help_transitions["defer-positive-batch-without-count"]["to"],
+            "effect_reconciliation_required",
+        )
+        self.assertIn(
+            "without clipping even above ten",
+            " ".join(help_transitions["reconcile-positive-request-successors"]["postconditions"]),
         )
 
     def test_shared_home_dependency_change_marks_nova_regression_required(self):

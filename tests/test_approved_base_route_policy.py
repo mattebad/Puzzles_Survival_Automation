@@ -318,9 +318,8 @@ def ruins_challenge_request():
         "ruins_challenge_identity=hero-challenge", "ruins_challenge_day=Tue",
         "ruins_challenge_availability=available", "ruins_challenge_control=visible_enabled",
         "ruins_cost_type=none", "ruins_cost_amount=0", "ruins_premium=false", "ruins_paid=false",
-        "ruins_ticketed=false", "ruins_npc_troops=provided", "ruins_npc_troops_current=100",
-        "ruins_npc_troops_maximum=100", "ruins_skip_battle=true", "ruins_dispatch_count_before=0",
-        "ruins_dispatch_count_limit=1",
+        "ruins_ticketed=false", "ruins_npc_troops=provided", "ruins_challenge_stage=0/12",
+        "ruins_stage_dispatch_count_before=0", "ruins_stage_dispatch_count_limit=1",
     )
     return route_request(
         task=RUINS_PRODUCT, action="ruins_zero_cost_npc_challenge_dispatch", action_class=ActionClass.ZERO_COST_CONSEQUENTIAL,
@@ -338,7 +337,7 @@ def ruins_chest_request():
         f"ruins_reset_id={DAY}", "ruins_game_day=Tue", "ruins_category=chest",
         "ruins_chest_identity=hero-challenge", "ruins_chest_state=green_ready",
         "ruins_chest_fully_visible=true", "ruins_claim_control=visible_enabled",
-        "ruins_reward_identity=hero-challenge", "ruins_reward_medals=10", "ruins_cost_type=none",
+        "ruins_reward_identity=hero-challenge", "ruins_cost_type=none",
         "ruins_cost_amount=0", "ruins_premium=false", "ruins_exchange=false", "ruins_shop=false",
         "ruins_claim_count_before=0", "ruins_claim_count_limit=1",
     )
@@ -467,32 +466,25 @@ def training_claim_request():
     )
 
 
-def help_request(all=False):
+def help_request(all=False, ordinal=1):
     if all:
-        request_ids = ["a" * 24, "b" * 24]
-        request_ids_json = json.dumps(request_ids, ensure_ascii=True, separators=(",", ":"))
-        digest = hashlib.sha256(request_ids_json.encode("utf-8")).hexdigest()
-        tokens = (
-            f"alliance_help_product={HELP_PRODUCT}", f"alliance_help_product_revision={HELP_REVISION}",
-            f"alliance_help_request_reset={DAY}", "alliance_help_request_ordinal=1", "alliance_help_request_count=2",
-            "alliance_help_quota=10", "alliance_help_target_variant=help_all", "alliance_help_exact_free_label=Help_All",
-            f"alliance_help_request_ids_json={request_ids_json}", "alliance_help_request_list_complete=true",
-            f"alliance_help_request_set_sha256={digest}", "alliance_help_complete_request_transition_required",
-        )
-        target, control, subject, quantity = "alliance-help-all", "FREE_HELP_ALL", "alliance-help-all", 2
+        variant, label = "help_all", "Help_All"
+        target, control = "alliance-help-all", "FREE_HELP_ALL"
     else:
-        tokens = (
-            f"alliance_help_product={HELP_PRODUCT}", f"alliance_help_product_revision={HELP_REVISION}",
-            "alliance_help_quota=10", f"alliance_help_request_reset={DAY}", "alliance_help_request_ordinal=1",
-            "alliance_help_target_variant=individual", "alliance_help_exact_free_label=Help",
-            "alliance_help_complete_request_transition_required",
-        )
-        target, control, subject, quantity = "alliance-help-individual-request", "FREE_HELP", "alliance-help-individual-request", 1
+        variant, label = "individual", "Help"
+        target, control = "alliance-help-individual-request", "FREE_HELP"
+    tokens = (
+        f"alliance_help_product={HELP_PRODUCT}", f"alliance_help_product_revision={HELP_REVISION}",
+        "alliance_help_quota=10", f"alliance_help_request_reset={DAY}",
+        f"alliance_help_operation_ordinal={ordinal}",
+        f"alliance_help_target_variant={variant}", f"alliance_help_exact_free_label={label}",
+        "alliance_help_positive_result_required",
+    )
     return route_request(
         task=HELP, action="HELP_ALLIANCE_REQUEST", action_class=ActionClass.ZERO_COST_CONSEQUENTIAL,
-        kind="HELP_ALLIANCE_REQUEST", subject=subject, source="SPEEDUP_HELP", target=target, control=control,
+        kind="HELP_ALLIANCE_REQUEST", subject=target, source="SPEEDUP_HELP", target=target, control=control,
         consequence="alliance_help_zero_cost", post="ALLIANCE_HELP_REQUEST_RESULT", cost_type="none", cost=0,
-        quantity=quantity, resource=None, maximum=0, free=True, preconditions=tokens,
+        quantity=1, resource=None, maximum=0, free=True, preconditions=tokens,
     )
 
 
@@ -708,19 +700,57 @@ class ApprovedBaseRoutePolicyTests(unittest.TestCase):
         self.assert_authorized(ruins_challenge_request())
         self.assert_authorized(ruins_chest_request())
         req = ruins_challenge_request()
-        tokens = list(req.semantic_preconditions)
-        tokens[14] = "ruins_premium=true"
-        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
-        tokens = list(req.semantic_preconditions)
-        tokens[20] = "ruins_npc_troops_maximum=99"
-        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+        self.assertEqual(len(req.semantic_preconditions), 21)
+        for stage in ("0/1", "1/2", "12/13", "99/100"):
+            with self.subTest(stage=stage):
+                tokens = list(req.semantic_preconditions)
+                tokens[18] = f"ruins_challenge_stage={stage}"
+                self.assert_authorized(replace(req, semantic_preconditions=tuple(tokens)))
+        for index, token in (
+            (1, "ruins_product_revision=ruins_challenge-v1"),
+            (3, "ruins_account_id="),
+            (4, "ruins_server_id="),
+            (5, "ruins_reset_id=other-reset"),
+            (8, "ruins_challenge_identity=unknown-challenge"),
+            (9, "ruins_challenge_day=Mon"),
+            (10, "ruins_challenge_availability=unavailable"),
+            (11, "ruins_challenge_control=disabled"),
+            (12, "ruins_cost_type=ticket"),
+            (13, "ruins_cost_amount=1"),
+            (14, "ruins_premium=true"),
+            (15, "ruins_paid=true"),
+            (16, "ruins_ticketed=true"),
+            (17, "ruins_npc_troops=not_provided"),
+            (19, "ruins_stage_dispatch_count_before=1"),
+            (20, "ruins_stage_dispatch_count_limit=2"),
+        ):
+            with self.subTest(token=token):
+                tokens = list(req.semantic_preconditions)
+                tokens[index] = token
+                self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+        self.assert_denied(replace(req, subject="ruins_challenge:weapon-trial"))
+        self.assert_denied(replace(req, free_only=False))
+        for stage in ("-1/12", "0/0", "12/12", "13/12", "0/-1", "1", "0/1/2", "01/12", "0/1.5"):
+            with self.subTest(stage=stage):
+                tokens = list(req.semantic_preconditions)
+                tokens[18] = f"ruins_challenge_stage={stage}"
+                self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
         req = ruins_chest_request()
-        tokens = list(req.semantic_preconditions)
-        tokens[12] = "ruins_reward_identity=other-category"
-        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
-        tokens = list(req.semantic_preconditions)
-        tokens[16] = "ruins_premium=true"
-        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+        self.assertEqual(len(req.semantic_preconditions), 20)
+        for index, token in (
+            (12, "ruins_reward_identity=other-category"),
+            (13, "ruins_cost_type=medals"),
+            (14, "ruins_cost_amount=1"),
+            (15, "ruins_premium=true"),
+            (16, "ruins_exchange=true"),
+            (17, "ruins_shop=true"),
+            (18, "ruins_claim_count_before=1"),
+        ):
+            with self.subTest(token=token):
+                tokens = list(req.semantic_preconditions)
+                tokens[index] = token
+                self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+        self.assert_denied(replace(req, semantic_preconditions=req.semantic_preconditions + ("ruins_reward_medals=10",)))
 
     def test_hero_duel_exact_free_entry_flee_and_defense_save(self):
         for action in ("hero_duel_free_entry", "hero_duel_flee", "hero_duel_save_defense"):
@@ -783,27 +813,38 @@ class ApprovedBaseRoutePolicyTests(unittest.TestCase):
         tokens[16] = "confirmed_start_action_key=unrelated:start"
         self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
 
-    def test_free_alliance_help_individual_and_complete_help_all(self):
-        self.assert_authorized(help_request())
-        self.assert_authorized(help_request(all=True))
+    def test_free_alliance_help_individual_and_help_all_use_operation_not_request_count(self):
+        for help_all in (False, True):
+            for ordinal in (1, 10, 11, 101):
+                with self.subTest(help_all=help_all, ordinal=ordinal):
+                    req = help_request(all=help_all, ordinal=ordinal)
+                    self.assertEqual(len(req.semantic_preconditions), 8)
+                    self.assertEqual(req.observation.quantity, 1)
+                    self.assert_authorized(req)
+            req = help_request(all=help_all)
+            for index, token in (
+                (1, "alliance_help_product_revision=alliance_help-v1"),
+                (3, "alliance_help_request_reset=other-reset"),
+                (4, "alliance_help_operation_ordinal=0"),
+                (4, "alliance_help_operation_ordinal=-1"),
+                (4, "alliance_help_request_ordinal=1"),
+                (5, "alliance_help_target_variant=unknown"),
+                (6, "alliance_help_exact_free_label=Paid_Help"),
+                (7, "alliance_help_complete_request_transition_required"),
+            ):
+                with self.subTest(help_all=help_all, token=token):
+                    tokens = list(req.semantic_preconditions)
+                    tokens[index] = token
+                    self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+            self.assert_denied(replace(req, observation=replace(req.observation, quantity=2)))
+            self.assert_denied(replace(req, observation=replace(req.observation, cost_amount=1)))
+            self.assert_denied(replace(req, free_only=False))
+            self.assert_denied(replace(req, subject="other-help-target"))
+            self.assert_denied(replace(req, semantic_preconditions=req.semantic_preconditions + ("alliance_help_request_count=2",)))
         req = help_request()
         tokens = list(req.semantic_preconditions)
         tokens[6] = "alliance_help_exact_free_label=Help_All"
         self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
-        req = help_request(all=True)
-        tokens = list(req.semantic_preconditions)
-        tokens[9] = "alliance_help_request_list_complete=false"
-        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
-        tokens = list(req.semantic_preconditions)
-        tokens[10] = f"alliance_help_request_set_sha256={'0' * 64}"
-        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
-        tokens = list(req.semantic_preconditions)
-        tokens[8] = f"alliance_help_request_ids_json={json.dumps(['a' * 24, 'a' * 24], ensure_ascii=True, separators=(',', ':'))}"
-        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
-        tokens = list(req.semantic_preconditions)
-        tokens[4] = "alliance_help_request_count=11"
-        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens),
-                                  observation=replace(req.observation, quantity=11)))
 
     def test_food_farm_collection_and_unproven_boosts(self):
         self.assert_authorized(farm_collection_request())

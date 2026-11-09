@@ -334,8 +334,8 @@
   "production_eligible": false,
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r22",
-    "product_authority_digest": "4b92219529520ecd699b3d78b0a34f9efa00db085ee30d86fbf2599ad2cd7f3a",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r23",
+    "product_authority_digest": "01439c1db1f98d2fe2734667d3b73135006755c74ffe39eb16891f027236a949",
     "product_record_id": "alliance_shop_purchase",
     "product_record_revision": "alliance_shop_purchase-v2",
     "product_record_digest": "ecb5d83a4c31de3ef748eddbf9f542d3fc9bccdd695bf6fe8e87bc516465ad80",

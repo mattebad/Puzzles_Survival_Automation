@@ -282,8 +282,8 @@
   "registration_state": "disabled",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r22",
-    "product_authority_digest": "4b92219529520ecd699b3d78b0a34f9efa00db085ee30d86fbf2599ad2cd7f3a",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r23",
+    "product_authority_digest": "01439c1db1f98d2fe2734667d3b73135006755c74ffe39eb16891f027236a949",
     "product_record_id": "use_resource_item",
     "product_record_revision": "use_resource_item-v3",
     "product_record_digest": "c7e1811fb7cb2690e3c8e2cb4ac3e43f8e0254bd1312b5ae367abf898aa9b95c",

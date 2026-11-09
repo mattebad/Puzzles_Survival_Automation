@@ -223,6 +223,34 @@ class RestartBeforeDueTests(unittest.TestCase):
                             self.assertEqual(rig.runner.praise_calls, 2)
 
 
+class RuinsProgressionTests(unittest.TestCase):
+    def test_multiple_stage_results_commit_separately_and_budget_pause_defers(self):
+        for paused, outcomes in (
+            (False, ("success", "failure")),
+            (True, ("success", "success")),
+        ):
+            with self.subTest(paused=paused), RouteRig(self, ROUTES[RUINS_FLOW_ID]) as rig:
+                rig.runner.challenge_results = outcomes
+                rig.runner.challenge_paused = paused
+                report, = rig.once()
+                run, = rig.runs()
+                result = report["result"]
+                self.assertEqual(run.consumed_actions, 3)
+                self.assertEqual(result["committed_action_count"], 3)
+                self.assertEqual(len(result["challenge_stages"]), 2)
+                self.assertEqual(len(result["newly_claimed_chests"]), 1)
+                self.assertFalse(result["effect_reconciliation_required"])
+                self.assertEqual(run.state, RunState.DEFERRED if paused else RunState.SUCCEEDED)
+                if paused:
+                    self.assertFalse(rig.state.get_flow(RUINS_FLOW_ID).blocked)
+                    self.assertLess(
+                        rig.state.get_flow(RUINS_FLOW_ID).next_due_at_utc,
+                        (datetime.fromtimestamp(rig.stop.now, timezone.utc)
+                         .replace(hour=0, minute=0, second=0, microsecond=0)
+                         + timedelta(days=1)).timestamp(),
+                    )
+
+
 class BorrowedOwnerTests(unittest.TestCase):
     def test_runtime_owner_is_held_during_the_run_and_released_after(self):
         borrowed = {

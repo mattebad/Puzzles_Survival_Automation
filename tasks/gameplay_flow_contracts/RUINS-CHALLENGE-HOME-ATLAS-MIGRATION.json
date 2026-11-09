@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "flow_id": "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
-  "product_purpose": "From canonical Home, use a bounded 48-input and 13-action Ruins visit: attempt the current allowlisted zero-cost NPC challenge first, then claim each independently green-ready Stage Overview chest category. A recognized loss may count as participation; challenge unavailability does not suppress ready chest collection.",
+  "product_purpose": "From canonical Home, continue exact current permitted free NPC stages after each verified win until the first durable loss or genuine unavailability, then claim each independently green-ready Stage Overview chest category. A finite 48-input and 13-action visit reserves result/return handling; budget exhaustion pauses resumably and is never daily completion.",
   "trigger_cadence_type": "cooldown_pulse",
   "reset_scope": "daily_reset",
   "required_starting_context": [
@@ -26,7 +26,8 @@
     "effect_reconciliation_required",
     "home_returned",
     "blocked",
-    "manual_required"
+    "manual_required",
+    "challenge_budget_paused"
   ],
   "transition_contracts": [
     {
@@ -51,8 +52,9 @@
       "planner": "scripts/ruins_challenge_bluestacks.py",
       "permitted_input": null,
       "postconditions": [
-        "current day and exact allowlisted NPC identity are positively bound",
-        "zero cost and Attack or Dispatch control are positively recognized"
+        "fresh current reset/day, exact allowlisted NPC and positively read cleared/maximum stage with 0 <= cleared < maximum are bound",
+        "enabled Attack/Dispatch and provided NPC troops bind the fixed free mechanic; no full-capacity or Skip Battle gate",
+        "exact reset/NPC/stage has no prior dispatch and no durable loss stops this reset"
       ],
       "terminal_outcomes": [
         "action_performed",
@@ -83,9 +85,10 @@
       "planner": "scripts/ruins_challenge_bluestacks.py",
       "permitted_input": "one_current_allowlisted_zero_cost_attack_or_dispatch",
       "postconditions": [
-        "one current-day exact NPC Attack or Dispatch only",
-        "positive same-challenge result is recognized; a recognized loss may count as participation",
-        "dispatch alone is not success proof"
+        "at most one dispatch per exact reset/NPC/stage; reserve result/return inputs before sending",
+        "recognized same-challenge win/loss and result-frame identity are durably audited before confirmation",
+        "a win authorizes only a fresh next permitted stage; first recognized loss durably stops further challenges this reset",
+        "dispatch alone is not success proof; no medal or resource arithmetic"
       ],
       "terminal_outcomes": [
         "action_performed",
@@ -102,7 +105,8 @@
       "permitted_input": null,
       "postconditions": [
         "unknown challenge effect remains unresolved across restart",
-        "identical challenge retry is denied"
+        "identical challenge retry is denied",
+        "a never-transported plan is not UNKNOWN; an actually transported ambiguous effect remains fenced"
       ],
       "terminal_outcomes": [
         "blocked",
@@ -117,7 +121,8 @@
       "planner": "scripts/ruins_challenge_bluestacks.py",
       "permitted_input": "open_stage_overview_after_challenge_or_unavailability",
       "postconditions": [
-        "current Stage Overview is positively recognized after the challenge result"
+        "after durable loss, genuine unavailability or resumable budget pause, positively recognize Stage Overview",
+        "a win with sufficient remaining budget returns to a fresh next-stage binding instead"
       ],
       "terminal_outcomes": [
         "action_performed",
@@ -214,7 +219,8 @@
       "planner": "scripts/ruins_challenge_bluestacks.py",
       "permitted_input": "safe_return_to_canonical_home",
       "postconditions": [
-        "no independently green-ready unprocessed category remains",
+        "available independently green-ready categories were processed within the finite visit budget; no twelve-category census or weekly modal wording is required",
+        "unprocessed work on budget exhaustion remains resumable, not complete for reset",
         "canonical Home is positively recognized"
       ],
       "terminal_outcomes": [
@@ -236,6 +242,49 @@
       "terminal_outcomes": [
         "blocked",
         "manual_required"
+      ]
+    },
+    {
+      "transition_id": "continue-after-verified-win",
+      "from": "challenge_result_reconciled",
+      "to": "ruins_challenge_surface",
+      "planner": "scripts/ruins_challenge_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "verified win is retained; freshly recognize the next permitted stage before another dispatch",
+        "same reset/NPC/stage is never dispatched again; first durable loss forbids continuation"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "deferred",
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "pause-challenge-at-finite-budget",
+      "from": "ruins_challenge_surface",
+      "to": "challenge_budget_paused",
+      "planner": "scripts/ruins_challenge_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "reserve result and safe return handling before dispatch",
+        "budget exhaustion preserves stage progress for another bounded visit and never marks the reset complete"
+      ],
+      "terminal_outcomes": [
+        "deferred"
+      ]
+    },
+    {
+      "transition_id": "open-overview-after-budget-pause",
+      "from": "challenge_budget_paused",
+      "to": "stage_overview",
+      "planner": "scripts/ruins_challenge_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "independently ready chests remain eligible when the remaining physical budget permits; otherwise preserve resumable chest work"
+      ],
+      "terminal_outcomes": [
+        "deferred"
       ]
     }
   ],
@@ -263,7 +312,7 @@
     "blocked",
     "manual_required"
   ],
-  "cooldown_deferred_behavior": "Cooldown pulses are scoped to the daily reset. Durable challenge and per-category action state, including confirmed partial chest progress, survives restart. If the challenge is unavailable, continue to the Stage Overview without fabricating a result; an unknown consequential effect remains unresolved and is not retried identically.",
+  "cooldown_deferred_behavior": "Persist wins, the first recognized loss and independent chest results by reset/NPC/stage across restart. Continue wins only with fresh next permitted stage evidence. A finite budget pause is resumable, never daily completion. Unavailability stops challenge only. Confirmed legacy actions without reconstructable result stop further challenge only; historical and UNKNOWN records are preserved.",
   "bounded_recovery_behavior": "Persist unknown challenge and chest effects independently across restart and deny the identical action retry. Continue only independently authorized green-ready categories when no unresolved consequential effect blocks them; return to canonical Home only after positive Home recognition.",
   "product_policy_refs": [
     {
@@ -280,10 +329,10 @@
     }
   ],
   "evidence_requirements": [
-    "Current native BlueStacks evidence must bind the current day, exact allowlisted NPC, zero cost, Attack or Dispatch control, immediate-before and result successors, then the Stage Overview.",
+    "Current native evidence must bind exact current free NPC/reset/stage, provided NPC troops, enabled controls and recognized win/loss; prove consecutive fresh-stage wins, first-loss durable stop and resumable finite-budget pause.",
     "Each chest category requires its own green-ready observation, claim dispatch and same-category positive successor; unresolved state and confirmed claims must survive restart independently.",
     "Offline SQLite durability proof and current per-category native evidence are distinct. No current native acceptance is claimed; registration and scheduler admission remain disabled.",
-    "The route is bounded to 48 total inputs and 13 action calls; Daily, points, ordinary Claim, milestone Claim, Shop, Exchange, paid challenge, AP/stamina and arbitrary combat are outside scope.",
+    "The visit remains bounded to 48 physical inputs and 13 action calls, reserving result/return handling; this is not a daily challenge cap. No medal arithmetic, full troop capacity, Skip Battle, twelve-category census or weekly wording gate.",
     "Only the route's own verified native results establish success; no Daily provider, D02, objective ownership, or points attribution is used."
   ],
   "evidence_gates": [
@@ -300,7 +349,8 @@
       "required_evidence": [
         "current native BlueStacks source, immediate-before, transport, immediate-after, semantic result, and canonical Home",
         "current-day exact NPC identity, zero cost, and Attack or Dispatch authorization",
-        "per-category green-ready evidence and durable positive/unknown successors across restart"
+        "per-category green-ready evidence and durable positive/unknown successors across restart",
+        "consecutive fresh-stage wins, durable first-loss stop, independent chests and finite-budget resume across restart"
       ],
       "permitted_inputs": []
     }
@@ -366,11 +416,11 @@
   "supervised_live_proof_state": "evidence_required",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r22",
-    "product_authority_digest": "4b92219529520ecd699b3d78b0a34f9efa00db085ee30d86fbf2599ad2cd7f3a",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r23",
+    "product_authority_digest": "01439c1db1f98d2fe2734667d3b73135006755c74ffe39eb16891f027236a949",
     "product_record_id": "ruins_challenge",
-    "product_record_revision": "ruins_challenge-v1",
-    "product_record_digest": "ab0d46c7e4bbb60e9a176ab53cca1afbe28c2888f0e5f48a7e0ba0d181afa55e",
+    "product_record_revision": "ruins_challenge-v2",
+    "product_record_digest": "7ae05968b67ea3fd62e9c235c368e2c115da6f2527bef41b2a155120ac29cce7",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",

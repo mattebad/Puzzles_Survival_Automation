@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "flow_id": "ALLIANCE-HELP-TEN-FREE-REQUESTS",
-  "product_purpose": "From canonical Home, run at most 20 total inputs and 10 Help action calls to complete ten actual positive free Alliance Help request successors. Help All is allowed only when the exact current eligible free request count is known and fits the remaining quota; otherwise complete individually recognized free requests.",
+  "product_purpose": "From canonical Home, prefer one bound free Help All batch when requests are visible, without request census or coin gates. Persist actual numeric credit toward daily goal ten without clipping; a positively successful unknown-count batch is confirmed and deferred, not fabricated completion or UNKNOWN. Keep finite 20-input/10-action visit budgets distinct from uncapped positive operation ordinals.",
   "trigger_cadence_type": "cooldown_pulse",
   "reset_scope": "daily_reset",
   "required_starting_context": [
@@ -19,7 +19,7 @@
     "alliance_screen",
     "alliance_help_hub",
     "help_source_fresh",
-    "help_all_ready_exact",
+    "help_all_ready",
     "individual_help_ready",
     "request_result_observed",
     "quota_persisted",
@@ -28,7 +28,8 @@
     "effect_reconciliation_required",
     "home_returned",
     "blocked",
-    "manual_required"
+    "manual_required",
+    "successful_batch_count_unproven"
   ],
   "transition_contracts": [
     {
@@ -42,7 +43,10 @@
         "changed canonical Home successor is positively recognized before normal Home entry",
         "navigation consumes physical inputs only and grants no Help request credit"
       ],
-      "terminal_outcomes": ["blocked", "manual_required"]
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
     },
     {
       "transition_id": "recover-help-context-to-hub-before-normal-entry",
@@ -54,7 +58,10 @@
         "fresh clear Speedup Help source and current Back are rebound",
         "changed exact Alliance Help hub successor is positively recognized without repeating Help"
       ],
-      "terminal_outcomes": ["blocked", "manual_required"]
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
     },
     {
       "transition_id": "recover-help-hub-to-alliance-before-normal-entry",
@@ -66,7 +73,10 @@
         "fresh clear Alliance Help hub and current Back are rebound",
         "changed exact Alliance menu successor is positively recognized without selecting another hub row"
       ],
-      "terminal_outcomes": ["blocked", "manual_required"]
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
     },
     {
       "transition_id": "recover-help-hub-directly-home-before-normal-entry",
@@ -78,7 +88,10 @@
         "fresh clear Alliance Help hub and current Back are rebound",
         "changed canonical Home successor is positively recognized before normal Home entry"
       ],
-      "terminal_outcomes": ["blocked", "manual_required"]
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
     },
     {
       "transition_id": "recover-help-context-directly-home-before-normal-entry",
@@ -90,7 +103,10 @@
         "fresh clear Speedup Help source and current Back are rebound",
         "changed canonical Home successor is positively recognized before normal Home entry"
       ],
-      "terminal_outcomes": ["blocked", "manual_required"]
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
     },
     {
       "transition_id": "open-alliance",
@@ -131,17 +147,21 @@
         "only the current recognized Speedup Help label box is bound",
         "fresh clear Speedup Help successor is positively recognized before any request effect"
       ],
-      "terminal_outcomes": ["blocked", "manual_required"]
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
     },
     {
-      "transition_id": "bind-help-all-exact-count",
+      "transition_id": "bind-preferred-free-help-all",
       "from": "help_source_fresh",
-      "to": "help_all_ready_exact",
+      "to": "help_all_ready",
       "planner": "scripts/alliance_help_bluestacks.py",
       "permitted_input": null,
       "postconditions": [
-        "Help All target and zero cost are positively recognized from the fresh source",
-        "exact current eligible request count is known and does not exceed the remaining quota"
+        "fresh enabled bound free Help All control and at least one visible request; prefer Help All over individual Help",
+        "no complete request census, pending count or coin balance/delta is required",
+        "exact no-request screen forbids dispatch; observe freshly before every input"
       ],
       "terminal_outcomes": [
         "action_performed",
@@ -180,14 +200,14 @@
     },
     {
       "transition_id": "dispatch-bounded-help-all",
-      "from": "help_all_ready_exact",
+      "from": "help_all_ready",
       "to": "request_result_observed",
       "planner": "scripts/alliance_help_bluestacks.py",
-      "permitted_input": "dispatch_help_all_for_exact_known_free_request_count_within_remaining_quota",
+      "permitted_input": "dispatch_one_bound_free_help_all_batch",
       "postconditions": [
-        "one Help All action call only for the exact known free request count",
-        "the exact request count does not exceed ten minus confirmed current-reset progress",
-        "transport dispatch alone is not request completion proof"
+        "at most one bound free Help All batch per visit; operation ordinal is contiguous >=1 with no reset-wide cap of ten",
+        "operation identity is independent of readable result quantity; numeric credit may exceed the remaining goal",
+        "transport dispatch alone is not completion proof; no blind repeated Help All taps"
       ],
       "terminal_outcomes": [
         "action_performed",
@@ -220,9 +240,10 @@
       "planner": "scripts/alliance_help_bluestacks.py",
       "permitted_input": null,
       "postconditions": [
-        "each counted request has a positive same-request result successor",
-        "confirmed actual free requests are durably persisted under the current reset",
-        "a static Help screen, tap count, or transport count is not a success substitute"
+        "new attributable positive success acknowledgement proves the operation; rows disappearing alone do not",
+        "persist actual numeric successful request credit without clipping even above ten; preserve prior individual progress",
+        "positive Help All without numeric count is a confirmed successful batch with unproven quota progress, not UNKNOWN",
+        "static screen, tap count, transport count and coin arithmetic are not success substitutes"
       ],
       "terminal_outcomes": [
         "action_performed",
@@ -254,7 +275,8 @@
       "permitted_input": null,
       "postconditions": [
         "confirmed partial count survives restart and is applied to the same reset",
-        "only the remaining requests up to ten may be considered"
+        "a later bounded visit may continue while numeric credit is below goal ten; unknown-count success does not invent credit",
+        "contiguous operation identity survives restart independently of batch quantity and may exceed ordinal ten"
       ],
       "terminal_outcomes": [
         "deferred",
@@ -268,7 +290,7 @@
       "planner": "scripts/alliance_help_bluestacks.py",
       "permitted_input": null,
       "postconditions": [
-        "exactly ten actual free requests have positive same-request result successors"
+        "actual numeric successful request credit is at least ten; retain any excess rather than clipping"
       ],
       "terminal_outcomes": [
         "complete_for_reset"
@@ -317,13 +339,42 @@
         "blocked",
         "manual_required"
       ]
+    },
+    {
+      "transition_id": "defer-positive-batch-without-count",
+      "from": "request_result_observed",
+      "to": "successful_batch_count_unproven",
+      "planner": "scripts/alliance_help_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "attributable positive Help All acknowledgement confirms the stable operation without numeric request credit",
+        "retain confirmed batch and defer this visit without another Help All tap; do not mark UNKNOWN or claim goal ten"
+      ],
+      "terminal_outcomes": [
+        "deferred"
+      ]
+    },
+    {
+      "transition_id": "return-home-after-uncounted-batch",
+      "from": "successful_batch_count_unproven",
+      "to": "home_returned",
+      "planner": "scripts/alliance_help_bluestacks.py",
+      "permitted_input": "safe_return_to_canonical_home",
+      "postconditions": [
+        "canonical Home is positively recognized; confirmed batch and prior numeric progress persist"
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked",
+        "manual_required"
+      ]
     }
   ],
   "permitted_inputs": [
     "open_alliance_from_current_home",
     "open_help_from_current_alliance",
     "open_speedup_help_from_current_help_hub",
-    "dispatch_help_all_for_exact_known_free_request_count_within_remaining_quota",
+    "dispatch_one_bound_free_help_all_batch",
     "dispatch_one_individually_recognized_free_help",
     "safe_return_to_canonical_home"
   ],
@@ -333,7 +384,7 @@
     "maximum_cost": 0,
     "quantity": 10,
     "resource_or_currency": null,
-    "notes": "Count actual successful free requests, not taps. Help All is permissible only with an exact count that fits the remaining quota; otherwise use one recognized free Help request at a time."
+    "notes": "Ten is a numeric successful-request goal, not a cap on actual batch credit or operation ordinals. Prefer one free Help All batch per visit with no census or coin gate; positive unknown-count batches confirm and defer without invented credit."
   },
   "completion_identity": "alliance-help:ten-positive-free-request-successors-per-daily-reset",
   "terminal_outcomes": [
@@ -344,7 +395,7 @@
     "blocked",
     "manual_required"
   ],
-  "cooldown_deferred_behavior": "Cooldown pulses are reset-scoped. Preserve confirmed partial request quota across restart within the same daily reset; stop at ten actual successful requests or when free Help disappears. A later pulse resumes only the remaining verified quota.",
+  "cooldown_deferred_behavior": "Preserve numeric credit and separately confirmed successful batches across restart. Stop when actual successful numeric credit reaches at least ten, free Help disappears or one Help All batch finishes this bounded visit. Unknown-count success is confirmed and deferred, never invented completion. Operation ordinals are contiguous >=1 and uncapped by goal ten; actual numeric credit is never clipped.",
   "bounded_recovery_behavior": "A positively recognized existing Alliance menu, Alliance Help hub or fresh clear Speedup Help source may use at most three distinct route-owned Back steps to reach fresh canonical Home before normal entry. Exact reverse contexts are Speedup Help to hub to Alliance to Home; a positively recognized direct Home successor is also accepted. Each immediate source and changed expected successor is verified; unknown, changed or unchanged sources/successors stop without identical retry. Recovery consumes physical inputs, not Help quota, and never repeats or reconciles a Help effect. The intermediate hub must be positively recognized before opening only Speedup Help; alliance_help_hub_successor_unproven or speedup_help_successor_unproven stops without another input. Unknown target, cost, overlay, stale source, unchanged result, or unresolved request successor blocks further identical dispatch across restart. Preserve confirmed quota; use only a positively recognized safe return to canonical Home.",
   "product_policy_refs": [
     {
@@ -362,7 +413,7 @@
   ],
   "evidence_requirements": [
     "Current native evidence must bind a fresh Alliance Help source, exact free target and cost, immediate-before frame, transport result, immediate-after frame, semantic request successor, and terminal canonical Home.",
-    "Show ten and only ten positive free request successors, exact-count Help All behavior or one-at-a-time individual Help, and restart-safe partial quota.",
+    "Show attributable Help All acknowledgement with numeric credit when supplied, successful unknown-count batch deferral, no fabricated/clipped counts, preserved individual progress and uncapped contiguous operation identities across restart.",
     "Offline policy evidence and current native acceptance remain distinct. This contract claims no live run; registration and scheduler admission remain disabled.",
     "Only the route's own verified native results establish success; no Daily provider, D02, objective ownership, or points attribution is used."
   ],
@@ -378,8 +429,8 @@
       ],
       "required_evidence": [
         "current production-route source, immediate-before, transport, immediate-after, semantic successors, and terminal Home",
-        "exact zero-cost target identity and free request count for Help All or individual Help",
-        "ten-successor ceiling and restart-safe partial-count evidence with unknown-result no-retry"
+        "bound fixed-free Help All with visible requests and no census/coin gate; attributable positive acknowledgement",
+        "actual numeric goal-ten credit, excess retained, unknown-count confirmed batch deferred, and ambiguous-effect no retry across restart"
       ],
       "permitted_inputs": []
     }
@@ -402,7 +453,7 @@
       "forbidden_inputs": [
         "open_alliance_from_current_home",
         "open_help_from_current_alliance",
-        "dispatch_help_all_for_exact_known_free_request_count_within_remaining_quota",
+        "dispatch_one_bound_free_help_all_batch",
         "dispatch_one_individually_recognized_free_help",
         "safe_return_to_canonical_home"
       ],
@@ -438,11 +489,11 @@
   "supervised_live_proof_state": "evidence_required",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r22",
-    "product_authority_digest": "4b92219529520ecd699b3d78b0a34f9efa00db085ee30d86fbf2599ad2cd7f3a",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r23",
+    "product_authority_digest": "01439c1db1f98d2fe2734667d3b73135006755c74ffe39eb16891f027236a949",
     "product_record_id": "alliance_help",
-    "product_record_revision": "alliance_help-v1",
-    "product_record_digest": "3ed8f746336bfa3a0544591b42e8cea832ee3a0b10d10dda54cedcf390c57d78",
+    "product_record_revision": "alliance_help-v2",
+    "product_record_digest": "73a87b8d13e93bd0bc52748dce924dd79241dcba591f61ef8f78c7798b730ddd",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",

@@ -2319,8 +2319,8 @@
       ],
       "navigation_model": "canonical_service_home_atlas_challenge_then_independent_green_ready_chests",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "Canonical fixed code spec is REGISTERED; this queue's production_registration=NOT_REGISTERED refers only to the separate disabled legacy production posture, while scheduler_enabled=false keeps runtime disabled. No live attempt is authorized. One bounded current-day Home-to-Ruins visit attempts only the current zero-cost NPC challenge first, then independently observes and claims each visibly green-ready stage chest category. A challenge that is unavailable does not suppress ready chest claims, and participation need not win. Confirm every consequential result separately and return to canonical Home. No Daily aggregate Claim, milestone Claim, Shop, Exchange, purchase, or arbitrary input is in scope; no current native acceptance is recorded.",
-      "consequence_policy": "Keep challenge participation, each green-ready chest-category claim, Daily aggregate Claim, milestone Claim, and Shop actions separate. Unknown consequential effects block identical retry. Never require challenge success before independently eligible chests; no purchase, Exchange, Daily Claim, or milestone Claim.",
+      "live_validation_scope": "Canonical fixed code spec is REGISTERED; the legacy production posture and SQLite controls remain disabled. No live attempt is authorized. Within a separately authorized bounded Home-to-Ruins visit, advance through freshly recognized permitted free NPC stages until the first loss or genuine unavailability, then collect independently green-ready overview chests and return Home. Preserve stage progress across finite-budget pauses; unavailable challenges do not suppress chests. No current native acceptance is recorded. No Daily Claim, milestone Claim, Shop, Exchange, purchase, or unrelated combat is in scope.",
+      "consequence_policy": "Attempt freshly recognized permitted free NPC stages first, advancing after each verified win until the first loss or genuine unavailability. Persist each stage result and the reset's loss; finite-budget pause is resumable, not daily completion. Then claim independently green-ready overview chests with positive same-category successors, no medal arithmetic or exhaustive category scan. Actual UNKNOWN retains its fence; an unsent plan is not UNKNOWN. Daily Claim, milestone Claim, Shop, Exchange, purchase, and unrelated combat remain separate and forbidden here.",
       "product_policy_status": "supervised_consequential_validation",
       "production_registration": "NOT_REGISTERED",
       "scheduler_enabled": false,
@@ -2654,9 +2654,9 @@
       },
       "artifact_root": ".local-captures/flow-delivery/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
       "acceptance_criteria": [
-        "attempt the current zero-cost NPC challenge first and accept any positively recognized participation result, including a loss",
-        "observe every chest category independently and claim only visibly green-ready categories, even when the challenge is unavailable",
-        "preserve per-reset/per-category confirmed claims and block unresolved effects without identical retries",
+        "advance through freshly identified permitted free NPC stages after wins until the first loss or genuine unavailability",
+        "claim independently green-ready overview chest categories even when challenge is unavailable; no medal arithmetic or twelve-category coverage prerequisite",
+        "preserve exact stage results and first loss per reset across restart, resume finite-budget pauses, preserve confirmed category claims and block unresolved effects without identical retries",
         "return to canonical Home; keep Daily Claim, milestone Claim, Shop, Exchange, and purchase ownership separate"
       ],
       "scope_prohibitions": [
@@ -5419,8 +5419,8 @@
       ],
       "navigation_model": "canonical_service_alliance_help_requests_with_safe_home_return",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "Canonical fixed code spec is REGISTERED; this queue's production_registration=NOT_REGISTERED refers only to the separate disabled legacy production posture, while scheduler_enabled=false keeps runtime disabled. No live attempt is authorized. Within a separately authorized route-specific attempt, confirm only actual successful free Help requests toward a ten-request reset quota; preserve partial durable quota, use Help All only when the exact number of successful requests is known, and return to canonical Home.",
-      "consequence_policy": "One successful free Help request counts as one actual request, not one tap. Unknown consequential results block identical retry; no paid action, Daily attribution, or unrelated claim is in scope.",
+      "live_validation_scope": "Canonical fixed code spec is REGISTERED; the legacy production posture and SQLite controls remain disabled. No live attempt is authorized. Within a separately authorized bounded visit, prefer one current free Help All batch when requests are visible, otherwise individual Help, and return to canonical Home. No coin gate or complete request census is required. Count actual proven successful requests toward ten; retain a positively successful unknown-count batch and defer without fabricating completion.",
+      "consequence_policy": "Request credit and operation count are separate: persist actual proven request counts, including batches larger than the remaining goal, while operation ordinals remain contiguous and are not capped at ten. A positive unknown-count Help All is successful but quantity-unproven, not UNKNOWN; genuinely ambiguous effects remain fenced without identical retry. No paid action, Daily attribution, or unrelated claim.",
       "product_policy_status": "supervised_consequential_validation",
       "maximum_live_attempts": 0,
       "maximum_inputs": 20,
@@ -5450,14 +5450,14 @@
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/ALLIANCE-HELP-TEN-FREE-REQUESTS",
       "acceptance_criteria": [
-        "record ten actual successful free Help requests per reset, not ten taps",
-        "only treat Help All as meaningful when its exact successful request count is known",
-        "preserve partial durable quota across runs and block unresolved effects without identical retry",
+        "track actual proven successful free requests toward ten per reset, not ten taps, without clipping a larger proven batch",
+        "prefer one bound free Help All batch per visit without a complete request census; preserve positively successful unknown-count batches and defer without claiming quota",
+        "preserve durable operation identities and proven request progress across runs; block genuinely unresolved effects without identical retry",
         "return to canonical Home without paid action or Daily attribution"
       ],
       "scope_prohibitions": [
         "no paid Help or currency spend",
-        "no Help All when the exact request count is unknown",
+        "no fabricated request count from an unreadable successful Help All batch",
         "no identical retry after an unknown consequential effect",
         "no Daily Claim, milestone Claim, or points attribution",
         "no production registration or scheduler eligibility",

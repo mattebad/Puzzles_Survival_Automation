@@ -1015,6 +1015,8 @@ class GuardedRuinsRunner:
         self.stop, self.output = stop, output
         self.calls, self.inputs, self.occurrence_keys = [], [], []
         self.partial = False
+        self.challenge_results = ("failure",)
+        self.challenge_paused = False
         self.actions = 0
         self.on_input = self.on_entry = None
 
@@ -1034,7 +1036,8 @@ class GuardedRuinsRunner:
             self.on_entry()
 
         plan = (
-            "open_home_atlas", "open_ruins", "open_challenge", "dispatch_npc",
+            "open_home_atlas", "open_ruins",
+            *(label for _ in self.challenge_results for label in ("open_challenge", "dispatch_npc")),
             "open_overview", "inspect_ready_chest", "claim_ready_chest", "return_home",
         )
         count = challenge_calls = chest_calls = 0
@@ -1058,12 +1061,10 @@ class GuardedRuinsRunner:
             error = exc
 
         total = challenge_calls + chest_calls
-        coverage = {item: "already claimed" for item in KNOWN_CHALLENGE_IDENTITIES}
         claims = []
         if chest_calls:
             identity_key = KNOWN_CHALLENGE_IDENTITIES[0]
-            coverage[identity_key] = "newly claimed"
-            claims.append({"identity": identity_key, "ruins_medals": 55})
+            claims.append({"identity": identity_key})
         unresolved = error is not None
         result = {
             "status": "unresolved" if unresolved and total else "blocked" if unresolved else "completed",
@@ -1084,14 +1085,19 @@ class GuardedRuinsRunner:
             "ruins_dispatch_count": total,
             "challenge_transport_calls": challenge_calls,
             "chest_claim_transport_calls": chest_calls,
-            "challenge_participation_confirmed": challenge_calls == 1 and not unresolved,
-            "daily_action_ready": challenge_calls == 1 and not unresolved,
-            "challenge_status": "unresolved" if unresolved and challenge_calls else "confirmed",
-            "challenge_result": "failure" if challenge_calls and not unresolved else None,
-            "challenge_identity": "Nova Challenge" if challenge_calls and not unresolved else None,
-            "chest_coverage": coverage,
+            "challenge_participation_confirmed": bool(challenge_calls) and not unresolved,
+            "daily_action_ready": bool(challenge_calls) and not unresolved,
+            "challenge_status": (
+                "unresolved" if unresolved and challenge_calls
+                else "paused" if self.challenge_paused else "finished"
+            ),
+            "challenge_stages": (
+                [{"identity": "Nova Challenge", "stage_cleared": stage, "stage_maximum": 20, "result": outcome}
+                 for stage, outcome in enumerate(self.challenge_results[:challenge_calls])]
+                if not unresolved else []
+            ),
+            "chest_status": "unresolved" if unresolved else "complete",
             "newly_claimed_chests": claims,
-            "resource_delta": sum(item["ruins_medals"] for item in claims),
             "accounting_verified": True,
             "terminal_home_verified": not unresolved,
             "effect_reconciliation_required": unresolved and total > 0,
@@ -1192,7 +1198,7 @@ class GuardedAllianceHelpRunner:
                 records.append({
                     "action_id": f"fixture-action-{ordinal}",
                     "action_key": key,
-                    "request_ordinal": ordinal,
+                    "operation_ordinal": ordinal,
                     "task_id": ALLIANCE_HELP_FLOW_ID,
                     "semantic_action": ALLIANCE_HELP_SEMANTIC_ACTION,
                     "source_state": ALLIANCE_HELP_SOURCE_STATE,
@@ -1208,7 +1214,7 @@ class GuardedAllianceHelpRunner:
                 })
                 actions.append({
                     "status": "confirmed",
-                    "request_ordinal": ordinal,
+                    "operation_ordinal": ordinal,
                     "action_key": key,
                     "journal_status": "confirmed",
                     "verified_request_count": 1,
@@ -1220,8 +1226,6 @@ class GuardedAllianceHelpRunner:
                         "frame_sha256": immediate_sha,
                     },
                     "immediate_before_sha256": immediate_sha,
-                    "immediate_daily_alliance_coin_balance": (ordinal - 1) * 1000,
-                    "immediate_daily_alliance_coin_limit": 50000,
                     "request_result_evidence": [
                         {
                             "selected_request_absent": True,
@@ -1229,8 +1233,6 @@ class GuardedAllianceHelpRunner:
                             "source_fresh": True,
                             "overlay_clear": True,
                             "success_message": True,
-                            "daily_alliance_coin_balance": ordinal * 1000,
-                            "daily_alliance_coin_limit": 50000,
                         },
                         {
                             "selected_request_absent": True,
@@ -1238,15 +1240,13 @@ class GuardedAllianceHelpRunner:
                             "source_fresh": True,
                             "overlay_clear": True,
                             "success_message": False,
-                            "daily_alliance_coin_balance": ordinal * 1000,
-                            "daily_alliance_coin_limit": 50000,
                         },
                     ],
                 })
             else:
                 actions.append({
                     "status": "reconciliation_required",
-                    "request_ordinal": ordinal,
+                    "operation_ordinal": ordinal,
                     "action_key": key,
                     "journal_status": "unresolved",
                     "verified_request_count": 0,

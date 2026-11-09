@@ -21,7 +21,7 @@ DEFAULT_AUTHORITY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.jso
 DEFAULT_POLICY_PATH = DEFAULT_AUTHORITY_PATH
 AUTHORITY_SCHEMA_VERSION = 2
 AUTHORITY_REGISTRY_KIND = "flow_delivery_product_policy"
-AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r22"
+AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r23"
 PRODUCT_AUTHORITY_SCHEMA_VERSION = AUTHORITY_SCHEMA_VERSION
 PRODUCT_AUTHORITY_REVISION = AUTHORITY_REVISION
 PRODUCT_RECORDS_FIELD = "product_records"
@@ -3307,7 +3307,7 @@ def _validate_bioenhancer_research_record(record: Mapping[str, Any]) -> None:
 
 def _validate_ruins_challenge_record(record: Mapping[str, Any]) -> None:
     """Validate reset-scoped Ruins challenge and independent ready-chest rules."""
-    if record["record_revision"] != "ruins_challenge-v1":
+    if record["record_revision"] != "ruins_challenge-v2":
         raise ProductAuthorityError("Ruins Challenge product record revision is frozen")
 
     if record["objective"] != "ruins_challenge_and_ready_stage_chest_maintenance":
@@ -3364,7 +3364,19 @@ def _validate_ruins_challenge_record(record: Mapping[str, Any]) -> None:
         "challenge_before_overview": True,
         "current_day_and_exact_npc_required": True,
         "zero_cost_and_attack_dispatch_required": True,
-        "attempt_limit_per_reset": 1,
+        "dispatch_limit_per_exact_stage_per_reset": 1,
+        "verified_win_requires_fresh_next_permitted_stage": True,
+        "first_recognized_loss_finishes_challenge_for_reset": True,
+        "reset_npc_stage_identity_persisted": True,
+        "confirmed_legacy_result_unrecoverable_stops_challenge_only": True,
+        "finite_visit_budget_pause_is_resumable": True,
+        "budget_pause_is_not_daily_completion": True,
+        "unsent_plan_is_not_unknown": True,
+        "medal_or_resource_arithmetic_required": False,
+        "full_npc_troop_capacity_required": False,
+        "skip_battle_required": False,
+        "twelve_category_coverage_required": False,
+        "weekly_reward_wording_required": False,
         "positive_result_for_same_challenge_required": True,
         "recognized_loss_counts_as_participation": True,
         "challenge_unavailable_does_not_block_chest_maintenance": True,
@@ -3382,10 +3394,12 @@ def _validate_ruins_challenge_record(record: Mapping[str, Any]) -> None:
         "points_attribution": False,
         "identical_retry": False,
     }
-    if any(effect.get(key) != value for key, value in required_effects.items()):
+    if any(key not in effect or effect[key] != value for key, value in required_effects.items()):
         raise ProductAuthorityError(
             "Ruins effect must keep challenge participation and each ready chest independent"
         )
+    if "attempt_limit_per_reset" in effect:
+        raise ProductAuthorityError("Ruins must not impose a reset-wide attempt cap")
     ownership = record["daily_ownership"]
     if any(
         ownership.get(key) is not None
@@ -3398,7 +3412,7 @@ def _validate_ruins_challenge_record(record: Mapping[str, Any]) -> None:
 
 def _validate_alliance_help_record(record: Mapping[str, Any]) -> None:
     """Validate ten reset-scoped free Help requests with durable partial progress."""
-    if record["record_revision"] != "alliance_help-v1":
+    if record["record_revision"] != "alliance_help-v2":
         raise ProductAuthorityError("Alliance Help product record revision is frozen")
 
     if record["objective"] != "alliance_help_ten_free_requests":
@@ -3421,11 +3435,12 @@ def _validate_alliance_help_record(record: Mapping[str, Any]) -> None:
             "kind": "alliance_help",
             "source": "fresh_current_alliance_help_screen",
             "help_all_control": "Help All",
-            "help_all_count_rule": "exact_current_eligible_free_request_count_known",
+            "help_all_count_rule": "actual_numeric_result_credit_without_pre_dispatch_census",
+            "help_all_preferred": True,
             "individual_control": "Help",
-            "individual_request_ceiling": 10,
+            "successful_request_goal": 10,
             "request_unit": "successfully_completed_free_request",
-            "stop_when": "ten_successful_requests_or_free_help_disappears",
+            "stop_when": "goal_reached_or_free_help_disappears_or_one_help_all_batch",
             "reset_scoped_progress": True,
         }.items()
     ):
@@ -3450,9 +3465,21 @@ def _validate_alliance_help_record(record: Mapping[str, Any]) -> None:
     required_effects = {
         "effect_ordinal": 1,
         "reset_scope": "daily_reset",
-        "successful_request_ceiling": 10,
-        "success_unit": "one_positive_same_request_successor",
-        "help_all_requires_exact_request_count_known": True,
+        "successful_request_goal": 10,
+        "success_unit": "positive_attributable_free_help_operation",
+        "help_all_requires_exact_request_count_known": False,
+        "request_census_required": False,
+        "coin_balance_or_delta_required": False,
+        "operation_ordinal_minimum": 1,
+        "operation_ordinal_ceiling": None,
+        "operation_identity_independent_of_proven_count": True,
+        "actual_numeric_credit_not_clipped_to_goal": True,
+        "positive_unknown_count_batch_confirmed_and_deferred": True,
+        "unknown_count_batch_is_not_unknown_effect": True,
+        "maximum_help_all_batches_per_visit": 1,
+        "row_disappearance_alone_is_not_success": True,
+        "fresh_observation_before_each_dispatch": True,
+        "exact_no_requests_screen_forbids_dispatch": True,
         "individual_help_one_request_at_a_time": True,
         "confirmed_partial_quota_persisted_across_restart": True,
         "transport_call_is_not_success": True,
@@ -3470,10 +3497,12 @@ def _validate_alliance_help_record(record: Mapping[str, Any]) -> None:
         "points_attribution": False,
         "identical_retry": False,
     }
-    if any(effect.get(key) != value for key, value in required_effects.items()):
+    if any(key not in effect or effect[key] != value for key, value in required_effects.items()):
         raise ProductAuthorityError(
-            "Alliance Help effect must require ten positive free request successors"
+            "Alliance Help must preserve actual credit, bounded batches and restart-safe operations"
         )
+    if "successful_request_ceiling" in effect or "individual_request_ceiling" in target:
+        raise ProductAuthorityError("Alliance Help goal must not cap batch credit or operation ordinals")
     ownership = record["daily_ownership"]
     if any(
         ownership.get(key) is not None

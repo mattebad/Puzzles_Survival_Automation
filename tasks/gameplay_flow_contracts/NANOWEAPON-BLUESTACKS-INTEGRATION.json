@@ -901,8 +901,8 @@
   "supervised_live_proof_state": "evidence_required",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r22",
-    "product_authority_digest": "4b92219529520ecd699b3d78b0a34f9efa00db085ee30d86fbf2599ad2cd7f3a",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r23",
+    "product_authority_digest": "01439c1db1f98d2fe2734667d3b73135006755c74ffe39eb16891f027236a949",
     "product_record_id": "nanoweapon_normal_craft",
     "product_record_revision": "nanoweapon_normal_craft-v2",
     "product_record_digest": "bbf610de5bcddc6c5e31675c856defd6554c236205d2fd7a97dfca064cd54f07",

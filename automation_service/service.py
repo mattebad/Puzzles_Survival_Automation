@@ -1453,7 +1453,7 @@ class AutomationService:
                         )
                     if flow_id == RUINS_FLOW_ID:
                         committed_actions = (
-                            int(result.get("challenge_participation_confirmed") is True)
+                            len(result.get("challenge_stages", []))
                             + len(result.get("newly_claimed_chests", []))
                         )
                         consequence = {
@@ -1462,6 +1462,8 @@ class AutomationService:
                         }
                         if (
                             result.get("status") == "completed"
+                            and result.get("challenge_status") in {"finished", "unavailable"}
+                            and result.get("chest_status") == "complete"
                             and not result.get("effect_reconciliation_required")
                             and not result.get("identical_retry_denied")
                         ):
@@ -1479,7 +1481,11 @@ class AutomationService:
                             outcome = NormalizedOutcome.RECONCILIATION_REQUIRED
                             reason = f"{prefix}_EFFECT_REQUIRES_RECONCILIATION"
                             verified = False
-                        elif result.get("status") == "unresolved":
+                        elif (
+                            result.get("status") == "unresolved"
+                            or result.get("challenge_status") == "paused"
+                            or result.get("chest_status") == "partial"
+                        ):
                             outcome = NormalizedOutcome.DEFERRED
                             reason = f"{prefix}_PARTIAL_REOBSERVATION"
                             verified = True

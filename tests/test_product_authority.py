@@ -1872,7 +1872,7 @@ class ProductAuthorityTests(unittest.TestCase):
     def test_ruins_product_attempts_challenge_first_and_keeps_ready_chests_independent(self) -> None:
         record = self.records["ruins_challenge"]
         self.assertEqual(record["record_type"], "ruins_challenge")
-        self.assertEqual(record["record_revision"], "ruins_challenge-v1")
+        self.assertEqual(record["record_revision"], "ruins_challenge-v2")
         self.assertEqual(record["recurrence"], "reset_scoped_cooldown_pulse")
         self.assertEqual(record["semantic_entry_route"]["target"], "RUINS")
         self.assertEqual(record["target"]["challenge_identity"], "current_allowlisted_npc")
@@ -1889,6 +1889,12 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertTrue(effect["challenge_before_overview"])
         self.assertTrue(effect["challenge_success_not_required_for_ready_chests"])
         self.assertTrue(effect["recognized_loss_counts_as_participation"])
+        self.assertEqual(effect["dispatch_limit_per_exact_stage_per_reset"], 1)
+        self.assertTrue(effect["verified_win_requires_fresh_next_permitted_stage"])
+        self.assertTrue(effect["first_recognized_loss_finishes_challenge_for_reset"])
+        self.assertTrue(effect["finite_visit_budget_pause_is_resumable"])
+        self.assertTrue(effect["budget_pause_is_not_daily_completion"])
+        self.assertNotIn("attempt_limit_per_reset", effect)
         self.assertTrue(effect["challenge_unavailability_does_not_fabricate_a_result"])
         self.assertTrue(effect["per_category_claim_and_unknown_state_persisted"])
         self.assertTrue(effect["unknown_consequential_effects_block_restart_retry"])
@@ -1899,6 +1905,30 @@ class ProductAuthorityTests(unittest.TestCase):
 
     def test_ruins_safety_fields_fail_closed_with_fresh_digests(self) -> None:
         mutations = (
+            (
+                "stage_replay",
+                lambda record: record["semantic_effect"].__setitem__(
+                    "dispatch_limit_per_exact_stage_per_reset", 2
+                ),
+            ),
+            (
+                "loss_not_durable",
+                lambda record: record["semantic_effect"].__setitem__(
+                    "first_recognized_loss_finishes_challenge_for_reset", False
+                ),
+            ),
+            (
+                "budget_marks_daily_complete",
+                lambda record: record["semantic_effect"].__setitem__(
+                    "budget_pause_is_not_daily_completion", False
+                ),
+            ),
+            (
+                "reset_wide_attempt_cap",
+                lambda record: record["semantic_effect"].__setitem__(
+                    "attempt_limit_per_reset", 1
+                ),
+            ),
             (
                 "challenge_order",
                 lambda record: record["semantic_effect"].__setitem__(
@@ -1944,7 +1974,7 @@ class ProductAuthorityTests(unittest.TestCase):
             (
                 "revision",
                 lambda record: record.__setitem__(
-                    "record_revision", "ruins_challenge-v2"
+                    "record_revision", "ruins_challenge-v1"
                 ),
             ),
         )
@@ -1964,20 +1994,28 @@ class ProductAuthorityTests(unittest.TestCase):
     def test_alliance_help_product_enforces_quota_and_partial_progress(self) -> None:
         record = self.records["alliance_help"]
         self.assertEqual(record["record_type"], "alliance_help")
-        self.assertEqual(record["record_revision"], "alliance_help-v1")
+        self.assertEqual(record["record_revision"], "alliance_help-v2")
         self.assertEqual(record["recurrence"], "reset_scoped_cooldown_pulse")
         self.assertEqual(record["semantic_entry_route"]["target"], "ALLIANCE")
         self.assertEqual(record["target"]["help_all_control"], "Help All")
         self.assertEqual(
             record["target"]["help_all_count_rule"],
-            "exact_current_eligible_free_request_count_known",
+            "actual_numeric_result_credit_without_pre_dispatch_census",
         )
         self.assertEqual(record["target"]["individual_control"], "Help")
         self.assertEqual(record["quantity_cost"]["quantity"], 10)
         self.assertEqual(record["quantity_cost"]["cost"]["amount"], 0)
         self.assertTrue(record["quantity_cost"]["cost"]["free_only"])
         effect = record["semantic_effect"]
-        self.assertEqual(effect["successful_request_ceiling"], 10)
+        self.assertEqual(effect["successful_request_goal"], 10)
+        self.assertEqual(effect["operation_ordinal_minimum"], 1)
+        self.assertIsNone(effect["operation_ordinal_ceiling"])
+        self.assertTrue(effect["actual_numeric_credit_not_clipped_to_goal"])
+        self.assertTrue(effect["positive_unknown_count_batch_confirmed_and_deferred"])
+        self.assertTrue(effect["unknown_count_batch_is_not_unknown_effect"])
+        self.assertFalse(effect["request_census_required"])
+        self.assertFalse(effect["coin_balance_or_delta_required"])
+        self.assertEqual(effect["maximum_help_all_batches_per_visit"], 1)
         self.assertTrue(effect["confirmed_partial_quota_persisted_across_restart"])
         self.assertTrue(effect["transport_call_is_not_success"])
         self.assertTrue(effect["static_help_screen_is_not_success"])
@@ -1994,9 +2032,27 @@ class ProductAuthorityTests(unittest.TestCase):
                 lambda record: record["quantity_cost"].__setitem__("quantity", 9),
             ),
             (
-                "help_all_exact_count",
-                lambda record: record["target"].__setitem__(
-                    "help_all_count_rule", "unknown_count_allowed"
+                "help_all_census_gate",
+                lambda record: record["semantic_effect"].__setitem__(
+                    "request_census_required", True
+                ),
+            ),
+            (
+                "operation_ordinal_cap",
+                lambda record: record["semantic_effect"].__setitem__(
+                    "operation_ordinal_ceiling", 10
+                ),
+            ),
+            (
+                "clip_actual_credit",
+                lambda record: record["semantic_effect"].__setitem__(
+                    "actual_numeric_credit_not_clipped_to_goal", False
+                ),
+            ),
+            (
+                "uncounted_batch_fabricates_completion",
+                lambda record: record["semantic_effect"].__setitem__(
+                    "positive_unknown_count_batch_confirmed_and_deferred", False
                 ),
             ),
             (
@@ -2032,7 +2088,7 @@ class ProductAuthorityTests(unittest.TestCase):
             (
                 "revision",
                 lambda record: record.__setitem__(
-                    "record_revision", "alliance_help-v2"
+                    "record_revision", "alliance_help-v1"
                 ),
             ),
         )
@@ -2123,12 +2179,12 @@ class ProductAuthorityTests(unittest.TestCase):
             (
                 "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
                 "ruins_challenge",
-                "ruins_challenge-v1",
+                "ruins_challenge-v2",
             ),
             (
                 "ALLIANCE-HELP-TEN-FREE-REQUESTS",
                 "alliance_help",
-                "alliance_help-v1",
+                "alliance_help-v2",
             ),
         ):
             contract = self.contracts[flow_id]

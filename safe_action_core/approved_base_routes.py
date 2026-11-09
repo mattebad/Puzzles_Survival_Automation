@@ -19,7 +19,7 @@ DONATION_PRODUCT = "alliance_donation"
 DONATION_REVISION = "alliance_donation-v1"
 ALLIANCE_HELP_TASK = "ALLIANCE-HELP-TEN-FREE-REQUESTS"
 ALLIANCE_HELP_PRODUCT = "alliance_help"
-ALLIANCE_HELP_REVISION = "alliance_help-v1"
+ALLIANCE_HELP_REVISION = "alliance_help-v2"
 ALLIANCE_SHOP_TASK = "ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE"
 ALLIANCE_SHOP_REVISION = "alliance_shop_purchase-v2"
 DAILY_SHOPS_TASK = "DAILY-SHOPS-PURCHASE-EVIDENCE-GATE"
@@ -45,7 +45,7 @@ RECOMMENDED_RESEARCH_REVISION = "recommended_research-v1"
 RUINS_FLOW = "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION"
 RUINS_PRODUCT = "ruins_challenge"
 RUINS_TASK = RUINS_PRODUCT
-RUINS_REVISION = "ruins_challenge-v1"
+RUINS_REVISION = "ruins_challenge-v2"
 TROOP_TRAINING_TASK = "TROOP-TRAINING-END-TO-END-CONSOLIDATION"
 TROOP_TRAINING_PRODUCT = "troop_training"
 TROOP_TRAINING_REVISION = "troop_training-v3"
@@ -666,7 +666,7 @@ def _ruins(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
     deny = _deny("RUINS_ACTION_NOT_EXACT", "only a current exact zero-cost NPC challenge or independently ready chest is allowed")
     action = request.semantic_action
     if action == "ruins_zero_cost_npc_challenge_dispatch":
-        tokens = _tokens(request, 23)
+        tokens = _tokens(request, 21)
         if tokens is None:
             return deny
         fields = tuple(_field(token, prefix) for token, prefix in zip(tokens, (
@@ -674,21 +674,23 @@ def _ruins(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
             "ruins_server_id=", "ruins_reset_id=", "ruins_game_day=", "ruins_category=",
             "ruins_challenge_identity=", "ruins_challenge_day=", "ruins_challenge_availability=",
             "ruins_challenge_control=", "ruins_cost_type=", "ruins_cost_amount=", "ruins_premium=",
-            "ruins_paid=", "ruins_ticketed=", "ruins_npc_troops=", "ruins_npc_troops_current=",
-            "ruins_npc_troops_maximum=", "ruins_skip_battle=", "ruins_dispatch_count_before=",
-            "ruins_dispatch_count_limit=",
+            "ruins_paid=", "ruins_ticketed=", "ruins_npc_troops=", "ruins_challenge_stage=",
+            "ruins_stage_dispatch_count_before=", "ruins_stage_dispatch_count_limit=",
         )))
         if any(value is None for value in fields):
             return deny
         (product, revision, flow, account, server, reset, game_day, category, identity,
          challenge_day, availability, control, cost_type, cost_text, premium, paid,
-         ticketed, npc_troops, current_text, maximum_text, skip, count_text, limit_text) = fields
-        current = _integer_token(current_text, minimum=1, maximum=MAX_ROUTE_QUANTITY)
-        maximum = _integer_token(maximum_text, minimum=1, maximum=MAX_ROUTE_QUANTITY)
+         ticketed, npc_troops, stage, count_text, limit_text) = fields
+        stage_parts = stage.split("/")
+        if len(stage_parts) != 2:
+            return deny
+        cleared = _integer_token(stage_parts[0])
+        maximum = _integer_token(stage_parts[1], minimum=1)
         if (
             product != RUINS_PRODUCT or revision != RUINS_REVISION
             or flow != RUINS_FLOW or not _slug(account) or not _slug(server)
-            or current is None or maximum is None or current != maximum
+            or cleared is None or maximum is None or cleared >= maximum
             or reset != request.game_day_id or game_day not in _RUINS_WEEKDAYS
             or category != "challenge" or identity not in _RUINS_CHALLENGE_IDS
             or challenge_day not in _RUINS_WEEKDAYS | {"active_timer"}
@@ -696,7 +698,7 @@ def _ruins(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
             or availability != "available" or control != "visible_enabled"
             or cost_type != "none" or cost_text != "0" or premium != "false"
             or paid != "false" or ticketed != "false" or npc_troops != "provided"
-            or skip != "true" or count_text != "0" or limit_text != "1"
+            or count_text != "0" or limit_text != "1"
         ):
             return deny
         if not _contract_matches(
@@ -723,32 +725,31 @@ def _ruins(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
         guard = _route_runtime_guard(request)
         if guard is not None:
             return guard
-        return PolicyDecision.AUTHORIZE, "AUTHORIZED_RUINS_ZERO_COST_CHALLENGE", "one current-day, full-capacity NPC challenge with no paid or ticket cost passed"
+        return PolicyDecision.AUTHORIZE, "AUTHORIZED_RUINS_ZERO_COST_CHALLENGE", "one current uncleared stage with provided NPC troops and no paid or ticket cost passed"
     if action == "ruins_green_ready_stage_chest_claim":
-        tokens = _tokens(request, 21)
+        tokens = _tokens(request, 20)
         if tokens is None:
             return deny
         fields = tuple(_field(token, prefix) for token, prefix in zip(tokens, (
             "ruins_product=", "ruins_product_revision=", "ruins_flow=", "ruins_account_id=",
             "ruins_server_id=", "ruins_reset_id=", "ruins_game_day=", "ruins_category=",
             "ruins_chest_identity=", "ruins_chest_state=", "ruins_chest_fully_visible=",
-            "ruins_claim_control=", "ruins_reward_identity=", "ruins_reward_medals=",
+            "ruins_claim_control=", "ruins_reward_identity=",
             "ruins_cost_type=", "ruins_cost_amount=", "ruins_premium=", "ruins_exchange=",
             "ruins_shop=", "ruins_claim_count_before=", "ruins_claim_count_limit=",
         )))
         if any(value is None for value in fields):
             return deny
         (product, revision, flow, account, server, reset, game_day, category, identity,
-         state, visible, control, reward, medals_text, cost_type, cost_text, premium,
+         state, visible, control, reward, cost_type, cost_text, premium,
          exchange, shop, count_text, limit_text) = fields
-        medals = _integer_token(medals_text, minimum=1)
         if (
             product != RUINS_PRODUCT or revision != RUINS_REVISION
             or flow != RUINS_FLOW or not _slug(account) or not _slug(server)
             or reset != request.game_day_id or game_day not in _RUINS_WEEKDAYS
             or category != "chest" or not _slug(identity) or state != "green_ready"
             or visible != "true" or control != "visible_enabled" or reward != identity
-            or medals is None or cost_type != "none" or cost_text != "0"
+            or cost_type != "none" or cost_text != "0"
             or premium != "false" or exchange != "false" or shop != "false"
             or count_text != "0" or limit_text != "1"
         ):
@@ -1214,69 +1215,33 @@ def _training(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
 
 
 def _alliance_help(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
-    deny = _deny("ALLIANCE_HELP_ACTION_NOT_EXACT", "only one exact individual free Help or bounded complete Help All action is allowed")
+    deny = _deny("ALLIANCE_HELP_ACTION_NOT_EXACT", "only one exact free Help or Help All operation is allowed")
     if request.semantic_action != "HELP_ALLIANCE_REQUEST" or request.action_kind != "HELP_ALLIANCE_REQUEST":
         return deny
     if request.game_day_id is None:
         return deny
-    tokens = request.semantic_preconditions
-    if type(tokens) is not tuple or not tokens:
+    tokens = _tokens(request, 8)
+    if tokens is None:
         return deny
+    ordinal = _integer_token(_field(tokens[4], "alliance_help_operation_ordinal="), minimum=1)
     if request.observation.target_identity == "alliance-help-individual-request":
-        if len(tokens) != 8:
-            return deny
-        ordinal = _integer_token(_field(tokens[4], "alliance_help_request_ordinal="), minimum=1, maximum=10)
-        expected = (
-            f"alliance_help_product={ALLIANCE_HELP_PRODUCT}",
-            f"alliance_help_product_revision={ALLIANCE_HELP_REVISION}",
-            "alliance_help_quota=10",
-            f"alliance_help_request_reset={request.game_day_id}",
-            f"alliance_help_request_ordinal={ordinal}" if ordinal is not None else "",
-            "alliance_help_target_variant=individual",
-            "alliance_help_exact_free_label=Help",
-            "alliance_help_complete_request_transition_required",
-        )
-        target, subject, control, quantity = "alliance-help-individual-request", "alliance-help-individual-request", "FREE_HELP", 1
+        variant, label, control = "individual", "Help", "FREE_HELP"
     elif request.observation.target_identity == "alliance-help-all":
-        if len(tokens) != 12:
-            return deny
-        ordinal = _integer_token(_field(tokens[3], "alliance_help_request_ordinal="), minimum=1, maximum=10)
-        quantity = _integer_token(_field(tokens[4], "alliance_help_request_count="), minimum=1, maximum=10)
-        request_ids_json = _field(tokens[8], "alliance_help_request_ids_json=")
-        digest = _field(tokens[10], "alliance_help_request_set_sha256=")
-        if request_ids_json is None or len(request_ids_json) > 512 or digest is None or not _hash(digest):
-            return deny
-        try:
-            request_ids = json.loads(request_ids_json)
-        except (TypeError, ValueError):
-            return deny
-        if (
-            type(request_ids) is not list or quantity is None or len(request_ids) != quantity
-            or any(type(item) is not str or re.fullmatch(r"[0-9a-f]{24}", item, flags=re.ASCII) is None for item in request_ids)
-            or len(set(request_ids)) != len(request_ids)
-            or json.dumps(request_ids, ensure_ascii=True, separators=(",", ":")) != request_ids_json
-            or hashlib.sha256(request_ids_json.encode("utf-8")).hexdigest() != digest
-            or ordinal is None or ordinal + quantity - 1 > 10
-        ):
-            return deny
-        expected = (
-            f"alliance_help_product={ALLIANCE_HELP_PRODUCT}",
-            f"alliance_help_product_revision={ALLIANCE_HELP_REVISION}",
-            f"alliance_help_request_reset={request.game_day_id}",
-            f"alliance_help_request_ordinal={ordinal}",
-            f"alliance_help_request_count={quantity}",
-            "alliance_help_quota=10",
-            "alliance_help_target_variant=help_all",
-            "alliance_help_exact_free_label=Help_All",
-            f"alliance_help_request_ids_json={request_ids_json}",
-            "alliance_help_request_list_complete=true",
-            f"alliance_help_request_set_sha256={digest}",
-            "alliance_help_complete_request_transition_required",
-        )
-        target, subject, control = "alliance-help-all", "alliance-help-all", "FREE_HELP_ALL"
+        variant, label, control = "help_all", "Help_All", "FREE_HELP_ALL"
     else:
         return deny
-    if ordinal is None or type(quantity) is not int or tokens != expected:
+    target = subject = request.observation.target_identity
+    expected = (
+        f"alliance_help_product={ALLIANCE_HELP_PRODUCT}",
+        f"alliance_help_product_revision={ALLIANCE_HELP_REVISION}",
+        "alliance_help_quota=10",
+        f"alliance_help_request_reset={request.game_day_id}",
+        f"alliance_help_operation_ordinal={ordinal}",
+        f"alliance_help_target_variant={variant}",
+        f"alliance_help_exact_free_label={label}",
+        "alliance_help_positive_result_required",
+    )
+    if ordinal is None or tokens != expected:
         return deny
     if not _contract_matches(
         request,
@@ -1291,7 +1256,7 @@ def _alliance_help(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
         postcondition="ALLIANCE_HELP_REQUEST_RESULT",
         cost_type="none",
         cost_amount=0,
-        quantity=quantity,
+        quantity=1,
         resource_or_currency=None,
         maximum_cost=0,
         free_only=True,
@@ -1300,7 +1265,7 @@ def _alliance_help(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
     guard = _route_runtime_guard(request)
     if guard is not None:
         return guard
-    return PolicyDecision.AUTHORIZE, "AUTHORIZED_ALLIANCE_HELP", "exact current free request, reset-bound ordinal, and bounded quota passed"
+    return PolicyDecision.AUTHORIZE, "AUTHORIZED_ALLIANCE_HELP", "exact current free operation, reset-bound operation ordinal, and positive-result requirement passed"
 
 
 def _food_farm(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
