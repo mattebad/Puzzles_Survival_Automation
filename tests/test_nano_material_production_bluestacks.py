@@ -31,9 +31,6 @@ def _ocr_rows(state: str):
         "Nanoweapon",
         "Material Production",
         "Production Slot 1 of 1",
-        "Duration 6 hours",
-        "Cost 0",
-        "No other costs",
     ]
     if state == "active":
         rows.extend(("Production Active", "Timer 05:59:00"))

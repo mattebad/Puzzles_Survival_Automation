@@ -369,7 +369,7 @@ def nanoweapon_postcondition_verified(
     before: NanoweaponObservation,
     after: NanoweaponObservation | None,
 ) -> bool:
-    """Require exact parts consumption and a current one-slot craft successor."""
+    """Require a fresh one-slot timer; check the debit only when both balances show."""
 
     if not nanoweapon_authorizeable(before) or after is None:
         return False

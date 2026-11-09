@@ -38,9 +38,6 @@ def _ocr_rows(state: str, balance: int, craft_timer: int):
             ("Material Production", 145, 250),
             ("Craft Weapon", 205, 310),
             ("Production Slot 1 of 1", 300, 250),
-            ("Duration 6 hours", 350, 250),
-            ("Cost 0", 400, 250),
-            ("No other costs", 430, 250),
         ]
         if state == "production_active":
             rows.extend((("Production Active", 500, 100), ("Timer 05:59:00", 610, 100)))
@@ -62,15 +59,16 @@ def _ocr_rows(state: str, balance: int, craft_timer: int):
         ("Nano Parts " + str(balance), 155, 100),
         ("Hydra", 430, 100),
         ("Cost 100 Nano Parts", 650, 100),
-        ("Duration 12 hours", 700, 100),
-        ("Quantity 1", 200, 100),
     ]
+    # The active successor hides Nano Parts and the ordinary recipe quote.
+    if state == "craft_active":
+        rows = [row for row in rows if not row[0].startswith(("Nano Parts", "Cost"))]
     if state == "craft_claim":
         rows.extend((("Craft Complete", 810, 100), ("Claim", 880, 500)))
     elif state in {"craft_active", "craft_partial_unspent"}:
         hours, remainder = divmod(craft_timer, 3600)
         minutes, seconds = divmod(remainder, 60)
-        rows.append((f"Craft Timer {hours:02d}:{minutes:02d}:{seconds:02d}", 620, 100))
+        rows.append((f"{hours:02d}:{minutes:02d}:{seconds:02d}", 620, 100))
     else:
         rows.extend((("Craft Timer 00:00:00", 620, 100), ("Craft", 850, 500)))
     return rows
@@ -371,11 +369,10 @@ class NanoweaponNativeSmokeTests(unittest.TestCase):
     def test_same_visit_production_then_claim_and_exact_normal_start(self):
         context = _Context(
             self.root,
-            craft_state="craft_claim",
+            craft_state="craft_claim", balance=3934,
             production_state="production_idle",
         )
         try:
-            self._seed_previous_start(context)
             binding = route.create_service_binding(lambda **values: values)
             result = binding["driver"](context, {})
             consequential = [action for action in context.runtime.actions if action[2]]
@@ -386,7 +383,7 @@ class NanoweaponNativeSmokeTests(unittest.TestCase):
                     "navigation",
                     "CLAIM_NANOWEAPON_COMPLETED",
                     "START_NORMAL_NANOWEAPON_CRAFT",
-                    "KEY:Escape",
+                    "KEY:BACK",
                 ],
             )
             self.assertEqual(
@@ -439,8 +436,8 @@ class NanoweaponNativeSmokeTests(unittest.TestCase):
                 min(result["production_next_eligible_at"], craft_due),
             )
             self.assertEqual(result["craft_duration_seconds"], 43200)
-            self.assertEqual(result["precraft_nano_parts_balance"], 250)
-            self.assertEqual(result["nano_parts_balance"], 150)
+            self.assertEqual(result["precraft_nano_parts_balance"], 3934)
+            self.assertIsNone(result["nano_parts_balance"])
             self.assertEqual(result["due_reason"], "current_reset_start")
             self.assertTrue(result["terminal_home_verified"])
             self.assertEqual(result["terminal_home_state"], "HOME_BASE")

@@ -64,14 +64,26 @@ class NanoweaponContractTests(unittest.TestCase):
         ):
             self.assertFalse(nanoweapon_authorizeable(replace(observation, **changes)))
 
-    def test_active_successor_requires_exact_debit_timer_and_same_reset(self):
-        before = replace(load_fixture("normal_craft_synthetic"), source_frame_sha256="a" * 64)
+    def test_active_successor_uses_timer_and_checks_only_visible_parts_debit(self):
+        before = replace(
+            load_fixture("normal_craft_synthetic"), source_frame_sha256="a" * 64,
+            nano_parts=3934, quantity=None, craft_duration_seconds=None,
+            duration_policy_approved=False,
+        )
         active = replace(
             before, nano_parts=before.nano_parts - 100, active_craft_count=1,
             starts_this_reset=1, craft_timer_active=True, craft_timer_seconds_remaining=43199,
             craft_result_visible=False, claim_visible=False, source_frame_sha256="b" * 64,
         )
         self.assertTrue(nanoweapon_postcondition_verified(before, active))
+        # Walkthrough 0127 exposes 12:00:00, not the post-start Nano Parts wallet.
+        hidden_balance = replace(
+            active, nano_parts=None, craft_timer_seconds_remaining=43200,
+            materials_known=False, materials_available=False,
+            cost_type="unknown", cost_amount=None,
+        )
+        self.assertTrue(nanoweapon_postcondition_verified(before, hidden_balance))
+        self.assertIsNone(hidden_balance.nano_parts)
         for changes in (
             {"nano_parts": before.nano_parts - 99},
             {"nano_parts": before.nano_parts - 101},

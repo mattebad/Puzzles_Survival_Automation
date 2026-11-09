@@ -385,6 +385,9 @@ class NanoweaponServiceAdapterTests(unittest.TestCase):
                     result_changes={
                         "due_reason": "current_reset_start",
                         "craft_start_reset_id": NANOWEAPON_SERVICE_RESET,
+                        "production_duration_seconds": None,
+                        "precraft_nano_parts_balance": 3934,
+                        "nano_parts_balance": None,
                         "next_eligible_at": next_reset,
                     },
                 )
@@ -399,6 +402,9 @@ class NanoweaponServiceAdapterTests(unittest.TestCase):
         self.assertEqual(result["craft_start_reset_id"], NANOWEAPON_SERVICE_RESET)
         self.assertEqual(result["craft_start_transport_calls"], 1)
         self.assertEqual(result["craft_claim_transport_calls"], 0)
+        self.assertIsNone(result["production_duration_seconds"])
+        self.assertEqual(result["precraft_nano_parts_balance"], 3934)
+        self.assertIsNone(result["nano_parts_balance"])
         claimed = self.run_route(
             self.runner(
                 _nanoweapon_outcome(
