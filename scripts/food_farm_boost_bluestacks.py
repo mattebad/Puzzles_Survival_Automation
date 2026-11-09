@@ -585,8 +585,8 @@ def _dispatch_canonical_action(
         semantic_postconditions=(postcondition,), runtime_session_id=str(runtime.session),
     )
     policy = CentralPolicy(frozenset({task_id}))
-    request = replace(request, observation=immediate_observation, monotonic_now=monotonic_now)
-    issued = policy.issue_capability(request)
+    capability_request = replace(request, observation=immediate_observation, monotonic_now=monotonic_now)
+    issued = policy.issue_capability(capability_request)
     store.audit(task_id, "capability_issued", now, issued.audit, action_id)
     if not issued.authorized or issued.capability is None:
         return {"status": "blocked", "reason": issued.reason_code, "transport_calls": 0,
