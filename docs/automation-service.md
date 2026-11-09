@@ -394,8 +394,11 @@ That unknown successor permits observation only until the original deadline, not
 or readiness. Manual states and unrelated modals still stop immediately.
 
 
-A successful reconnect still needs fresh clean Home or an exact owned startup overlay. The service
-records its actual game input separately from system launch and zero route actions, defers that claim,
+A successful reconnect needs fresh clean Home, an exact owned startup overlay, or a clear
+usable successor verified by the interrupted route's supplied recognizer. The recognizer cannot
+override a manual context or unrelated modal; a loading screen is not readiness. Without a
+route recognizer, standalone recovery retains the Home/startup-overlay requirement. The service
+records actual game input separately from system launch and zero route actions, defers that claim,
 then requires a fresh normal route claim/binding; recovery earns no daily progress. The typed
 recovery-only occurrence disposition preserves all historical run/occurrence/reset identities and
 recovery charges without consuming daily/cooldown gameplay eligibility. Ordinary DEFERRED route

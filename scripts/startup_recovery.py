@@ -1541,6 +1541,7 @@ def recover_network_disconnect(
     relaunch: Callable[[], dict[str, object]],
     scope_key: str,
     authorization: str,
+    recognize_successor: Callable[[CapturedNativeFrame], bool] | None = None,
     timeout_seconds: float = 90.0,
     poll_seconds: float = 1.0,
     utc_clock: Callable[[], float] = time.time,
@@ -1572,6 +1573,19 @@ def recover_network_disconnect(
     last = source
     immediate = None
     connected_contexts = {"HOME_BASE", "KNOWN_STARTUP_OVERLAY"}
+
+    def connected(captured: CapturedNativeFrame, context: str) -> bool:
+        if context in connected_contexts:
+            return True
+        if context != "UNKNOWN" or recognize_successor is None:
+            return False
+        _identity, surface, popup = _contextual_startup_details(captured)
+        return bool(
+            isinstance(surface, dict) and isinstance(popup, dict)
+            and not surface.get("recognized") and not surface.get("commercial_looking")
+            and not popup.get("recognized") and not popup.get("blocking_unknown_modal")
+            and recognize_successor(captured)
+        )
 
     def take(label: str) -> CapturedNativeFrame:
         nonlocal last
@@ -1689,7 +1703,7 @@ def recover_network_disconnect(
             return finish("manual_required", "network_recovery_deadline_exhausted")
         post = take("network-recovery-relaunch-after")
         after = recognize_network_disconnect(post.frame)
-        if (observe_context(post) not in connected_contexts
+        if (not connected(post, observe_context(post))
                 or after.get("recognized") or after.get("blocking_unknown_modal") or not budget_open()):
             record("MANUAL_REQUIRED", "network_connected_context_not_verified")
             return finish("manual_required", "network_connected_context_not_verified")
@@ -1700,9 +1714,7 @@ def recover_network_disconnect(
         return finish("blocked", "network_source_not_intact")
     context = observe_context(source)
     detail = recognize_network_disconnect(source.frame)
-    if context in connected_contexts and not (
-        detail.get("recognized") or detail.get("blocking_unknown_modal")
-    ):
+    if not (detail.get("recognized") or detail.get("blocking_unknown_modal")) and connected(source, context):
         if action_store.has_action_block() or network_action_pending():
             return finish("unresolved", "prior_action_requires_inspection")
         if episode is not None and episode.relaunch_transport_status in {"attempted", "unknown"}:
@@ -1743,7 +1755,7 @@ def recover_network_disconnect(
     task_id = "RUNTIME-NETWORK-DISCONNECT-RECOVERY"
     action_key = f"network-recovery:{episode.episode_id}:confirm"
     policy = CentralPolicy(supervised_tasks=frozenset({task_id}))
-    holder: dict[str, object] = {"transport": "not_attempted", "context": "UNKNOWN"}
+    holder: dict[str, object] = {"transport": "not_attempted", "context": "UNKNOWN", "connected": False}
 
     def observation(captured: CapturedNativeFrame, current: dict[str, object]) -> Observation:
         roi = current.get("target") if current.get("recognized") else None
@@ -1831,8 +1843,10 @@ def recover_network_disconnect(
             after = recognize_network_disconnect(post.frame)
             observed = observe_context(post)
             clear = not (after.get("recognized") or after.get("blocking_unknown_modal"))
-            acknowledged = clear and observed in connected_contexts | {"BLUESTACKS_LAUNCHER"} and budget_open()
+            route_connected = clear and connected(post, observed)
+            acknowledged = clear and (route_connected or observed == "BLUESTACKS_LAUNCHER") and budget_open()
             holder["context"] = observed
+            holder["connected"] = route_connected
             # Removing the popup can first expose a loading frame over the
             # interrupted route. Observe only; never resend Confirm or infer
             # readiness from dismissal. Manual/other-modal states stop now.
@@ -1883,7 +1897,7 @@ def recover_network_disconnect(
     if executed.status is not ActionStatus.CONFIRMED:
         record("MANUAL_REQUIRED", "network_confirm_outcome_requires_inspection")
         return finish("unresolved" if action_store.has_action_block() or network_action_pending() else "blocked", executed.reason)
-    if holder["context"] in connected_contexts:
+    if holder["connected"]:
         record("RECOVERED", "network_connected_context_verified")
         return finish("recovered", "network_connected_context_verified")
     return launch_known_launcher()

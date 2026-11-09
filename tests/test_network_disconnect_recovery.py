@@ -234,11 +234,12 @@ class Environment:
     def episode(self):
         return self.state.get_network_recovery(SCOPE)
 
-    def recover(self, *, observe_context=observe, timeout_seconds=30.0, poll_seconds=10.0):
+    def recover(self, *, observe_context=observe, recognize_successor=None, timeout_seconds=30.0, poll_seconds=10.0):
         return recovery.recover_network_disconnect(
             self.runtime, state_manager=self.state, action_store=self.store, owner=OWNER,
             checkpoint=self.checkpoint, observe_context=observe_context, relaunch=self.relaunch,
             scope_key=SCOPE, authorization=AUTHORIZATION,
+            recognize_successor=recognize_successor,
             timeout_seconds=timeout_seconds, poll_seconds=poll_seconds,
             utc_clock=self.clock.utc, monotonic_clock=self.clock.monotonic, sleep=self.clock.sleep,
         )
@@ -401,6 +402,19 @@ class NetworkDisconnectRecoveryTests(unittest.TestCase):
                 self.assertEqual(result["system_launch_count"], 0 if expired else 1)
                 self.assertEqual(result["route_ready"], not expired)
                 self.assert_gameplay_untouched(env)
+
+    def test_route_successor_cannot_override_manual_context(self):
+        env = self.environment(EXACT, after_tap=MANUAL)
+        result = env.recover(recognize_successor=lambda _frame: True)
+        self.assertEqual(result["status"], "unresolved")
+        self.assertFalse(result["route_ready"])
+        self.assertEqual(len(env.device.taps), 1)
+        self.assertEqual(env.relaunch.calls, [])
+        self.assertEqual(env.network_rows()[0]["final_status"], "unresolved")
+        episode = env.episode()
+        assert episode is not None
+        self.assertEqual(episode.status, "MANUAL_REQUIRED")
+        self.assert_gameplay_untouched(env)
 
     def test_confirm_then_fresh_connected_context_recovers_with_one_tap_and_no_launch(self):
         for name, successor in (("home", HOME), ("owned startup overlay", OVERLAY)):

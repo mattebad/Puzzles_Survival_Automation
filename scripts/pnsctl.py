@@ -706,7 +706,8 @@ def _network_dialog(frame_bytes: bytes) -> dict[str, Any]:
 
 
 def _owner_bound_network_recovery(*, runtime_input_lock, checkpoint, session_directory,
-                                  state_manager, allow_relaunch: bool, inspect_only: bool = False) -> dict[str, Any]:
+                                  state_manager, allow_relaunch: bool, inspect_only: bool = False,
+                                  recognize_successor: Callable[[Any], bool] | None = None) -> dict[str, Any]:
     from automation_service.state import BotStateManager
     from scripts.navigation_development_boundary import RuntimeInputLock, open_canonical_action_store
     from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
@@ -800,6 +801,7 @@ def _owner_bound_network_recovery(*, runtime_input_lock, checkpoint, session_dir
             checkpoint=fenced, observe_context=context, relaunch=relaunch,
             scope_key=FIXED_RUNTIME_SCOPE,
             authorization="Current operator explicitly selected bounded network recovery: one Confirm, at most one permitted launcher-only game launch, zero resource spend.",
+            recognize_successor=recognize_successor,
         )
     except Exception as exc:
         if runtime is None:
@@ -875,7 +877,8 @@ def development_session_recover_network(*, live: bool, yes: bool, inspect_only: 
 def owner_bound_application_startup(*, runtime_input_lock, checkpoint, session_directory: Path,
                                     flow_id: str | None = None, require_ready: bool = False,
                                     network_recovery: bool = False, state_manager=None,
-                                    recovery_launch_episode_id: str | None = None) -> dict[str, Any]:
+                                    recovery_launch_episode_id: str | None = None,
+                                    recognize_successor: Callable[[Any], bool] | None = None) -> dict[str, Any]:
     """Observe or launch under the caller; reconnect only with explicit authority."""
     from scripts.navigation_development_boundary import NavigationBoundaryError, require_canonical_unresolved_clear
     from automation_service.state import BotStateManager
@@ -952,6 +955,7 @@ def owner_bound_application_startup(*, runtime_input_lock, checkpoint, session_d
             runtime_input_lock=runtime_input_lock, checkpoint=fence,
             session_directory=session_directory, state_manager=state_manager,
             allow_relaunch=result["system_launch_count"] == 0,
+            recognize_successor=recognize_successor,
         )
         result.update(
             network_recovery=recovery, game_input_count=recovery["game_input_count"],
