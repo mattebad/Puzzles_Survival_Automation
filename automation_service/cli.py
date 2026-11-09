@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 from pathlib import Path
 import sqlite3
@@ -49,6 +50,21 @@ from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 def _application_startup_directory(root: Path, run_id: str) -> Path:
     """Reserve a fresh evidence name for each invocation of a reused claim."""
     return Path(root) / f"application-startup-{run_id}-{uuid4().hex}"
+
+
+_MAX_SERVE_DURATION_SECONDS = 600.0
+_ONCE_TERMINAL_STATUSES = frozenset({"completed", "deferred", "blocked"})
+
+
+def _serve_duration_seconds(value: str) -> float:
+    try:
+        seconds = float(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError("must be a number of seconds") from None
+    if not math.isfinite(seconds) or not 0 < seconds <= _MAX_SERVE_DURATION_SECONDS:
+        raise argparse.ArgumentTypeError(f"must be > 0 and <= {_MAX_SERVE_DURATION_SECONDS:g} seconds")
+    return seconds
+
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -94,6 +110,10 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--account-id")
     serve.add_argument("--server-id")
     serve.add_argument("--output-directory", type=Path)
+    serve.add_argument("--once", action="store_true",
+                       help="stop cooperatively after the first completed, deferred or blocked route report")
+    serve.add_argument("--max-duration-seconds", type=_serve_duration_seconds, default=None,
+                       help="cooperatively stop serve after this many seconds (0 < seconds <= 600)")
     enable = subparsers.add_parser("enable")
     enable.add_argument("flow_id")
     enable.add_argument("--now-utc-epoch", type=float, default=None)
@@ -406,6 +426,9 @@ def main(
     if args.command == "serve" and args.recover_network_disconnect and not native_serve:
         print("network recovery requires the supervised native --live boundary", file=sys.stderr)
         return 2
+    if args.command == "serve" and args.once and not native_serve:
+        print("--once requires the supervised native --live boundary", file=sys.stderr)
+        return 2
     adapter = None if native_serve else _adapter(args.adapter)
     state_path = Path(resolve_state_path(args.state_path))
     observation_only = args.command == "shadow" or (
@@ -593,9 +616,27 @@ def main(
     if args.command == "serve":
         stop = threading.Event()
         previous_handlers = {}
+        terminal_reported = threading.Event()
+        duration_elapsed = threading.Event()
+        duration_timer = None
+
+        def stop_after_duration() -> None:
+            duration_elapsed.set()
+            stop.set()
+
+        def emit(result: Mapping[str, Any]) -> None:
+            print(json.dumps(result, sort_keys=True), flush=True)
+            if args.once and result.get("status") in _ONCE_TERMINAL_STATUSES:
+                terminal_reported.set()
+                stop.set()
+
         try:
             for signum in (signal.SIGINT, signal.SIGTERM):
                 previous_handlers[signum] = signal.signal(signum, lambda *_: stop.set())
+            if args.max_duration_seconds is not None:
+                duration_timer = threading.Timer(args.max_duration_seconds, stop_after_duration)
+                duration_timer.daemon = True
+                duration_timer.start()
             with BotStateManager(state_path) as state:
                 runner = None
                 nova_runner = None
@@ -867,9 +908,13 @@ def main(
                     service.serve(
                         account_id=args.account_id, server_id=args.server_id, stop=stop,
                         operator_request_id=args.operator_request_id,
-                        emit=lambda result: print(json.dumps(result, sort_keys=True), flush=True),
+                        emit=emit,
                         flow_ids=tuple(flow_names[flow] for flow in selected),
                     )
+                    if duration_elapsed.is_set() and not terminal_reported.is_set():
+                        print(json.dumps({"status": "stopped", "reason": "MAX_DURATION_ELAPSED"},
+                                         sort_keys=True), flush=True)
+                        return 1 if args.once else 0
                 else:
                     while not stop.is_set():
                         health = service.health(current_state=service.mode.value, current_task=None)
@@ -881,6 +926,8 @@ def main(
             print(json.dumps(_structured_error(exc), sort_keys=True))
             return 2
         finally:
+            if duration_timer is not None:
+                duration_timer.cancel()
             for signum, previous in previous_handlers.items():
                 signal.signal(signum, previous)
 

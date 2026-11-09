@@ -22,6 +22,8 @@ import time
 from typing import Any, Iterable, Iterator
 from uuid import uuid4
 
+from safe_action_core.path_safety import canonical_state_root
+
 from .contracts import FlowSpec, OccurrenceDisposition
 
 
@@ -578,8 +580,9 @@ def _recovery_timeout(value: float, name: str) -> float:
     return result
 
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
-# Absolute repository root used for all implicit state paths.
+REPOSITORY_ROOT = canonical_state_root(Path(__file__).resolve().parents[1])
+# Absolute canonical state root for all implicit state paths and retained
+# evidence; a linked worktree uses its main checkout so state is never split.
 
 
 def resolve_state_path(
@@ -588,9 +591,10 @@ def resolve_state_path(
     """Resolve one canonical state path independently of the process CWD.
 
     ``--state-path`` and ``AUTOMATION_SERVICE_STATE_PATH`` may be absolute or
-    relative.  Relative values are rooted at the repository containing this
-    module, not at the caller's working directory.  Omitting ``path`` uses the
-    environment override when present, otherwise the repository's canonical
+    relative.  Relative values are rooted at ``REPOSITORY_ROOT`` (the canonical
+    state checkout; the main checkout for a linked worktree), not at the
+    caller's working directory.  Omitting ``path`` uses the environment
+    override when present, otherwise the canonical
     ``.local-orchestrator/bot-state.sqlite3``.  SQLite's in-memory sentinel is
     preserved for focused callers.
     """
@@ -614,11 +618,11 @@ _INSPECTION_UNCERTAIN_OUTCOMES = frozenset({"unknown", "unresolved", "reconcilia
 
 
 def _inspection_evidence(path: str | os.PathLike[str]) -> tuple[str, str]:
-    """Return the repository-relative reference and SHA-256 of retained evidence.
+    """Return the state-root-relative reference and SHA-256 of retained evidence.
 
     Inspection evidence must be one existing, non-empty regular file retained
-    inside this repository (for example under ``.local-captures``).  Links and
-    paths outside the repository are rejected rather than followed.
+    inside ``REPOSITORY_ROOT`` (for example under ``.local-captures``).  Links
+    and paths outside it are rejected rather than followed.
     """
 
     raw = os.fspath(path) if isinstance(path, (str, os.PathLike)) else ""

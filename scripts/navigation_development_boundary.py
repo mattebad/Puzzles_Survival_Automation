@@ -32,11 +32,12 @@ from scripts.bluestacks_native_runtime import (
     reject_real_money_confirmation,
 )
 from safe_action_core import SafetyStore
-from safe_action_core.path_safety import UnsafePathError, require_no_untrusted_symlinks
+from safe_action_core.path_safety import UnsafePathError, canonical_state_root, require_no_untrusted_symlinks
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-ORCHESTRATOR_DIR = REPO_ROOT / ".local-orchestrator"
+# Linked worktrees share the main checkout's runtime lock and action history.
+STATE_ROOT = canonical_state_root(Path(__file__).resolve().parents[1])
+ORCHESTRATOR_DIR = STATE_ROOT / ".local-orchestrator"
 RUNTIME_INPUT_LOCK_PATH = ORCHESTRATOR_DIR / "bluestacks-runtime-input-lock.sqlite3"
 CANONICAL_ACTION_STORE_PATH = ORCHESTRATOR_DIR / "bluestacks-actions.sqlite3"
 

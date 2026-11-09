@@ -111,3 +111,81 @@ def require_no_untrusted_symlinks(path: Path, *, reject_junctions: bool = False)
             raise UnsafePathError(f"untrusted junction: {probe}")
         current = probe
     return current
+
+
+def _git_link(path: Path, prefix: str = "") -> str:
+    """Read one exact single-line Git administrative link without following it."""
+
+    path = require_no_untrusted_symlinks(path)
+    try:
+        metadata = os.lstat(path)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise UnsafePathError(f"Git link is not a regular file: {path}")
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise UnsafePathError(f"cannot read Git link: {path}") from exc
+    value = text[:-1] if text.endswith("\n") else text
+    if value.endswith("\r"):
+        value = value[:-1]
+    if not value.startswith(prefix) or "\n" in value or "\r" in value:
+        raise UnsafePathError(f"malformed Git link: {path}")
+    value = value[len(prefix):]
+    if not value.strip() or value != value.strip():
+        raise UnsafePathError(f"malformed Git link: {path}")
+    return value
+
+
+def _linked(base: Path, value: str) -> Path:
+    target = Path(value)
+    return Path(os.path.normpath(target if target.is_absolute() else base / target))
+
+
+def canonical_state_root(source_root: Path) -> Path:
+    """Return the checkout that owns canonical local state for ``source_root``.
+
+    A normal checkout, whose ``.git`` is a directory or absent, owns its state.
+    A verified linked Git worktree shares the main checkout's state instead of
+    splitting physical runtime history: its ``.git`` file names an admin
+    directory ``<main>/.git/worktrees/<name>`` whose ``gitdir`` back-reference
+    names this worktree and whose ``commondir`` names ``<main>/.git``. Only
+    plain file reads are used, and every administrative path is checked for
+    untrusted links before it is read. A ``.git`` file without ``commondir``
+    (for example a submodule under ``.git/modules``) is not a linked worktree,
+    but an admin directory under ``worktrees`` must have one. Any other
+    linked-worktree claim fails closed rather than falling back to the worktree.
+    """
+
+    root = Path(os.path.abspath(os.path.normpath(source_root)))
+    marker = root / ".git"
+    try:
+        metadata = os.lstat(marker)
+    except FileNotFoundError:
+        return root
+    except OSError as exc:
+        raise UnsafePathError(f"cannot safely inspect checkout marker: {marker}") from exc
+    if stat.S_ISDIR(metadata.st_mode):
+        return root
+    admin = require_no_untrusted_symlinks(_linked(root, _git_link(marker, "gitdir: ")))
+    commondir = admin / "commondir"
+    try:
+        os.lstat(commondir)
+    except FileNotFoundError:
+        if os.path.normcase(admin.parent.name) == os.path.normcase("worktrees"):
+            raise UnsafePathError(f"linked Git worktree has no commondir: {root}") from None
+        return root
+    except OSError as exc:
+        raise UnsafePathError(f"cannot safely inspect Git commondir: {commondir}") from exc
+    common = require_no_untrusted_symlinks(_linked(admin, _git_link(commondir)))
+    back_reference = _linked(admin, _git_link(admin / "gitdir"))
+    try:
+        common_metadata = os.lstat(common)
+    except OSError as exc:
+        raise UnsafePathError(f"cannot safely inspect Git common directory: {common}") from exc
+    if (
+        back_reference != marker
+        or admin.parent != common / "worktrees"
+        or common.name != ".git"
+        or not stat.S_ISDIR(common_metadata.st_mode)
+    ):
+        raise UnsafePathError(f"unverified linked Git worktree: {root}")
+    return require_no_untrusted_symlinks(common.parent)
