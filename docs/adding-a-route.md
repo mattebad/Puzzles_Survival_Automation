@@ -301,22 +301,30 @@ Existing layout exceptions:
 * **Batch F Hall of War and Troop Training**: canonical-service-only routes with fixed
   bindings; no compatibility runner, validator, operator-registry row, or second input-budget owner
   is retained for Training. The supported manual-only `pnsctl bluestacks recover-home` remains
-  distinct. The Commander preset helper is shared, not a standalone flow: every use requires fresh
-  exact `Applied` recognition; cached readiness is not proof, and no redundant switch occurs when
-  the required preset is already Applied. Both routes are product-approved but remain unregistered
-  for production, scheduler-disabled, and runtime-disabled with live acceptance `evidence_required`.
-  Hall requires current reset/preset/lineup evidence, one Zombie Zero dispatch and reconciled result,
-  then one separate glowing Daily Reward row claim; no win threshold applies. The manual #96
-  dispatch/result/row-claim investigation is raw evidence, not canonical route acceptance, and
-  unexplained same-reset manual use must defer without retry. Training preserves Fighter T8 and
-  Vehicle T1 at the current displayed numeric maximum with continuous policy, Shooter T8 and Rider
-  T1 at 250 once per reset, exact resource before/after reconciliation, recognized queue state and
-  positive timer. The maximum is dynamic, never a pinned historical quantity. Fighter/Vehicle box
-  continuations require exact current inventory and effect authority; absent proof they remain
-  `evidence_required`, with no box dispatch, expected-warehouse assumption, or blind Train.
-  Shooter/Rider never open boxes. No Train Now, premium, speedup, Daily/D02/points prerequisite, or
-  separate Commander route. Historical legacy Training evidence does not establish canonical
-  live acceptance.
+  distinct. Commander presets are a shared helper, not a standalone flow: exact saved Economy,
+  Military and Training memories switch with the owner-established free/no-cooldown mechanic.
+  Apply only the requested named row, acknowledge an actual optional free confirmation, then
+  verify Applied. No cost/cooldown disclosure, talent-tree edits, paid dialog or Reset is admitted.
+  An already-Applied preset is not switched again; proof reuse requires the same session,
+  generation, context and runtime ownership, not a bare readiness boolean.
+  Hall requires Military, populated saved Troop Set1, one Zombie Zero dispatch/result and one
+  glowing daily reward row changing to Claimed. Its fixed zero-resource/zero-loss mechanic needs
+  no literal disclosure, full troop capacity, TodayDamage zero or Sets2/3 labels. Its three-effect
+  visit budget includes an optional preset switch, dispatch and reward, not extra reset dispatches.
+  Training requires Training Applied before starts and reuses valid proof instead of reopening
+  the helper mid-training. FighterT8/VehicleT1 use each new batch's current numeric maximum
+  continuously; ShooterT8/RiderT1 use250 once/reset. Active/completed batches retain the immutable
+  recorded start quantity, not a later carousel maximum; timers use actual capture/tap UTC.
+  Fighter/Vehicle boxes remain `evidence_required`: projected totals do not identify boxes or prove
+  owned counts. Keep scoped Core denial until real exact authority exists; no invented DTO or blind
+  Train. Shooter/Rider never use boxes. All revised native branches remain evidence_required;
+  historical manual/legacy evidence does not establish canonical live acceptance or enablement.
+  Economy remains a supported saved-memory identity, but there is no existing authorized
+  production/helper-inspection consumer for it. Its switch acceptance remains an explicit gap;
+  a test-only identity is not gameplay authority and no standalone flow is added.
+  Existing recovery ends the native visit on network loss and closes its session; a later visit
+  starts with empty session proof. Manual-required contexts deny instead of resuming a cached
+  proof. No surviving same-session recovery hook or additional cache subsystem is introduced.
 
 * **Conditional Wali Upgrade (#74)**: canonical-service-only `wali-upgrade`, using the existing
   `tasks/hero_upgrade_disabled.py` semantic owner despite its historical filename. The fixed

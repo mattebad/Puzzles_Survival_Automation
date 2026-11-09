@@ -348,9 +348,18 @@ mapped Farm. An unknown approach stops before collection/boost and captures fres
 Batch F adds canonical-only Hall of War and Troop Training native service routes. It removes the
 legacy Troop Training operator runner/validator/aliases, leaving eleven operator routes, and keeps
 supported manual-only `pnsctl bluestacks recover-home`; no compatibility route or standalone
-Commander flow is added. The shared Commander preset helper requires a fresh exact `Applied`
-observation on every use; cached readiness is not proof, and an already-applied preset is not
-switched again. Hall's manual #96 investigation observed one dispatch, reconciled result, and
+Commander flow is added. The shared helper binds exact saved Economy/Military/Training rows.
+Switching is owner-established free/no-cooldown: Apply, acknowledge an actual optional free
+confirmation, then verify Applied. No cost/cooldown disclosure is needed; no paid/unknown/reset
+dialog or talent-tree edit is authorized. Same-session proof is reusable only while generation,
+context, runtime and lock bindings remain valid; already-Applied presets are not switched again.
+Only the existing Hall→Military and Training→Training consumers admit switches. Economy stays
+in the helper contract, but no authorized production/helper-inspection consumer exists yet;
+its switch acceptance remains unproven, and test-route is not gameplay authority.
+Network loss raises out of the existing native visit and closes that session; a subsequent visit
+has no old session proof. Manual-required contexts deny rather than continue with cached proof.
+Normal same-visit Training navigation can reuse proof; no new recovery/cache subsystem is added.
+Hall's manual #96 investigation observed one dispatch, reconciled result, and
 separate Daily Reward row claim; this is not canonical route acceptance, and unexplained same-reset
 manual dispatch blocks an identical retry. Known unavailable-challenge/reward outcomes preserve
 confirmed progress and use a bounded 300-second policy re-observation, clipped to the UTC reset;
@@ -358,24 +367,28 @@ this is not an observed game cooldown or an unknown-effect retry.
 The fixed native factory validates canonical requests through the shared native boundary; Hall
 result validation remains in its canonical adapter. A device-free actual held-lock/request probe
 passes before device open. This startup proof does not establish live gameplay acceptance.
-Training remains `evidence_required`: Fighter T8/current
-numeric maximum/continuous and Vehicle T1/current numeric maximum/continuous; Shooter T8/250 and
-Rider T1/250 once per reset. Verify exact current costs, before/after balances, current queue and
-positive timer; keep current maxima dynamic rather than pinning old amounts. Fighter/Vehicle box
-continuations require exact current inventory and effect authority; absent proof they remain
-`evidence_required`, with no box dispatch, no expected-warehouse assumption, and no blind Train.
-Shooter/Rider never use boxes. No Train Now, premium, speedup, or Daily/D02/points prerequisite.
+Hall uses Military and populated saved Troop Set1. Fixed zero-resource/zero-loss Zombie Zero needs
+no textual disclosure, full capacity, TodayDamage zero or Sets2/3 labels. The three-effect budget
+includes optional preset switch, dispatch and the single reward-row Claim; each reset still allows
+only one dispatch and one reward. Verify the row changes to Claimed, not three icon taps.
+Training remains `evidence_required`: FighterT8/VehicleT1 current numeric maximum continuous;
+ShooterT8/RiderT1 exactly250 once/reset. Each new start reads the current maximum/costs/balances;
+active/completed batches use immutable recorded start quantities, not later carousel state.
+Training Applied proof is reused within its valid visit, avoiding the redundant helper reopening.
+Fighter/Vehicle boxes stay blocked pending real popup box identity/count/owned proof; projected
+totals are insufficient. No invented transaction fields or generic box authority. Shooter/Rider
+never use boxes. No Train Now, premium, speedups or Daily/D02/points prerequisite.
 Both routes are registered in the canonical service but remain production-unregistered,
 unscheduled and runtime-disabled; no live route acceptance is claimed.
 Training starts use distinct semantic-action and concrete action-kind fields matching the
 existing Core policy. Capability issuance binds a real immediate recapture, not the original
 capture or its digest alone. Session dispatch uses that same bound immediate source.
-Queue, tier, quantity/max and all paired resource costs/balances
-are checked again before dispatch. Active-queue completion is projected from the observation's
-capture time; an undated queue cannot establish a schedule. Confirmed batch claims advance
-continuous Fighter/Vehicle generations durably across restart; UNKNOWN claims do not. The
-function-based native-service replay covers these transitions and zero-input changed-quote
-denials. This is offline proof, not acceptance of live starts, preset costs or box effects.
+Queue, tier, quantity/max and paired resource costs/balances are checked before each new dispatch.
+Existing active/claim quantity comes from the confirmed prior batch, not the new-start maximum.
+Queue projection uses actual observation capture UTC and actual tap UTC; undated observations
+cannot establish a schedule. Confirmed claims advance continuous Fighter/Vehicle generations
+durably across restart; UNKNOWN claims do not. Offline replay is not native start/preset/box
+acceptance, and the missing exact box observations remain an explicit incomplete branch.
 
 
 Daily performs at most one current aggregate Claim, then separately claims glowing chests with
