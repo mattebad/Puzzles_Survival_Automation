@@ -442,6 +442,21 @@ class DailyRewardsServiceTests(unittest.TestCase):
                         runtime_input_lock=_HeldLock(), occurrence_key=self.occurrence_key,
                     )
 
+    def test_unknown_unattempted_slot_defers_without_losing_confirmed_prefix(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            identity, partial = _known_partial(self.now, Path(tmp) / "partial")
+            scan = partial["milestone_scan"]
+            scan["milestones"][1].update(milestone_state="unknown", milestone_ready=None)
+            scan.update(status="partial_unknown", observed_chest_count=4, ready_chest_count=0)
+            partial["unclaimed_ready_chest_count"] = 0
+            result = self._runner(Path(tmp), _FakeNative(partial))(
+                identity, self.previous_reset_id, lambda: None,
+                runtime_input_lock=_HeldLock(), occurrence_key=self.occurrence_key,
+            )
+            self.assertEqual(result["status"], "deferred")
+            self.assertEqual(result["committed_action_count"], 2)
+            self.assertFalse(result["effect_reconciliation_required"])
+
     def test_complete_scan_requires_five_disjoint_chest_identities(self):
         with tempfile.TemporaryDirectory() as tmp:
             identity, result = _fixture(

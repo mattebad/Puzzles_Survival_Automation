@@ -1670,14 +1670,10 @@ def _daily_aggregate_claim_semantics(
     visual["available_ordinary_claim_controls"] = 0
     visual["zero_claim_scan_proven"] = False
     if not all_claim_controls:
-        if (
-            visual.get("claim_scan_complete") is not True
-            or visual.get("claim_scan_raw_gold_pixel_count") != 0
-        ):
-            return failure(
-                "Claim control absence is ambiguous; residual or clipped Claim pixels remain"
-            )
-        visual["zero_claim_scan_proven"] = True
+        visual["zero_claim_scan_proven"] = (
+            visual.get("claim_scan_complete") is True
+            and visual.get("claim_scan_raw_gold_pixel_count") == 0
+        )
         visual["claim_ready"] = False
         return (
             FrameRecognition(
@@ -1804,23 +1800,18 @@ def _daily_aggregate_claim_semantics(
     visual["claim_candidates"] = tuple(candidates)
     visual["available_claim_controls"] = len(eligible)
     if not eligible:
-        rejection_reasons = {
-            reason
-            for candidate in candidates
-            for reason in candidate["rejection_reasons"]
-        }
-        if (
-            "claim_outside_measured_panel" in rejection_reasons
-            or "claim_outside_or_straddles_panel" in rejection_reasons
-        ):
-            return failure("Claim control escaped the measured panel")
-        if "claim_attached_cost" in rejection_reasons:
-            return failure(
-                "Claim control has an attached currency, amount, or purchase surface"
-            )
-        if "ambiguous_duplicate_claim_control" in rejection_reasons:
-            return failure("Claim control is missing or ambiguous")
-        return failure("no independently safe ordinary free Claim control was proven")
+        # The ordinary action is unavailable, not the independently proven
+        # selected-Daily surface.  Chests and safe Back have their own bindings.
+        visual["claim_ready"] = False
+        reason = "no independently safe ordinary free Claim control was proven"
+        visual["reason"] = reason
+        return (
+            FrameRecognition(
+                DAILY_SELECTED_STATE, True, None, None, full_text, visual, reason,
+                _token_rows((*header_tokens, *body)),
+            ),
+            None,
+        )
 
     selected_candidate = eligible[0]
     row_bounds = tuple(selected_candidate["row_bounds"])
@@ -2460,9 +2451,30 @@ def recognize_daily_milestone_chests(
             and slot_claimed_tokens[0]["confidence"] >= 60
             else None
         )
+        label_tokens = tuple(
+            token for token in daily_recognition.tokens
+            if isinstance(token, Mapping)
+            and _clamp_roi(token.get("roi", ())) is not None
+            and center_x - slot_pitch / 2 < (token["roi"][0] + token["roi"][2]) / 2
+            < center_x + slot_pitch / 2
+            and header_bottom + 168 <= token["roi"][1]
+            < token["roi"][3] <= header_bottom + 215
+        )
+        threshold_proven = any(
+            str(token.get("text")) == str(slot * 30) for token in label_tokens
+        )
+        replacement_label = any(
+            str(token.get("text", "")).isalpha()
+            and isinstance(token.get("confidence"), (int, float))
+            and token["confidence"] >= 60 for token in label_tokens
+        )
+        glow_absent = (
+            glow_pixels <= DAILY_MILESTONE_GLOW_ABSENT_PIXELS
+            and largest_glow_component <= DAILY_MILESTONE_GLOW_ABSENT_COMPONENT
+        )
         if supported_skin is None:
-            state = "unknown"
-            reason = "chest appearance is unsupported or ambiguous"
+            state = "removed" if gold_pixels < 100 and red_pixels < 100 and glow_absent else "unknown"
+            reason = None if state == "removed" else "chest appearance is unsupported or ambiguous"
         elif slot_claimed_tokens:
             if (
                 claimed_label is not None
@@ -2486,7 +2498,7 @@ def recognize_daily_milestone_chests(
             glow_pixels <= DAILY_MILESTONE_GLOW_ABSENT_PIXELS
             and largest_glow_component <= DAILY_MILESTONE_GLOW_ABSENT_COMPONENT
         ):
-            state = "not_ready"
+            state = "opened" if replacement_label and not threshold_proven else "not_ready"
             reason = None
         else:
             state = "unknown"
@@ -2506,6 +2518,8 @@ def recognize_daily_milestone_chests(
                 "supported_chest_skin": supported_skin,
                 "claimed_label_roi": tuple(claimed_label["roi"]) if state == "claimed" else None,
                 "claimed_label_proven": state == "claimed",
+                "threshold_label_proven": threshold_proven,
+                "replacement_label_proven": replacement_label,
                 "reason": reason,
             }
         )
@@ -2545,7 +2559,7 @@ def daily_milestone_postcondition_verified(
     after: Mapping[str, Any],
     milestone_key: str,
 ) -> bool:
-    """Require the bound ready chest's explicit current native Claimed label."""
+    """Require an attributable same-slot claimed, opened, or removed successor."""
     if (
         before.get("status") not in {"observed", "partial_unknown"}
         or after.get("status") not in {"observed", "partial_unknown"}
@@ -2562,6 +2576,55 @@ def daily_milestone_postcondition_verified(
         row for row in after.get("milestones", ())
         if isinstance(row, Mapping) and row.get("milestone_key") == milestone_key
     ]
+    if len(source) != 1 or len(successor) != 1:
+        return False
+    state = successor[0].get("milestone_state")
+    if state == "claimed":
+        successor_proven = (
+            successor[0].get("claimed_label_proven") is True
+            and successor[0].get("claimed_label_roi") is not None
+        )
+    else:
+        # Appearance-only successors must be local to the tapped slot.
+        other_before = {
+            row["milestone_key"]: row for row in before.get("milestones", ())
+            if isinstance(row, Mapping) and row.get("milestone_key") != milestone_key
+        }
+        other_after = {
+            row["milestone_key"]: row for row in after.get("milestones", ())
+            if isinstance(row, Mapping) and row.get("milestone_key") != milestone_key
+        }
+        stable_neighbors = (
+            len(other_before) == len(other_after) == DAILY_MILESTONE_SLOT_COUNT - 1
+            and other_before.keys() == other_after.keys()
+            and all(
+                row.get("milestone_state") != "unknown"
+                and row.get("milestone_state") == other_after[key].get("milestone_state")
+                and isinstance(row.get("target_roi"), (tuple, list))
+                and isinstance(other_after[key].get("target_roi"), (tuple, list))
+                and len(row["target_roi"]) == len(other_after[key]["target_roi"]) == 4
+                and max(
+                    abs(a - b) for a, b in zip(row["target_roi"], other_after[key]["target_roi"])
+                ) <= 2
+                for key, row in other_before.items()
+            )
+        )
+        glow_absent = (
+            type(successor[0].get("glow_pixel_count")) is int
+            and successor[0]["glow_pixel_count"] <= DAILY_MILESTONE_GLOW_ABSENT_PIXELS
+            and type(successor[0].get("largest_glow_component")) is int
+            and successor[0]["largest_glow_component"] <= DAILY_MILESTONE_GLOW_ABSENT_COMPONENT
+        )
+        successor_proven = stable_neighbors and glow_absent and (
+            (state == "removed" and successor[0].get("supported_chest_skin") is None)
+            or (
+                state == "opened"
+                and successor[0].get("supported_chest_skin") in {"gold", "red"}
+                and source[0].get("threshold_label_proven") is True
+                and successor[0].get("threshold_label_proven") is False
+                and successor[0].get("replacement_label_proven") is True
+            )
+        )
     return bool(
         len(source) == len(successor) == 1
         and source[0].get("milestone_state") == "ready"
@@ -2575,9 +2638,7 @@ def daily_milestone_postcondition_verified(
             abs(a - b)
             for a, b in zip(source[0]["target_roi"], successor[0]["target_roi"])
         ) <= 2
-        and successor[0].get("milestone_state") == "claimed"
-        and successor[0].get("claimed_label_proven") is True
-        and successor[0].get("claimed_label_roi") is not None
+        and successor_proven
     )
 
 
@@ -2766,36 +2827,6 @@ def daily_claim_postcondition_verified(
             tolerance_seconds=RESET_DEADLINE_TOLERANCE_SECONDS,
         )
     ):
-        return False
-    before_seconds = before_evidence.get("reset_timer_seconds")
-    after_seconds = after_evidence.get("reset_timer_seconds")
-    if not isinstance(before_seconds, int) or not isinstance(after_seconds, int):
-        return False
-    tolerance = max(
-        0,
-        int(
-            after_evidence.get("reset_deadline_tolerance_seconds")
-            or before_evidence.get("reset_deadline_tolerance_seconds")
-            or RESET_DEADLINE_TOLERANCE_SECONDS
-        ),
-    )
-    # A countdown may stay on the same displayed second briefly, but it
-    # must never jump forward.  This explicitly rejects 00:00:02 ->
-    # 23:59:58 at rollover even when the successor remains otherwise
-    # plausible.
-    if after_seconds - before_seconds > tolerance:
-        return False
-    before_observed = before_evidence.get("reset_observed_utc")
-    after_observed = after_evidence.get("reset_observed_utc")
-    if not isinstance(before_observed, str) or not isinstance(after_observed, str):
-        return False
-    try:
-        before_utc = _coerce_wall_utc(before_observed)
-        after_utc = _coerce_wall_utc(after_observed)
-        elapsed = max(0.0, (after_utc - before_utc).total_seconds())
-    except (TypeError, ValueError):
-        return False
-    if abs((before_seconds - after_seconds) - elapsed) > tolerance + 1.0:
         return False
     if (
         after_evidence.get("claim_scan_complete") is not True
@@ -3461,25 +3492,6 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
         ready_chest_count if type(ready_chest_count) is int else None
     )
 
-    def has_complete_zero_control_scan(recognition: FrameRecognition) -> bool:
-        visual = dict(recognition.visual_evidence or {})
-        return bool(
-            recognition.recognized
-            and recognition.state == DAILY_SELECTED_STATE
-            and recognition.target_identity is None
-            and recognition.target_roi is None
-            and visual.get("selected_daily") is True
-            and visual.get("claim_scan_complete") is True
-            and visual.get("claim_scan_raw_gold_pixel_count") == 0
-            and visual.get("zero_claim_scan_proven") is True
-            and visual.get("recognized_claim_controls") == 0
-            and visual.get("available_claim_controls") == 0
-            and isinstance(visual.get("game_day_id"), str)
-            and visual["game_day_id"].strip()
-            and isinstance(visual.get("reset_deadline_identity"), str)
-            and visual["reset_deadline_identity"].strip()
-        )
-
     def has_five_static_chests(scan: Mapping[str, Any]) -> bool:
         chests = scan.get("milestones")
         keys = [
@@ -3499,7 +3511,16 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
             and len(set(keys)) == DAILY_MILESTONE_SLOT_COUNT
             and all(
                 isinstance(chest, Mapping)
-                and chest.get("milestone_state") in {"not_ready", "claimed"}
+                and (
+                    chest.get("milestone_state") in {"not_ready", "claimed", "opened"}
+                    or (
+                        chest.get("milestone_state") == "removed"
+                        and any(
+                            confirmed["milestone_key"] == chest.get("milestone_key")
+                            for confirmed in base["chests_collected"]
+                        )
+                    )
+                )
                 and chest.get("milestone_ready") is False
                 and chest.get("target_roi") is not None
                 for chest in chests
@@ -3520,19 +3541,17 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
             for chest in scan["milestones"]
             if chest["milestone_key"] not in ready_keys
         ]
-        if len(set(ready_keys)) != len(ready_keys) or any(
-            chest.get("milestone_state") != "claimed"
-            for chest in scan["milestones"]
-            if chest["milestone_key"] in ready_keys
-        ):
-            raise DailyRowClaimRecognitionError("collected chest successor is no longer proven")
+        if len(set(ready_keys)) != len(ready_keys) or not set(ready_keys) <= {
+            chest["milestone_key"] for chest in scan["milestones"]
+        }:
+            raise DailyRowClaimRecognitionError("collected chest keys do not match the current slots")
         return {
             **dict(scan),
             "status": "verified",
             "selected_daily": True,
             "reset_id": context.identity.reset_id,
             # These keys describe the pass's positively admitted ready sources;
-            # the retained terminal rows below show their current Claimed state.
+            # the retained terminal rows show their current non-ready states.
             "ready_chest_count": len(ready_keys),
             "ready_chest_keys": ready_keys,
             "remaining_ready_chest_count": 0,
@@ -3567,7 +3586,7 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
         FrameRecognition | None,
         str | None,
     ]:
-        """Back out only from a fresh, unchanged, complete zero-ready Daily scan."""
+        """Back out from fresh selected Daily; reward exhaustion is not transport authority."""
         source: dict[str, Any] = {}
         reference_day = str(
             dict(reference_recognition.visual_evidence or {}).get("game_day_id")
@@ -3586,17 +3605,15 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
                 recognition=current,
                 scan=current_scan,
             )
-            if not has_complete_zero_control_scan(current):
-                raise DailyRowClaimRecognitionError(
-                    "fresh selected Daily has no complete positive zero-Claim scan"
-                )
+            if not (
+                current.recognized
+                and current.state == DAILY_SELECTED_STATE
+                and dict(current.visual_evidence or {}).get("selected_daily") is True
+            ):
+                raise DailyRowClaimRecognitionError("Fresh selected Daily is not proven")
             if not same_daily_reset(reference_recognition, current):
                 raise DailyRowClaimRecognitionError(
                     "fresh selected Daily reset identity changed before Home return"
-                )
-            if not has_five_static_chests(current_scan):
-                raise DailyRowClaimRecognitionError(
-                    "fresh Daily chest scan is ready, unknown, or incomplete"
                 )
 
         home_capture, return_error = back_to_verified_home(
@@ -3627,35 +3644,18 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
             )
         if source_scan is not None and not has_five_static_chests(source_scan):
             accounting_now = context.accounting()
-            if (
-                source_recognition is not None
-                and has_complete_zero_control_scan(source_recognition)
-            ):
-                source_ready_count = source_scan.get("ready_chest_count")
-                if type(source_ready_count) is int and source_ready_count > 0:
-                    reason = (
-                        f"{source_ready_count} ready Daily milestone chest(es) remain "
-                        "at the fresh Home-return boundary; completion is deferred."
-                    )
-                else:
-                    reason = (
-                        "Fresh Daily chest scan contains unknown or unsupported slots; "
-                        "no chest input was sent and unsupported appearance is not "
-                        "treated as locked or opened."
-                    )
-                status = "evidence_required"
-            else:
-                reason = (
-                    "Fresh Daily zero-Claim and complete chest-state evidence changed "
-                    "before Home return."
-                )
-                status = "blocked" if no_work else "evidence_required"
+            terminal_ref = _frame_ref(home_capture, runtime.session) if home_capture else None
             result.update(
-                status=status,
-                reason=reason,
+                status="evidence_required",
+                reason="Daily chest work remains ready or unknown; a later observation is required.",
                 total_input_count=accounting_now.input_count,
                 accounting_verified=accounting_now.verified,
-                terminal_home_verified=False,
+                terminal_home_verified=home_capture is not None,
+                terminal_home_frame=(
+                    {"frame_path": terminal_ref["path"], "frame_sha256": terminal_ref["sha256"]}
+                    if terminal_ref else None
+                ),
+                native_session_directory=str(runtime.session),
                 no_work=False,
             )
             return result
@@ -3664,7 +3664,7 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
             result.update(
                 status="blocked" if no_work else "evidence_required",
                 reason=(
-                    "Complete zero-ready Daily evidence was not sufficient to prove "
+                    "Fresh selected Daily evidence was not sufficient to prove "
                     f"a clean Home return: {return_error or 'required evidence is missing'}"
                 ),
                 total_input_count=accounting_now.input_count,
@@ -3697,13 +3697,12 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
         if (
             not accounting_now.verified
             or source_recognition is None
-            or not has_complete_zero_control_scan(source_recognition)
         ):
             result.update(
                 status="blocked" if no_work else "evidence_required",
                 reason=(
-                    "Clean Home was recognized but native accounting or the complete "
-                    "zero-Claim source proof is unavailable."
+                    "Clean Home was recognized but native accounting or selected "
+                    "Daily source proof is unavailable."
                 ),
                 total_input_count=accounting_now.input_count,
                 accounting_verified=accounting_now.verified,
@@ -3728,7 +3727,7 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
                 if no_work
                 else (
                     "Current free Daily rewards were confirmed; all five milestone "
-                    "chests are now claimed or not ready, and clean Home was verified."
+                    "chests are now resolved or not ready, and clean Home was verified."
                 )
             ),
             total_input_count=accounting_now.input_count,
@@ -3799,12 +3798,6 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
         for _ in range(DAILY_MILESTONE_SLOT_COUNT):
             context.checkpoint()
             context.validate_identity()
-            if not has_complete_zero_control_scan(recognition):
-                result.update(
-                    status="evidence_required",
-                    reason="Current ordinary Claim batch is not positively clear; chest phase deferred.",
-                )
-                return result
             ready = [
                 row for row in scan.get("milestones", ())
                 if row.get("milestone_state") == "ready"
@@ -3816,8 +3809,7 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
             if result["total_action_count"] >= min(
                 context.max_actions if context.max_actions is not None else 6, 6,
             ):
-                result.update(status="blocked", reason="Finite Daily reward action budget exhausted.")
-                return result
+                break
             chest = ready[0]
             key = str(chest["milestone_key"])
             game_day = str(scan["game_day_id"])
@@ -3851,7 +3843,8 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
             ]
             if (
                 len(bound) != 1
-                or not has_complete_zero_control_scan(before_recognition)
+                or not before_recognition.recognized
+                or before_recognition.state != DAILY_SELECTED_STATE
                 or not same_daily_reset(recognition, before_recognition)
                 or before.captured_monotonic <= captured.captured_monotonic
                 or max(abs(a - b) for a, b in zip(
@@ -4054,7 +4047,10 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
                 "control_class": "MILESTONE_CHEST", "ready_state_proven": True,
                 "free_only": True, "cost_type": "none", "dispatch_count": 1,
                 "action_key": action_key, "successor_milestone_key": key,
-                "successor_state": "claimed",
+                "successor_state": next(
+                    row["milestone_state"] for row in post_scans[-1]["milestones"]
+                    if row["milestone_key"] == key
+                ),
                 "source_frame_sha256": before.sha256,
                 "successor_frame_sha256": post_frames[-1].sha256,
             })
@@ -4065,18 +4061,16 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
                 unclaimed_ready_chest_count=scan.get("ready_chest_count"),
             )
             result["observed_points"]["after"] = dict(recognition.visual_evidence or {}).get("points")
-        if has_complete_zero_control_scan(recognition) and has_five_static_chests(scan):
-            return close_static_daily(
-                result, recognition, no_work=result["committed_action_count"] == 0,
-            )
-        result.update(
-            status="evidence_required",
-            reason="Current five-slot chest scan is incomplete or still ready; no identical retry.",
+        return close_static_daily(
+            result, recognition, no_work=result["committed_action_count"] == 0,
         )
-        return result
 
     if proposal is None or not available_daily_claim_authorizeable(proposal):
-        if has_complete_zero_control_scan(proposal_recognition):
+        if (
+            proposal_recognition.recognized
+            and proposal_recognition.state == DAILY_SELECTED_STATE
+            and dict(proposal_recognition.visual_evidence or {}).get("selected_daily") is True
+        ):
             return claim_ready_chests(base, proposal_capture, proposal_recognition, milestone_scan)
         base["reason"] = proposal_recognition.reason or "Current free Daily claim context is ambiguous."
         return base

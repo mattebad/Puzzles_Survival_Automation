@@ -451,6 +451,57 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
             )
         )
 
+    def test_last_item_zero_after_keeps_pre_bound_identity_only_when_row_collapses(self):
+        # Known 1->0 defect: the consumed last card disappears, so the zero
+        # successor must come from the pre-Use binding plus an in-place collapse.
+        measured = {
+            "proven": True,
+            "source": "visual-horizontal-separators",
+            "bounds": (48, 440, 752, 600),
+            "horizontal_separators": (440, 600),
+        }
+        above = (("10%", 140, 320, 40, 28), ("Build", 186, 320, 60, 28))
+
+        def below(shift: int):
+            return (
+                ("2K", 100, 660 + shift, 30, 28),
+                ("Food", 136, 660 + shift, 50, 28),
+                ("Owned", 100, 710 + shift, 60, 28),
+                ("10350", 165, 710 + shift, 60, 28),
+            )
+
+        frame = _paint_selected_bag_category(_frame())
+        with patch.object(route, "_measure_resource_item_card", return_value=measured):
+            before = route.recognize_food_item_in_resources(
+                frame,
+                ocr=_ocr(*_bag_category_rows(), *above, *_item_rows(owned=1), *below(0)),
+            )
+        self.assertTrue(route.resource_item_authorizeable(before), before)
+        self.assertEqual(before.owned_quantity, 1)
+
+        collapsed = route.recognize_food_item_after_use(
+            frame, before=before, ocr=_ocr(*_bag_category_rows(), *above, *below(-169)),
+        )
+        self.assertTrue(collapsed.recognized, collapsed)
+        self.assertEqual(collapsed.state, route.LAST_ITEM_CONSUMED_STATE)
+        self.assertEqual(collapsed.target_identity, route.ITEM_TARGET_IDENTITY)
+        self.assertEqual((collapsed.owned_quantity, collapsed.inventory_quantity), (0, 0))
+        self.assertEqual(collapsed.visual_evidence["consumed_item_card_bounds"], before.target_roi)
+        self.assertNotIn("item_card", collapsed.visual_evidence)
+        self.assertTrue(route._resource_delta_verified(before, collapsed))
+
+        shifted_above = tuple((text, x, y - 169, w, h) for text, x, y, w, h in above)
+        for name, rows in (
+            ("list scrolled", (*shifted_above, *below(-169))),
+            ("card vanished without collapse", (*above, *below(0))),
+        ):
+            with self.subTest(name=name):
+                rejected = route.recognize_food_item_after_use(
+                    frame, before=before, ocr=_ocr(*_bag_category_rows(), *rows),
+                )
+                self.assertFalse(rejected.recognized)
+                self.assertFalse(route._resource_delta_verified(before, rejected))
+
     def test_unknown_source_stops_before_any_input(self):
         class Runtime:
             execute = True

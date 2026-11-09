@@ -303,7 +303,7 @@ def daily_rewards_next_due(
             result.get("native_status") != "evidence_required"
             or result.get("no_work") is not False
             or not isinstance(scan, Mapping)
-            or scan.get("status") != "observed"
+            or scan.get("status") not in {"observed", "partial_unknown"}
             or not _reset_deadline_identities_match(
                 expected.reset_id, scan.get("game_day_id"), tolerance_seconds=2,
             )
@@ -311,14 +311,15 @@ def daily_rewards_next_due(
             or type(scan.get("slot_count")) is not int
             or scan.get("slot_count") != 5
             or type(scan.get("observed_chest_count")) is not int
-            or scan.get("observed_chest_count") != 5
+            or not 0 <= scan.get("observed_chest_count") <= 5
             or not isinstance(rows, (list, tuple))
             or len(rows) != 5
         ):
             raise ValueError("Daily rewards partial lacks a complete known current chest scan")
         observed_keys: set[str] = set()
-        claimed_keys: set[str] = set()
+        nonready_keys: set[str] = set()
         ready_count = 0
+        unknown_count = 0
         for row in rows:
             key = row.get("milestone_key") if isinstance(row, Mapping) else None
             state = row.get("milestone_state") if isinstance(row, Mapping) else None
@@ -326,19 +327,28 @@ def daily_rewards_next_due(
                 not isinstance(key, str)
                 or not key.strip()
                 or key in observed_keys
-                or state not in {"ready", "not_ready", "claimed"}
-                or row.get("milestone_ready") is not (state == "ready")
+                or state not in {"ready", "not_ready", "claimed", "opened", "removed", "unknown"}
+                or row.get("milestone_ready") is not (
+                    None if state == "unknown" else state == "ready"
+                )
                 or row.get("target_identity") != ACTIVITY_MILESTONE_TARGET
                 or row.get("target_roi") is None
             ):
                 raise ValueError("Daily rewards partial contains an unknown or duplicate chest")
             observed_keys.add(key)
             ready_count += int(state == "ready")
-            if state == "claimed":
-                claimed_keys.add(key)
+            unknown_count += int(state == "unknown" or (state == "removed" and key not in chest_keys))
+            if state != "ready":
+                nonready_keys.add(key)
         if (
-            not chest_keys <= claimed_keys
-            or ready_count == 0
+            not chest_keys <= nonready_keys
+            or ready_count + unknown_count == 0
+            or scan.get("observed_chest_count") != sum(
+                row["milestone_state"] != "unknown" for row in rows
+            )
+            or scan.get("status") != (
+                "observed" if scan.get("observed_chest_count") == 5 else "partial_unknown"
+            )
             or type(scan.get("ready_chest_count")) is not int
             or scan.get("ready_chest_count") != ready_count
             or type(result.get("unclaimed_ready_chest_count")) is not int

@@ -71,6 +71,11 @@ RESOURCE_LIST_SWIPE_TARGET_IDENTITY = "daily-resource-item:resource-list-upward-
 HOME_TARGET_IDENTITY = "daily-resource-item:home"
 RESOURCE_ITEM_STATE = "RESOURCES_1K_FOOD_READY"
 RESOURCE_SUCCESSOR_STATE = "RESOURCES_1K_FOOD_USED"
+# Zero-after successor of a pre-bound last owned 1K Food card.  The consumed
+# card is not visible, so its identity comes from the immediate-before frame.
+LAST_ITEM_CONSUMED_STATE = "RESOURCE_ITEM_LAST_CONSUMED"
+LAST_ITEM_ANCHOR_TOLERANCE_PX = 8
+LAST_ITEM_PITCH_SLACK_PX = 40
 HOME_SUCCESSOR_STATE = "HOME_VERIFIED"
 RESOURCE_LIST_LANE_WIDTH = 72
 RESOURCE_LIST_TOP_MARGIN = 12
@@ -1237,6 +1242,12 @@ def recognize_food_item(
             or explicit_quantity == 1,
         )
     recognized = owned >= 1 and quantity == 1
+    selected_tab = _selected_resource_tab(tokens)
+    list_context = _resource_list_context(
+        tokens,
+        content=_resource_content_roi(selected_tab) if selected_tab is not None else None,
+        card_bounds=panel_bounds,
+    )
     return ResourceItemRecognition(
         RESOURCE_ITEM_STATE if recognized else "UNKNOWN",
         recognized,
@@ -1259,6 +1270,7 @@ def recognize_food_item(
             "bulk_candidates": bulk_boxes,
             "bulk_disjoint_from_use": not bulk_overlaps_use,
             "card_ownership_proven": True,
+            "list_context": list_context,
             "quantity_source": (
                 "explicit"
                 if explicit_quantity is not None
@@ -1308,6 +1320,220 @@ def recognize_food_item_in_resources(
                 "resources_context": resources.target_roi,
             },
         }
+    )
+
+
+def _resource_list_context(
+    tokens: Sequence[OCRToken],
+    *,
+    content: NativeBox | None,
+    card_bounds: NativeBox,
+) -> dict[str, Any] | None:
+    """Retain the visible list rows around the bound card for successor attribution."""
+
+    if content is None or not _valid_roi(content) or not _valid_roi(card_bounds):
+        return None
+    listed = tuple(
+        token
+        for token in tokens
+        if _box_inside(token.roi, content) and token.text not in {"resource", "speedup"}
+    )
+    return {
+        "content_roi": tuple(content),
+        "card_bounds": tuple(card_bounds),
+        "above": tuple(
+            (token.text, token.roi) for token in listed if token.roi[3] <= card_bounds[1]
+        ),
+        "below": tuple(
+            (token.text, token.roi) for token in listed if token.roi[1] >= card_bounds[3]
+        ),
+    }
+
+
+def _last_item_list_attribution(
+    context: Mapping[str, Any],
+    after_tokens: Sequence[OCRToken],
+    after_content: NativeBox,
+) -> dict[str, Any]:
+    """Prove that exactly the bound card's row collapsed out of an unmoved list.
+
+    Removing one card closes its gap: rows on one side keep their positions
+    while rows on the other side move by about one card pitch toward the
+    removed card.  A scroll moves both sides; leaving the page loses the
+    selected Resources context.  Either case stays unattributed.
+    """
+
+    tolerance = LAST_ITEM_ANCHOR_TOLERANCE_PX
+    card = tuple(context.get("card_bounds") or ())
+    content = tuple(context.get("content_roi") or ())
+    above = tuple(context.get("above") or ())
+    below = tuple(context.get("below") or ())
+    # Repeated labels (Use/Owned/Food) cannot distinguish a row collapse from
+    # a one-row scroll. Attribute only uniquely identified neighboring anchors.
+    anchor_counts: dict[str, int] = {}
+    for text, _roi in (*above, *below):
+        anchor_counts[text] = anchor_counts.get(text, 0) + 1
+    above = tuple(anchor for anchor in above if anchor_counts[anchor[0]] == 1)
+    below = tuple(anchor for anchor in below if anchor_counts[anchor[0]] == 1)
+    facts: dict[str, Any] = {
+        "proven": False,
+        "variant": None,
+        "shift_px": None,
+        "above_anchor_count": len(above),
+        "below_anchor_count": len(below),
+    }
+    if not (_valid_roi(card) and _valid_roi(content)) or max(
+        abs(int(a) - int(b)) for a, b in zip(content, after_content)
+    ) > tolerance:
+        facts["reason"] = "resources-list-viewport-changed"
+        return facts
+    height = card[3] - card[1]
+    after_tokens = tuple(
+        token for token in after_tokens if _box_inside(token.roi, after_content)
+    )
+
+    def same_column(text: str, roi: Sequence[int], token: OCRToken) -> bool:
+        return (
+            token.text == text
+            and abs(token.roi[0] - int(roi[0])) <= tolerance
+            and abs(token.roi[2] - int(roi[2])) <= tolerance
+        )
+
+    def matched(group: Sequence[tuple[str, Sequence[int]]], shift: int) -> int:
+        return sum(
+            1
+            for text, roi in group
+            if any(
+                same_column(text, roi, token)
+                and abs((token.roi[1] - int(roi[1])) - shift) <= tolerance
+                for token in after_tokens
+            )
+        )
+
+    def collapse(
+        moving: Sequence[tuple[str, Sequence[int]]],
+        static: Sequence[tuple[str, Sequence[int]]],
+        direction: int,
+    ) -> tuple[int, int, int] | None:
+        if len(moving) < 2 or not static:
+            return None
+        candidates = {
+            token.roi[1] - int(roi[1])
+            for text, roi in moving
+            for token in after_tokens
+            if same_column(text, roi, token)
+            and height - tolerance
+            <= direction * (token.roi[1] - int(roi[1]))
+            <= height + LAST_ITEM_PITCH_SLACK_PX
+        }
+        if not candidates:
+            return None
+        shift = max(sorted(candidates), key=lambda value: matched(moving, value))
+        moving_matched = matched(moving, shift)
+        static_matched = matched(static, 0)
+        if moving_matched < max(2, (3 * len(moving) + 4) // 5):
+            return None
+        if static and static_matched < max(1, (3 * len(static) + 4) // 5):
+            return None
+        return shift, moving_matched, static_matched
+
+    for variant, moving, static, direction in (
+        ("rows-below-closed-upward", below, above, -1),
+        ("rows-above-closed-downward", above, below, 1),
+    ):
+        outcome = collapse(moving, static, direction)
+        if outcome is None:
+            continue
+        shift, moving_matched, static_matched = outcome
+        facts.update(
+            proven=True,
+            variant=variant,
+            shift_px=shift,
+            card_height_px=height,
+            moving_anchor_matches=moving_matched,
+            static_anchor_matches=static_matched,
+        )
+        return facts
+    facts["reason"] = "bound-card-row-collapse-not-observed"
+    return facts
+
+
+def recognize_food_item_after_use(
+    frame: np.ndarray,
+    *,
+    before: ResourceItemRecognition,
+    ocr: Callable[[np.ndarray], Mapping[str, Sequence[object]]] | None = None,
+) -> ResourceItemRecognition:
+    """Recognize the Use successor of the exact pre-bound 1K Food card.
+
+    A still-visible card is read normally.  When the pre-Use card owned exactly
+    one item, the zero-after successor keeps the consumed card's identity from
+    ``before`` instead of inventing a visible card, and is accepted only when
+    the selected Resources list shows that card's row collapsed in place.
+    """
+
+    engine = ocr or _default_ocr
+    if not resource_item_authorizeable(before):
+        return ResourceItemRecognition(
+            RESOURCE_ITEM_STATE,
+            False,
+            item_name="1K Food",
+            reason="pre-use-1k-food-binding-not-proven",
+        )
+    after = recognize_food_item_in_resources(frame, ocr=engine)
+    if before.owned_quantity != 1 or after.reason != "exact-1k-food-row-not-proven":
+        return after
+    after_visual = dict(after.visual_evidence or {})
+    before_visual = dict(before.visual_evidence or {})
+    context = before_visual.get("list_context")
+    tokens = _ocr_tokens(frame, engine)
+    selected_tab = _selected_resource_tab(tokens)
+    after_content = (
+        _resource_content_roi(selected_tab) if selected_tab is not None else None
+    )
+    food_line_count = sum(1 for line in _line_tokens(tokens) if _food_line(line))
+    attribution = (
+        _last_item_list_attribution(context, tokens, after_content)
+        if isinstance(context, Mapping)
+        and after_content is not None
+        and food_line_count == 0
+        else {
+            "proven": False,
+            "reason": (
+                "1k-food-row-still-ambiguous"
+                if food_line_count
+                else "pre-use-list-context-missing"
+            ),
+        }
+    )
+    if attribution.get("proven") is not True:
+        return ResourceItemRecognition(
+            RESOURCE_ITEM_STATE,
+            False,
+            item_name="1K Food",
+            reason="last-item-consumption-not-attributable",
+            visual_evidence={
+                "resources_context": after_visual.get("resources_context"),
+                "list_attribution": attribution,
+            },
+        )
+    return ResourceItemRecognition(
+        LAST_ITEM_CONSUMED_STATE,
+        True,
+        target_identity=ITEM_TARGET_IDENTITY,
+        item_name="1K Food",
+        owned_quantity=0,
+        quantity=1,
+        inventory_quantity=0,
+        visual_evidence={
+            "last_item_consumed": True,
+            "consumed_item_card": dict(before_visual["item_card"]),
+            "consumed_item_card_bounds": before.target_roi,
+            "resources_context": after_visual.get("resources_context"),
+            "list_attribution": attribution,
+        },
+        quantity_source=before.quantity_source,
+        single_use_semantics_proven=True,
     )
 
 
@@ -2278,18 +2504,31 @@ def _run_route(
         return item.use_roi if resource_item_authorizeable(item) else None
 
     def recognize_use_successor(frame: np.ndarray) -> Any:
-        item_after = recognize_food_item_in_resources(frame, ocr=ocr)
-        use_before_holder["after"] = item_after
         before = use_before_holder.get("item")
+        item_after = (
+            recognize_food_item_after_use(frame, before=before, ocr=ocr)
+            if isinstance(before, ResourceItemRecognition)
+            else ResourceItemRecognition(
+                RESOURCE_ITEM_STATE,
+                False,
+                item_name="1K Food",
+                reason="pre-use-1k-food-binding-not-proven",
+            )
+        )
+        use_before_holder["after"] = item_after
+        verified = bool(
+            isinstance(before, ResourceItemRecognition)
+            and _resource_delta_verified(before, item_after)
+        )
         return ResourceItemRecognition(
             RESOURCE_SUCCESSOR_STATE,
-            isinstance(before, ResourceItemRecognition)
-            and _resource_delta_verified(before, item_after),
+            verified,
             item_name="1K Food",
             owned_quantity=item_after.owned_quantity,
             quantity=item_after.quantity,
             inventory_quantity=item_after.inventory_quantity,
-            reason="resource_delta_not_proven",
+            visual_evidence=item_after.visual_evidence,
+            reason=None if verified else "resource_delta_not_proven",
         )
 
     _, use_before, use_post, use_successor = _resource_use_action(
@@ -2444,6 +2683,7 @@ def run_daily_resource_item(
 __all__ = [
     "FLOW_ID",
     "ITEM_USE_ACTION_KEY",
+    "LAST_ITEM_CONSUMED_STATE",
     "MAX_RESOURCE_LIST_SWIPES",
     "MAX_ROUTE_INPUTS",
     "ResourceListSwipeBinding",
@@ -2453,6 +2693,7 @@ __all__ = [
     "recognize_resources_screen",
     "recognize_food_item",
     "recognize_food_item_in_resources",
+    "recognize_food_item_after_use",
     "resource_list_content_signature",
     "resource_list_progressed",
     "resource_item_authorizeable",

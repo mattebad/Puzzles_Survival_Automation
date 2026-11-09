@@ -185,6 +185,14 @@ class AvailableDailyClaimContractTests(unittest.TestCase):
                 row_disappeared=True,
             )
         )
+        # The canonical reset binding is authoritative; independently retained
+        # countdown OCR must not become a second rollover decision.
+        self.assertTrue(
+            available_daily_claim_postcondition_verified(
+                before,
+                replace(row_changed, reset_timer_seconds=None, reset_observed_utc=None),
+            )
+        )
 
     def test_generalized_contract_does_not_require_objective_catalog_alias(self):
         observation = self.bluestacks_observation(

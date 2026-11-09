@@ -1112,8 +1112,10 @@ class DailyClaimRecognitionTests(unittest.TestCase):
             observed_utc="2026-08-16T00:00:00Z",
         )
 
-        self.assertFalse(recognition.recognized)
-        self.assertIn("attached currency", recognition.reason or "")
+        self.assertTrue(recognition.recognized)
+        self.assertEqual(recognition.state, daily.DAILY_SELECTED_STATE)
+        self.assertIsNone(recognition.target_roi)
+        self.assertFalse(recognition.visual_evidence["claim_ready"])
 
     def test_daily_claim_rejects_main_missing_context_and_overlay_states(self):
         cases = (
@@ -1154,7 +1156,9 @@ class DailyClaimRecognitionTests(unittest.TestCase):
             frame,
             observed_utc="2026-08-16T00:00:00Z",
         )
-        self.assertFalse(recognition.recognized)
+        self.assertTrue(recognition.recognized)
+        self.assertIsNone(recognition.target_roi)
+        self.assertFalse(recognition.visual_evidence["claim_ready"])
 
     def test_daily_claim_rejects_numeric_only_and_icon_only_attached_costs(self):
         numeric_frame, numeric_ocr, _tokens = self._claim_fixture(
@@ -1172,7 +1176,9 @@ class DailyClaimRecognitionTests(unittest.TestCase):
                     frame,
                     observed_utc="2026-08-16T00:00:00Z",
                 )
-                self.assertFalse(recognition.recognized)
+                self.assertTrue(recognition.recognized)
+                self.assertIsNone(recognition.target_roi)
+                self.assertFalse(recognition.visual_evidence["claim_ready"])
 
     def test_reset_deadline_is_bound_from_injected_wall_utc_and_rollover_rejects(self):
         before_frame, before_ocr, _tokens = self._claim_fixture(
@@ -1398,6 +1404,38 @@ class DailyMilestoneReadinessTests(unittest.TestCase):
             before, after, "daily-milestone-slot-2",
         ))
 
+    def test_appearance_successors_require_the_bound_slot_and_stable_neighbors(self):
+        (before, after), (_, recognition), (_, image) = self._observed_chest_transition()
+        # Counterfactuals derived from retained frames, not live acceptance.
+        opened_recognition = replace(
+            recognition,
+            tokens=tuple(
+                {**token, "text": "opened"} if token["text"] == "claimed" else token
+                for token in recognition.tokens
+            ),
+        )
+        opened = daily.recognize_daily_milestone_chests(
+            image, opened_recognition, source_frame_sha256="c" * 64,
+        )
+        self.assertTrue(daily.daily_milestone_postcondition_verified(
+            before, opened, "daily-milestone-slot-1",
+        ))
+        removed_image = image.copy()
+        x0, y0, x1, y1 = after["milestones"][0]["target_roi"]
+        removed_image[y0:y1, x0:x1] = 0
+        removed = daily.recognize_daily_milestone_chests(
+            removed_image, recognition, source_frame_sha256="d" * 64,
+        )
+        self.assertTrue(daily.daily_milestone_postcondition_verified(
+            before, removed, "daily-milestone-slot-1",
+        ))
+        for scan in (opened, removed):
+            moved = dict(scan["milestones"][1], milestone_state="ready", milestone_ready=True)
+            changed = {**scan, "milestones": (scan["milestones"][0], moved, *scan["milestones"][2:])}
+            self.assertFalse(daily.daily_milestone_postcondition_verified(
+                before, changed, "daily-milestone-slot-1",
+            ))
+
     def test_claimed_label_must_be_unambiguous_current_and_bound_to_the_same_slot(self):
         (before, after), (_, recognition), (_, image) = self._observed_chest_transition()
         claimed = next(token for token in recognition.tokens if token["text"] == "claimed")
@@ -1500,6 +1538,8 @@ class DailyMilestoneReadinessTests(unittest.TestCase):
             self.assertEqual(runtime.claim_attempts, 0)
             self.assertEqual(limited["committed_action_count"], 0)
             self.assertNotEqual(limited["status"], "completed")
+            self.assertTrue(limited["terminal_home_verified"])
+            self.assertEqual(limited["unclaimed_ready_chest_count"], 1)
             complete, runtime, _ = self._run_fake_static_zero_claim_route(
                 root / "already-claimed", return_home=True, start_claimed=True,
                 wall_utc=1794039740.0,
@@ -1508,6 +1548,17 @@ class DailyMilestoneReadinessTests(unittest.TestCase):
             self.assertTrue(complete["no_work"])
             self.assertEqual(runtime.claim_attempts, 0)
             self.assertEqual(complete["committed_action_count"], 0)
+
+    def test_residual_claim_column_does_not_block_ready_chest_or_safe_home(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result, runtime, _ = self._run_fake_static_zero_claim_route(
+                Path(tmp), return_home=True, ready_count=1, residual_claim_pixels=True,
+            )
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(runtime.aggregate_attempts, 0)
+        self.assertEqual(runtime.claim_attempts, 1)
+        self.assertTrue(result["terminal_home_verified"])
+        self.assertEqual(result["committed_action_count"], 1)
 
     def _run_fake_static_zero_claim_route(
         self,
@@ -1522,6 +1573,7 @@ class DailyMilestoneReadinessTests(unittest.TestCase):
         reset_id: str = "reset",
         wall_utc: float = 1794039692.0,
         aggregate_ready: bool = False,
+        residual_claim_pixels: bool = False,
     ) -> tuple[dict[str, object], object, object]:
         _payload, native_image, native_recognition = self._native_daily_frame()
         native_scan = daily.recognize_daily_milestone_chests(
@@ -1579,6 +1631,10 @@ class DailyMilestoneReadinessTests(unittest.TestCase):
             ))
             assert fake_image is not None
 
+        if residual_claim_pixels:
+            # A rejected tiny gold fragment is not an aggregate Claim, and
+            # cannot revoke the separately bound chest or safe Home transport.
+            cv2.rectangle(fake_image, (650, 700), (654, 704), (0, 180, 255), -1)
         plain_daily_image = fake_image.copy()
         if aggregate_ready:
             cv2.rectangle(fake_image, (574, 444), (739, 503), (0, 180, 255), -1)

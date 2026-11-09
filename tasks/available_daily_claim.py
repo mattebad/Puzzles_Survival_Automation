@@ -299,36 +299,6 @@ def available_daily_claim_postcondition_verified(
             )
         ):
             return False
-        tolerance = max(
-            0,
-            int(
-                after.reset_deadline_tolerance_seconds
-                if after.reset_deadline_tolerance_seconds is not None
-                else before.reset_deadline_tolerance_seconds or 0
-            ),
-        )
-        if (
-            before.reset_timer_seconds is None
-            or after.reset_timer_seconds is None
-            or after.reset_timer_seconds - before.reset_timer_seconds > tolerance
-        ):
-            return False
-        if before.reset_observed_utc and after.reset_observed_utc:
-            try:
-                from datetime import datetime
-
-                before_utc = datetime.fromisoformat(
-                    before.reset_observed_utc.replace("Z", "+00:00")
-                )
-                after_utc = datetime.fromisoformat(
-                    after.reset_observed_utc.replace("Z", "+00:00")
-                )
-                elapsed = max(0.0, (after_utc - before_utc).total_seconds())
-                countdown_delta = before.reset_timer_seconds - after.reset_timer_seconds
-                if abs(countdown_delta - elapsed) > tolerance + 1.0:
-                    return False
-            except (TypeError, ValueError):
-                return False
     return bool(
         after.available_claim_controls == 0
         if after.available_claim_controls is not None
