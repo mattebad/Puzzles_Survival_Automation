@@ -187,14 +187,20 @@ Existing layout exceptions:
 * **Batch C Alliance Donation, Alliance Shop, and Daily Shops**: canonical-service-only routes with
   fixed native bindings; they add no legacy operator registry entries. `REGISTERED` describes code
   composition only; production posture and SQLite runtime controls remain disabled, and current
-  native acceptance remains `evidence_required`. Donation is capped at ten semantically confirmed
-  actions per reset; attempted transport calls remain separate from confirmed actions, and an
-  unknown effect blocks an identical retry. Alliance Shop selects one affordable allowlisted Weekly
-  offer or the exact one-star Other fallback, never both. Daily Shops handles the exact three-star
-  Ruins Chip and Rare Earth Module tabs independently, at most one purchase action per tab, capped
-  by current stock and affordability. Preserve one tab's confirmed purchase across a later pulse.
-  No current donation quota or purchase-effect live acceptance is claimed; the single donation information probe is not route
-  acceptance.
+  native acceptance remains branch/source-specific. Donation is capped at ten confirmed individual
+  HOT-tech actions per reset. Read the ordinary numeric cost and affordable white/red state,
+  not a full resource census; attempts establish count, allowing an unchanged count only with
+  positively observed thirty-minute regeneration. Ranking points and bonuses are not counts.
+  Available attempts may be used consecutively; true UNKNOWN blocks identical retry.
+  Alliance Shop buys one affordable exact allowlisted Weekly offer or the exact Other one-star
+  Gear fallback, never both. A red preferred-price shortage permits fallback without Owned
+  evidence. Exact item x1 purchase acknowledgement proves the effect before terminal Home.
+  Daily Shops evaluates both approved three-star tabs in one visit, using min(stock, affordability)
+  and fresh numeric quantity/total before inner Buy. Exact item xN acknowledgement plus stock
+  decrease confirms a tab; Owned and wallet arithmetic are not effect gates. Confirmed prefixes
+  survive a blocked/unavailable sibling tab as deferred progress. Historic recovered Bioenhance
+  completion is retained without another Buy; revised/fallback and Daily Shop purchase branches
+  remain evidence_required, and the single donation investigation is not quota acceptance.
   Donation entry recognizes the centered Alliance title separately from Back/border art and
   isolates adjacent Alliance Tech words from a shared multi-column OCR line. Known-context
   failure recovery rebinds Back against a fresh surface; an unknown or changed source gets
@@ -212,8 +218,8 @@ Existing layout exceptions:
   Current offer fields are isolated against measured Buy controls; price OCR excludes the
   matched currency artwork and keeps the original currency-match threshold. Inventory
   scrolling avoids Buy controls, and end-of-list evidence excludes the ticking header.
-  Unresolved ownership, price, stock or currency remains incomplete, not preferred-offer
-  absence or fallback authority.
+  Unknown Owned evidence does not block an otherwise exact affordable offer or red-shortage
+  fallback evaluation; unknown required price, stock or currency remains incomplete.
   Quantity dialogs bind the exact allowlisted title, measured selected quantity and
   numeric total independently; the Total coin must match the fresh offer-frame coin
   at the existing threshold, never the blurred modal background. A positively identified
@@ -240,7 +246,8 @@ Existing layout exceptions:
   not incidental item-description OCR. A clipped Rare Earth label permits one bounded
   selector reveal, then a fresh exact-label binding; unknown selection or no progress
   authorizes no guessed tab tap. Current native Shop pixels prove these recognition
-  guards offline, not purchase effects; missing Owned evidence still blocks buying.
+  guards offline, not purchase effects; no Owned baseline is required. The Rare Earth selected
+  successor and both actual purchase acknowledgement/stock successors remain evidence_required.
 
 * **Batch D Nano Material Production and Nanoweapon**: canonical-service-only routes with fixed
   native bindings and no operator rows. Nano Material Production uses a non-reset-scoped timer

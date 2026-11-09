@@ -208,17 +208,21 @@ remaining goal; a positively successful batch with unreadable count is retained 
 without fabricated completion or UNKNOWN. A genuinely ambiguous effect remains fenced against
 identical retry. Finished-route live acceptance remains `evidence_required`.
 
-Donations count actual successful HOT-tech donations, not ranking points. Alliance Shop requires
-one affordable allowlisted Weekly offer or the exact one-star Other fallback, quantity one total.
-Daily Shops bounds each approved three-star Chip/Module tab purchase by observed stock and
-affordability, with paired item/currency effects. No purchase-effect native acceptance is claimed.
-Available HOT donation attempts remain usable while the recharge countdown changes. Shop results
-preserve known confirmed progress without converting it to UNKNOWN or permitting duplicate spend.
-Daily Shops stays in one visit across both tabs and returns Home once after evaluating both.
-Each inner Buy requires freshly paired currency and item-ownership evidence plus numeric
-quantity/total verification. Missing item-effect evidence defers that tab before Buy while the
-other tab remains independently eligible. Real-journal replay proves confirmed purchases survive
-restart without another spend; native purchase-effect acceptance remains `evidence_required`.
+Donations count actual ordinary HOT-tech attempts toward ten per reset, not ranking points or
+bonus rewards. Read current numeric ordinary cost and white affordability/red shortage, keeping
+the premium gem control excluded; no all-HUD resource census or exact wallet debit is required.
+Stored attempts can be spent consecutively; an unchanged count requires positively observed
+thirty-minute regeneration, not guessed credit. UNKNOWN blocks identical retry.
+Alliance Shop buys one affordable allowlisted Weekly offer or exact Other one-star Gear fallback,
+quantity one total per reset. Red shortage on a preferred offer permits fallback without Owned
+evidence. Exact item x1 acknowledgement confirms the effect before Home return; no Owned/stock/
+wallet triple is required. Historical recovered Bioenhance receipts still suppress duplicate Buy.
+Daily Shops handles both approved three-star Chip/Module tabs in one visit, bounded by current
+stock and affordability. Re-read numeric quantity/total before inner Buy, then require exact item
+xN acknowledgement plus stock decrease on that tab, not Owned or wallet-delta arithmetic.
+A confirmed or already-confirmed tab with a blocked/unavailable sibling defers with its prefix
+preserved, not total failure or UNKNOWN. Revised purchase successors and unobserved branches
+remain evidence_required; historical acceptance is not blanket acceptance or runtime enablement.
 
 
 Batch D adds canonical-only Nano Material Production and Nanoweapon; no operator rows are added,
