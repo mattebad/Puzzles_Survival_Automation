@@ -10,11 +10,11 @@ Current owner direction and planning live in [tracker #53](https://github.com/ma
   SHA-256 `61bdd23c6740a54b28931ab4ccf3b0d80dd440bb203fdfb8ba1725c18059725b`.
   Its 261 screenshots/accounting document manual gameplay, not native acceptance.
 - Fresh correction branch: `fix/manual-walkthrough-corrections-20261109` in sibling
-  `Puzzle_Survival_walkthrough_corrections_20261109`. Original unrelated changes,
-  canonical state and raw evidence are not modified.
-- Read-only current-state inspection found the service disabled, scheduler ineligible,
-  all 24 flows disabled and no runtime-input lock holder. No live input was issued.
-  At 06:21 UTC the static reset was still game-day-2026-11-09, ending November 10 00:00 UTC.
+  `Puzzle_Survival_walkthrough_corrections_20261109`. Original unrelated changes and
+  raw evidence are preserved; authorized native results update Original canonical state.
+- Latest bounded native visits restored service disabled, scheduler ineligible and
+  all 24 flows disabled. The observed reset remains game-day-2026-11-09,
+  ending November 10 00:00 UTC.
 - Completed manual effects below must not be repeated to manufacture receipts:
 
 | Ticket | Actual November 9 effect |
@@ -44,11 +44,41 @@ Current owner direction and planning live in [tracker #53](https://github.com/ma
   allowlisting/current quote does not supply an independent finite operator spending approval.
 - No unrecorded manual effects have been converted into canonical action receipts or counters.
   Inspected supported reconciliation APIs handle existing recorded actions, not this unrecorded
-  manual portfolio. Consequential same-reset native acceptance remains blocked on legitimate
-  reconciliation; do not fabricate intents, clear counters or replay completed effects.
+  manual portfolio. Already-completed effects remain excluded this reset; this does
+  not block fresh distinct Help requests or Daily reward batches/chests.
+  Do not fabricate intents, clear counters or replay completed effects.
 - Unknown-cost future talent switches, Economy Apply, Farm premium branch, exact training boxes
   and continuous completion/restart remain evidence gaps. Historical Training approval is not
   standing Reset authority. Controls stay disabled; manual proof and native acceptance remain distinct.
+
+### Canonical live continuation (2026-11-09)
+
+- Current explicit owner authorization was recorded under Original
+  `.local-captures/canonical-corrections-live-20261109T073949341591Z/`.
+  Corrected source `35805a3` uses Original canonical state from the linked worktree
+  and supports bounded `serve --once --max-duration-seconds 180`.
+- **#54 passed:** `DAILY_REWARDS_PASS_VERIFIED`; one fresh aggregate Claim,
+  points 35→65, then one newly glowing 60-point chest with same-slot Claimed proof.
+  All five slots were reobserved: slots 1/2 claimed, 3/4/5 not ready.
+  Four total inputs, two confirmed reward actions, verified terminal Home.
+  Source/before/transport/after/semantic/Home records are in `daily-rewards/`;
+  `daily-rewards-cli.stdout.jsonl` retains the actual canonical result.
+  The earlier manual 30-point chest and batches were not repeated.
+- **#56 empty path verified, consuming acceptance still evidence_required:**
+  canonical Home→Alliance→Help→Speedup Help recognized the exact no-requests message.
+  Six navigation inputs, zero Help calls, zero credited requests, verified Home.
+  `help-fixed-identity/` and its CLI output retain the actual deferred result.
+  Next scenario is a genuinely fresh ready request batch, not the cleared manual batch.
+- The first Help invocation used placeholder account/server labels and was rejected
+  before gameplay input. Corrected labels come from `resource_fixed_runtime_binding()`.
+  The existing CAS-guarded `unblock_flow` removed only that corrected preflight block;
+  its failed attempt and failure count were preserved. No retry budget was reset.
+- The twelve retained unresolved Core rows are non-consequential zero-cost navigation.
+  Existing `SafetyStore.has_action_block()` excludes them; there is no consequential
+  unresolved action block. Leave those historical rows unchanged.
+- `final-canonical-service-status.json` proves service OFF, scheduler ineligible,
+  all 24 controls OFF. No merge, deployment or permanent enablement occurred.
+  Other manual effects above are not promoted to canonical acceptance by these visits.
 
 ### Offline verification and limits
 

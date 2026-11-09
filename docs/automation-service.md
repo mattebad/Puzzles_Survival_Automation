@@ -152,11 +152,26 @@ BlueStacks runtime constants and the fixed-slot binding derivation live in
 `tests/test_architecture_imports.py` enforces zero `automation_service -> scripts.pnsctl` imports
 and ratchets the remaining `automation_service -> scripts` module edges.
 
-The normal Campaign launch shape is:
+The normal Campaign launch shape in PowerShell derives the actual fixed-slot labels;
+`primary-account` / `primary-server` are not valid substitutes for that binding:
 
-```text
-python scripts/pnsctl.py automation-service --mode supervised --adapter bluestacks --state-path .local-orchestrator/bot-state.sqlite3 serve --live --flow campaign --campaign-stage 1-15-9 --campaign-cadence-seconds 300 --adb "C:\Program Files\BlueStacks_nxt\HD-Adb.exe" --serial emulator-5554 --account-id primary-account --server-id primary-server --output-directory .local-captures/automation-service-live
+```powershell
+$binding = python -B -c "import json; from tasks.runtime_identity import resource_fixed_runtime_binding; print(json.dumps(resource_fixed_runtime_binding().as_dict()))" | ConvertFrom-Json
+python scripts/pnsctl.py automation-service --mode supervised --adapter bluestacks serve --live --flow campaign --campaign-stage 1-15-9 --campaign-cadence-seconds 300 --adb "C:\Program Files\BlueStacks_nxt\HD-Adb.exe" --serial emulator-5554 --account-id $binding.account_id --server-id $binding.server_id --output-directory .local-captures/automation-service-live
 ```
+
+For one supervised route pass, select one `--flow` and add
+`--once --max-duration-seconds 180`. `--once` stops after the first completed,
+deferred or blocked report; the duration must be finite, positive and at most
+600 seconds. The deadline requests cooperative shutdown through the existing
+stop event, not a process kill. Neither option enables controls, rearms failures
+or retries an uncertain action.
+
+In a validated linked Git worktree, default service, Core action and runtime-input-lock
+database paths resolve to the owning checkout, while imports/assets remain in the
+selected worktree. Malformed worktree metadata fails closed. Do not supply a new
+worktree-local `--state-path` for live execution: it would select a different service
+ledger. Explicit state paths remain supported for isolated offline work.
 
 Repeat `--flow` for other named routes; the README gives the complete 23-route command. Argument order does not
 choose scheduler order; due eligibility and existing controls do. The disabled-gates canonical CLI
