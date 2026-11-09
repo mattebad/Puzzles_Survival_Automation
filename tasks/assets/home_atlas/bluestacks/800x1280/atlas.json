@@ -4337,7 +4337,50 @@
         ]
       ],
       "viewport_id": "viewport-030"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-031-night-mystery-shop.png",
+      "loop_closure_residual_px": 0.0,
+      "overlap_confidence": 0.660905392240148,
+      "polygon": [
+        [263.37104244929765, 892.3766077098721],
+        [1023.3854676868458, 892.5874950038911],
+        [1023.0480480164155, 2108.6105753839684],
+        [263.0336227788673, 2108.3996880899494]
+      ],
+      "registration_model": "similarity",
+      "rejection_reason": null,
+      "residual_px": 0.15265889465808868,
+      "source_sha256": "be0492f3fa4c02a5efa63b2120562f4c973fcc6163748a65f7c692d69c814e99",
+      "timestamp": "2026-11-09T09:08:15.691204+00:00",
+      "transform_to_atlas": [
+        [0.9500180315469352, -0.000263609117523719, 263.37104244929765],
+        [0.000263609117523719, 0.9500180315469352, 892.3766077098721],
+        [0.0, 0.0, 1.0]
+      ],
+      "viewport_id": "viewport-031-night-mystery-shop"
     }
   ],
+  "offline_reference_provenance": {
+    "viewport-031-night-mystery-shop": {
+      "status": "offline_registered_reference_only",
+      "acceptance_scope": "Computational Atlas reference acceptance only; no human, live-route, or semantic acceptance asserted.",
+      "original_capture_path_relative_to_primary_git_worktree": ".local-captures/canonical-owner-replay-20261109T080850495633Z/hero-duel-current-free-allowance/HERO-DUEL-EVIDENCE-GATE-20261109T090808896622Z-c3dc8382/hero-duel-survival-20261109T090808978994Z/frames/0002-home-atlas-startup-source.png",
+      "original_png_bytes_preserved": true,
+      "registration_reference": "viewport-021",
+      "registration_inliers": 81,
+      "registration_matches": 121,
+      "independent_reference": "viewport-022",
+      "independent_registration_inliers": 65,
+      "independent_registration_matches": 115,
+      "independent_registration_residual_px": 0.17703483998775482,
+      "maximum_corner_and_center_disagreement_px": 0.04330529272556305,
+      "additional_reference": "viewport-017",
+      "additional_maximum_corner_and_center_disagreement_px": 0.44042935967445374,
+      "held_out_capture": "0003-hero-duel-arena-atlas-0.png",
+      "held_out_capture_used_for_reference_fit": false
+    }
+  },
   "width": 1447
 }

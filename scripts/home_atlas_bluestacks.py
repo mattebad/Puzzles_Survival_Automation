@@ -1412,8 +1412,14 @@ def bind_or_pan_mapped_home_building(
     product_id: str,
     binding_for_frame: Callable[[np.ndarray], BuildingBinding | None],
     maximum_pans: int = 8,
+    retained_controller_transport: bool = False,
 ) -> tuple[CapturedNativeFrame | None, BuildingBinding | None, str | None]:
-    """Rebind a mapped building, using only verified, bounded native Home pans."""
+    """Rebind with Core-fenced pans, owned by the session or a retained controller.
+
+    Retained controllers count every native dispatch in their runtime journal and
+    adopt that cumulative total themselves; this path never adds a session input.
+    Source observation, pan authority, budgets and successor proof remain shared.
+    """
     binding = binding_for_frame(current.frame)
     if binding is not None:
         return current, binding, None
@@ -1528,21 +1534,44 @@ def bind_or_pan_mapped_home_building(
             return runtime.capture(f"{product_id}-atlas-pan-session-settled")
 
         try:
-            result = session.run_action(
-                action_class="navigation",
-                label=f"{product_id}-atlas-pan-{session.invocation_id}-{pan_ordinal}",
-                capture=runtime.capture,
-                authorize=authorize,
-                dispatch=dispatch,
-                recognize=recognize_pan,
-                consequence_class="navigation_only",
-                settled_successor=settled_successor,
-            )
+            if retained_controller_transport:
+                before = session.observe(
+                    runtime.capture,
+                    label=f"{product_id}-atlas-pan-{session.invocation_id}-{pan_ordinal}-immediate-before",
+                )
+                authorize(before)
+                context.checkpoint()
+                if runtime.input_count >= min(context.max_inputs, runtime.max_inputs):
+                    raise RuntimeError("mapped_home_atlas_pan_input_limit_reached")
+                dispatch(before)
+                after = session.observe(
+                    runtime.capture,
+                    label=f"{product_id}-atlas-pan-{session.invocation_id}-{pan_ordinal}-immediate-post",
+                )
+                state = recognize_pan(after)
+                if state == "unknown":
+                    after = session.observe(
+                        lambda _label: settled_successor(),
+                        label=f"{product_id}-atlas-pan-retained-settled",
+                    )
+                    state = recognize_pan(after)
+                session_verified = state == "HOME_BASE"
+            else:
+                result = session.run_action(
+                    action_class="navigation",
+                    label=f"{product_id}-atlas-pan-{session.invocation_id}-{pan_ordinal}",
+                    capture=runtime.capture,
+                    authorize=authorize,
+                    dispatch=dispatch,
+                    recognize=recognize_pan,
+                    consequence_class="navigation_only",
+                    settled_successor=settled_successor,
+                )
+                session_verified = result.status == "completed" and result.state == "HOME_BASE"
         except Exception as exc:
             return None, None, f"mapped_home_atlas_pan_not_verified:{type(exc).__name__}:{exc}"
         if (
-            result.status != "completed"
-            or result.state != "HOME_BASE"
+            not session_verified
             or pan_result.get("verified") is not True
             or pan_result.get("confirmed") is not True
             or pan_result.get("transport_calls") != 1
@@ -2887,6 +2916,7 @@ CAMPAIGN_HOME_ATLAS_BUILDING_ID = "home.building.campaign"
 _MAPPED_HOME_ENTRY_BINDING_IDS = frozenset({
     CAMPAIGN_HOME_ATLAS_BUILDING_ID,
     "home.building.research_lab",
+    "home.building.hall_of_war",
 })
 
 
@@ -3103,7 +3133,7 @@ def _plan_mapped_home_entry(
     *,
     campaign_waypoint_used: bool = False,
 ) -> DirectPanPlan:
-    """Use a checked Campaign or Research Lab hit region before planning pans.
+    """Use a checked Campaign, Research Lab or Hall hit region before planning pans.
 
     The route recognizes the page or radial after entry. A bound anchored hit
     region does not need a hypothetical full-building radial envelope to fit.

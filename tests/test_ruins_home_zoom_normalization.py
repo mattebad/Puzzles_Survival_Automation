@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import ExitStack
 from dataclasses import replace
 from datetime import datetime, timezone
 import json
@@ -21,6 +22,7 @@ from scripts.bluestacks_flow_collector import ADBRunner
 from scripts.bluestacks_native_runtime import CapturedNativeFrame, IntegratedRouteResult, LocalBlueStacksRuntime, captured_native_frame_from_png
 from scripts.home_atlas_bluestacks import HomeDriverDisposition, HomeDriverStep
 from scripts.navigation_development_boundary import RuntimeInputLock
+from scripts import navigation_development_boundary as development
 from scripts.ruins_challenge_bluestacks import RuinsIntegratedRoute
 from scripts.startup_recovery import ContextualPopupRecoveryResult
 from tasks.home_atlas_vision import frame_digest
@@ -90,6 +92,13 @@ class _CanonicalExecutor:
 
 
 class RuinsHomeZoomNormalizationTests(unittest.TestCase):
+    def _session(self):
+        root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.enterContext(patch.object(development, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"))
+        return self.enterContext(development.DevelopmentSession(
+            owner="ruins-route-fixture", invocation_id="offline",
+            session_directory=root / "session", max_inputs=48,
+        ))
     @staticmethod
     def _frame(digest: str):
         return CapturedNativeFrame(
@@ -105,8 +114,7 @@ class RuinsHomeZoomNormalizationTests(unittest.TestCase):
             reason=reason,
         )
 
-    @staticmethod
-    def _route(frames, steps):
+    def _route(self, frames, steps):
         runtime = SimpleNamespace(captures=list(frames), zoom_calls=[])
         runtime.capture = lambda _label: runtime.captures.pop(0)
         runtime.dispatch_zoom_out = lambda source, facts, transport=None: (
@@ -119,6 +127,9 @@ class RuinsHomeZoomNormalizationTests(unittest.TestCase):
         )
         route = RuinsIntegratedRoute.__new__(RuinsIntegratedRoute)
         route.runtime = runtime
+        route.session = self._session()
+        route.reset_identity = "game-day-2026-11-08"
+        route._navigation_identity = None
         route.home_driver = driver
         route.zoom_transport = None
         route.post_input_delay = 0.0
@@ -162,7 +173,7 @@ class RuinsHomeZoomNormalizationTests(unittest.TestCase):
         immediate = self._frame("b" * 64)
         settled = self._frame("c" * 64)
         route, runtime, driver = self._route(
-            [before, immediate, settled],
+            [before, immediate, immediate, settled],
             [
                 self._step(HomeDriverDisposition.RECOVER_ZOOM, "semantic-before"),
                 self._step(HomeDriverDisposition.PAN, "semantic-settled"),
@@ -181,7 +192,7 @@ class RuinsHomeZoomNormalizationTests(unittest.TestCase):
     def test_unchanged_settled_frame_blocks_after_one_zoom(self):
         before = self._frame("a" * 64)
         route, runtime, driver = self._route(
-            [before, self._frame("b" * 64), self._frame("a" * 64)],
+            [before, self._frame("b" * 64), self._frame("b" * 64), self._frame("a" * 64)],
             [self._step(HomeDriverDisposition.RECOVER_ZOOM, "semantic-before")],
         )
 
@@ -194,7 +205,10 @@ class RuinsHomeZoomNormalizationTests(unittest.TestCase):
 
     def test_home_pan_inputs_stop_at_route_budget_even_if_driver_keeps_planning(self):
         route = RuinsIntegratedRoute.__new__(RuinsIntegratedRoute)
-        frames = iter(self._frame(str(index) * 64) for index in range(1, 10))
+        route.session = self._session()
+        route.reset_identity = "game-day-2026-11-08"
+        route._navigation_identity = None
+        frames = iter(self._frame(f"{index:064x}") for index in range(1, 14))
         before = next(frames)
         localized = LocalizationResult(
             True, "bluestacks", "test", ZoomIdentity.FULLY_ZOOMED_OUT, None, (),
@@ -365,7 +379,7 @@ class RuinsNativeHomeZoomAccountingTests(unittest.TestCase):
         self.assertEqual((result["session_input_count"], result["runtime_input_count"]), (1, 1))
         self.assertTrue(result["accounting_verified"])
 
-    def test_startup_recovery_and_route_zoom_extend_one_retained_total(self):
+    def test_startup_recovery_and_route_zoom_use_one_session_total(self):
         outcome, _runtime, dispatches, pinches, _recorded = self._run(
             [NON_HOME_PNG, HOME_PNG, HOME_PNG, _zoomed_home_png()],
             [HomeDriverDisposition.RECOVER_ZOOM, HomeDriverDisposition.RECOVER_ZOOM, HomeDriverDisposition.PAN],
@@ -398,7 +412,7 @@ class RuinsNativeHomeZoomAccountingTests(unittest.TestCase):
         self.assertEqual((dispatches, pinches, recorded), ([], [], []))
         self.assertEqual(outcome.native_result["reason"], "home_atlas_pan_geometry_unavailable")
 
-    def test_runtime_count_without_retained_dispatch_is_not_adopted(self):
+    def test_runtime_journal_mismatch_retains_session_owned_input(self):
         outcome, _runtime, dispatches, pinches, _recorded = self._run(
             [HOME_PNG, HOME_PNG, _zoomed_home_png()],
             [HomeDriverDisposition.RECOVER_ZOOM, HomeDriverDisposition.RECOVER_ZOOM, HomeDriverDisposition.PAN],
@@ -408,10 +422,12 @@ class RuinsNativeHomeZoomAccountingTests(unittest.TestCase):
         self.assertEqual((dispatches, len(pinches)), ([], 1))
         self.assertIn("differs from its retained dispatch journal", outcome.failure)
         self.assertFalse(outcome.accounting_verified)
-        self.assertEqual((outcome.session_input_count, outcome.runtime_input_count), (0, 1))
+        self.assertEqual((outcome.session_input_count, outcome.runtime_input_count), (1, 1))
         self.assertEqual(outcome.native_result, {})
         partial = outcome.partial_result
         assert partial is not None
+        self.assertFalse(partial["accounting_verified"])
+        self.assertFalse(partial["journal_verified"])
         self.assertEqual(
             (partial["status"], partial["ruins_dispatch_count"]), ("blocked", 0),
         )
@@ -467,6 +483,11 @@ class RuinsCalculatedHomeEntryTests(unittest.TestCase):
         del cls.localizer
 
     def _entry(self, *, zoom=False, pan_effect="bound", successor="ruins", bind=True, max_inputs=48):
+        previous = getattr(self, "_entry_scope", None)
+        if previous is not None:
+            previous.close()
+        self._entry_scope = ExitStack()
+        self.addCleanup(self._entry_scope.close)
         root = Path(self.enterContext(tempfile.TemporaryDirectory()))
         device = _AtlasEntryDevice(
             self.zoomed if zoom else self.far, self.far, self.bound,
@@ -474,6 +495,11 @@ class RuinsCalculatedHomeEntryTests(unittest.TestCase):
         )
         runtime = LocalBlueStacksRuntime(device, root / "native", execute=True)
         runtime.max_inputs = max_inputs
+        self.enterContext(patch.object(development, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"))
+        session = self._entry_scope.enter_context(development.DevelopmentSession(
+            owner="ruins-atlas-entry", invocation_id="offline",
+            session_directory=root / "session", max_inputs=max_inputs,
+        ))
         backend = derive_resource_runtime_identity(
             resource_fixed_runtime_binding(), datetime(2026, 11, 8, 3, tzinfo=timezone.utc),
         )
@@ -488,7 +514,7 @@ class RuinsCalculatedHomeEntryTests(unittest.TestCase):
             runtime, reset_identity="game-day-2026-11-08", current_day="Sun",
             account_id="account", server_id="server", runtime_scope=backend.runtime_scope,
             product_id=native_route.RUINS_PRODUCT_ID, product_revision=native_route.RUINS_PRODUCT_REVISION,
-            runtime_identity=backend, action_executor=_CanonicalExecutor(),
+            runtime_identity=backend, action_executor=_CanonicalExecutor(), session=session,
             initial_capture=runtime.capture("replay-home"), home_driver=home_driver,
             zoom_transport=device, post_input_delay=0,
         )
@@ -530,12 +556,14 @@ class RuinsCalculatedHomeEntryTests(unittest.TestCase):
         assert target is not None
         self.assertEqual(device.taps, [((target[0] + target[2]) // 2, (target[1] + target[3]) // 2)])
         self.assertEqual(runtime.input_count, 3)
+        self.assertEqual(route.session.input_count, 3)
         self.assertEqual((route.challenge_transport_calls, route.chest_claim_transport_calls), (0, 0))
 
     def test_pan_only_restart_does_not_repeat_zoom(self):
         route, runtime, device = self._entry()
         self.assertIsInstance(route._enter_ruins(), tuple)
         self.assertEqual((device.pinches, len(device.swipes), len(device.taps), runtime.input_count), (0, 1, 1, 2))
+        self.assertEqual(route.session.input_count, 2)
 
     def test_unavailable_current_binding_never_uses_projected_target(self):
         route, runtime, device = self._entry(bind=False)
