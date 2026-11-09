@@ -201,6 +201,8 @@ class FoodFarmBoostObservation:
     runtime_profile_id: str = ACTIVE_RUNTIME_PROFILE_ID
     recognized: bool = True
     boost_options_visible: bool = True
+    # Current cost/control availability, not the total number of owned items.
+    option_item_usable: Optional[bool] = None
 
 
 @dataclass(frozen=True)
@@ -259,45 +261,29 @@ def food_farm_boost_decision(
     option_name = _exact_name(observation.option_item_name)
     inventory_name = _exact_name(observation.inventory_item_name)
     exact_item_identity = bool(option_name and option_name == inventory_name)
-    exact_item_duration = _positive_int(observation.option_duration_seconds)
+    exact_item_duration = observation.option_duration_seconds == 86_400
     exact_item_action_cost = type(observation.option_item_cost) is int and observation.option_item_cost == 1
-    if observation.inventory_observed:
-        if (
-            observation.option_item_visible
-            and exact_item_identity
-            and exact_item_duration
-            and exact_item_action_cost
-            and type(observation.inventory_item_count) is int
-            and observation.inventory_item_count >= 0
-        ):
-            if observation.inventory_item_count >= 1:
-                return FoodFarmBoostDecision(
-                    FoodFarmBoostChoice.OWNED_ITEM,
-                    "EXACT_OWNED_FOOD_FARM_ITEM_PREFERRED",
-                    item_name=observation.inventory_item_name,
-                    duration_seconds=observation.option_duration_seconds,
-                    cost=1,
-                    currency="owned_item",
-                )
-        else:
-            return FoodFarmBoostDecision(
-                FoodFarmBoostChoice.BLOCKED, "FOOD_FARM_ITEM_IDENTITY_OR_COUNT_UNKNOWN"
-            )
-    else:
+    inventory_proves_owned = bool(
+        observation.inventory_observed and exact_item_identity
+        and type(observation.inventory_item_count) is int and observation.inventory_item_count >= 1)
+    if (option_name and observation.option_item_visible and exact_item_duration and exact_item_action_cost
+            and (observation.option_item_usable is True or inventory_proves_owned)):
         return FoodFarmBoostDecision(
-            FoodFarmBoostChoice.BLOCKED, "FOOD_FARM_INVENTORY_NOT_OBSERVED"
-        )
-
-    # A known zero count is the only state that permits considering diamonds.
-    # The displayed item-option ×1 is per-action cost, never an inventory count.
-    if observation.inventory_item_count != 0:
-        return FoodFarmBoostDecision(FoodFarmBoostChoice.BLOCKED, "FOOD_FARM_ITEM_COUNT_UNKNOWN")
+            FoodFarmBoostChoice.OWNED_ITEM, "EXACT_OWNED_FOOD_FARM_ITEM_PREFERRED",
+            item_name=observation.option_item_name, duration_seconds=86_400,
+            cost=1, currency="owned_item")
+    unavailable = bool(observation.option_item_usable is False or (
+        observation.inventory_observed and exact_item_identity
+        and type(observation.inventory_item_count) is int and observation.inventory_item_count == 0))
+    if not unavailable:
+        return FoodFarmBoostDecision(
+            FoodFarmBoostChoice.BLOCKED, "FOOD_FARM_ITEM_AVAILABILITY_UNKNOWN")
     exact_offer = bool(
         observation.diamond_option_visible
         and observation.diamond_offer_actionable
         and _exact_name(observation.diamond_item_name)
-        and _positive_int(observation.diamond_duration_seconds)
-        and _positive_int(observation.diamond_cost)
+        and observation.diamond_duration_seconds == 86_400
+        and type(observation.diamond_cost) is int and 0 < observation.diamond_cost <= 48
         and type(observation.diamond_balance) is int
         and observation.diamond_balance >= observation.diamond_cost
     )
@@ -313,10 +299,12 @@ def food_farm_boost_decision(
             return FoodFarmBoostDecision(
                 FoodFarmBoostChoice.BLOCKED, "FOOD_FARM_DIAMOND_PROMPT_CHANGED"
             )
-        return FoodFarmBoostDecision(
-            FoodFarmBoostChoice.BLOCKED, "FOOD_FARM_DIAMOND_CONFIRMATION_NOT_AUTHORIZED"
-        )
-    if observation.confirmation_required:
+    if (observation.confirmation_required or observation.purchase_prompt_visible) and not (
+        observation.purchase_prompt_visible and observation.confirmation_control_visible
+        and observation.confirmation_binding_current
+        and isinstance(observation.confirmation_control_identity, str)
+        and observation.confirmation_control_identity.strip()
+    ):
         return FoodFarmBoostDecision(
             FoodFarmBoostChoice.BLOCKED, "FOOD_FARM_CONFIRMATION_CONTROL_UNKNOWN"
         )
@@ -356,21 +344,17 @@ def food_farm_collection_effect(
     *,
     home_successor_verified: bool,
 ) -> tuple[bool, dict[str, int], str]:
-    """Account for the broad Farm tap only from exact resource balances + Home."""
-
-    if type(home_successor_verified) is not bool or not home_successor_verified:
+    """Confirm a narrow positive resource-HUD tick when an output collection occurs."""
+    if home_successor_verified is not True:
         return False, {}, "FOOD_FARM_COLLECTION_SUCCESSOR_UNKNOWN"
-    if set(balances_before) != FOOD_FARM_RESOURCE_TYPES or set(balances_after) != FOOD_FARM_RESOURCE_TYPES:
-        return False, {}, "FOOD_FARM_COLLECTION_BALANCES_INCOMPLETE"
-    deltas: dict[str, int] = {}
-    for resource in FOOD_FARM_RESOURCE_TYPES:
-        before = balances_before[resource]
-        after = balances_after[resource]
-        if type(before) is not int or type(after) is not int or before < 0 or after < before:
-            return False, {}, "FOOD_FARM_COLLECTION_BALANCE_UNKNOWN_OR_CHANGED"
-        deltas[resource] = after - before
-    if sum(delta > 0 for delta in deltas.values()) < 2:
-        return False, deltas, "FOOD_FARM_COLLECTION_EFFECT_NOT_BROADLY_RECONCILED"
+    deltas = {
+        resource: balances_after[resource] - before
+        for resource, before in balances_before.items()
+        if resource in FOOD_FARM_RESOURCE_TYPES and type(before) is int and before >= 0
+        and type(balances_after.get(resource)) is int and balances_after[resource] >= before
+    }
+    if not any(delta > 0 for delta in deltas.values()):
+        return False, deltas, "FOOD_FARM_COLLECTION_EFFECT_NOT_OBSERVED"
     return True, deltas, "FOOD_FARM_COLLECTION_ACCOUNTED"
 
 

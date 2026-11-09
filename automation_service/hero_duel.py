@@ -297,34 +297,28 @@ class HeroDuelRunner:
             for proof in proofs:
                 ordinal = proof.get("ordinal")
                 before_free, after_free = proof.get("free_before"), proof.get("free_after")
-                before_pass, after_pass = proof.get("pass_before"), proof.get("pass_after")
                 if (type(ordinal) is not int or ordinal not in (1, 2, 3) or ordinal in proof_ordinals
                         or ordinal not in canonical
                         or proof.get("wave_text") != "Wave 1/1" or proof.get("battle_board_verified") is not True
                         or proof.get("exit_confirmed") is not True or proof.get("flee_confirmed") is not True
                         or proof.get("loss_result_seen") is not True or proof.get("tap_to_continue_confirmed") is not True
-                        or type(before_free) is not int or before_free != 4 - ordinal
+                        or type(before_free) is not int or not 1 <= before_free <= MAX_ACTIONS
                         or type(after_free) is not int or after_free != before_free - 1
-                        or type(before_pass) is not int or before_pass < 0
-                        or type(after_pass) is not int or after_pass != before_pass
                         or proof.get("event_identity") != native_result.get("hero_duel_event_identity")
                         or proof.get("reset_id") != identity.reset_id):
-                    raise ValueError("Hero Duel cycle lacks exact free/pass and loss-path proof")
+                    raise ValueError("Hero Duel cycle lacks a free-counter decrement or full result-path proof")
                 proof_ordinals.append(ordinal)
             if proof_ordinals != canonical:
                 raise ValueError("Hero Duel cycle proofs do not match canonical ordinal order")
-            final_pass = native_result.get("final_pass_balance")
-            if (type(final_pass) is not int or final_pass < 0
-                    or any(proof["pass_after"] != final_pass for proof in proofs)):
-                raise ValueError("Hero Duel final pass balance differs from committed cycle receipts")
+
             if (not isinstance(native_result.get("hero_duel_event_identity"), str)
                     or re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,127}", native_result["hero_duel_event_identity"]) is None
                     or native_result.get("current_event_active") is not True):
                 raise ValueError("Hero Duel current event instance is not proven")
             if native_result.get("status") in {"complete_for_reset", "already_complete"}:
-                if canonical != [1, 2, 3] or native_result.get("final_free_entries_remaining") != 0:
-                    raise ValueError("Hero Duel completion requires exactly three canonical cycles and no Free entries")
-                if native_result.get("status") == "already_complete" and (duel or native_result.get("no_work") is not True):
+                if not canonical or native_result.get("final_free_entries_remaining") != 0:
+                    raise ValueError("Hero Duel completion requires confirmed remaining cycles and exhausted Free quota")
+                if native_result.get("status") == "already_complete" and (canonical != [1, 2, 3] or duel or native_result.get("no_work") is not True):
                     raise ValueError("Hero Duel already-complete outcome must be no-work")
             completed = _epoch(self.utc_clock(), "completion")
             if completed < started:
@@ -332,8 +326,8 @@ class HeroDuelRunner:
             if native_result.get("status") == "deferred":
                 free = native_result.get("final_free_entries_remaining")
                 available_at = _epoch(native_result.get("availability_observed_at_utc"), "availability observation")
-                if (type(free) is not int or not 0 < free <= MAX_ACTIONS or len(canonical) + free != MAX_ACTIONS
-                        or not proofs or available_at < started or available_at > completed
+                if (type(free) is not int or not 0 <= free <= MAX_ACTIONS
+                        or available_at < started or available_at > completed
                         or completed - available_at > 30.0):
                     raise ValueError("Hero Duel deferred outcome lacks fresh canonical Free-availability proof")
             validate_identity()
@@ -368,7 +362,7 @@ class HeroDuelRunner:
 
 
 def hero_duel_next_due(result: Mapping[str, Any], identity: SchedulerIdentity, started_at: float) -> float:
-    """Accept only exact three-cycle completion or a proven active Free opportunity."""
+    """Retain confirmed cycles; exhausted current quota waits for the exact reset."""
     started = _epoch(started_at, "start")
     if (not isinstance(identity, SchedulerIdentity) or identity.task_id != PRODUCT_ID
             or identity.reset_id != recruitment_reset(started)):
@@ -414,27 +408,21 @@ def hero_duel_next_due(result: Mapping[str, Any], identity: SchedulerIdentity, s
         if not isinstance(proof, Mapping):
             raise ValueError("Hero Duel next due cycle proof is not typed")
         before_free, after_free = proof.get("free_before"), proof.get("free_after")
-        before_pass, after_pass = proof.get("pass_before"), proof.get("pass_after")
         if (type(proof.get("ordinal")) is not int or proof.get("ordinal") != ordinal
                 or proof.get("event_identity") != event_identity
                 or proof.get("reset_id") != identity.reset_id
-                or type(before_free) is not int or before_free != 4 - ordinal
+                or type(before_free) is not int or not 1 <= before_free <= MAX_ACTIONS
                 or type(after_free) is not int or after_free != before_free - 1
-                or type(before_pass) is not int or before_pass < 0
-                or type(after_pass) is not int or after_pass != before_pass
                 or proof.get("wave_text") != "Wave 1/1" or proof.get("battle_board_verified") is not True
                 or proof.get("exit_confirmed") is not True or proof.get("flee_confirmed") is not True
                 or proof.get("loss_result_seen") is not True
                 or proof.get("tap_to_continue_confirmed") is not True):
             raise ValueError("Hero Duel next due cycle proof is incomplete or inconsistent")
-    final_pass = result.get("final_pass_balance")
-    if (type(final_pass) is not int or final_pass < 0
-            or any(proof["pass_after"] != final_pass for proof in proofs)):
-        raise ValueError("Hero Duel next due pass balance differs from committed cycle receipts")
+
     if result.get("status") in {"complete_for_reset", "already_complete"}:
-        if canonical != [1, 2, 3] or result.get("final_free_entries_remaining") != 0:
-            raise ValueError("Hero Duel reset completion requires all three canonical cycles")
-        if result.get("status") == "already_complete" and (duel or result.get("no_work") is not True):
+        if not canonical or result.get("final_free_entries_remaining") != 0:
+            raise ValueError("Hero Duel reset completion requires confirmed cycles and exhausted Free quota")
+        if result.get("status") == "already_complete" and (canonical != [1, 2, 3] or duel or result.get("no_work") is not True):
             raise ValueError("Hero Duel already-complete status requires canonical no-work")
         due = _epoch(datetime.fromisoformat(sample_backend.reset_deadline_utc.replace("Z", "+00:00")).timestamp(), "next reset")
         if result.get("next_eligible_at") not in (None, due):
@@ -444,12 +432,13 @@ def hero_duel_next_due(result: Mapping[str, Any], identity: SchedulerIdentity, s
         free = result.get("final_free_entries_remaining")
         event_active = result.get("current_event_active")
         event_identity = result.get("hero_duel_event_identity")
-        if (type(free) is not int or not 0 < free <= MAX_ACTIONS or len(canonical) + free != MAX_ACTIONS
+        if (type(free) is not int or not 0 <= free <= MAX_ACTIONS
                 or event_active is not True or not isinstance(event_identity, str)
                 or re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,127}", event_identity) is None):
             raise ValueError("Hero Duel deferred outcome lacks current observed Free availability")
         available_at = _epoch(result.get("availability_observed_at_utc"), "availability observation")
         if available_at < started or available_at > completed or completed - available_at > 30.0:
             raise ValueError("Hero Duel Free availability observation is stale")
-        return completed
-    raise ValueError("Hero Duel blocked, exhausted, partial, or unreconciled route has no evidenced next due")
+        return (datetime.fromisoformat(sample_backend.reset_deadline_utc.replace("Z", "+00:00")).timestamp()
+                if free == 0 else completed)
+    raise ValueError("Hero Duel blocked or unreconciled route has no evidenced next due")

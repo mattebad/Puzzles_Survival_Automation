@@ -85,8 +85,6 @@ def cycle_proof(event_identity, reset_id, ordinal):
         "flee_action_key": f"flee:{ordinal}",
         "free_before": before,
         "free_after": before - 1,
-        "pass_before": 123,
-        "pass_after": 123,
         "wave_text": "Wave 1/1",
         "battle_board_verified": True,
         "exit_confirmed": True,
@@ -114,7 +112,6 @@ def native_complete_result(reset_id, *, status="complete_for_reset", **overrides
         "canonical_confirmed_cycle_ordinals": [1, 2, 3],
         "cycle_proofs": [cycle_proof(event_identity, reset_id, ordinal) for ordinal in (1, 2, 3)],
         "final_free_entries_remaining": 0,
-        "final_pass_balance": 123,
         "total_input_count": 20,
         "terminal_home_verified": True,
         "terminal_home_frame": {"frame_path": "frames/hero-duel-home.png", "frame_sha256": "a" * 64},
@@ -152,7 +149,6 @@ def service_result(now, identity, backend, *, status="complete_for_reset", **ove
         "canonical_confirmed_cycle_ordinals": [1, 2, 3],
         "cycle_proofs": [cycle_proof(event_identity, identity.reset_id, ordinal) for ordinal in (1, 2, 3)],
         "final_free_entries_remaining": 0,
-        "final_pass_balance": 123,
         "hero_duel_event_identity": event_identity,
         "current_event_active": True,
         "terminal_home_verified": True,
@@ -262,7 +258,6 @@ class HeroDuelServiceAdapterTests(unittest.TestCase):
         invalid = (
             {**valid, "committed_action_count": 2},
             {**valid, "cycle_proofs": valid["cycle_proofs"][:-1]},
-            {**valid, "final_pass_balance": 122},
             {
                 **valid,
                 "cycle_proofs": [
@@ -297,27 +292,42 @@ class HeroDuelServiceAdapterTests(unittest.TestCase):
         self.assertEqual(hero_duel_next_due(deferred, identity, now - 2), now)
         for changes in (
             {"availability_observed_at_utc": now - 31},
-            {"final_free_entries_remaining": 0},
             {"canonical_confirmed_cycle_ordinals": []},
             {"current_event_active": False},
         ):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 hero_duel_next_due({**deferred, **changes}, identity, now - 2)
 
-    def test_unexplained_exhaustion_and_unknown_status_never_get_next_due(self):
+    def test_manual_development_exhaustion_defers_without_inventing_canonical_receipts(self):
+        binding, backend, identity, now = test_identity()
+        exhausted = native_complete_result(identity.reset_id, status="deferred",
+            duel_dispatch_count=0, entry_transport_calls=0, flee_transport_calls=0,
+            defense_save_transport_calls=0, defense_selection_transport_calls=0,
+            committed_action_count=0, canonical_confirmed_cycle_ordinals=[], cycle_proofs=[],
+            total_input_count=0, final_free_entries_remaining=0, no_work=True)
+        with tempfile.TemporaryDirectory() as directory:
+            runner = HeroDuelRunner(native=FakeNativeBoundary(exhausted, input_count=0),
+                output_directory=Path(directory), serial=binding.serial, utc_clock=lambda: now)
+            result = runner(identity, None, lambda: None, runtime_input_lock=FakeRuntimeInputLock(),
+                occurrence_key="occ:exhausted")
+        self.assertEqual(result["canonical_confirmed_cycle_ordinals"], [])
+        due = hero_duel_next_due(result, identity, now)
+        self.assertEqual(due, datetime.fromisoformat(backend.reset_deadline_utc.replace("Z", "+00:00")).timestamp())
+        self.assertFalse(result["effect_reconciliation_required"])
+        for changes in ({"status": "blocked"}, {"effect_reconciliation_required": True},
+                {"identical_retry_denied": True}):
+            with self.assertRaises(ValueError):
+                hero_duel_next_due({**result, **changes}, identity, now)
+
+    def test_remaining_cycles_can_finish_after_manual_prior_entry(self):
         _binding, backend, identity, now = test_identity()
-        exhausted = service_result(
-            now, identity, backend,
-            status="reconciliation_required",
-            canonical_confirmed_cycle_ordinals=[1],
-            final_free_entries_remaining=0,
-            effect_reconciliation_required=True,
-            identical_retry_denied=True,
-        )
-        with self.assertRaises(ValueError):
-            hero_duel_next_due(exhausted, identity, now - 2)
-        with self.assertRaises(ValueError):
-            hero_duel_next_due({**service_result(now, identity, backend), "status": "blocked"}, identity, now - 2)
+        result = service_result(now, identity, backend)
+        result.update(duel_dispatch_count=2, entry_transport_calls=2, flee_transport_calls=2,
+            committed_action_count=2, canonical_confirmed_cycle_ordinals=[2, 3],
+            cycle_proofs=result["cycle_proofs"][1:])
+        self.assertEqual(hero_duel_next_due(result, identity, now - 2),
+            datetime.fromisoformat(backend.reset_deadline_utc.replace("Z", "+00:00")).timestamp())
+
 
 
 if __name__ == "__main__":

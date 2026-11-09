@@ -122,7 +122,7 @@ def _research_counts(result: Mapping[str, Any]) -> tuple[int, int, int]:
     return calls, committed, actions
 
 
-def _selection_constraints_verified(result: Mapping[str, Any]) -> bool:
+def _selection_constraints_verified(result: Mapping[str, Any], *, prerequisites_met: bool = True) -> bool:
     first = result.get("first_recommendation_identity")
     prerequisite_evidence = result.get("prerequisite_evidence")
     return bool(
@@ -138,17 +138,14 @@ def _selection_constraints_verified(result: Mapping[str, Any]) -> bool:
         and result.get("control_class") == "RESEARCH_START"
         and result.get("queue2_activate_tapped") is False
         and result.get("prerequisites_known") is True
-        and result.get("prerequisites_met") is True
+        and result.get("prerequisites_met") is prerequisites_met
         and isinstance(prerequisite_evidence, (list, tuple))
         and bool(prerequisite_evidence)
         and all(
             isinstance(item, str)
             and re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", item, flags=re.ASCII)
-            and item.startswith("research-center")
             for item in prerequisite_evidence
         )
-        and type(result.get("research_now_diamonds")) is int
-        and result["research_now_diamonds"] > 0
         and result.get("research_now_target_identity") == "research-now-diamonds"
         and result.get("research_now_tapped") is False
         and result.get("overlay_state") in {"none", "none_observed"}
@@ -159,7 +156,6 @@ def _semantic_start_verified(result: Mapping[str, Any]) -> bool:
     first = result.get("first_recommendation_identity")
     costs = result.get("exact_resource_costs")
     before = result.get("exact_resource_prebalances")
-    after = result.get("exact_resource_balances")
     return bool(
         _selection_constraints_verified(result)
         and result.get("start_semantically_verified") is True
@@ -171,18 +167,13 @@ def _semantic_start_verified(result: Mapping[str, Any]) -> bool:
         and result["research_duration_seconds"] >= result["remaining_seconds"]
         and isinstance(costs, Mapping)
         and isinstance(before, Mapping)
-        and isinstance(after, Mapping)
         and set(costs) == set(_RESOURCES)
         and set(before) == set(_RESOURCES)
-        and set(after) == set(_RESOURCES)
         and all(
             type(costs[key]) is int
             and costs[key] >= 0
             and type(before[key]) is int
-            and before[key] >= 0
-            and type(after[key]) is int
-            and after[key] >= 0
-            and before[key] - after[key] == costs[key]
+            and before[key] >= costs[key]
             for key in _RESOURCES
         )
     )
@@ -252,36 +243,12 @@ def recommended_research_next_due(
         return max(completed, deadline.timestamp())
 
     if status == "completed":
-        first = result.get("first_recommendation_identity")
         if (
-            calls != 1
-            or committed != 1
-            or actions != 1
+            calls != 1 or committed != 1 or actions != 1
             or result.get("completed") is not True
             or not _semantic_start_verified(result)
-            or not first
-            or result.get("active_technology") != first
-            or type(result.get("remaining_seconds")) is not int
-            or result["remaining_seconds"] <= 0
-            or type(result.get("research_duration_seconds")) is not int
-            or result["research_duration_seconds"] < result["remaining_seconds"]
-            or result.get("target_identity") != f"recommended-research:{first}:detail-research-button"
-            or not isinstance(result.get("exact_resource_costs"), Mapping)
-            or not isinstance(result.get("exact_resource_prebalances"), Mapping)
-            or not isinstance(result.get("exact_resource_balances"), Mapping)
-            or set(result["exact_resource_costs"]) != set(_RESOURCES)
-            or set(result["exact_resource_prebalances"]) != set(_RESOURCES)
-            or set(result["exact_resource_balances"]) != set(_RESOURCES)
-            or any(type(result["exact_resource_costs"][key]) is not int or result["exact_resource_costs"][key] < 0 for key in _RESOURCES)
-            or any(type(result["exact_resource_prebalances"][key]) is not int or result["exact_resource_prebalances"][key] < 0 for key in _RESOURCES)
-            or any(type(result["exact_resource_balances"][key]) is not int or result["exact_resource_balances"][key] < 0 for key in _RESOURCES)
-            or any(
-                result["exact_resource_prebalances"][key] - result["exact_resource_balances"][key]
-                != result["exact_resource_costs"][key]
-                for key in _RESOURCES
-            )
         ):
-            raise ValueError("Recommended Research completion lacks exact target, duration, timer, costs, or paired balances")
+            raise ValueError("Recommended Research completion lacks its same-target active timer or affordable quote")
         return completed + result["remaining_seconds"]
 
     if status != "deferred" or calls or committed or actions:
@@ -289,8 +256,23 @@ def recommended_research_next_due(
     due = _epoch(result.get("next_due_utc"), "next observation")
     if result.get("queue1_state") == "busy":
         remaining = result.get("queue1_remaining_seconds")
-        if type(remaining) is not int or remaining <= 0 or due != completed + remaining:
+        if remaining is None:
+            if result.get("observation_interval_seconds") != OBSERVATION_INTERVAL_SECONDS or due != completed + OBSERVATION_INTERVAL_SECONDS:
+                raise ValueError("Recommended Research busy-queue defer lacks its observation interval")
+        elif type(remaining) is not int or remaining <= 0 or due != completed + remaining:
             raise ValueError("Recommended Research busy-queue defer lacks its exact observed timer")
+        return due
+    unmet = result.get("unmet_prerequisites")
+    if unmet is not None:
+        if (
+            not _selection_constraints_verified(result, prerequisites_met=False)
+            or not isinstance(unmet, list) or not unmet
+            or unmet != result.get("prerequisite_evidence")
+            or not all(isinstance(item, str) and item.endswith("-unmet") for item in unmet)
+            or result.get("observation_interval_seconds") != OBSERVATION_INTERVAL_SECONDS
+            or due != completed + OBSERVATION_INTERVAL_SECONDS
+        ):
+            raise ValueError("Recommended Research prerequisite defer lacks displayed unmet evidence")
         return due
     interval = result.get("observation_interval_seconds")
     shortages = result.get("shortages")

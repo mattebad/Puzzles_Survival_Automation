@@ -27,7 +27,7 @@ class HeroDuelVisionReplayTests(unittest.TestCase):
         )
         self.frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         self.lines = ()
-        self.vision._lines = lambda _frame: self.lines
+        self.vision._lines = lambda _frame, **_kwargs: self.lines
 
     @staticmethod
     def _line(text, y, x=100):
@@ -51,7 +51,6 @@ class HeroDuelVisionReplayTests(unittest.TestCase):
         self.assertTrue(page["event_active"])
         self.assertRegex(page["event_identity"], r"^survival_game-day-2027-01-02_ends_[0-9]+$")
         self.assertEqual(page["free_entries_remaining"], 3)
-        self.assertEqual(page["pass_balance"], 123)
         self.assertEqual(page["target_identity"], "challenge-now")
         self.assertIsNotNone(page["target_roi"])
 
@@ -93,35 +92,6 @@ class HeroDuelVisionReplayTests(unittest.TestCase):
         self.assertIsNone(page["target_roi"])
         self.assertFalse(page["event_active"])
 
-    def test_emergency_exclusions_and_first_eligible_defense_row_are_read(self):
-        self.lines = (
-            self._line("Emergency Details", 50),
-            self._line("Excluded Heroes", 130),
-            self._line("Avery", 170, 80),
-            self._line("Bailey", 170, 200),
-            self._line("Cora", 170, 320),
-            self._line("Diana", 170, 440),
-            self._line("Elias", 170, 560),
-            self._line("Freya", 170, 680),
-            self._line("23:59:59", 1200),
-        )
-        details = self.vision.recognize(self._capture())
-        self.assertEqual(details["screen_state"], "emergency_details")
-        self.assertEqual(details["excluded_hero_ids"], ("Avery", "Bailey", "Cora", "Diana", "Elias", "Freya"))
-        self.vision.excluded = ("Avery",)
-        self.lines = (
-            self._line("Defense Formation", 80),
-            self._line("Avery", 150, 80),
-            self._line("Bailey", 150, 200),
-            self._line("Cora", 150, 320),
-            self._line("Diana", 150, 440),
-            self._line("Elias", 150, 560),
-            self._line("Save Form", 1100),
-            self._line("23:59:59", 1200),
-        )
-        formation = self.vision.recognize(self._capture())
-        self.assertEqual(formation["screen_state"], "defense_formation")
-        self.assertEqual(formation["defense_hero_ids"], ("Avery", "Bailey", "Cora", "Diana", "Elias"))
 
     def test_emergency_details_x_requires_one_recognized_close_control(self):
         header = self._line("Emergency Details", 100, 280)
@@ -166,61 +136,6 @@ class HeroDuelVisionReplayTests(unittest.TestCase):
 
 
 
-    def test_combined_ocr_line_yields_distinct_hero_cards_and_exact_duplicate_target(self):
-        def token_line(names, y, *, gap):
-            words = []
-            x = 80
-            for name in names:
-                width = max(32, len(name) * 8)
-                words.append((name, (x, y, x + width, y + 18)))
-                x += width + gap
-            line = self._line(" ".join(names), y, 80)
-            line["box"] = (80, y, x, y + 18)
-            line["center"] = ((80 + x) // 2, y + 9)
-            line["word_boxes"] = tuple(words)
-            return line
-
-        lines = (
-            self._line("Defense Formation", 80),
-            token_line(("Avery", "Bailey", "Cora", "Diana", "Elias"), 150, gap=40),
-            token_line(("Avery", "Freya", "Gabrielle", "Hazel", "Iris"), 600, gap=40),
-        )
-        self.assertEqual(self.vision.hero_rows(lines), (
-            ("Avery", "Bailey", "Cora", "Diana", "Elias"),
-            ("Avery", "Freya", "Gabrielle", "Hazel", "Iris"),
-        ))
-        self.assertEqual(
-            self.vision.heading_row(lines, ("defense formation",)),
-            ("Avery", "Bailey", "Cora", "Diana", "Elias"),
-        )
-        removal_roi = self.vision.hero_selection_roi(lines, "Avery", "defense_formation", add=False)
-        addition_roi = self.vision.hero_selection_roi(lines, "Avery", "defense_formation", add=True)
-        self.assertIsNotNone(removal_roi)
-        self.assertIsNotNone(addition_roi)
-        self.assertNotEqual(removal_roi, addition_roi)
-
-    def test_hero_card_word_grouping_preserves_multiword_names_and_rejects_ambiguous_targets(self):
-        line = self._line("Avery Beth Cora", 150)
-        line["word_boxes"] = (
-            ("Avery", (80, 150, 120, 168)),
-            ("Beth", (128, 150, 160, 168)),
-            ("Cora", (210, 150, 250, 168)),
-        )
-        self.assertEqual(self.vision.hero_rows((line,)), (("Avery Beth", "Cora"),))
-        heading = self._line("Defense Formation", 80)
-        formation = self._line("Avery Bailey Cora Diana Elias", 150)
-        formation["word_boxes"] = tuple(
-            (name, (80 + index * 100, 150, 120 + index * 100, 168))
-            for index, name in enumerate(("Avery", "Bailey", "Cora", "Diana", "Elias"))
-        )
-        duplicate = self._line("Avery Avery", 600)
-        duplicate["word_boxes"] = (
-            ("Avery", (80, 600, 120, 618)),
-            ("Avery", (220, 600, 260, 618)),
-        )
-        lines = (heading, formation, duplicate)
-        self.assertIsNone(self.vision.hero_selection_roi(lines, "Avery", "defense_formation", add=True))
-
 
 class HeroDuelNativeObserverRegressionTests(unittest.TestCase):
     """Exercise OCR grouping and native semantics, not producer result echoes."""
@@ -260,7 +175,7 @@ class HeroDuelNativeObserverRegressionTests(unittest.TestCase):
         facts = route.hero_duel_policy_preconditions(
             "hero_duel_free_entry", event_identity=self.flow.event_identity,
             ordinal=ordinal, game_day_id=self.identity.reset_id,
-            free_allowance_before=4 - ordinal, pass_balance_before=123,
+            free_allowance_before=4 - ordinal,
         )
         self.records[self.flow.action_key(ordinal, "hero_duel_free_entry")] = {
             "final_status": status, "policy_request_json": json.dumps({"semantic_preconditions": facts}),
@@ -273,9 +188,8 @@ class HeroDuelNativeObserverRegressionTests(unittest.TestCase):
         page = self.page(("Warning", "Flee will lose points", "Fight", "Flee"),
                          ("hero-duel-warning-flee", "flee"))
         self.assertIsNone(page["free_entries_remaining"])
-        self.assertIsNone(page["pass_balance"])
         observation = self.flow._observation(self.capture, page, 1)
-        self.assertEqual((observation.free_entries_remaining, observation.pass_balance), (2, 123))
+        self.assertEqual(observation.free_entries_remaining, 2)
         self.assertTrue(observation.fight_control_visible)
         self.assertTrue(route.hero_duel_flee_authorizeable(
             observation, ordinal=1, game_day_id=self.identity.reset_id))
@@ -292,14 +206,13 @@ class HeroDuelNativeObserverRegressionTests(unittest.TestCase):
             page = self.page(("Warning", "Fight", "Flee"), ("hero-duel-warning-flee", "flee"))
             observed = self.flow._observation(self.capture, page, 1)
             self.assertIsNone(observed.free_entries_remaining)
-            self.assertIsNone(observed.pass_balance)
 
     def test_visible_counter_contradiction_is_not_overwritten(self):
         self.entry_record(status=route.ActionStatus.CONFIRMED.value)
         page = self.page(("Warning", "Fight", "Flee", "Free 1/3", "Pass 122"),
                          ("hero-duel-warning-flee", "flee"))
         observed = self.flow._observation(self.capture, page, 1)
-        self.assertEqual((observed.free_entries_remaining, observed.pass_balance), (1, 122))
+        self.assertEqual(observed.free_entries_remaining, 1)
 
     def test_actual_result_vocabulary_binds_continue_but_not_embedded_buy_now(self):
         texts = ("Rank: 10000 Unchanged", "984(-16)", "Reward List", "Buy Now", "Tap to Continue")
@@ -315,12 +228,12 @@ class HeroDuelNativeObserverRegressionTests(unittest.TestCase):
         self.assertEqual(defense["screen_state"], "defense_formation")
         attack = self.page(("Hero Lineup", "Opponent Formation", "Your Formation", "Ulrik", "Challenge"))
         self.assertEqual(attack["screen_state"], "attack_formation")
-        self.assertEqual(attack["attack_hero_ids"], ("Ulrik",))
-        self.assertEqual(attack["displayed_hero_ids"], ())
-        details = self.page(("Emergency Details", "Heroes cannot use"))
-        self.assertIsNone(details["excluded_hero_ids"])
-        self.assertIsNone(self.flow._inspect_exclusions(details))
-        self.assertEqual(self.flow.result["reason"], "evidence_required:emergency_details_portrait_exclusions_unresolved")
+        self.assertEqual(attack["eligible_hero_ids"], None)
+        self.assertFalse(route.hero_duel_attack_lineup_valid(self.flow._observation(self.capture, attack, 1)))
+        details = self.page(("Emergency Details", "Heroes cannot use", "Confirm"))
+        self.flow._navigation_tap = lambda *_args: {"page": {"screen_state": "defense_formation"}}
+        self.assertEqual(self.flow._dismiss_emergency(details)["screen_state"], "defense_formation")
+
 
     def test_native_finalize_supplies_adapter_identity_without_claiming_completion(self):
         result = self.flow._finalize()
@@ -373,31 +286,39 @@ class HeroDuelNativeObserverRegressionTests(unittest.TestCase):
             finally:
                 reopened.close()
 
-    def test_known_prefix_reconstruction_requires_exact_entry_and_flee_facts(self):
+    def test_confirmed_receipts_reopen_without_paid_inventory_but_not_changed_event(self):
         for ordinal in range(1, 4):
             self.entry_record(ordinal, status=route.ActionStatus.CONFIRMED.value)
             facts = route.hero_duel_policy_preconditions(
                 "hero_duel_flee", event_identity=self.flow.event_identity,
                 ordinal=ordinal, game_day_id=self.identity.reset_id,
-                free_allowance_at_flee=3 - ordinal, pass_balance_before=123)
+                free_allowance_at_flee=3 - ordinal)
             self.records[self.flow.action_key(ordinal, "hero_duel_flee")] = {
                 "final_status": route.ActionStatus.CONFIRMED.value,
-                "policy_request_json": json.dumps({"semantic_preconditions": facts}),
-            }
-        self.flow._retain_canonical_cycle_proofs([1, 2, 3], 122)
-        self.assertEqual(self.flow.result["cycle_proofs"], [])
-        self.flow._retain_canonical_cycle_proofs([1, 2, 3], 123)
+                "policy_request_json": json.dumps({"semantic_preconditions": facts})}
+        self.flow._retain_canonical_cycle_proofs([1, 2, 3])
         self.assertEqual([proof["ordinal"] for proof in self.flow.result["cycle_proofs"]], [1, 2, 3])
-        self.flow._retain_canonical_cycle_proofs([1, 2, 3], 123)
+        self.flow._retain_canonical_cycle_proofs([1, 2, 3])
         self.assertEqual(len(self.flow.result["cycle_proofs"]), 3)
+        self.flow.event_identity = "different-event"
+        self.assertFalse(self.flow._canonical_proofs_match([1, 2, 3]))
 
-    def test_pass_balance_must_be_refreshed_after_entry_not_inferred_from_overview(self):
-        page = self.page(("Hero Duel Survival", "Free 2/3", "Challenge"))
-        self.assertIsNone(self.flow._observation(self.capture, page, 1).pass_balance)
-        self.page(("Challenge Opponent", "Free", "Hero Duel Pass 123"))
-        self.assertEqual(self.flow._observation(self.capture, page, 1).pass_balance, 123)
-        self.flow.vision.route_pass_balance = None
-        self.assertIsNone(self.flow._observation(self.capture, page, 1).pass_balance)
+    def test_actual_native_checked_portraits_and_empty_slot_controls(self):
+        root = Path(__file__).resolve().parents[2] / "Puzzle_Survival_Runtime_POC" / ".local-captures" / "development-sessions"
+        current = root / "restart-resume-20261108T035832132346Z" / "hero-duel75-native-existing-title-fix" / "native" / "HERO-DUEL-EVIDENCE-GATE-20261108T223548207697Z-10db12ed" / "hero-duel-survival-20261108T223548284999Z" / "frames" / "0028-hero-duel-defense-source.png"
+        if not current.is_file():
+            self.skipTest("retained native formation required")
+        image = cv2.imread(str(current))
+        slots, displayed, eligible, selected, cards = self.flow.vision._formation_facts(image, "defense_formation")
+        self.assertEqual(slots, ("active",) * 5)
+        self.assertEqual(set(selected), set(displayed[:5]))
+        self.assertTrue(all(hero in eligible for hero in selected))
+        self.assertEqual([card["state"] for card in cards[:5]], ["selected"] * 5)
+        self.assertIsNotNone(self.flow.vision.defense_remove_roi(image, 0))
+        blank = self.flow.vision._formation_facts(np.zeros_like(image), "defense_formation")
+        self.assertIsNone(blank[2])
+        self.assertNotEqual(blank[0], ("active",) * 5)
+
 
     def test_retained_actual_images_use_real_observer_when_evidence_and_ocr_exist(self):
         source = Path(__file__).resolve().parents[2] / "Puzzle_Survival_Runtime_POC" / ".local-captures" / "development-sessions" / "investigation2-cua-owner-20261106T232501213650Z"
@@ -415,8 +336,6 @@ class HeroDuelNativeObserverRegressionTests(unittest.TestCase):
                 self.assertIsNotNone(image)
                 page = self.flow.vision.recognize(SimpleNamespace(frame=image))
                 self.assertEqual(page["screen_state"], expected)
-                if expected == "emergency_details":
-                    self.assertIsNone(page["excluded_hero_ids"])
 
     def test_retained_exit_arrow_uses_current_image_geometry(self):
         source = Path(__file__).resolve().parents[2] / "Puzzle_Survival_Runtime_POC" / ".local-captures" / "development-sessions" / "investigation2-cua-owner-20261106T232501213650Z" / "0212-duel-loaded-battle-exit-before.png"

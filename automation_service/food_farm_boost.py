@@ -111,7 +111,7 @@ def _result_counts(result: Mapping[str, Any]) -> tuple[int, int, int, int]:
         or (collection_count > 0 and collection_accounted is not True)
         or (
             collection_calls > 0 and collection_accounted is True
-            and collection_count != 1
+            and collection_count == 0 and result.get("collection_successor") not in {"radial", "home"}
         )
         or (
             collection_calls > 0 and collection_accounted is not True
@@ -222,10 +222,10 @@ def food_farm_boost_next_due(
     if dispatch_count > MAX_ACTIONS:
         raise ValueError("Food Farm action count exceeds the route limit")
     if collection_calls and result.get("collection_effect_accounted") is not True:
-        raise ValueError("Food Farm collection dispatch lacks its broad effect reconciliation")
+        raise ValueError("Food Farm first tap lacks its observed HUD/radial successor")
     if result.get("status") == "completed" and (
         boost_calls != 1
-        or result.get("boost_decision") != "owned_item"
+        or result.get("boost_decision") not in {"owned_item", "diamonds"}
         or result.get("boost_duration_seconds") != ONE_DAY_SECONDS
         or type(result.get("boost_timer_remaining_seconds")) is not int
         or not 0 < result.get("boost_timer_remaining_seconds") <= ONE_DAY_SECONDS
@@ -234,6 +234,11 @@ def food_farm_boost_next_due(
         or result.get("boost_timer_farm_identity") != result.get("farm_identity")
     ):
         raise ValueError("Food Farm completion lacks its exact one-day same-Farm positive timer")
+    if result.get("status") == "completed" and result.get("boost_decision") == "diamonds":
+        cost, balance = result.get("boost_cost"), result.get("boost_diamond_balance")
+        if (type(cost) is not int or not 0 < cost <= 48 or type(balance) is not int or balance < cost
+                or result.get("owned_item_unavailable") is not True):
+            raise ValueError("Food Farm premium completion lacks eligible exact capped price/balance")
     if result.get("status") == "already_active" and (
         boost_calls != 0
         or type(result.get("active_remaining_seconds")) is not int
@@ -252,14 +257,16 @@ def food_farm_boost_next_due(
             and confirmation.get("confirmed") is True
             and isinstance(confirmation.get("frame_sha256"), str)
             and re.fullmatch(r"[a-f0-9]{64}", confirmation["frame_sha256"]) is not None
-            and result.get("prior_boost_confirmation_farm_identity") == farm_id
+            and isinstance(result.get("prior_boost_confirmation_farm_identity"), str)
+            and re.fullmatch(r"home\.building\.farm\.\d{2}", result["prior_boost_confirmation_farm_identity"]) is not None
             and result.get("prior_boost_confirmation_duration_seconds") == ONE_DAY_SECONDS
         )
         active_seconds = prior_active.get("remaining_seconds") if isinstance(prior_active, Mapping) else None
         confirmed_active = bool(
             isinstance(prior_active, Mapping)
             and prior_active.get("reset_id") == result.get("reset_id")
-            and prior_active.get("farm_identity") == farm_id
+            and isinstance(prior_active.get("farm_identity"), str)
+            and re.fullmatch(r"home\.building\.farm\.\d{2}", prior_active["farm_identity"]) is not None
             and type(active_seconds) is int and 0 < active_seconds <= ONE_DAY_SECONDS
             and isinstance(prior_active.get("source_frame_sha256"), str)
             and re.fullmatch(r"[a-f0-9]{64}", prior_active["source_frame_sha256"]) is not None

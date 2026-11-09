@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
@@ -78,14 +78,16 @@ class _FarmReplayRuntime:
         self.input_count += 1
         if self.apply_collection:
             self.state = 1
+        else:
+            self.state = 3
 
 
 class NativeFoodFarmBoostTests(unittest.TestCase):
-    def test_fixed_factory_runs_scheduler_request_through_real_collection_journal(self):
+    def test_fixed_factory_retains_optional_collection_and_unknown_fencing_across_restart(self):
         identity = SchedulerIdentity("account", "server", "scheduler-reset", route.PRODUCT_ID)
         farm_id = "home.building.farm.02"
-        for scenario in ("confirmed", "unknown", "changed"):
-            apply_collection = scenario == "confirmed"
+        for scenario in ("confirmed", "unobserved", "unknown", "changed"):
+            apply_collection = scenario in {"confirmed", "unobserved"}
             with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 database = root / "actions.sqlite3"
@@ -108,21 +110,20 @@ class NativeFoodFarmBoostTests(unittest.TestCase):
                         hashlib.sha256(encoded.tobytes()).hexdigest(), ("synthetic:atlas",),
                     )
 
-                def balances(frame):
-                    changed = int(frame[0, 0, 0]) == 41
-                    return {"FOOD": 100 + 10 * changed, "WOOD": 200 + 20 * changed,
-                            "STEEL": 300, "GAS": 400}
+                def food(frame):
+                    return None if scenario == "unobserved" else "110" if int(frame[0, 0, 0]) == 41 else "100"
 
                 with patch.object(ownership, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"), \
                      patch.object(native_boundary, "open_canonical_action_store",
                                   side_effect=lambda: SafetyStore(database)), \
                      patch.object(native_boundary.LocalBlueStacksRuntime, "connect", side_effect=connect), \
-                     patch.object(route, "is_clean_home_frame", return_value=True), \
+                     patch.object(route, "is_clean_home_frame",
+                                  side_effect=lambda frame: int(frame[0, 0, 0]) in {40, 41}), \
                      patch.object(route, "load_home_atlas", return_value=object()), \
                      patch.object(route, "BlueStacksHomeLocalizer",
                                   side_effect=lambda *_args: _recognized_localizer()), \
                      patch.object(route, "bind_reachable_farm", side_effect=bind), \
-                     patch.object(route, "observe_home_resource_balances", side_effect=balances), \
+                     patch.object(route, "_home_food_reading", side_effect=food), \
                      patch.object(route, "_open_food_farm_radial",
                                   return_value={"status": "blocked", "reason": "replay ends at radial"}), \
                      ownership.RuntimeInputLock(owner="automation-service", invocation_id="farm-replay") as lock:
@@ -158,7 +159,7 @@ class NativeFoodFarmBoostTests(unittest.TestCase):
                     self.assertEqual(first.input_count, 1)
                     result = first.native_result
                     self.assertEqual(result["collection_transport_calls"], 1)
-                    self.assertEqual(result["collection_count"], int(apply_collection))
+                    self.assertEqual(result["collection_count"], int(scenario == "confirmed"))
                     self.assertEqual(result["boost_transport_calls"], 0)
                     self.assertEqual(result["effect_reconciliation_required"], not apply_collection)
                     key = route.food_farm_boost_daily_action_key(
@@ -171,10 +172,9 @@ class NativeFoodFarmBoostTests(unittest.TestCase):
                     self.assertEqual(second.input_count, 0)
                     if apply_collection:
                         self.assertTrue(second.execution_verified, second.failure)
-                        self.assertEqual(second.native_result["collection_count"], 1)
+                        self.assertEqual(second.native_result["collection_count"], int(scenario == "confirmed"))
                         self.assertEqual(second.native_result["collection_transport_calls"], 0)
-                        self.assertEqual(result["collection_deltas"],
-                                         {"FOOD": 10, "WOOD": 20, "STEEL": 0, "GAS": 0})
+                        self.assertEqual(result["collection_food_after"], None if scenario == "unobserved" else "110")
                     else:
                         self.assertFalse(second.execution_verified)
                     self.assertEqual(sum(runtime.input_count for runtime in runtimes), 1)
@@ -210,8 +210,7 @@ class NativeFoodFarmBoostTests(unittest.TestCase):
         heading = tuple(token for token in self._panel_tokens() if token.roi[1] < 900)
         timer = route.NativeTextToken("Boosting 23:59:23", 99, (200, 1100, 500, 1130))
         valid_tokens = heading + (timer,)
-        with patch.object(route, "_generic_overlay", return_value=False), \
-             patch.object(route, "observe_home_resource_balances", return_value={}):
+        with patch.object(route, "_generic_overlay", return_value=False):
             with patch.object(route, "_ocr_tokens", return_value=valid_tokens):
                 panel = route.observe_food_farm_boost_panel(
                     captured, farm_identity="home.building.farm.02",
@@ -238,8 +237,7 @@ class NativeFoodFarmBoostTests(unittest.TestCase):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         captured = FakeCapture(frame, "a" * 64, Path("food-farm-panel.png"))
         with patch.object(route, "_ocr_tokens", return_value=self._panel_tokens()), \
-             patch.object(route, "_generic_overlay", return_value=False), \
-             patch.object(route, "observe_home_resource_balances", return_value={"FOOD": None, "WOOD": None, "STEEL": None, "GAS": None}):
+             patch.object(route, "_generic_overlay", return_value=False):
             panel = route.observe_food_farm_boost_panel(
                 captured, farm_identity="home.building.farm.02",
                 evidence_ref="evidence/food-farm-panel.png",
@@ -253,10 +251,7 @@ class NativeFoodFarmBoostTests(unittest.TestCase):
         self.assertFalse(observation.inventory_observed)
         self.assertIsNone(observation.inventory_item_name)
         self.assertIsNone(observation.inventory_item_count)
-        self.assertEqual(
-            food_farm_boost_decision(observation).reason,
-            "FOOD_FARM_INVENTORY_NOT_OBSERVED",
-        )
+        self.assertEqual(food_farm_boost_decision(observation).choice, FoodFarmBoostChoice.BLOCKED)
 
     def test_option_duration_is_bound_to_its_own_control_row(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
@@ -271,8 +266,7 @@ class NativeFoodFarmBoostTests(unittest.TestCase):
                 text = "1-hour"
             tokens.append(route.NativeTextToken(text, token.confidence, (x0, y0, x1, y1)))
         with patch.object(route, "_ocr_tokens", return_value=tuple(tokens)), \
-             patch.object(route, "_generic_overlay", return_value=False), \
-             patch.object(route, "observe_home_resource_balances", return_value={"FOOD": None, "WOOD": None, "STEEL": None, "GAS": None}):
+             patch.object(route, "_generic_overlay", return_value=False):
             panel = route.observe_food_farm_boost_panel(
                 captured, farm_identity="home.building.farm.02",
                 evidence_ref="evidence/food-farm-mismatched-options.png",
@@ -306,6 +300,41 @@ class NativeFoodFarmBoostTests(unittest.TestCase):
         self.assertFalse(observation.diamond_offer_actionable)
         self.assertFalse(observation.inventory_observed)
         self.assertEqual(food_farm_boost_decision(observation).choice, FoodFarmBoostChoice.BLOCKED)
+
+    def test_usable_matching_item_wins_without_a_total_inventory_and_unknown_never_buys(self):
+        observation = route._food_farm_observation(
+            farm_identity="home.building.farm.02", active_remaining_seconds=None,
+            option_duration_seconds=86_400, option_item_name="Boost output (1-day)",
+            option_item_cost=1, option_item_visible=True,
+            option_item_usable=True, inventory_item_name=None, inventory_item_count=None,
+            inventory_observed=False, diamond_option_visible=True,
+            diamond_item_name="Boost output (1-day)", diamond_duration_seconds=86_400,
+            diamond_cost=48, diamond_balance=500, diamond_direct_action_observed=True,
+            overlay_state="none", source_frame_sha256="a" * 64,
+            evidence_refs=("evidence/current-farm.png",), runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID)
+        self.assertEqual(food_farm_boost_decision(observation).choice, FoodFarmBoostChoice.OWNED_ITEM)
+        self.assertIsNone(observation.inventory_item_count)
+        self.assertEqual(food_farm_boost_decision(replace(observation, option_item_usable=None)).choice,
+                         FoodFarmBoostChoice.BLOCKED)
+        eligible = replace(observation, option_item_usable=False)
+        self.assertEqual(food_farm_boost_decision(eligible).choice, FoodFarmBoostChoice.DIAMONDS)
+        for unsafe in (replace(eligible, diamond_cost=49), replace(eligible, diamond_balance=47),
+                       replace(eligible, diamond_duration_seconds=3_600)):
+            self.assertEqual(food_farm_boost_decision(unsafe).choice, FoodFarmBoostChoice.BLOCKED)
+
+    def test_item_availability_reads_the_cost_glyph_not_the_red_button_or_inventory(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        roi = (500, 1080, 720, 1170)
+        token = route.NativeTextToken("1", 99, (670, 1120, 680, 1140))
+        frame[1080:1170, 500:720] = (60, 70, 130)  # normal muted-red item button
+        self.assertIsNone(route._item_control_usable(frame, (token,), roi))
+        frame[1120:1140, 670:680] = (245, 245, 245)
+        self.assertIs(route._item_control_usable(frame, (token,), roi), True)
+        frame[1120:1140, 670:680] = (0, 0, 255)
+        self.assertIs(route._item_control_usable(frame, (token,), roi), False)
+        self.assertEqual(route._diamond_balance_lower_bound("54.5K"), 54_400)
+        self.assertIsNone(route._exact_balance("54.5K"))
+        self.assertEqual(route._diamond_balance_lower_bound("48"), 48)
 
     def test_reachable_farm_selection_uses_any_mapped_visible_farm(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
@@ -357,8 +386,8 @@ class NativeFoodFarmBoostTests(unittest.TestCase):
             "home.building.farm.02", (500, 500, 550, 550), capture.sha256, ("atlas",)
         )
         panel = route.BoostPanelRead(
-            observation, (600, 1080, 700, 1140), None, None,
-            "Boost Output 1-day", {}, capture,
+            observation, (600, 1080, 700, 1140), (100, 1080, 300, 1140),
+            "Boost Output 1-day", capture,
         )
 
         class Runtime:
@@ -369,7 +398,9 @@ class NativeFoodFarmBoostTests(unittest.TestCase):
 
         class Store:
             def get_action_by_key(self, key):
-                return {"final_status": "confirmed"} if ":occurrence:collection:" in key else None
+                return {"final_status": "confirmed", "policy_request_json": {
+                    "semantic_preconditions": ["current_collection_balance_before:food=100,wood=200,steel=300,gas=400"]
+                }} if ":occurrence:collection:" in key else None
 
             def action_key_exists(self, _key):
                 return False
@@ -405,7 +436,7 @@ class NativeFoodFarmBoostTests(unittest.TestCase):
             result = route.run_food_farm_boost_native(context, {})
         return result, key_factory
 
-    def test_first_tap_accounts_broad_collection_before_same_farm_boost_rebound(self):
+    def test_first_tap_observes_one_hud_tick_before_same_farm_boost_rebound(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         capture = FakeCapture(frame, "7" * 64, Path("collection-successor.png"))
         binding = route.FarmBinding(
@@ -423,14 +454,11 @@ class NativeFoodFarmBoostTests(unittest.TestCase):
             runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID,
         )
         panel = route.BoostPanelRead(
-            observation, (600, 1080, 700, 1140), None, None,
-            "Boost Output 1-day", {}, capture,
+            observation, (600, 1080, 700, 1140), None,
+            "Boost Output 1-day", capture,
         )
         events = []
-        balances = iter((
-            {"FOOD": 100, "WOOD": 200, "STEEL": 300, "GAS": 400},
-            {"FOOD": 110, "WOOD": 220, "STEEL": 330, "GAS": 440},
-        ))
+        food_readings = iter(("3.00M", "3.93M"))
 
         class Runtime:
             input_count = 0
@@ -484,7 +512,7 @@ class NativeFoodFarmBoostTests(unittest.TestCase):
              patch.object(route, "load_home_atlas", return_value=object()), \
              patch.object(route, "BlueStacksHomeLocalizer", side_effect=lambda *_args: _recognized_localizer()), \
              patch.object(route, "bind_reachable_farm", return_value=binding), \
-             patch.object(route, "observe_home_resource_balances", side_effect=lambda _frame: next(balances)), \
+             patch.object(route, "_home_food_reading", side_effect=lambda _frame: next(food_readings)), \
              patch.object(route, "_dispatch_canonical_action", side_effect=dispatch_collection), \
              patch.object(route, "_open_food_farm_radial", side_effect=open_radial), \
              patch.object(route, "_open_food_farm_boost_panel", side_effect=open_panel):
@@ -497,10 +525,8 @@ class NativeFoodFarmBoostTests(unittest.TestCase):
         self.assertEqual(result["collection_count"], 1)
         self.assertEqual(result["food_farm_dispatch_count"], 1)
         self.assertTrue(result["collection_effect_accounted"])
-        self.assertEqual(
-            result["collection_deltas"],
-            {"FOOD": 10, "WOOD": 20, "STEEL": 30, "GAS": 40},
-        )
+        self.assertEqual(result["collection_food_before"], "3.00M")
+        self.assertEqual(result["collection_food_after"], "3.93M")
         self.assertEqual(result["status"], "blocked")
         self.assertTrue(result["evidence_required"])
         self.assertEqual(result["boost_transport_calls"], 0)
@@ -524,7 +550,6 @@ class NativeFoodFarmBoostTests(unittest.TestCase):
             observation, occurrence_key="opaque-occurrence-two",
         )
         self.assertEqual(first["status"], "blocked")
-        self.assertEqual(first["reason"], "FOOD_FARM_INVENTORY_NOT_OBSERVED")
         self.assertTrue(first["evidence_required"])
         self.assertEqual(first["collection_transport_calls"], 0)
         self.assertEqual(first["collection_count"], 1)
@@ -552,11 +577,10 @@ class NativeFoodFarmBoostTests(unittest.TestCase):
             observation, occurrence_key="opaque-one-hour",
         )
         self.assertEqual(result["status"], "blocked")
-        self.assertEqual(result["reason"], "FOOD_FARM_EXACT_ONE_DAY_DURATION_REQUIRED")
-        self.assertTrue(result["evidence_required"])
         self.assertEqual(result["boost_transport_calls"], 0)
+        self.assertTrue(result["evidence_required"])
 
-    def test_diamond_choice_remains_blocked_without_confirmation_evidence(self):
+    def test_native_premium_dispatch_uses_real_option_without_inventing_confirmation(self):
         observation = route._food_farm_observation(
             farm_identity="home.building.farm.02", active_remaining_seconds=None,
             option_duration_seconds=86_400, option_item_name="Boost Output 1-day",
@@ -569,13 +593,14 @@ class NativeFoodFarmBoostTests(unittest.TestCase):
             evidence_refs=("evidence/boost-panel.png",),
             runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID,
         )
-        result, _key_factory = self._run_from_confirmed_collection(
-            observation, occurrence_key="opaque-diamond",
-        )
-        self.assertEqual(result["status"], "blocked")
-        self.assertEqual(result["reason"], "FOOD_FARM_DIAMOND_CONFIRMATION_EVIDENCE_REQUIRED")
-        self.assertTrue(result["evidence_required"])
-        self.assertEqual(result["boost_transport_calls"], 0)
+        with patch.object(route, "_dispatch_canonical_action", return_value={
+                "status": "blocked", "reason": "dispatch boundary reached", "transport_calls": 0,
+                "effect_reconciliation_required": False}) as dispatch:
+            self._run_from_confirmed_collection(observation, occurrence_key="opaque-diamond")
+        self.assertEqual(dispatch.call_args.kwargs["action_kind"], "buy_food_farm_output_boost_diamonds")
+        self.assertEqual(dispatch.call_args.kwargs["cost_type"], "diamonds")
+        self.assertEqual(dispatch.call_args.kwargs["cost_amount"], 48)
+        self.assertTrue(callable(dispatch.call_args.kwargs["revalidate_before"]))
 
     def test_active_timer_above_one_day_is_blocked_instead_of_claimed(self):
         observation = route._food_farm_observation(
@@ -596,7 +621,7 @@ class NativeFoodFarmBoostTests(unittest.TestCase):
         self.assertTrue(result["evidence_required"])
         self.assertEqual(result["boost_transport_calls"], 0)
 
-    def test_prior_active_timer_for_a_different_farm_requires_reconciliation(self):
+    def test_prior_active_timer_prevents_second_reset_boost_even_when_another_farm_is_reachable(self):
         observation = route._food_farm_observation(
             farm_identity="home.building.farm.02", active_remaining_seconds=None,
             option_duration_seconds=86_400, option_item_name="Boost Output 1-day",
@@ -619,10 +644,10 @@ class NativeFoodFarmBoostTests(unittest.TestCase):
         result, _key_factory = self._run_from_confirmed_collection(
             observation, occurrence_key="opaque-wrong-farm", active_events=(event,),
         )
-        self.assertEqual(result["status"], "blocked")
-        self.assertEqual(result["farm_identity"], "home.building.farm.02")
-        self.assertTrue(result["effect_reconciliation_required"])
-        self.assertTrue(result["identical_retry_denied"])
+        self.assertEqual(result["status"], "already_complete")
+        self.assertEqual(result["active_timer_farm_identity"], "home.building.farm.03")
+        self.assertFalse(result["effect_reconciliation_required"])
+        self.assertFalse(result["identical_retry_denied"])
         self.assertEqual(result["boost_transport_calls"], 0)
 
     def test_fake_native_smoke_defers_cleanly_when_no_farm_is_currently_reachable(self):
@@ -649,7 +674,7 @@ class NativeFoodFarmBoostTests(unittest.TestCase):
             settle_seconds=0.0,
         )
         with patch.object(route, "is_clean_home_frame", return_value=True), \
-             patch.object(route, "load_home_atlas", return_value=object()), \
+             patch.object(route, "load_home_atlas", return_value=SimpleNamespace(buildings=())), \
              patch.object(route, "BlueStacksHomeLocalizer", side_effect=lambda *_args: _recognized_localizer()), \
              patch.object(route, "bind_reachable_farm", return_value=None):
             result = route.run_food_farm_boost_native(context, {})
@@ -678,7 +703,7 @@ class NativeFoodFarmBoostTests(unittest.TestCase):
             runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID,
         )
         panel = route.BoostPanelRead(
-            observation, None, None, None, "Boosting 01:00:00", {}, capture
+            observation, None, None, "Boosting 01:00:00", capture
         )
 
         class Runtime:

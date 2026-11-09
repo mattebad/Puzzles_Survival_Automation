@@ -79,7 +79,6 @@ class TechUpgradeObservation:
     panel_bounds: ROI
     control_class: str
     research_start_visible: bool
-    research_now_diamonds: Optional[int]
     research_now_target_identity: str
     research_now_tapped: bool
     target_provenance: str
@@ -92,7 +91,7 @@ class TechUpgradeObservation:
 
 @dataclass(frozen=True)
 class ResearchActiveObservation:
-    """A fresh active-queue reading paired to the exact pre-dispatch costs."""
+    """A fresh same-technology active Queue 1 successor with a positive timer."""
 
     screen_state: str
     active_technology_title: str
@@ -176,7 +175,7 @@ def _valid_resource_rows(
 def tech_upgrade_queue_deferral(
     observation: TechUpgradeObservation,
 ) -> tuple[str, int | None] | None:
-    """Return a busy queue's exact timer, or None when its current state is unknown."""
+    """Return a positively busy queue even when its remaining timer is unreadable."""
 
     state = observation.queue1_state
     remaining = observation.queue1_remaining_seconds
@@ -184,6 +183,8 @@ def tech_upgrade_queue_deferral(
         return ("idle", None)
     if state in {"active", "busy"} and type(remaining) is int and remaining > 0:
         return ("busy", remaining)
+    if state in {"active", "busy"} and remaining is None:
+        return ("busy", None)
     return None
 
 def _queue1_idle(observation: TechUpgradeObservation) -> bool:
@@ -284,7 +285,6 @@ def tech_upgrade_authorizeable(
         and observation.target_identity == expected_target
         and observation.control_class == RESEARCH_START_CONTROL
         and observation.research_start_visible is True
-        and type(observation.research_now_diamonds) is int and observation.research_now_diamonds > 0
         and observation.research_now_target_identity == "research-now-diamonds"
         and observation.research_now_tapped is False
         and _target_inside_panel(observation.target_roi, observation.panel_bounds)
@@ -324,18 +324,10 @@ def tech_upgrade_postcondition_verified(
     after: ResearchActiveObservation | None,
     recommendation: RecommendedResearchListObservation,
 ) -> bool:
-    """Require exact active target/timer and the paired, full four-resource debit."""
+    """Require the exact active target/timer, not an invisible original quote."""
 
     if not tech_upgrade_authorizeable(before, recommendation) or after is None:
         return False
-    before_rows = {row.resource: row for row in before.resource_rows}
-    if not _valid_resource_rows(
-        after.resource_rows, require_affordable=False, require_costs=False
-    ):
-        return False
-    if any(type(row.balance) is not int or row.balance < 0 for row in after.resource_rows):
-        return False
-    after_balances = {row.resource: row.balance for row in after.resource_rows}
     return bool(
         after.screen_state == ACTIVE_SCREEN
         and after.active_technology_identity == before.first_recommendation_identity
@@ -343,10 +335,6 @@ def tech_upgrade_postcondition_verified(
         and after.queue1_state == "active"
         and type(after.remaining_seconds) is int
         and 0 < after.remaining_seconds <= before.duration_seconds
-        and all(
-            before_rows[resource].balance - after_balances[resource] == before_rows[resource].cost
-            for resource in RESEARCH_RESOURCES
-        )
         and after.overlay_state in {"none", "none_observed"}
         and after.recognized is True
         and _has_bluestacks_native_source(

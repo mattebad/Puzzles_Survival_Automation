@@ -115,7 +115,6 @@ class ResearchScreenObservation:
     list_research_target_roi: tuple[int, int, int, int] | None = None
     detail_research_target_roi: tuple[int, int, int, int] | None = None
     research_now_target_roi: tuple[int, int, int, int] | None = None
-    research_now_diamonds: int | None = None
     panel_bounds: tuple[int, int, int, int] | None = None
     scroll_roi: tuple[int, int, int, int] | None = None
     current_level: int | None = None
@@ -125,6 +124,9 @@ class ResearchScreenObservation:
     prerequisite_lines: tuple[str, ...] = ()
     prerequisite_level: int | None = None
     prerequisite_evidence: tuple[str, ...] = ()
+    prerequisites_known: bool = False
+    prerequisites_met: bool = False
+    resource_ink_conflict: bool = False
     resource_pairs: tuple[tuple[int, int], ...] = ()
     resource_rows: tuple[ResearchResourceRow, ...] = ()
     requirements_scrolled: bool = False
@@ -416,51 +418,9 @@ def _reread_detail_controls(
         grouped, block = _reread_line_words(controls, block)
         added.extend(grouped)
         replaced.extend(word.roi for word in grouped)
-        price = _research_now_price_word(frame, grouped, block)
-        if price is not None:
-            added.append(price)
-            block += 1
     return block
 
 
-# Actual sheet (0014/0020): the excluded premium price sits inside the Research
-# Now button, digits 1204..1221 directly above the caption top 1226, right of a
-# 343-px cyan diamond icon; Full-frame and icon-inclusive reads gave '*714'
-# 48/65, the icon-excluded white reread '714' 96.
-_RESEARCH_NOW_PRICE_BAND_HEIGHT = 28
-_RESEARCH_NOW_DIAMOND_MIN_PIXELS = 120
-
-
-def _research_now_price_word(frame: Any, controls: Sequence[ResearchWord], block: int) -> ResearchWord | None:
-    """Read the excluded Research Now diamond price anchored to its own caption."""
-
-    by_line: dict[tuple[int, int, int], list[ResearchWord]] = {}
-    for word in controls:
-        by_line.setdefault(word.line_id, []).append(word)
-    captions = [
-        line for line in by_line.values()
-        if [word.normalized for word in sorted(line, key=lambda item: item.roi[0])] == ["research", "now"]
-    ]
-    if len(captions) != 1:
-        return None
-    cx0 = min(word.roi[0] for word in captions[0])
-    cy0 = min(word.roi[1] for word in captions[0])
-    cx1 = max(word.roi[2] for word in captions[0])
-    y0, y1 = max(0, cy0 - _RESEARCH_NOW_PRICE_BAND_HEIGHT), cy0 - 1
-    if y1 - y0 < 12 or cx1 - cx0 < 40:
-        return None
-    diamond = cv2.inRange(cv2.cvtColor(frame[y0:y1, cx0:cx1], cv2.COLOR_BGR2HSV), (85, 90, 120), (125, 255, 255))
-    columns = diamond.any(axis=0).nonzero()[0]
-    if int((diamond > 0).sum()) < _RESEARCH_NOW_DIAMOND_MIN_PIXELS or not len(columns):
-        return None
-    digits_x0 = cx0 + int(columns.max()) + 4
-    if cx1 - digits_x0 < 12:
-        return None
-    read = [word for word in _prepared_crop_words(frame, (digits_x0, y0, cx1, y1), _white_ink, "--psm 7") if word.normalized]
-    if len(read) != 1 or read[0].confidence < _RESEARCH_PAGE_MIN_CONFIDENCE or not read[0].text.strip().isdecimal():
-        return None
-    word = read[0]
-    return ResearchWord(word.text, word.normalized, word.roi, word.confidence, (block, 0, 0))
 
 
 def _research_page_words(frame: Any, words: tuple[ResearchWord, ...]) -> tuple[ResearchWord, ...]:
@@ -691,7 +651,7 @@ def _queue1_from_lines(lines: Sequence[tuple[ResearchWord, ...]]) -> tuple[str, 
             if 0 <= y0 - count_bounds[3] <= 90 and x0 <= 180 and x1 <= 180:
                 times.append(_clock_seconds(_line_text(candidate)))
         remaining = [item for item in times if item is not None and item > 0]
-        return ("busy", remaining[0]) if len(remaining) == 1 else ("busy_unknown_timer", None)
+        return ("busy", remaining[0]) if len(remaining) == 1 else ("busy", None)
     return "unknown", None
 
 
@@ -702,7 +662,12 @@ def _resource_pairs_from_lines(
     for line in lines:
         if _line_bounds(line)[1] <= after_y:
             continue
-        pair = _paired_amounts(_line_text(line))
+        amount_words = [
+            word for word in line
+            if word.confidence >= _RESEARCH_PAGE_MIN_CONFIDENCE
+            and re.fullmatch(r"(?:0|[1-9][0-9]{0,2}(?:,[0-9]{3})*|[1-9][0-9]*)/(?:0|[1-9][0-9]{0,2}(?:,[0-9]{3})*|[1-9][0-9]*)", word.text)
+        ]
+        pair = _paired_amounts(amount_words[0].text) if len(amount_words) == 1 else None
         if pair is not None:
             pairs.append(pair)
     return tuple(pairs)
@@ -733,6 +698,22 @@ def _merge_top_and_scrolled_resource_rows(
     ):
         return _resource_rows_from_pairs((top_pairs[0], top_pairs[1], scrolled_pairs[1], scrolled_pairs[2]))
     return ()
+
+def _red_text(frame: Any, line: Sequence[ResearchWord]) -> bool | None:
+    """Inspect text ROIs only: beige requirement text is not red shortage ink."""
+    red_pixels = bright_pixels = 0
+    for word in line:
+        if word.confidence < _RESEARCH_PAGE_MIN_CONFIDENCE:
+            continue
+        x0, y0, x1, y1 = word.roi
+        hsv = cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2HSV)
+        hue, saturation, value = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]
+        bright_pixels += int((value >= 150).sum())
+        red_pixels += int((((hue <= 8) | (hue >= 170)) & (saturation >= 120) & (value >= 150)).sum())
+    if bright_pixels < 12:
+        return None
+    return red_pixels >= 12 and red_pixels >= bright_pixels * 0.25
+
 
 def recognize_research_screen(
     frame: Any,
@@ -848,23 +829,43 @@ def recognize_research_screen(
     if detail_title_line is not None:
         detail_title_bounds = _line_bounds(detail_title_line)
         has_time_pair = bool(time_actual_lines and time_original_lines)
+        # Completeness is bounded by the visible time section and first cost
+        # row; do not replace the displayed requirements with a Center schema.
+        time_bottom = max(
+            (_line_bounds(line)[3] for line in lines
+             if _line_bounds(line)[1] >= detail_title_bounds[3]
+             and _CLOCK_RE.search(_line_text(line))),
+            default=detail_title_bounds[3],
+        )
+        cost_top = min(
+            (_line_bounds(line)[1] for line in lines
+             if _line_bounds(line)[1] > time_bottom and _paired_amounts(_line_text(line)) is not None),
+            default=time_bottom,
+        )
         prereq_lines = tuple(
             line for line in lines
-            if has_time_pair
-            and _line_bounds(line)[1] > detail_title_bounds[3]
-            and any(marker in _normalize(_line_text(line)) for marker in ("lv", "prerequisite", "requires"))
+            if has_time_pair and time_bottom < _line_bounds(line)[1] < cost_top
+            and any(word.normalized.isalpha() or "lv" in word.normalized for word in line)
         )
         prerequisite_text = tuple(_line_text(line) for line in prereq_lines)
+        prerequisite_evidence = tuple(
+            slug for line in prerequisite_text if (slug := research_identity(line)) is not None
+        )
+        prereq_known = bool(
+            has_time_pair and cost_top > time_bottom
+            and len(prerequisite_evidence) == len(prereq_lines)
+            and all(re.search(r"\b(?:lv\.?|level)\s*[0-9]{1,3}\b", line, re.IGNORECASE) for line in prerequisite_text)
+        )
+        prerequisite_tones = tuple(_red_text(frame, line) for line in prereq_lines)
+        prereq_known = prereq_known and all(tone is not None for tone in prerequisite_tones)
+        prereq_met = prereq_known and not any(prerequisite_tones)
+        if prereq_known and not prerequisite_evidence:
+            prerequisite_evidence = ("no-displayed-prerequisites",)
         prerequisite_level = None
-        for line in prereq_lines:
-            match = re.search(r"\b(?:lv\.?|level)\s*([0-9]{1,3})\b", _line_text(line), flags=re.IGNORECASE)
+        for line in prerequisite_text:
+            match = re.search(r"Research Center:\s*Lv\.?\s*([0-9]+)", line, re.IGNORECASE)
             if match:
                 prerequisite_level = int(match.group(1))
-                break
-        prerequisite_evidence = tuple(
-            slug for line in prerequisite_text
-            if (slug := research_identity(line)) is not None
-        )
         pairs = _resource_pairs_from_lines(
             lines,
             after_y=max([detail_title_bounds[3], *(_line_bounds(line)[3] for line in prereq_lines)]),
@@ -878,16 +879,6 @@ def recognize_research_screen(
         detail_button_roi = _padded_roi(_line_bounds(button_lines[-1])) if button_lines else None
         now_line = min(research_now_lines, key=lambda line: _line_bounds(line)[1]) if research_now_lines else None
         now_bounds = _line_bounds(now_line) if now_line is not None else None
-        diamonds = []
-        if now_bounds is not None:
-            for word in words:
-                if word.normalized.isdecimal():
-                    x, y = word.center
-                    if abs(y - (now_bounds[1] + now_bounds[3]) / 2) <= 54 and x >= now_bounds[0] - 30:
-                        value = _integer(word.text)
-                        if value is not None:
-                            diamonds.append((abs(y - (now_bounds[1] + now_bounds[3]) / 2) + abs(x - now_bounds[2]), value))
-        research_now_diamonds = min(diamonds)[1] if diamonds else None
         actual_time = _clock_seconds(" ".join(_line_text(line) for line in time_actual_lines))
         if actual_time is None:
             # Actual sheet prints both clocks on the row below their labels:
@@ -951,7 +942,6 @@ def recognize_research_screen(
                 recommendation_position=1,
                 detail_research_target_roi=detail_button_roi,
                 research_now_target_roi=_padded_roi(now_bounds) if now_bounds is not None else None,
-                research_now_diamonds=research_now_diamonds,
                 panel_bounds=panel,
                 scroll_roi=scroll_roi,
                 current_level=current_level,
@@ -959,6 +949,14 @@ def recognize_research_screen(
                 prerequisite_lines=prerequisite_text,
                 prerequisite_level=prerequisite_level,
                 prerequisite_evidence=prerequisite_evidence,
+                prerequisites_known=prereq_known,
+                prerequisites_met=prereq_met,
+                resource_ink_conflict=any(
+                    _red_text(frame, tuple(word for word in line if "/" in word.text))
+                    and (pair := _paired_amounts(_line_text(line))) is not None
+                    and pair[0] >= pair[1]
+                    for line in lines if _line_bounds(line)[1] > detail_title_bounds[3]
+                ),
                 resource_pairs=pairs,
                 resource_rows=resource_rows,
                 requirements_scrolled=len(pairs) >= 3,
@@ -966,34 +964,42 @@ def recognize_research_screen(
                 recognized=True,
             )
 
-    active_markers = [line for line in lines if any(marker in _normalize(_line_text(line)) for marker in ("researching", "remainingtime", "researchinprogress"))]
-    if active_markers:
-        marker_y = min(_line_bounds(line)[1] for line in active_markers)
-        times = [
-            (line, _clock_seconds(_line_text(line)))
-            for line in lines
-            if _line_bounds(line)[1] >= marker_y and _clock_seconds(_line_text(line)) is not None
-        ]
-        if times:
-            active_line = active_markers[0]
-            raw_title = _line_text(active_line)
-            for marker in ("Researching", "Research in Progress"):
-                raw_title = re.sub(marker, "", raw_title, flags=re.IGNORECASE).strip(" :-")
-            active_title = raw_title if research_identity(raw_title) else None
-            rows = _resource_rows_from_pairs(_resource_pairs_from_lines(lines, after_y=marker_y))
-            if active_title:
-                return ResearchScreenObservation(
-                    screen_state=ACTIVE_SCREEN,
-                    frame_sha256=source_frame_sha256,
-                    evidence_refs=refs,
-                    text=text,
-                    words=words,
-                    active_title=active_title,
-                    active_identity=research_identity(active_title),
-                    active_remaining_seconds=times[0][1],
-                    active_resource_rows=tuple(ResearchResourceRow(row.resource, None, row.balance) for row in rows),
-                    recognized=len(rows) == len(RESEARCH_RESOURCES),
-                )
+    # The live countdown must identify this technology, not either static
+    # Original/Actual Time quote. A still-visible ordinary start is not active.
+    active_markers = [
+        line for line in lines
+        if any(marker in _normalize(_line_text(line)) for marker in ("researching", "researchinprogress"))
+    ]
+    active_titles = []
+    for line in lines:
+        raw_title = _line_text(line)
+        for marker in ("Researching", "Research in Progress"):
+            raw_title = re.sub(marker, "", raw_title, flags=re.IGNORECASE).strip(" :-")
+        raw_title = _LEVEL_RE.sub("", raw_title).strip()
+        identity = research_identity(_canonical_title(raw_title))
+        if identity and (
+            identity == expected_detail_identity if expected_detail_identity is not None else line in active_markers
+        ):
+            active_titles.append((_canonical_title(raw_title), line))
+    static_labels = (*time_original_lines, *time_actual_lines)
+    timers = [
+        word for word in words if _CLOCK_RE.fullmatch(word.text.strip())
+        and not any(-20 <= word.roi[1] - _line_bounds(label)[3] <= 50 for label in static_labels)
+    ]
+    ordinary_start = any(
+        _line_bounds(line)[0] > 320 and _line_bounds(line)[1] > 500
+        for line in _exact_word_lines(lines, "research")
+    )
+    if active_titles and len(timers) == 1 and not ordinary_start and not research_now_lines:
+        title, title_line = min(active_titles, key=lambda item: abs(_line_bounds(item[1])[1] - timers[0].roi[1]))
+        if abs(_line_bounds(title_line)[1] - timers[0].roi[1]) <= 160:
+            return ResearchScreenObservation(
+                screen_state=ACTIVE_SCREEN, frame_sha256=source_frame_sha256,
+                evidence_refs=refs, text=text, words=words, active_title=title,
+                active_identity=research_identity(title),
+                active_remaining_seconds=_clock_seconds(timers[0].text),
+                recognized=True,
+            )
 
     if (
         not home_recognized
@@ -1346,7 +1352,9 @@ def _detail_observation(
     *,
     costs: tuple[ResearchResourceRow, ...],
     scrolled_refs: Sequence[str],
+    top_screen: ResearchScreenObservation | None = None,
 ) -> TechUpgradeObservation | None:
+    top = top_screen if top_screen is not None else screen
     if (
         screen.screen_state != DETAIL_SCREEN
         or not screen.recognized
@@ -1354,32 +1362,26 @@ def _detail_observation(
         or screen.selected_technology_identity is None
         or screen.selected_technology_identity != listing.first_recommendation_identity
         or research_identity(screen.selected_technology_title) != listing.first_recommendation_identity
-        or screen.current_level is None
-        or screen.target_level is None
-        or screen.duration_seconds is None
         or screen.detail_research_target_roi is None
         or screen.panel_bounds is None
         or screen.research_now_target_roi is None
-        or screen.research_now_diamonds is None
         or len(costs) != len(RESEARCH_RESOURCES)
+    ):
+        return None
+    if (
+        top.selected_technology_identity != screen.selected_technology_identity
+        or top.current_level is None or top.target_level is None
+        or top.duration_seconds is None or screen.resource_ink_conflict
     ):
         return None
     selected_title = screen.selected_technology_title
     selected_identity = screen.selected_technology_identity
-    prereq_known = bool(
-        screen.prerequisite_lines
-        and screen.prerequisite_level is not None
-        and screen.prerequisite_evidence
-        and len(screen.prerequisite_lines) == len(screen.prerequisite_evidence)
-        and all("researchcenter" in _normalize(line) for line in screen.prerequisite_lines)
-    )
+    prereq_known = top.prerequisites_known
+    prereq_met = top.prerequisites_met
     current_center_level = getattr(context, "_recommended_research_center_level", None)
-    prereq_met = bool(
-        prereq_known
-        and type(current_center_level) is int
-        and current_center_level >= screen.prerequisite_level
-    )
-    evidence = tuple(screen.prerequisite_evidence)
+    if type(current_center_level) is int and top.prerequisite_level is not None:
+        prereq_met = prereq_met and current_center_level >= top.prerequisite_level
+    evidence = tuple(top.prerequisite_evidence)
     if prereq_known and not prereq_met:
         evidence = tuple(f"{item}-unmet" for item in evidence)
     return TechUpgradeObservation(
@@ -1390,8 +1392,8 @@ def _detail_observation(
         recommendation_position=1,
         selected_technology_title=selected_title,
         selected_technology_identity=selected_identity,
-        current_level=screen.current_level,
-        target_level=screen.target_level,
+        current_level=top.current_level,
+        target_level=top.target_level,
         prerequisites_known=prereq_known,
         prerequisites_met=prereq_met,
         prerequisite_evidence=evidence,
@@ -1400,18 +1402,17 @@ def _detail_observation(
         queue2_activate_tapped=False,
         requirements_scrolled=True,
         resource_rows=tuple(costs),
-        duration_seconds=screen.duration_seconds,
+        duration_seconds=top.duration_seconds,
         target_identity=f"recommended-research:{selected_identity}:detail-research-button",
         target_roi=screen.detail_research_target_roi,
         panel_bounds=screen.panel_bounds,
         control_class="RESEARCH_START",
         research_start_visible=True,
-        research_now_diamonds=screen.research_now_diamonds,
         research_now_target_identity="research-now-diamonds",
         research_now_tapped=False,
         target_provenance=BLUESTACKS_NATIVE_TARGET_PROVENANCE,
         source_frame_sha256=screen.frame_sha256,
-        evidence_refs=tuple(dict.fromkeys((*listing.evidence_refs, *screen.evidence_refs, *scrolled_refs))),
+        evidence_refs=tuple(dict.fromkeys((*listing.evidence_refs, *top.evidence_refs, *screen.evidence_refs, *scrolled_refs))),
         overlay_state=screen.overlay_state,
         runtime_profile_id=PROFILE_ID,
         recognized=True,
@@ -1474,6 +1475,17 @@ def _fresh_start_detail(
         or proof["list_pixels"] != hashlib.sha256(listing_capture.frame.tobytes()).hexdigest()
     ):
         return None
+    top_capture = proof.get("detail_capture")
+    top_screen = proof.get("detail_screen")
+    if top_capture is None or top_screen is None:
+        return None
+    if (
+        proof.get("detail_pixels") != hashlib.sha256(top_capture.frame.tobytes()).hexdigest()
+        or not native_frame_guard(top_capture.frame)
+        or not 0 <= proof.get("detail_used_at", -1) - top_capture.captured_monotonic <= 10.0
+        or not listing_capture.captured_monotonic <= top_capture.captured_monotonic <= quote_capture.captured_monotonic
+    ):
+        return None
     if not (
         0 <= proof["home_used_at"] - home.captured_monotonic <= 10.0
         and 0 <= proof["list_used_at"] - listing_capture.captured_monotonic <= 10.0
@@ -1497,12 +1509,11 @@ def _fresh_start_detail(
     fresh_quote = _source_screen(context, quote_capture, expected_detail_identity=fresh_listing.first_recommendation_identity)
     if fresh_quote != quote_screen:
         return None
-    costs = (
-        screen.resource_rows if len(screen.resource_rows) == len(RESEARCH_RESOURCES)
-        else _merge_top_and_scrolled_resource_rows(screen.resource_pairs, fresh_quote.resource_pairs)
-    )
+    # The consuming frame must itself expose the whole quote. Static top
+    # prerequisites may survive the exclusive scroll; affordability may not.
+    costs = screen.resource_rows
     detail = _detail_observation(
-        screen, fresh_listing, context, costs=costs, scrolled_refs=fresh_quote.evidence_refs,
+        screen, fresh_listing, context, costs=costs, scrolled_refs=fresh_quote.evidence_refs, top_screen=top_screen,
     )
     if detail is None or not tech_upgrade_authorizeable(detail, fresh_listing):
         return None
@@ -1511,7 +1522,7 @@ def _fresh_start_detail(
         "first_recommendation_identity", "selected_technology_identity",
         "current_level", "target_level", "prerequisites_known", "prerequisites_met",
         "prerequisite_evidence", "queue1_state", "resource_rows", "duration_seconds",
-        "research_now_diamonds", "target_identity", "target_roi", "panel_bounds",
+        "target_identity", "target_roi", "panel_bounds",
     )
     if any(getattr(detail, field) != getattr(expected, field) for field in fields):
         return None
@@ -1655,7 +1666,7 @@ def _guarded_action(
         references = (_capture_ref(context, before),)
         if action_class is ActionClass.SPEND_OR_STRATEGIC and visit is not None:
             references = tuple(dict.fromkeys((
-                *references, visit["home_ref"], visit["list_ref"], visit["quote_ref"],
+                *references, visit["home_ref"], visit["list_ref"], visit["detail_ref"], visit["quote_ref"],
             )))
         observation = _policy_observation(
             before,
@@ -1827,7 +1838,6 @@ def _research_selection_facts(detail: TechUpgradeObservation) -> dict[str, objec
         "requirements_scrolled": detail.requirements_scrolled,
         "research_start_visible": detail.research_start_visible,
         "control_class": detail.control_class,
-        "research_now_diamonds": detail.research_now_diamonds,
         "research_now_target_identity": detail.research_now_target_identity,
         "research_now_tapped": detail.research_now_tapped,
         "overlay_state": detail.overlay_state,
@@ -1844,8 +1854,8 @@ def _research_start_preconditions(
     if not re.fullmatch(r"game-day-[0-9]{4}-[0-9]{2}-[0-9]{2}", game_day_id, flags=re.ASCII):
         raise ValueError("scheduler game-day reset identity is unavailable")
     slug = detail.first_recommendation_identity
-    prerequisite = detail.prerequisite_evidence[0] if detail.prerequisite_evidence else ""
-    if research_identity(prerequisite) != prerequisite:
+    prerequisite = "_".join(detail.prerequisite_evidence)
+    if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,127}", prerequisite, flags=re.ASCII):
         raise ValueError("exact prerequisite evidence is unavailable")
     rows = {row.resource: row for row in detail.resource_rows}
     if set(rows) != set(RESEARCH_RESOURCES):
@@ -1889,7 +1899,7 @@ _RETURN_PARENT_STATES: dict[str, frozenset[str]] = {
     DETAIL_SCREEN: frozenset({TREE_SCREEN, LIST_SCREEN}),
     TREE_SCREEN: frozenset({LIST_SCREEN}),
     LIST_SCREEN: frozenset(),
-    ACTIVE_SCREEN: frozenset(),
+    ACTIVE_SCREEN: frozenset({TREE_SCREEN, LIST_SCREEN}),
 }
 _RETURN_HOME_MAX_BACKS = 3
 
@@ -1936,7 +1946,6 @@ def _build_active_observation(screen: ResearchScreenObservation) -> ResearchActi
         or screen.active_identity is None
         or type(screen.active_remaining_seconds) is not int
         or screen.active_remaining_seconds <= 0
-        or len(screen.active_resource_rows) != len(RESEARCH_RESOURCES)
         or not _DIGEST_RE.fullmatch(screen.frame_sha256 or "")
     ):
         return None
@@ -2078,10 +2087,17 @@ def _home_from_current(
     if context.action_store.has_action_block():
         return current, False, step
 
+    def return_screen(captured: Any) -> ResearchScreenObservation:
+        screen = _source_screen(context, captured)
+        active_identity = getattr(context, "_recommended_research_active_identity", None)
+        if not screen.recognized and active_identity is not None:
+            return _source_screen(context, captured, expected_detail_identity=active_identity)
+        return screen
+
     for hop in range(_RETURN_HOME_MAX_BACKS):
         if context.is_clean_home(current.frame):
             return current, True, step
-        screen = _source_screen(context, current)
+        screen = return_screen(current)
         plan = _return_plan(current.frame, screen)
         if plan is None:
             return current, False, step
@@ -2107,7 +2123,7 @@ def _home_from_current(
             game_day_id=game_day_id,
             occurrence_key=occurrence_key,
             action_key=_navigation_key(context, occurrence_key, name),
-            plan_builder=lambda fresh_capture: _return_plan(fresh_capture.frame, _source_screen(context, fresh_capture)),
+            plan_builder=lambda fresh_capture: _return_plan(fresh_capture.frame, return_screen(fresh_capture)),
             recognizes_successor=nearer_home,
         )
         del result
@@ -2203,6 +2219,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
     semantic_progress: dict[str, Any] = {}
     context._recommended_research_screen_cache = {}
     context._recommended_research_visit = None
+    context._recommended_research_active_identity = None
     try:
         initial = _startup(context, policy, game_day_id, occurrence_key)
         home = context.session.observe(context.runtime.capture, label="recommended-research-home-source")
@@ -2211,7 +2228,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
         home_screen = _source_screen(context, home)
         queue_state = home_screen.queue1_state
         queue_remaining = home_screen.queue1_remaining_seconds
-        if queue_state == "busy" and type(queue_remaining) is int and queue_remaining > 0:
+        if queue_state == "busy":
             return _normal_result(
                 context,
                 status="deferred",
@@ -2219,6 +2236,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 game_day_id=game_day_id,
                 queue1_state="busy",
                 queue1_remaining_seconds=queue_remaining,
+                observation_interval_seconds=OBSERVATION_INTERVAL_SECONDS,
                 terminal_home_verified=True,
             )
         if queue_state != "idle":
@@ -2245,11 +2263,12 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             home_screen = _source_screen(context, entry_home)
             queue_state = home_screen.queue1_state
             queue_remaining = home_screen.queue1_remaining_seconds
-            if queue_state == "busy" and type(queue_remaining) is int and queue_remaining > 0:
+            if queue_state == "busy":
                 return _normal_result(
                     context, status="deferred", reason="research_queue1_busy",
-                    game_day_id=game_day_id, queue1_state=queue_state,
+                    game_day_id=game_day_id, queue1_state="busy",
                     queue1_remaining_seconds=queue_remaining, terminal_home_verified=True,
+                    observation_interval_seconds=OBSERVATION_INTERVAL_SECONDS,
                 )
             if queue_state != "idle":
                 return _normal_result(
@@ -2270,7 +2289,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
         step = 0
 
         def building_plan(captured: Any) -> _ActionPlan | None:
-            nonlocal home, binding
+            nonlocal home, binding, home_screen
             current_binding = _binding_for_home(context, captured.frame, localizer, building)
             if current_binding is None:
                 return None
@@ -2283,12 +2302,13 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 evidence_refs=(_capture_ref(context, captured),),
                 home_recognized=True,
             )
+            home_screen = current_home
             pixels = hashlib.sha256(captured.frame.tobytes()).hexdigest()
             current_level = _research_center_level(captured.frame, current_binding)
             used_at = context.monotonic_clock()
             if (
                 not 0 <= used_at - captured.captured_monotonic <= 10.0
-                or current_home.queue1_state != "idle" or current_level is None
+                or current_home.queue1_state != "idle"
                 or not _research_visit_valid(context)
             ):
                 return None
@@ -2350,6 +2370,14 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
         entry_plan = building_plan(home)
         if entry_plan is None:
             context._recommended_research_visit = None
+            if home_screen.queue1_state == "busy":
+                return _normal_result(
+                    context, status="deferred", reason="research_queue1_busy",
+                    game_day_id=game_day_id, queue1_state="busy",
+                    queue1_remaining_seconds=home_screen.queue1_remaining_seconds,
+                    observation_interval_seconds=OBSERVATION_INTERVAL_SECONDS,
+                    terminal_home_verified=context.is_clean_home(home.frame),
+                )
             return _normal_result(
                 context, status="blocked", reason="research_entry_phase_proof_unknown_or_expired",
                 game_day_id=game_day_id, terminal_home_verified=context.is_clean_home(home.frame),
@@ -2524,7 +2552,6 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                     panel_bounds=screen.panel_bounds,
                     control_class="RESEARCH_START",
                     research_start_visible=True,
-                    research_now_diamonds=screen.research_now_diamonds,
                     research_now_target_identity="research-now-diamonds",
                     research_now_tapped=False,
                     target_provenance=BLUESTACKS_NATIVE_TARGET_PROVENANCE,
@@ -2550,6 +2577,11 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             return _normal_result(context, status="blocked", reason="first_recommendation_detail_successor_unverified", game_day_id=game_day_id, terminal_home_verified=home_verified, route_steps=step)
 
         detail_screen = detail_screen_state["value"]
+        visit.update(
+            detail_capture=after, detail_screen=detail_screen,
+            detail_pixels=hashlib.sha256(after.frame.tobytes()).hexdigest(),
+            detail_used_at=context.monotonic_clock(), detail_ref=_capture_ref(context, after),
+        )
         scrolled_refs: list[str] = []
         quote_capture = after
         quote_screen = detail_screen
@@ -2620,94 +2652,31 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             costs = scrolled_costs["value"]
             scrolled_refs.append(_reference(context, after_scroll))
 
-            def scroll_up_plan(captured: Any) -> _ActionPlan | None:
-                screen = _source_screen(
-                    context,
-                    captured,
-                    expected_detail_identity=listing.first_recommendation_identity,
-                )
-                if screen.screen_state != DETAIL_SCREEN or screen.scroll_roi is None:
-                    return None
-                # Only the requirement rows scroll. On the actual bottom view
-                # the old panel-wide gesture began on the fixed Troop Load
-                # effect above the first resource (193600 frames0018..0021),
-                # leaving the content unchanged. Bind this reverse swipe to
-                # the freshly read four-row requirement region instead.
-                requirement_lines = [
-                    line for line in _line_groups(screen.words)
-                    if _line_bounds(line)[1] >= screen.scroll_roi[1]
-                    and _line_bounds(line)[3] <= screen.scroll_roi[3]
-                    and _paired_amounts(_line_text(line)) is not None
-                ]
-                if len(requirement_lines) != len(RESEARCH_RESOURCES):
-                    return None
-                x0, _y0, x1, y1 = screen.scroll_roi
-                requirement_roi = (x0, min(_line_bounds(line)[1] for line in requirement_lines), x1, y1)
-                return _ActionPlan(
-                    f"recommended-research:{listing.first_recommendation_identity}:requirements-scroll",
-                    requirement_roi,
-                    DETAIL_SCREEN,
-                    "GO",
-                    "RESEARCH_DETAIL_START_CONTROL_VISIBLE",
-                    "RECOMMENDED_RESEARCH_SCROLL_TO_START_CONTROL",
-                    gesture="swipe",
-                    scroll_direction="up",
-                )
-
-            top_screen_state: dict[str, ResearchScreenObservation | None] = {"value": None}
-
-            def top_successor(captured: Any) -> bool:
-                screen = _source_screen(
-                    context,
-                    captured,
-                    expected_detail_identity=listing.first_recommendation_identity,
-                )
-                top_screen_state["value"] = screen
-                return (
-                    screen.screen_state == DETAIL_SCREEN
-                    and screen.recognized
-                    # START is fixed at the bottom even while the requirements
-                    # remain scrolled. Actual 193600 run frame0020 still showed
-                    # all four resources immediately after the upward swipe;
-                    # accepting that frame skipped the SDK's settled capture.
-                    # Prove the top content returned, not merely its fixed CTA.
-                    and screen.duration_seconds is not None
-                    and bool(screen.prerequisite_lines)
-                    and screen.prerequisite_level is not None
-                    and len(screen.prerequisite_evidence) == len(screen.prerequisite_lines)
-                    and screen.detail_research_target_roi is not None
-                    and screen.selected_technology_identity == listing.first_recommendation_identity
-                )
-
-            result, after, verified = _guarded_action(
-                context,
-                policy,
-                captured=after_scroll,
-                game_day_id=game_day_id,
-                occurrence_key=occurrence,
-                action_key=_navigation_key(context, occurrence, "requirements-scroll-up"),
-                plan_builder=scroll_up_plan,
-                recognizes_successor=top_successor,
-            )
-            step += 1
-            if not verified or after is None or top_screen_state["value"] is None:
-                current = after if after is not None else after_scroll
-                current, home_verified, step = _home_from_current(context, policy, current=current, game_day_id=game_day_id, occurrence_key=occurrence, step=step)
-                return _normal_result(context, status="blocked", reason="detail_start_control_not_rebound_after_scroll", game_day_id=game_day_id, terminal_home_verified=home_verified, route_steps=step)
-            detail_screen = top_screen_state["value"]
+            # Research remains fixed beside Research Now in both retained
+            # views. Avoid hiding/expiring the quote with an unnecessary return.
+            after = after_scroll
         else:
             costs = detail_screen.resource_rows
             scrolled_refs.append(_reference(context, after))
 
-        detail = _detail_observation(detail_screen, listing, context, costs=costs, scrolled_refs=scrolled_refs)
+        detail = _detail_observation(quote_screen, listing, context, costs=costs, scrolled_refs=scrolled_refs, top_screen=detail_screen)
         if detail is None:
             current, home_verified, step = _home_from_current(context, policy, current=after, game_day_id=game_day_id, occurrence_key=occurrence, step=step)
             return _normal_result(context, status="blocked", reason="detail_prerequisites_duration_or_target_unknown", game_day_id=game_day_id, terminal_home_verified=home_verified, route_steps=step)
         selection_facts = _research_selection_facts(detail)
         semantic_progress.update(selection_facts)
-        if not detail.prerequisites_known or not detail.prerequisites_met:
+        if not detail.prerequisites_known:
             current, home_verified, step = _home_from_current(context, policy, current=after, game_day_id=game_day_id, occurrence_key=occurrence, step=step)
-            return _normal_result(context, status="blocked", reason="research_prerequisite_not_proven_met", game_day_id=game_day_id, prerequisite_evidence=list(detail.prerequisite_evidence), terminal_home_verified=home_verified, route_steps=step)
+            return _normal_result(context, status="blocked", reason="research_prerequisite_unknown", game_day_id=game_day_id, terminal_home_verified=home_verified, route_steps=step)
+        if not detail.prerequisites_met:
+            current, home_verified, step = _home_from_current(context, policy, current=after, game_day_id=game_day_id, occurrence_key=occurrence, step=step)
+            return _normal_result(
+                context, status="deferred" if home_verified else "blocked",
+                reason="research_prerequisite_unmet", game_day_id=game_day_id,
+                terminal_home_verified=home_verified, route_steps=step,
+                observation_interval_seconds=OBSERVATION_INTERVAL_SECONDS,
+                unmet_prerequisites=list(detail.prerequisite_evidence), **selection_facts,
+            )
         shortages = tech_upgrade_shortages(detail, listing)
         if shortages is None:
             current, home_verified, step = _home_from_current(context, policy, current=after, game_day_id=game_day_id, occurrence_key=occurrence, step=step)
@@ -2743,11 +2712,11 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             current, home_verified, step = _home_from_current(context, policy, current=after, game_day_id=game_day_id, occurrence_key=occurrence, step=step)
             return _normal_result(context, status="blocked", reason="recommended_research_exact_start_guard_failed", game_day_id=game_day_id, terminal_home_verified=home_verified, route_steps=step)
         start_plan = _page_plan(
-            detail_screen,
+            quote_screen,
             state=DETAIL_SCREEN,
             target=detail.target_identity,
             control="RESEARCH_START",
-            postcondition="RESEARCH_ACTIVE_WITH_TIMER_AND_MATCHED_RESOURCE_DEBIT",
+            postcondition="RESEARCH_ACTIVE_WITH_TIMER",
             semantic_action="START_RECOMMENDED_RESEARCH",
         )
         if start_plan is None or detail.research_now_tapped or detail.research_now_target_identity == detail.target_identity:
@@ -2813,16 +2782,17 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 target_roi,
                 DETAIL_SCREEN,
                 "RESEARCH_START",
-                "RESEARCH_ACTIVE_WITH_TIMER_AND_MATCHED_RESOURCE_DEBIT",
+                "RESEARCH_ACTIVE_WITH_TIMER",
                 "START_RECOMMENDED_RESEARCH",
             )
 
         def active_successor(captured: Any) -> bool:
-            screen = _source_screen(context, captured)
+            screen = _source_screen(context, captured, expected_detail_identity=listing.first_recommendation_identity)
             active = _build_active_observation(screen)
             active_state["value"] = active
             verified = active is not None and tech_upgrade_postcondition_verified(detail, active, listing)
             if verified and active is not None:
+                context._recommended_research_active_identity = active.active_technology_identity
                 semantic_progress.update(
                     start_semantically_verified=True,
                     active_technology=active.active_technology_identity,
@@ -2832,7 +2802,6 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                     research_duration_seconds=detail.duration_seconds,
                     exact_resource_costs={row.resource: row.cost for row in detail.resource_rows},
                     exact_resource_prebalances={row.resource: row.balance for row in detail.resource_rows},
-                    exact_resource_balances={row.resource: row.balance for row in active.resource_rows},
                     prerequisite_evidence=list(detail.prerequisite_evidence),
                 )
                 semantic_progress["start_action"] = {
@@ -2882,7 +2851,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             return _normal_result(
                 context,
                 status="unresolved",
-                reason="research_start_successor_or_paired_debit_unknown",
+                reason="research_start_successor_unknown",
                 game_day_id=game_day_id,
                 start_calls=start_calls,
                 committed_action_count=int(semantic_progress.get("start_semantically_verified") is True),
@@ -2912,7 +2881,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
         return _normal_result(
             context,
             status="completed",
-            reason="recommended_research_started_and_paired_debit_verified",
+            reason="recommended_research_started_and_active_timer_verified",
             game_day_id=game_day_id,
             start_calls=start_calls,
             committed_action_count=1,

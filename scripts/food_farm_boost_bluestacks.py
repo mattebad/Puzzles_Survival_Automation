@@ -26,22 +26,21 @@ from tasks.home_atlas_vision import BLUESTACKS_SAFE_INTERACTION_BOX, HUD_MASK_RE
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 from tasks.runtime_identity import FIXED_RUNTIME_SCOPE
 from tasks.resource_boost_disabled import (
-    FOOD_FARM_RESOURCE_TYPES,
     FoodFarmBoostChoice,
     FoodFarmBoostObservation,
     food_farm_boost_daily_action_key,
     food_farm_boost_decision,
     food_farm_boost_postcondition_verified,
     food_farm_canonical_action_state,
-    food_farm_collection_effect,
 )
 
-FLOW_ID = "FOOD-FARM-OUTPUT-BOOST-DAILY-BLUESTACKS-INTEGRATION"
-PRODUCT_ID = "food_farm_output_boost"
-PRODUCT_REVISION = "food_farm_output_boost-v1"
-MAX_INPUTS = 16
+from automation_service.registry import (
+    FOOD_FARM_BOOST_FLOW_ID as FLOW_ID, FOOD_FARM_BOOST_PRODUCT_ID as PRODUCT_ID,
+    FOOD_FARM_BOOST_PRODUCT_REVISION as PRODUCT_REVISION, FOOD_FARM_BOOST_MAX_INPUTS as MAX_INPUTS,
+)
 MAX_ACTIONS = 2
 ONE_DAY_SECONDS = 86_400
+MAX_DIAMOND_COST = 48
 DEFAULT_ATLAS = ROOT / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
 _FARM_ID = re.compile(r"^home\.building\.farm\.\d{2}$")
 _PLAIN_COUNT = re.compile(r"^[0-9][0-9,]*$")
@@ -69,10 +68,7 @@ class BoostPanelRead:
     observation: FoodFarmBoostObservation
     item_control_roi: tuple[int, int, int, int] | None
     diamond_control_roi: tuple[int, int, int, int] | None
-    confirmation_control_roi: tuple[int, int, int, int] | None
     text: str
-    balances: Mapping[str, int | None]
-
     source_capture: Any
 
 def _ocr_tokens(frame: np.ndarray) -> tuple[NativeTextToken, ...]:
@@ -110,6 +106,26 @@ def _exact_balance(text: str) -> int | None:
     except ValueError:
         return None
 
+
+
+def _diamond_balance_lower_bound(text: str) -> int | None:
+    """Conservative spendable bound from the current HUD's K/M/B display."""
+    exact = _exact_balance(text)
+    if exact is not None:
+        return exact
+    match = re.fullmatch(r"(\d+(?:\.\d+)?)([KMB])", text.replace(",", "").upper())
+    if match is None:
+        return None
+    number, suffix = match.groups()
+    scale = {"K": 1_000, "M": 1_000_000, "B": 1_000_000_000}[suffix]
+    precision = len(number.split(".")[1]) if "." in number else 0
+    return max(0, int(float(number) * scale) - max(1, scale // (10 ** precision)))
+
+
+def _home_diamond_balance(frame: np.ndarray) -> int | None:
+    values = [_diamond_balance_lower_bound(token.text) for token in _ocr_tokens(frame)
+              if 560 <= (token.roi[0] + token.roi[2]) // 2 < 720 and token.roi[1] < 100]
+    return values[0] if len(values) == 1 else None
 
 
 def _row_roi(tokens: tuple[NativeTextToken, ...], *, x0: int, x1: int, y0: int, y1: int) -> tuple[int, int, int, int] | None:
@@ -150,16 +166,51 @@ def _row_action_cost(tokens: tuple[NativeTextToken, ...], roi: tuple[int, int, i
         if x0 <= (token.roi[0] + token.roi[2]) // 2 < x1
         and y0 <= (token.roi[1] + token.roi[3]) // 2 < y1
     ]
-    costs = []
-    for index, token in enumerate(row):
-        text = token.text.casefold().replace(" ", "")
-        if text in {"x1", "×1"}:
-            costs.append(1)
-        elif text in {"x", "×"} and index + 1 < len(row):
-            following = row[index + 1]
-            if following.text.strip() == "1" and abs(following.roi[1] - token.roi[1]) <= 20:
-                costs.append(1)
-    return costs[0] if len(costs) == 1 else None
+    costs = [
+        token for token in row
+        if token.text.casefold().replace(" ", "") in {"1", "x1", "×1"}
+    ]
+    return 1 if len(costs) == 1 else None
+
+
+def _item_control_usable(frame: np.ndarray, tokens: tuple[NativeTextToken, ...],
+                         roi: tuple[int, int, int, int] | None) -> bool | None:
+    """Read the actual cost glyph's normal/shortage state, never total inventory.
+
+    The retained successful item control has a white cost-one glyph on a red button;
+    the button background itself is NOT a shortage indication.
+    """
+    if roi is None:
+        return None
+    x0, y0, x1, y1 = roi
+    costs = [token for token in tokens if
+             x0 <= (token.roi[0] + token.roi[2]) // 2 < x1
+             and y0 <= (token.roi[1] + token.roi[3]) // 2 < y1
+             and token.text.casefold().replace(" ", "") in {"1", "x1", "×1"}]
+    if len(costs) != 1:
+        return None
+    left, top, right, bottom = costs[0].roi
+    crop = frame[top:bottom, left:right]
+    if crop.size == 0:
+        return None
+    hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+    # Restrict to bright, contrasting glyph pixels: the muted red button is darker.
+    normal = cv2.inRange(hsv, (0, 0, 190), (179, 65, 255))
+    red = cv2.inRange(hsv, (0, 130, 190), (10, 255, 255))
+    red |= cv2.inRange(hsv, (170, 130, 190), (179, 255, 255))
+    if np.count_nonzero(normal) >= max(3, crop.shape[0] * crop.shape[1] * .05):
+        return True
+    if np.count_nonzero(red) >= max(3, crop.shape[0] * crop.shape[1] * .05):
+        return False
+    return None
+
+
+def _home_food_reading(frame: np.ndarray) -> str | None:
+    """Read just the Food HUD column, including the game's rounded K/M notation."""
+    values = [token.text.replace(",", "").upper() for token in _ocr_tokens(frame)
+              if 0 <= (token.roi[0] + token.roi[2]) // 2 < 140 and token.roi[1] < 100
+              and re.fullmatch(r"\d+(?:\.\d+)?[KMB]?", token.text.replace(",", "").upper())]
+    return values[0] if len(values) == 1 else None
 
 
 def _item_subject(name: str) -> str:
@@ -197,7 +248,9 @@ def _prior_boost_confirmation_matches(row: Mapping[str, Any], farm_id: str) -> b
     return bool(
         row.get("target_identity") == farm_id
         and row.get("expected_postcondition") == "FOOD_FARM_POSITIVE_BOOSTING_TIMER"
-        and row.get("consequence") == "consume_one_exact_named_owned_food_farm_output_boost_item"
+        and row.get("consequence") in {
+            "consume_one_exact_named_owned_food_farm_output_boost_item",
+            "buy_and_apply_exact_food_farm_output_boost_diamonds"}
         and isinstance(preconditions, (tuple, list))
         and f"exact_current_food_farm_item_duration_seconds:{ONE_DAY_SECONDS}" in preconditions
         and any(
@@ -222,22 +275,6 @@ def _has_blue_diamond_before(frame: np.ndarray, token: NativeTextToken) -> bool:
     hsv = cv2.cvtColor(frame[top:bottom, left:right], cv2.COLOR_BGR2HSV)
     blue = cv2.inRange(hsv, np.array((85, 70, 60), np.uint8), np.array((135, 255, 255), np.uint8))
     return int(cv2.countNonZero(blue)) >= 8
-
-def observe_home_resource_balances(frame: np.ndarray) -> dict[str, int | None]:
-    """Read only exact, non-abbreviated values from the current Home resource bar."""
-    tokens = _ocr_tokens(frame)
-    # The four fixed HUD columns are screen-layout anchors, not building tap coordinates.
-    columns = ((0, 140), (140, 280), (280, 420), (420, 560))
-    result: dict[str, int | None] = {}
-    for resource, (left, right) in zip(("FOOD", "WOOD", "STEEL", "GAS"), columns):
-        matches = [
-            token for token in tokens
-            if left <= (token.roi[0] + token.roi[2]) // 2 < right
-            and token.roi[1] < 100
-            and _exact_balance(token.text) is not None
-        ]
-        result[resource] = _exact_balance(matches[0].text) if len(matches) == 1 else None
-    return result
 
 
 def _farm_ids(atlas) -> tuple[str, ...]:
@@ -314,6 +351,7 @@ def _food_farm_observation(
     source_frame_sha256: str,
     evidence_refs: tuple[str, ...],
     runtime_profile_id: str,
+    option_item_usable: bool | None = None,
 ) -> FoodFarmBoostObservation:
     """Adapt only current panel evidence; unknown inventory/direct semantics stay unknown."""
     active = type(active_remaining_seconds) is int and active_remaining_seconds > 0
@@ -338,6 +376,7 @@ def _food_farm_observation(
         option_item_name=option_item_name,
         option_item_cost=option_item_cost,
         option_item_visible=option_item_visible,
+        option_item_usable=option_item_usable,
         inventory_item_name=inventory_item_name if exact_inventory else None,
         inventory_item_count=inventory_item_count if exact_inventory else None,
         inventory_observed=exact_inventory,
@@ -362,6 +401,8 @@ def observe_food_farm_boost_panel(
     farm_identity: str,
     runtime_profile_id: str = ACTIVE_RUNTIME_PROFILE_ID,
     evidence_ref: str,
+    observed_diamond_balance: int | None = None,
+    balance_evidence_ref: str | None = None,
 ) -> BoostPanelRead | None:
     """Recognize only the exact visible Farm Boost surface; unproven inventory stays unknown."""
     tokens = _ocr_tokens(captured.frame)
@@ -406,7 +447,9 @@ def observe_food_farm_boost_panel(
     diamond_name = _row_text(tokens, diamond_roi)
     option_duration_seconds = _duration_seconds(option_name)
     diamond_duration_seconds = _duration_seconds(diamond_name)
-    diamond_balance = _exact_balance(balance_tokens[0].text) if len(balance_tokens) == 1 else None
+    diamond_balance = _diamond_balance_lower_bound(balance_tokens[0].text) if len(balance_tokens) == 1 else None
+    if diamond_balance is None and balance_evidence_ref:
+        diamond_balance = observed_diamond_balance
     observation = _food_farm_observation(
         farm_identity=farm_identity,
         active_remaining_seconds=active_seconds,
@@ -414,23 +457,23 @@ def observe_food_farm_boost_panel(
         option_item_name=option_name,
         option_item_cost=item_cost,
         option_item_visible=item_roi is not None,
-        inventory_item_name=None,
-        inventory_item_count=None,
-        inventory_observed=False,
+        inventory_item_name=None, inventory_item_count=None, inventory_observed=False,
+        option_item_usable=_item_control_usable(captured.frame, tokens, item_roi),
         diamond_option_visible=diamond_roi is not None and diamond_cost is not None,
         diamond_item_name=diamond_name,
         diamond_duration_seconds=diamond_duration_seconds,
         diamond_cost=diamond_cost,
         diamond_balance=diamond_balance,
-        diamond_direct_action_observed=False,
+        diamond_direct_action_observed=bool(
+            diamond_roi is not None and diamond_duration_seconds == ONE_DAY_SECONDS
+            and type(diamond_cost) is int and 0 < diamond_cost <= MAX_DIAMOND_COST),
         overlay_state="none" if not _generic_overlay(frame=captured.frame) else "unknown",
         source_frame_sha256=str(captured.sha256),
-        evidence_refs=(evidence_ref,),
+        evidence_refs=(evidence_ref, balance_evidence_ref) if balance_evidence_ref else (evidence_ref,),
         runtime_profile_id=runtime_profile_id,
     )
     return BoostPanelRead(
-        observation, item_roi, diamond_roi, None, text,
-        observe_home_resource_balances(captured.frame), captured,
+        observation, item_roi, diamond_roi, text, captured,
     )
 
 
@@ -513,9 +556,8 @@ def _dispatch_canonical_action(
     context.validate_identity()
     immediate_capture = runtime.capture("food-farm-action-pre-dispatch")
     if (
-        immediate_capture.sha256 != source_capture.sha256
-        or immediate_capture.captured_monotonic <= source_capture.captured_monotonic
-        or (revalidate_before is not None and not revalidate_before(immediate_capture))
+        immediate_capture.captured_monotonic <= source_capture.captured_monotonic
+        or revalidate_before is None or not revalidate_before(immediate_capture)
     ):
         return {"status": "blocked", "reason": "FOOD_FARM_CURRENT_ACTION_PROOF_CHANGED", "transport_calls": 0,
                 "effect_reconciliation_required": False}
@@ -542,7 +584,8 @@ def _dispatch_canonical_action(
         semantic_postconditions=(postcondition,), runtime_session_id=str(runtime.session),
     )
     policy = CentralPolicy(frozenset({task_id}))
-    issued = policy.issue_capability(replace(request, observation=immediate_observation))
+    request = replace(request, observation=immediate_observation, monotonic_now=monotonic_now)
+    issued = policy.issue_capability(request)
     store.audit(task_id, "capability_issued", now, issued.audit, action_id)
     if not issued.authorized or issued.capability is None:
         return {"status": "blocked", "reason": issued.reason_code, "transport_calls": 0,
@@ -551,8 +594,9 @@ def _dispatch_canonical_action(
     post_captures = []
     post_values = {}
 
+    dispatched_inputs = 0
+
     def transport(_intent):
-        starting_count = int(getattr(runtime, "input_count", 0))
         action_capture_supplied = False
 
         def action_capture(label):
@@ -573,13 +617,21 @@ def _dispatch_canonical_action(
             context.validate_identity()
 
         def dispatch(before):
-            runtime.tap(
-                before, target_identity=binding.building_id, target_roi=target_roi,
-                action_key=action_key, action_class=action_kind, consequential=True,
-            )
+            nonlocal dispatched_inputs
+            before_count = int(getattr(runtime, "input_count", 0))
+            try:
+                runtime.tap(
+                    before, target_identity=binding.building_id, target_roi=target_roi,
+                    action_key=action_key, action_class=action_kind, consequential=True,
+                )
+            finally:
+                dispatched_inputs += int(int(getattr(runtime, "input_count", 0)) > before_count)
 
         def recognize(after):
-            semantic = bool(after_observer(after))
+            value = after_observer(after)
+            semantic = bool(value)
+            if semantic and not isinstance(value, (bool, np.bool_)):
+                after = value
             post_captures.append(after)
             post_values[str(after.path)] = semantic
             return postcondition if semantic else "unknown"
@@ -597,9 +649,9 @@ def _dispatch_canonical_action(
                 consequence_class=consequence,
             )
         except Exception as exc:
-            sent = int(getattr(runtime, "input_count", 0)) - starting_count
+            sent = dispatched_inputs
             return TransportResult(sent == 1, f"FOOD_FARM_SESSION_ACTION_{type(exc).__name__}")
-        sent = int(getattr(runtime, "input_count", 0)) - starting_count
+        sent = dispatched_inputs
         return TransportResult(sent == 1, "FOOD_FARM_CONSEQUENTIAL_INPUT_SENT" if sent == 1 else
                                "FOOD_FARM_INPUT_NOT_DISPATCHED")
 
@@ -686,7 +738,7 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
     binding = bind_reachable_farm(
         farm_capture.frame, atlas, localizer, localization=home_localization
     )
-    farm_ids = _farm_ids(atlas)
+    farm_ids = _farm_ids(atlas) if binding is None else ()
     if binding is None and farm_ids:
         # A clean, localized Home need not have a Farm in its safe viewport.
         # Approach an approved mapped Farm through the existing verified pan
@@ -699,7 +751,10 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
         safe_region, calibration = bluestacks_direct_pan_contract()
         approach_id = next(
             (
-                farm_id for farm_id in farm_ids
+                farm_id for farm_id in sorted(farm_ids, key=lambda candidate: sum(
+                    (atlas.lookup_building(candidate).center[axis] - sum(
+                        point[axis] for point in home_localization.viewport_polygon
+                    ) / len(home_localization.viewport_polygon)) ** 2 for axis in (0, 1)))
                 if (plan := DirectPanNavigator(
                     atlas, farm_id, safe_region, calibration, maximum_pans=8,
                 ).plan(home_localization)).disposition is PlanDisposition.PAN
@@ -773,7 +828,17 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
     collection_state = food_farm_canonical_action_state(collection_row)
     # The reset-scoped confirmed row is a commit, but not a new transport attempt.
     if collection_state == "complete":
-        base.update(collection_count=1, collection_effect_accounted=True)
+        proof = _json_mapping(collection_row.get("policy_request_json"))
+        # Existing confirmed resource effects remain credited; newer first taps
+        # retain whether they collected or merely opened the radial.
+        legacy = any(str(token).startswith("current_collection_balance_before:")
+                     for token in proof.get("semantic_preconditions", ()))
+        outcomes = [event for event in store.audit_events(collection_row.get("action_id"))
+                    if event.get("event_type") == "food_farm_collection_outcome"] if collection_row.get("action_id") else []
+        outcome = _json_mapping(outcomes[-1].get("payload_json")) if outcomes else {}
+        base.update(collection_count=int(legacy or outcome.get("collected") is True),
+                    collection_effect_accounted=True,
+                    collection_successor=outcome.get("successor", "settled"))
     if collection_state == "reconciliation_required" or collection_state == "unknown":
         return {**base, "status": "blocked", "reason": "FOOD_FARM_COLLECTION_REQUIRES_RECONCILIATION",
                 "effect_reconciliation_required": True, "identical_retry_denied": True}
@@ -783,14 +848,16 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
         return {**base, "status": "blocked", "reason": "FOOD_FARM_BOOST_REQUIRES_RECONCILIATION",
                 "effect_reconciliation_required": True, "identical_retry_denied": True}
     if boost_state == "complete":
-        if not _prior_boost_confirmation_matches(boost_row, binding.building_id):
+        prior_farm = boost_row.get("target_identity")
+        if not isinstance(prior_farm, str) or _FARM_ID.fullmatch(prior_farm) is None or not _prior_boost_confirmation_matches(boost_row, prior_farm):
             return {**base, "status": "blocked",
                     "reason": "FOOD_FARM_PRIOR_BOOST_CONFIRMATION_NOT_BOUND_TO_CURRENT_FARM",
                     "effect_reconciliation_required": True, "identical_retry_denied": True}
         return {**base, "status": "already_complete", "reason": "FOOD_FARM_BOOST_CONFIRMED_FOR_RESET",
                 "terminal_home_verified": True, "terminal_home_frame_sha256": farm_capture.sha256,
-                "boost_decision": "owned_item", "boost_duration_seconds": ONE_DAY_SECONDS,
-                "prior_boost_confirmation_farm_identity": binding.building_id,
+                "boost_decision": "diamonds" if boost_row.get("cost_type") == "diamonds" else "owned_item",
+                "boost_duration_seconds": ONE_DAY_SECONDS,
+                "prior_boost_confirmation_farm_identity": prior_farm,
                 "prior_boost_confirmation_duration_seconds": ONE_DAY_SECONDS,
                 "prior_boost_confirmation": _json_mapping(boost_row.get("reconciliation_result_json"))}
     active_observations = [
@@ -801,7 +868,8 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
         prior_active = _json_mapping(active_observations[-1].get("payload_json"))
         if (
             prior_active.get("reset_id") != identity.reset_id
-            or prior_active.get("farm_identity") != binding.building_id
+            or not isinstance(prior_active.get("farm_identity"), str)
+            or _FARM_ID.fullmatch(prior_active["farm_identity"]) is None
             or type(prior_active.get("remaining_seconds")) is not int
             or prior_active.get("remaining_seconds") <= 0
             or not isinstance(prior_active.get("source_frame_sha256"), str)
@@ -814,87 +882,77 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
                 "reason": "FOOD_FARM_POSITIVE_BOOST_TIMER_PREVIOUSLY_OBSERVED",
                 "terminal_home_verified": True, "terminal_home_frame_sha256": farm_capture.sha256,
                 "active_remaining_seconds": prior_active["remaining_seconds"],
-                "active_timer_farm_identity": binding.building_id,
+                "active_timer_farm_identity": prior_active["farm_identity"],
                 "prior_active_boost_observation": prior_active}
 
     if collection_state == "ready":
-        balances_before = observe_home_resource_balances(farm_capture.frame)
-        if any(type(balances_before.get(key)) is not int for key in FOOD_FARM_RESOURCE_TYPES):
-            return {**base, "status": "deferred", "reason": "FOOD_FARM_COLLECTION_BALANCES_NOT_EXACT",
-                    "terminal_home_verified": True, "terminal_home_frame_sha256": farm_capture.sha256,
-                    "collection_balances_before": balances_before}
+        food_before = _home_food_reading(farm_capture.frame)
         preconditions = (
             f"product_id:{PRODUCT_ID}", f"product_revision:{PRODUCT_REVISION}",
             f"reset_identity:{identity.reset_id}", "effect_ordinal:collection=1",
             f"current_clean_home_atlas_binding:{binding.building_id}",
-            "current_collection_balance_before:food={FOOD},wood={WOOD},steel={STEEL},gas={GAS}".format(
-                FOOD=balances_before["FOOD"], WOOD=balances_before["WOOD"],
-                STEEL=balances_before["STEEL"], GAS=balances_before["GAS"]),
+            "current_food_farm_tap_successor:bound_home_or_same_farm_radial",
             f"canonical_collection_action_key_unclaimed:{collection_key}", "current_runtime_lease_valid",
         )
-        # The action is explicitly consequential; a tap that only opens a menu is not
-        # promoted to success unless exact broad resource deltas are observed.
         if store.has_action_block():
             return {**base, "status": "blocked", "reason": "CANONICAL_ACTION_REQUIRES_RECONCILIATION",
                     "effect_reconciliation_required": True, "identical_retry_denied": True}
         capture_after = {}
+
         def collection_after(captured):
+            if _farm_radial_boost_roi(captured.frame, binding) is not None:
+                capture_after.update(verified=True, collected=False, successor="radial")
+                return True
             if not is_clean_home_frame(captured.frame):
                 return False
             rebound = bind_reachable_farm(captured.frame, atlas, localizer)
             if rebound is None or rebound.building_id != binding.building_id:
                 return False
-            balances_after = observe_home_resource_balances(captured.frame)
-            verified, delta, why = food_farm_collection_effect(
-                balances_before, balances_after, home_successor_verified=True
-            )
-            capture_after.update(balances=balances_after, delta=delta, reason=why, verified=verified,
-                                 rebound=rebound)
-            return verified
+            food_after = _home_food_reading(captured.frame)
+            def amount(value):
+                return float(value.rstrip("KMB")) * (
+                    {"K": 1_000, "M": 1_000_000, "B": 1_000_000_000}.get(value[-1], 1))
+            positive = bool(food_before is not None and food_after is not None
+                            and amount(food_after) > amount(food_before))
+            capture_after.update(food_after=food_after, verified=True, collected=positive,
+                                 successor="hud_tick" if positive else "home", rebound=rebound)
+            return True
 
         def collection_before(captured):
             if not is_clean_home_frame(captured.frame):
                 return False
             rebound = bind_reachable_farm(captured.frame, atlas, localizer)
-            return bool(
-                rebound is not None and rebound.building_id == binding.building_id
-                and rebound.target_roi == binding.target_roi
-                and observe_home_resource_balances(captured.frame) == balances_before
-            )
+            return bool(rebound is not None and rebound.building_id == binding.building_id
+                        and rebound.target_roi == binding.target_roi)
 
         action = _dispatch_canonical_action(
             context=context, binding=binding, source_capture=farm_capture,
             target_roi=binding.target_roi, action_key=collection_key,
             action_kind="collect_food_farm_resources", source_state="HOME_BASE",
             control_class="COLLECT", consequence="collect_all_base_resource_building_output",
-            postcondition="FOOD_FARM_COLLECTION_RECONCILED",
+            postcondition="FOOD_FARM_FIRST_TAP_SETTLED",
             action_class=ActionClass.ZERO_COST_CONSEQUENTIAL, cost_type="none", cost_amount=0,
             maximum_cost=0, subject=binding.building_id,
-            semantic_preconditions=preconditions,
-            after_observer=collection_after,
-            runtime_profile_id=runtime_profile_id,
-            revalidate_before=collection_before,
+            semantic_preconditions=preconditions, after_observer=collection_after,
+            runtime_profile_id=runtime_profile_id, revalidate_before=collection_before,
         )
-        collection_accounted = bool(
-            action["status"] == "confirmed" and capture_after.get("verified")
-        )
+        accounted = action["status"] == "confirmed" and capture_after.get("verified", False)
         base.update(collection_transport_calls=action["transport_calls"],
-                    collection_count=int(collection_accounted), collection_action=action,
-                    collection_balances_before=balances_before,
-                    collection_balances_after=capture_after.get("balances"),
-                    collection_deltas=capture_after.get("delta"),
-                    collection_effect_accounted=collection_accounted)
+                    collection_count=int(accounted and capture_after.get("collected", False)),
+                    collection_action=action, collection_food_before=food_before,
+                    collection_food_after=capture_after.get("food_after"),
+                    collection_successor=capture_after.get("successor"),
+                    collection_effect_accounted=bool(accounted))
         base["food_farm_dispatch_count"] = action["transport_calls"]
         if action["status"] != "confirmed":
             return {**base, "status": action["status"], "reason": action["reason"],
                     "effect_reconciliation_required": bool(action["effect_reconciliation_required"] or action["transport_calls"]),
                     "identical_retry_denied": bool(action["transport_calls"])}
-        farm_capture = runtime.capture("food-farm-after-collection-home")
-        binding = bind_reachable_farm(farm_capture.frame, atlas, localizer)
-        rebound_after = capture_after.get("rebound")
-        if binding is None or rebound_after is None or binding.building_id != rebound_after.building_id:
-            return {**base, "status": "blocked", "reason": "FOOD_FARM_REBIND_AFTER_COLLECTION_FAILED",
-                    "effect_reconciliation_required": True, "identical_retry_denied": True}
+        row = store.get_action_by_key(collection_key)
+        if row is not None:
+            store.audit(FLOW_ID, "food_farm_collection_outcome", context.utc_clock(),
+                {"collected": bool(base["collection_count"]),
+                 "successor": base["collection_successor"]}, action_id=row["action_id"])
 
     # A same-reset confirmed boost is never issued again, even if its timer later expires.
     if store.action_key_exists(boost_key):
@@ -904,19 +962,19 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
             return {**base, "status": "blocked", "reason": "FOOD_FARM_BOOST_KEY_ALREADY_USED",
                     "effect_reconciliation_required": state != "complete", "identical_retry_denied": True}
 
-    # Tap the same, freshly rebound Farm only after the collection occurrence is
-    # accounted. The next surface must be the recognized Details/Upgrade/Boost radial.
+    # The first tap may already have opened the radial without collecting anything.
+    # Reuse that current surface; otherwise one fresh same-Farm tap opens it.
     radial_source = runtime.capture("food-farm-rebound-before-radial")
-    if not is_clean_home_frame(radial_source.frame):
-        return {**base, "status": "blocked", "reason": "FOOD_FARM_HOME_LOST_BEFORE_RADIAL"}
-    fresh_binding = bind_reachable_farm(radial_source.frame, atlas, localizer)
-    if fresh_binding is None or fresh_binding.building_id != binding.building_id:
-        return {**base, "status": "blocked", "reason": "FOOD_FARM_REBIND_BEFORE_RADIAL_FAILED"}
-    # The native radial recognizer is deliberately exact; the visible tap is a
-    # navigation successor only after the earlier collection is durably confirmed.
-    radial_result = _open_food_farm_radial(context, atlas, localizer, fresh_binding)
-    if radial_result.get("status") != "opened":
-        return {**base, **radial_result, "status": radial_result.get("status", "blocked")}
+    fresh_binding = binding
+    if _farm_radial_boost_roi(radial_source.frame, binding) is None:
+        if not is_clean_home_frame(radial_source.frame):
+            return {**base, "status": "blocked", "reason": "FOOD_FARM_HOME_LOST_BEFORE_RADIAL"}
+        fresh_binding = bind_reachable_farm(radial_source.frame, atlas, localizer)
+        if fresh_binding is None or fresh_binding.building_id != binding.building_id:
+            return {**base, "status": "blocked", "reason": "FOOD_FARM_REBIND_BEFORE_RADIAL_FAILED"}
+        radial_result = _open_food_farm_radial(context, atlas, localizer, fresh_binding)
+        if radial_result.get("status") != "opened":
+            return {**base, **radial_result, "status": radial_result.get("status", "blocked")}
     panel_result = _open_food_farm_boost_panel(context, farm_id=binding.building_id, binding=fresh_binding)
     if panel_result.get("status") != "observed":
         return {**base, **panel_result, "status": panel_result.get("status", "blocked")}
@@ -969,12 +1027,8 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
                 "boost_decision": decision.choice.value, "boost_panel_text": panel.text,
                 "evidence_required": True, "effect_reconciliation_required": False,
                 "identical_retry_denied": False}
-    if decision.choice is FoodFarmBoostChoice.DIAMONDS:
-        home = terminal_home()
-        return {**base, **home, "status": "blocked",
-                "reason": "FOOD_FARM_DIAMOND_CONFIRMATION_EVIDENCE_REQUIRED",
-                "boost_decision": decision.choice.value, "evidence_required": True}
-    if decision.choice is not FoodFarmBoostChoice.OWNED_ITEM:
+    premium = decision.choice is FoodFarmBoostChoice.DIAMONDS
+    if decision.choice not in {FoodFarmBoostChoice.OWNED_ITEM, FoodFarmBoostChoice.DIAMONDS}:
         home = terminal_home()
         return {**base, **home, "status": "blocked",
                 "reason": "FOOD_FARM_BOOST_DECISION_UNKNOWN", "evidence_required": True}
@@ -984,7 +1038,7 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
                 "reason": "FOOD_FARM_EXACT_ONE_DAY_DURATION_REQUIRED",
                 "boost_decision": decision.choice.value, "evidence_required": True}
 
-    button_roi = panel.item_control_roi
+    button_roi = panel.diamond_control_roi if premium else panel.item_control_roi
     if button_roi is None:
         home = terminal_home()
         return {**base, **home, "status": "blocked",
@@ -998,23 +1052,56 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
         f"exact_current_food_farm_item_duration_seconds:{decision.duration_seconds}",
         f"canonical_food_farm_boost_action_key_unclaimed:{boost_key}",
         "current_runtime_lease_valid",
-        "current_exact_owned_food_farm_item_count_at_least_one",
-        "current_food_farm_item_action_cost:1",
+        "current_food_farm_owned_item_unavailable" if premium else "current_food_farm_owned_item_usable",
+        f"current_food_farm_action_cost:{decision.cost}",
+        f"current_food_farm_currency:{decision.currency}",
+        f"current_food_farm_diamond_balance:{panel.observation.diamond_balance}" if premium
+            else "current_food_farm_item_action_cost:1",
     )
-    consequence = "consume_one_exact_named_owned_food_farm_output_boost_item"
-    cost_type = "owned_item"
+    consequence = ("buy_and_apply_exact_food_farm_output_boost_diamonds" if premium
+                   else "consume_one_exact_named_owned_food_farm_output_boost_item")
+    cost_type = "diamonds" if premium else "owned_item"
     panel_binding = FarmBinding(
         binding.building_id, tuple(int(value) for value in button_roi),
         panel.source_capture.sha256, binding.evidence + ("recognized_food_farm_boost_panel",),
     )
 
     boost_postcondition = {}
+    timer_inspection_attempted = False
+
+    def boost_before(captured):
+        fresh = observe_food_farm_boost_panel(captured, farm_identity=binding.building_id,
+            runtime_profile_id=runtime_profile_id, evidence_ref=_evidence_ref(captured, session),
+            observed_diamond_balance=panel.observation.diamond_balance,
+            balance_evidence_ref=panel.observation.evidence_refs[-1] if len(panel.observation.evidence_refs) > 1 else None)
+        if fresh is None:
+            return False
+        balance_capture = panel_result.get("balance_capture")
+        if premium and balance_capture is not None and not (
+                0 <= captured.captured_monotonic - balance_capture.captured_monotonic <= 30):
+            return False
+        current = food_farm_boost_decision(fresh.observation)
+        return bool(current == decision and
+            (fresh.diamond_control_roi if premium else fresh.item_control_roi) == button_roi
+            and (not premium or fresh.observation.diamond_balance == panel.observation.diamond_balance))
 
     def boost_after(captured):
+        nonlocal timer_inspection_attempted
         observed = _active_boost_from_capture(
             captured, farm_id=binding.building_id,
             runtime_profile_id=runtime_profile_id, session=session,
         )
+        if observed is None and not timer_inspection_attempted and is_clean_home_frame(captured.frame):
+            timer_inspection_attempted = True
+            rebound = bind_reachable_farm(captured.frame, atlas, localizer)
+            if rebound is not None and rebound.building_id == binding.building_id:
+                radial = _open_food_farm_radial(context, atlas, localizer, rebound)
+                if radial.get("status") == "opened":
+                    inspected = _open_food_farm_boost_panel(
+                        context, farm_id=binding.building_id, binding=rebound)
+                    candidate = inspected.get("panel")
+                    if candidate is not None and candidate.observation.boost_active:
+                        observed = candidate
         remaining = observed.observation.active_remaining_seconds if observed else None
         verified = bool(
             decision.duration_seconds == ONE_DAY_SECONDS
@@ -1026,21 +1113,24 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
                 remaining_seconds=observed.observation.active_remaining_seconds,
                 farm_identity=observed.observation.farm_identity,
             )
-        return verified
+        return observed.source_capture if verified else False
     action = _dispatch_canonical_action(
         context=context, binding=panel_binding, source_capture=panel.source_capture,
         target_roi=panel_binding.target_roi, action_key=boost_key,
-        action_kind="apply_food_farm_output_boost_owned_item",
+        action_kind="buy_food_farm_output_boost_diamonds" if premium else "apply_food_farm_output_boost_owned_item",
         source_state="FOOD_FARM_BOOST_PANEL", control_class="BOOST",
         consequence=consequence, postcondition="FOOD_FARM_POSITIVE_BOOSTING_TIMER",
         action_class=ActionClass.SPEND_OR_STRATEGIC, cost_type=cost_type,
         cost_amount=float(decision.cost or 1), maximum_cost=float(decision.cost or 1),
         subject=_item_subject(str(decision.item_name or "")), semantic_preconditions=boost_preconditions,
-        after_observer=boost_after, runtime_profile_id=runtime_profile_id,
+        after_observer=boost_after, runtime_profile_id=runtime_profile_id, revalidate_before=boost_before,
     )
     base["boost_transport_calls"] = action["transport_calls"]
     base["food_farm_dispatch_count"] = int(base["collection_transport_calls"]) + action["transport_calls"]
     base["boost_duration_seconds"] = decision.duration_seconds
+    base["boost_cost"] = decision.cost
+    base["boost_diamond_balance"] = panel.observation.diamond_balance if premium else None
+    base["owned_item_unavailable"] = premium
     if boost_postcondition:
         base["boost_timer_remaining_seconds"] = boost_postcondition["remaining_seconds"]
         base["boost_timer_farm_identity"] = boost_postcondition["farm_identity"]
@@ -1058,7 +1148,7 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
     home = terminal_home()
     if home["status"] != "home":
         return {**base, **home, "status": "blocked", "reason": "FOOD_FARM_BOOST_TERMINAL_HOME_UNVERIFIED",
-                "effect_reconciliation_required": True, "identical_retry_denied": True}
+                "effect_reconciliation_required": False, "identical_retry_denied": False}
     return {**base, **home, "status": "completed", "reason": "FOOD_FARM_BOOST_CONFIRMED_WITH_POSITIVE_TIMER",
             "boost_decision": decision.choice.value}
 
@@ -1138,7 +1228,7 @@ def _run_navigation_tap(
 
 
 def _open_food_farm_radial(context, atlas, localizer, binding: FarmBinding) -> dict[str, Any]:
-    """Open the same currently bound Farm after its collection effect was reconciled."""
+    """Open the freshly bound Farm's Details / Upgrade / Boost radial."""
     def authorize(before):
         if not is_clean_home_frame(before.frame):
             return None
@@ -1149,7 +1239,7 @@ def _open_food_farm_radial(context, atlas, localizer, binding: FarmBinding) -> d
         return _farm_radial_boost_roi(after.frame, binding) is not None
 
     result = _run_navigation_tap(
-        context, label=f"food-farm-open-radial-{context.session.invocation_id}",
+        context, label=f"food-farm-open-radial-{context.session.invocation_id}-{context.runtime.input_count}",
         target_identity=binding.building_id, planned_roi=binding.target_roi,
         authorize=authorize, recognize=recognize,
     )
@@ -1179,7 +1269,7 @@ def _open_food_farm_boost_panel(context, *, farm_id: str, binding: FarmBinding) 
         ) is not None
 
     result = _run_navigation_tap(
-        context, label=f"food-farm-open-boost-panel-{context.session.invocation_id}",
+        context, label=f"food-farm-open-boost-panel-{context.session.invocation_id}-{runtime.input_count}",
         target_identity=f"food-farm-radial-boost:{farm_id}", planned_roi=boost_roi,
         authorize=authorize, recognize=recognize,
     )
@@ -1189,10 +1279,12 @@ def _open_food_farm_boost_panel(context, *, farm_id: str, binding: FarmBinding) 
     panel = observe_food_farm_boost_panel(
         panel_capture, farm_identity=farm_id, runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID,
         evidence_ref=_evidence_ref(panel_capture, context.session),
+        observed_diamond_balance=_home_diamond_balance(radial_capture.frame),
+        balance_evidence_ref=_evidence_ref(radial_capture, context.session),
     )
     return {**result, "status": "observed" if panel is not None else "blocked",
             "reason": "food_farm_boost_panel_recognized" if panel is not None else "boost_panel_unknown",
-            "panel": panel}
+            "panel": panel, "balance_capture": radial_capture}
 
 
 def _return_home_from_boost_panel(context, *, farm_id: str, localizer) -> dict[str, Any]:
@@ -1203,15 +1295,12 @@ def _return_home_from_boost_panel(context, *, farm_id: str, localizer) -> dict[s
             before, farm_identity=farm_id, runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID,
             evidence_ref=_evidence_ref(before, session),
         ) is None:
-            raise RuntimeError("Food Farm Boost panel is not positively recognized before Escape")
+            raise RuntimeError("Food Farm Boost panel is not positively recognized before Back")
 
     def dispatch(before):
         context.checkpoint()
         context.validate_identity()
-        runtime.press_key(
-            before, key="Escape",
-            action_key=f"food-farm-return-home-{session.invocation_id}",
-        )
+        runtime.back(before, action_key=f"food-farm-return-home-{session.invocation_id}")
 
     def recognize(after):
         if not is_clean_home_frame(after.frame):
@@ -1274,11 +1363,8 @@ def validate_food_farm_native_result(result: Mapping[str, object]) -> bool:
         return False
     if collection_count and result.get("collection_effect_accounted") is not True:
         return False
-    if (
-        collection_calls > 0
-        and result.get("collection_effect_accounted") is True
-        and collection_count != 1
-    ):
+    if (collection_calls and result.get("collection_effect_accounted") is True
+            and collection_count == 0 and result.get("collection_successor") not in {"radial", "home"}):
         return False
     if (
         collection_calls > 0
@@ -1301,13 +1387,19 @@ def validate_food_farm_native_result(result: Mapping[str, object]) -> bool:
         timer = result.get("boost_timer_remaining_seconds")
         if (
             boost_calls != 1
-            or result.get("boost_decision") != FoodFarmBoostChoice.OWNED_ITEM.value
+            or result.get("boost_decision") not in {FoodFarmBoostChoice.OWNED_ITEM.value, FoodFarmBoostChoice.DIAMONDS.value}
             or result.get("boost_duration_seconds") != ONE_DAY_SECONDS
             or type(timer) is not int or not 0 < timer <= ONE_DAY_SECONDS
             or type(farm_id) is not str or _FARM_ID.fullmatch(farm_id) is None
             or result.get("boost_timer_farm_identity") != farm_id
         ):
             return False
+        if result.get("boost_decision") == FoodFarmBoostChoice.DIAMONDS.value:
+            cost, balance = result.get("boost_cost"), result.get("boost_diamond_balance")
+            if (type(cost) is not int or not 0 < cost <= MAX_DIAMOND_COST
+                    or type(balance) is not int or balance < cost
+                    or result.get("owned_item_unavailable") is not True):
+                return False
     elif status == "already_active":
         timer = result.get("active_remaining_seconds")
         if (
@@ -1327,7 +1419,8 @@ def validate_food_farm_native_result(result: Mapping[str, object]) -> bool:
             and confirmation.get("confirmed") is True
             and isinstance(confirmation.get("frame_sha256"), str)
             and re.fullmatch(r"[a-f0-9]{64}", confirmation["frame_sha256"]) is not None
-            and result.get("prior_boost_confirmation_farm_identity") == farm_id
+            and isinstance(result.get("prior_boost_confirmation_farm_identity"), str)
+            and _FARM_ID.fullmatch(result["prior_boost_confirmation_farm_identity"]) is not None
             and result.get("prior_boost_confirmation_duration_seconds") == ONE_DAY_SECONDS
         )
         active_timer = (
@@ -1337,7 +1430,8 @@ def validate_food_farm_native_result(result: Mapping[str, object]) -> bool:
         confirmed_active = bool(
             isinstance(prior_active, Mapping)
             and prior_active.get("reset_id") == result.get("reset_id")
-            and prior_active.get("farm_identity") == farm_id
+            and isinstance(prior_active.get("farm_identity"), str)
+            and _FARM_ID.fullmatch(prior_active["farm_identity"]) is not None
             and type(active_timer) is int and 0 < active_timer <= ONE_DAY_SECONDS
             and isinstance(prior_active.get("source_frame_sha256"), str)
             and re.fullmatch(r"[a-f0-9]{64}", prior_active["source_frame_sha256"]) is not None
@@ -1348,5 +1442,7 @@ def validate_food_farm_native_result(result: Mapping[str, object]) -> bool:
         if collection_calls or boost_calls:
             return False
     if boost_calls and not result.get("effect_reconciliation_required") and status not in {"completed", "already_active"}:
-        return False
+        action = result.get("boost_action")
+        if not isinstance(action, Mapping) or action.get("journal_status") != "confirmed":
+            return False
     return True

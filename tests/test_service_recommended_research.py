@@ -66,7 +66,6 @@ def _selection_evidence():
         "requirements_scrolled": True,
         "research_start_visible": True,
         "control_class": "RESEARCH_START",
-        "research_now_diamonds": 714,
         "research_now_target_identity": "research-now-diamonds",
         "research_now_tapped": False,
         "overlay_state": "none_observed",
@@ -165,7 +164,7 @@ class RecommendedResearchServiceRunnerTests(unittest.TestCase):
             ),
         )
         native = native_route._normal_result(
-            context, status="completed", reason="paired_debit_verified",
+            context, status="completed", reason="active_timer_verified",
             terminal_home_verified=True, start_calls=1,
             completed=True,
             start_semantically_verified=True,
@@ -182,7 +181,6 @@ class RecommendedResearchServiceRunnerTests(unittest.TestCase):
             research_duration_seconds=21_413,
             exact_resource_costs={key: 0 for key in _RESOURCES},
             exact_resource_prebalances={"food": 3_003_682, "wood": 757_050, "steel": 129_702, "gas": 47_775},
-            exact_resource_balances={"food": 3_003_682, "wood": 757_050, "steel": 129_702, "gas": 47_775},
         )
         result, boundary = self._run([_outcome(native)])
         self.assertEqual(result.outcome.value, "complete_for_reset")
@@ -213,6 +211,11 @@ class RecommendedResearchServiceRunnerTests(unittest.TestCase):
 
         costs = {"food": 100, "wood": 20, "steel": 0, "gas": 0}
         balances = {"food": 20, "wood": 80, "steel": 10, "gas": 10}
+        busy["queue1_remaining_seconds"] = None
+        busy["observation_interval_seconds"] = OBSERVATION_INTERVAL_SECONDS
+        unknown_timer, _ = self._run([_outcome(busy)])
+        self.assertEqual(unknown_timer.outcome.value, "deferred")
+        self.assertEqual(unknown_timer.next_eligible_at, NOW + OBSERVATION_INTERVAL_SECONDS)
         shortage = _result(
             "deferred",
             **_selection_evidence(),
@@ -232,10 +235,29 @@ class RecommendedResearchServiceRunnerTests(unittest.TestCase):
         self.assertEqual(shortage_result.next_eligible_at, NOW + OBSERVATION_INTERVAL_SECONDS)
         self.assertEqual(shortage_result.observed_progress["shortages"], [{"resource": "food", "shortage": 80}])
 
+    def test_known_unmet_displayed_prerequisite_defers_without_a_start(self):
+        selection = _selection_evidence()
+        selection.update(
+            prerequisites_met=False,
+            prerequisite_evidence=["headquarters-lv-25-unmet"],
+        )
+        native = _result(
+            "deferred", **selection,
+            queue1_state="idle", queue1_remaining_seconds=None,
+            first_recommendation_identity="troop-load-ii",
+            target_identity="recommended-research:troop-load-ii:detail-research-button",
+            unmet_prerequisites=["headquarters-lv-25-unmet"],
+            observation_interval_seconds=OBSERVATION_INTERVAL_SECONDS,
+        )
+        result, _ = self._run([_outcome(native)])
+        self.assertEqual(result.outcome.value, "deferred")
+        self.assertEqual(result.action_count, 0)
+        self.assertEqual(result.next_eligible_at, NOW + OBSERVATION_INTERVAL_SECONDS)
+
     def test_unknown_partial_and_restart_confirmation_never_repeat_start(self):
         partial = _result(
             "unresolved",
-            reason="research_start_successor_or_paired_debit_unknown",
+            reason="research_start_successor_unknown",
             research_transport_calls=1,
             committed_action_count=0,
             total_action_count=1,

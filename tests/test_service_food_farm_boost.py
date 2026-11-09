@@ -179,17 +179,17 @@ class FoodFarmBoostServiceTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 food_farm_boost_next_due(invalid, native.request.identity, epoch)
 
-    def test_already_complete_requires_same_farm_persisted_positive_proof(self):
+    def test_reset_completion_preserves_prior_positive_proof_without_demanding_the_same_farm(self):
         outcome, native, epoch, _checkpoints = self._run(
             _native_result("already_complete"),
         )
         self.assertEqual(outcome.outcome, NormalizedOutcome.ALREADY_COMPLETE)
         result = dict(outcome.consequence["native_result"])
+        other_farm = {**result, "prior_boost_confirmation_farm_identity": "home.building.farm.03"}
+        self.assertEqual(food_farm_boost_next_due(other_farm, native.request.identity, epoch),
+                         outcome.next_eligible_at)
         for invalid in (
-            {
-                **result,
-                "prior_boost_confirmation_farm_identity": "home.building.farm.03",
-            },
+            {**result, "prior_boost_confirmation_farm_identity": "not-a-farm"},
             {
                 **result,
                 "prior_boost_confirmation": {"confirmed": False, "frame_sha256": "b" * 64},
@@ -218,6 +218,26 @@ class FoodFarmBoostServiceTests(unittest.TestCase):
                 outcome.consequence["native_result"], native.request.identity, epoch
             ),
         )
+
+    def test_optional_collection_does_not_gate_owned_or_capped_premium_boost_completion(self):
+        for choice in ("owned_item", "diamonds"):
+            with self.subTest(choice=choice):
+                result = _native_result("completed")
+                result.update(collection_transport_calls=1, collection_count=0,
+                    collection_effect_accounted=True, collection_successor="home",
+                    food_farm_dispatch_count=2, boost_decision=choice)
+                if choice == "diamonds":
+                    result.update(boost_cost=48, boost_diamond_balance=100, owned_item_unavailable=True)
+                outcome, native, epoch, _checks = self._run(result)
+                self.assertEqual(outcome.outcome, NormalizedOutcome.COMPLETE_FOR_RESET)
+                self.assertEqual(outcome.consequence["collection_count"], 0)
+                self.assertFalse(outcome.unresolved_action)
+                if choice == "diamonds":
+                    raw = outcome.consequence["native_result"]
+                    for changes in ({"boost_cost": 49}, {"boost_diamond_balance": 47},
+                                    {"owned_item_unavailable": False}):
+                        with self.assertRaises(ValueError):
+                            food_farm_boost_next_due({**raw, **changes}, native.request.identity, epoch)
 
     def test_persisted_collection_commit_is_not_counted_as_a_new_transport(self):
         native_result = _native_result("completed")
