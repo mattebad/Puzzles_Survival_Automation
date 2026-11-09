@@ -18,13 +18,13 @@ The owner-authorized #54 observation was exactly one manual chest tap with zero 
 `Claimed` is its recognition basis. Preserve the raw `UNKNOWN` record unchanged; this one-chest
 observation is not combined native route live acceptance (`evidence_required`).
 
-The #66 supervised canaries exposed borrowed-scope and competing-controller-lease failures before Use.
-ResourceEffectAuthority now owns its sole Core lease; the existing route session fences its exact
-scope through the real canonical input lock. Both failed receipts remain unchanged. Finished-route
-live acceptance still requires current proof (`evidence_required`).
-The next canary sent one Bag navigation and zero Use calls, then stopped on an unrecognized
-successor. Recognition now covers that actual native inset menu and low-contrast item card;
-the finished item-decrement/Home scenario remains unaccepted. No identical Bag retry was sent.
+On 2026-11-09, #66 passed the finished canonical service route at source `e900817`:
+exactly one owned 1K Food Use, owned quantity **129,809 → 129,808**, one confirmed
+resource effect, three total inputs, and verified canonical Home. Evidence is retained in
+the Original workspace at `.local-captures/development-sessions/owner-plan-resource66-bound-categories-20261109T035011627718Z/`.
+Earlier zero-Use navigation failures and their inspected recovery records remain preserved.
+The last-owned-item 1-to-0 boundary is offline-covered, not the inventory state exercised live.
+Service and every stored flow control were restored OFF; this does not enable scheduling.
 
 Nano building entry reuses the shared Home Atlas pan dispatcher with its native runtime,
 fresh capture identities, lease checks and bounded pans. Each confirmed pan is followed
@@ -56,7 +56,7 @@ registration: 23 executable `serve --flow` routes plus one navigation-only flow 
 | `enhancement` | `enhancement_family` | Gear, Chip and Module enhancement once each in a single Profile visit, once per daily reset. |
 | `personal-might` | `personal_might_praise` | One Personal Might Praise, once per daily reset. |
 | `daily-rewards` | `daily_rewards` | At most one current aggregate Claim, then individually ready chests with same-slot Claimed proof; 300-second observation cooldown. Disabled; native acceptance evidence_required. |
-| `resource-item` | `resource_item` | One owned 1K Food item use per reset with exact decrement; runtime disabled and current native acceptance remains evidence_required. |
+| `resource-item` | `resource_item` | One owned 1K Food item use per reset with exact decrement; canonical live acceptance passed 2026-11-09 (129,809 → 129,808, verified Home). Runtime disabled. |
 | `ruins` | `ruins_challenge` | Advance through freshly recognized allowed free NPC stages until the first loss or unavailability, then independently claim green-ready overview chests. A finite-budget pause preserves progress; loss finishes the reset's challenges. Runtime disabled; evidence_required; no current live acceptance. |
 | `alliance-help` | `alliance_help` | Prefer one bound free Help All batch per visit when requests exist, otherwise individual Help; track actual successful requests toward ten per reset without a coin gate or complete request census. A positively successful batch with unreadable count is retained and deferred, not invented completion. Runtime disabled; evidence_required. |
 | `alliance-donation` | `alliance_donation` | Up to ten confirmed ordinary-resource donations to the automatically selected Alliance Tech per reset; preserve partial progress and defer only on observed attempt/resource unavailability. Unknown effects block identical retry. Runtime disabled; evidence_required; no current live acceptance. |
