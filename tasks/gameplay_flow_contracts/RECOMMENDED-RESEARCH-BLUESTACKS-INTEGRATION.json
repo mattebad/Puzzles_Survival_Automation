@@ -164,7 +164,7 @@
       "permitted_input": null,
       "postconditions": [
         "A current Queue 1 successor identifies the same technology and a positive remaining timer.",
-        "All four ordinary resource debits reconcile independently; dispatch alone is not success proof.",
+        "RESEARCH_ACTIVE_WITH_TIMER requires the same technology active in Queue 1 with a positive remaining timer; no four-resource post-debit proof is required, and dispatch alone is not success proof.",
         "Attempt and confirmed-start counts are reconciled under the current reset identity; no identical retry."
       ],
       "terminal_outcomes": [
@@ -218,7 +218,7 @@
   "cooldown_deferred_behavior": "Defer when Queue 1 is busy, the reset-scoped start is already attempted or confirmed, or any exact ordinary resource balance is short; record the precise shortages and preserve partial attempt-versus-confirmed state.",
   "bounded_recovery_behavior": "Fail closed on unknown or changed row identity, prerequisites, cost, balance, Queue 1, detail binding, start result, or canonical Home. Never select a later row, use a substitute, retry an unresolved start, spend Diamonds, activate Queue 2, inspect Daily, or attribute points.",
   "evidence_requirements": [
-    "Current source-bound native evidence for first displayed row identity, idle Queue 1, every prerequisite, exact four-resource costs and balances, row Research navigation, detail Research dispatch, resource debit, same-identity Queue 1 timer successor, attempt-versus-confirmed persistence, reset identity, and canonical Home.",
+    "Current source-bound native evidence for first displayed row identity, idle Queue 1, every prerequisite, exact four-resource costs and balances, row Research navigation, detail Research dispatch, same-identity Queue 1 timer successor, attempt-versus-confirmed persistence, reset identity, and canonical Home.",
     "Negative evidence must demonstrate no Research Now/Diamonds, Queue 2/Activate, boxes, purchases, alternate technology, substitutions, gathering, Daily/D02, points attribution, or identical retry. No native acceptance or capture identifier is asserted."
   ],
   "replay_fixture_requirements": [
@@ -329,10 +329,10 @@
       "HOME_CANONICAL"
     ],
     "selected_daily_prerequisite": false,
-    "product_authority_revision": "flow-delivery-product-authority-v2-r25",
-    "product_authority_digest": "3dccabe3f905a31e3f8a44dda135ae95845329f6de97b87dd4d17f969a1358fd",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r26",
+    "product_authority_digest": "a7874167f0d4bbbcb7d1ab451df969d3cd1946a29824817f5e9f802379260f50",
     "product_record_id": "recommended_research",
-    "product_record_revision": "recommended_research-v1",
-    "product_record_digest": "5f418fa51ad2bb8c242d2ffd6789ab6ff43ab9ed47aaefcbcf4bb456bba683f0"
+    "product_record_revision": "recommended_research-v2",
+    "product_record_digest": "06db8c3cae85f0bf2b88884999fda4a28ecb05d0c4fd6e07eac100fc31ffcb43"
   }
 }

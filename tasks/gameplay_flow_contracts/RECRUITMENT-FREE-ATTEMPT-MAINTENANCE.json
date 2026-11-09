@@ -536,8 +536,8 @@
   "supervised_live_proof_state": "evidence_required",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r25",
-    "product_authority_digest": "3dccabe3f905a31e3f8a44dda135ae95845329f6de97b87dd4d17f969a1358fd",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r26",
+    "product_authority_digest": "a7874167f0d4bbbcb7d1ab451df969d3cd1946a29824817f5e9f802379260f50",
     "product_record_id": "noahs_tavern_recruitment",
     "product_record_revision": "noahs_tavern_recruitment-v1",
     "product_record_digest": "dfdf98ff9705882aa163450668b8c513d19fcf89904f45778d97ac63e085717e",

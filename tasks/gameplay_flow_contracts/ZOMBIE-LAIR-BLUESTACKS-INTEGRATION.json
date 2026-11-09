@@ -152,8 +152,8 @@
   "supervised_live_proof_state": "evidence_required",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r25",
-    "product_authority_digest": "3dccabe3f905a31e3f8a44dda135ae95845329f6de97b87dd4d17f969a1358fd",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r26",
+    "product_authority_digest": "a7874167f0d4bbbcb7d1ab451df969d3cd1946a29824817f5e9f802379260f50",
     "product_record_id": "zombie_lair",
     "product_record_revision": "zombie_lair-v1",
     "product_record_digest": "e9a6c9b34e504fcd779138fdb872331a80a3c1f7b5384cd5ee0b10c5b0de7dab",

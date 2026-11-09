@@ -489,8 +489,8 @@
   "supervised_live_proof_state": "evidence_required",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r25",
-    "product_authority_digest": "3dccabe3f905a31e3f8a44dda135ae95845329f6de97b87dd4d17f969a1358fd",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r26",
+    "product_authority_digest": "a7874167f0d4bbbcb7d1ab451df969d3cd1946a29824817f5e9f802379260f50",
     "product_record_id": "alliance_help",
     "product_record_revision": "alliance_help-v2",
     "product_record_digest": "73a87b8d13e93bd0bc52748dce924dd79241dcba591f61ef8f78c7798b730ddd",

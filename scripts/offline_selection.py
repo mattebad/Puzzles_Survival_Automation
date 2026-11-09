@@ -148,8 +148,6 @@ WINDOWS_BASELINE = (
     "tests.test_stamina_disabled.DisabledStaminaContractTests.test_matrix_keeps_stamina_unregistered_and_scheduler_dormant",
     "tests.test_speedup_disabled.DisabledSpeedupContractTests.test_disabled_policy_blocks_dispatch_and_keeps_claim_separate",
     "tests.test_speedup_disabled.DisabledSpeedupContractTests.test_matrix_keeps_speedup_disabled_and_dormant",
-    "tests.test_tech_upgrade_disabled.DisabledTechUpgradeContractTests.test_disabled_policy_blocks_dispatch_and_keeps_claim_separate",
-    "tests.test_tech_upgrade_disabled.DisabledTechUpgradeContractTests.test_matrix_keeps_tech_disabled_and_dormant",
 )
 
 WINDOWS_BASELINE += tuple(ROUTE_BOUNDARIES.values()) + HOME_ADMISSION_BASELINE

@@ -649,7 +649,7 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertEqual(policy["status"], "explicitly_approved")
         self.assertTrue(policy["pvp_entry_allowed"])
         self.assertEqual(policy["maximum_confirmed_cycles_per_reset"], 3)
-        self.assertEqual(record["record_revision"], "hero_duel-v2")
+        self.assertEqual(record["record_revision"], "hero_duel-v3")
         self.assertEqual(
             record["semantic_entry_route"]["route"], ["ARENA", "HERO_DUEL_SURVIVAL"]
         )
@@ -676,6 +676,7 @@ class ProductAuthorityTests(unittest.TestCase):
         )
         self.assertTrue(effect["loss_result_acceptable"])
         self.assertTrue(effect["positive_participation_successor_required"])
+        self.assertNotIn("pass_balance_decrease_allowed", effect)
         self.assertFalse(effect["daily_inspection_required"])
         self.assertFalse(effect["points_attribution_required"])
         self.assertEqual(record["daily_ownership"]["daily_owner"], None)
@@ -708,7 +709,7 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertEqual(
             policy["shortage_behavior"], "record_exact_shortages_and_defer"
         )
-        self.assertEqual(record["record_revision"], "recommended_research-v1")
+        self.assertEqual(record["record_revision"], "recommended_research-v2")
         self.assertEqual(
             record["semantic_entry_route"]["route"],
             ["RESEARCH_CENTER", "RECOMMENDED_RESEARCH"],
@@ -734,6 +735,8 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertTrue(effect["recommendation_row_research_navigates_only"])
         self.assertTrue(effect["detail_research_control_starts_action"])
         self.assertTrue(effect["active_queue_successor_for_same_identity_required"])
+        self.assertTrue(effect["positive_remaining_timer_required"])
+        self.assertNotIn("all_four_resource_debits_required", effect)
         self.assertFalse(effect["queue2_activation_allowed"])
         self.assertFalse(effect["research_now_diamonds_allowed"])
         self.assertFalse(effect["alternate_technology_allowed"])
@@ -741,6 +744,12 @@ class ProductAuthorityTests(unittest.TestCase):
         for marker in ("research now", "queue 2", "box", "alternate technology", "gathering"):
             self.assertIn(marker, forbidden)
         for mutate in (
+            lambda invalid: invalid["semantic_effect"].__setitem__(
+                "active_queue_successor_for_same_identity_required", False
+            ),
+            lambda invalid: invalid["semantic_effect"].__setitem__(
+                "positive_remaining_timer_required", False
+            ),
             lambda invalid: invalid["target"].__setitem__("recommendation_position", 2),
             lambda invalid: invalid["target"].__setitem__("queue2_activation_allowed", True),
             lambda invalid: invalid["semantic_effect"].__setitem__(
@@ -756,7 +765,7 @@ class ProductAuthorityTests(unittest.TestCase):
             with self.assertRaises(ProductAuthorityError):
                 validate_product_record(invalid)
 
-    def test_food_farm_boost_requires_independent_inventory_and_collection_accounting(self) -> None:
+    def test_food_farm_boost_requires_item_usability_not_inventory_or_collection_gate(self) -> None:
         record = self.records["food_farm_output_boost"]
         policy = next(
             item
@@ -779,18 +788,19 @@ class ProductAuthorityTests(unittest.TestCase):
                 "price_and_balance_rechecked_if_confirmation_appears": True,
             },
         )
-        self.assertTrue(policy["collection_effect_accounting_required"])
+        self.assertTrue(policy["collection_credit_requires_positive_food_hud_tick"])
+        self.assertFalse(policy["positive_collection_required_before_boost"])
         self.assertTrue(policy["diamond_price_cap_not_assumed_current_price"])
-        self.assertEqual(record["record_revision"], "food_farm_output_boost-v1")
+        self.assertEqual(record["record_revision"], "food_farm_output_boost-v2")
         self.assertEqual(record["semantic_entry_route"]["target"], "FOOD_FARM")
         target = record["target"]
         self.assertEqual(target["resource_type"], "FOOD")
         self.assertEqual(target["maximum_boosts_per_reset"], 1)
         self.assertTrue(target["owned_item_preferred"])
-        self.assertTrue(target["owned_item_count_must_be_independently_observed"])
+        self.assertTrue(target["owned_item_usable_must_be_positively_observed"])
         self.assertEqual(target["item_action_cost"], 1)
         self.assertTrue(target["item_action_cost_is_not_inventory_count"])
-        self.assertTrue(target["diamond_fallback_only_when_owned_item_count_is_zero"])
+        self.assertTrue(target["diamond_fallback_only_when_owned_item_unavailable"])
         self.assertEqual(
             target["diamond_fallback_offer"],
             {
@@ -806,13 +816,11 @@ class ProductAuthorityTests(unittest.TestCase):
         )
         self.assertTrue(target["diamond_price_cap_not_assumed_current_price"])
         effect = record["semantic_effect"]
-        self.assertTrue(effect["collection_balances_must_be_reconciled_before_boost"])
-        self.assertTrue(
-            effect["collection_exact_balance_delta_for_each_resource_required"]
-        )
-        self.assertEqual(
-            effect["collection_balance_resources"], ["food", "wood", "steel", "gas"]
-        )
+        self.assertTrue(effect["first_tap_bound_home_or_same_farm_radial_required"])
+        self.assertTrue(effect["collection_credit_requires_positive_food_hud_tick"])
+        self.assertFalse(effect["positive_collection_required_before_boost"])
+        self.assertNotIn("collection_balance_resources", effect)
+        self.assertNotIn("collection_exact_balance_delta_for_each_resource_required", effect)
         self.assertTrue(effect["collection_is_not_boost_success"])
         self.assertTrue(effect["same_farm_active_boost_successor_required"])
         self.assertFalse(effect["global_food_output_boost_item_allowed"])
@@ -821,7 +829,6 @@ class ProductAuthorityTests(unittest.TestCase):
         for marker in (
             "buy box",
             "resource building boost",
-            "unknown inventory count",
             "inventory count inferred from action cost",
             "changed prompt",
             "second boost",
@@ -833,7 +840,7 @@ class ProductAuthorityTests(unittest.TestCase):
                 "item_action_cost_is_not_inventory_count", False
             ),
             lambda invalid: invalid["semantic_effect"].__setitem__(
-                "collection_balances_must_be_reconciled_before_boost", False
+                "positive_collection_required_before_boost", True
             ),
             lambda invalid: invalid["semantic_effect"].__setitem__(
                 "same_farm_active_boost_successor_required", False

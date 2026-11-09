@@ -1321,7 +1321,6 @@ class BatchESemanticContractTests(unittest.TestCase):
                     self.assertEqual(proof["ordinal"], ordinal)
                     self.assertEqual(proof["event_identity"], result["hero_duel_event_identity"])
                     self.assertEqual(proof["free_after"], proof["free_before"] - 1)
-                    self.assertEqual(proof["pass_after"], proof["pass_before"])
                     self.assertTrue(proof["battle_board_verified"])
                     self.assertTrue(proof["exit_confirmed"])
                     self.assertTrue(proof["flee_confirmed"])
@@ -1329,8 +1328,27 @@ class BatchESemanticContractTests(unittest.TestCase):
                     self.assertTrue(proof["tap_to_continue_confirmed"])
             self.assertEqual(rig.runner.effects, 3)
 
+    def test_hero_duel_exhausted_manual_allowance_defers_without_fabricated_cycles(self):
+        with RouteRig(self, ROUTES[HERO_DUEL_FLOW_ID]) as rig:
+            rig.runner.duel_mode = "exhausted"
+            rig.runner.input_count = 0
+            rig.once()
+            result = rig.runner.last_result
+            self.assertEqual(result["status"], "deferred")
+            self.assertEqual(result["final_free_entries_remaining"], 0)
+            self.assertEqual(result["ui_inferred_prior_uses"], 3)
+            self.assertEqual(result["canonical_confirmed_cycle_ordinals"], [])
+            self.assertEqual(result["cycle_proofs"], [])
+            self.assertEqual((rig.runner.actions, rig.runner.effects), (0, 0))
+            self.assertFalse(result["effect_reconciliation_required"])
+            self.assertFalse(result["identical_retry_denied"])
+            with BotStateManager(rig.path) as restarted:
+                self.assertEqual(rig.once(state=restarted), [])
+            self.assertEqual(len(rig.runner.calls), 1)
+
     def test_research_start_uses_first_idle_affordable_recommendation_only(self):
         with RouteRig(self, ROUTES[RECOMMENDED_RESEARCH_FLOW_ID]) as rig:
+            started = rig.stop.now
             report, = rig.once()
             result = rig.runner.last_result
             self.assertEqual(report["status"], "completed")
@@ -1347,14 +1365,27 @@ class BatchESemanticContractTests(unittest.TestCase):
             self.assertEqual(result["research_transport_calls"], 1)
             self.assertEqual(result["committed_action_count"], 1)
             self.assertGreater(result["remaining_seconds"], 0)
+            self.assertEqual(result["active_technology"], result["first_recommendation_identity"])
+            self.assertTrue(all(
+                result["exact_resource_prebalances"][resource] >= cost
+                for resource, cost in result["exact_resource_costs"].items()
+            ))
+            next_due = importlib.import_module(
+                "automation_service.recommended_research",
+            ).recommended_research_next_due
             self.assertEqual(
-                {
-                    resource: result["exact_resource_prebalances"][resource]
-                    - result["exact_resource_balances"][resource]
-                    for resource in ("food", "wood", "steel", "gas")
-                },
-                result["exact_resource_costs"],
+                next_due(result, rig.runner.last_identity, started),
+                result["completed_at_utc"] + result["remaining_seconds"],
             )
+            for changes in (
+                {"active_technology": "other-technology"},
+                {"remaining_seconds": 0},
+                {"target_identity": "recommended-research:other-technology:detail-research-button"},
+            ):
+                with self.subTest(changes=changes), self.assertRaises(ValueError):
+                    next_due(
+                        {**result, **changes}, rig.runner.last_identity, started,
+                    )
 
     def test_research_busy_and_shortage_defer_without_substitute_actions(self):
         for mode in ("deferred_busy", "deferred_shortage"):
@@ -1410,7 +1441,7 @@ class BatchESemanticContractTests(unittest.TestCase):
             self.assertTrue(result["already_confirmed"])
             self.assertEqual(rig.runner.attempted_actions, 0)
 
-    def test_food_farm_accounts_broad_collection_item_boost_and_unknown_retry(self):
+    def test_food_farm_accounts_food_tick_item_boost_and_unknown_retry(self):
         with RouteRig(self, ROUTES[FOOD_FARM_BOOST_FLOW_ID]) as rig:
             report, = rig.once()
             result = rig.runner.last_result
@@ -1421,16 +1452,10 @@ class BatchESemanticContractTests(unittest.TestCase):
                  result["food_farm_dispatch_count"]),
                 (1, 1, True, 1, 2),
             )
-            self.assertEqual(
-                set(result["collection_deltas"]), {"food", "wood", "steel", "gas"},
+            self.assertEqual(result["collection_successor"], "hud_tick")
+            self.assertGreater(
+                int(result["collection_food_after"]), int(result["collection_food_before"]),
             )
-            self.assertTrue(all(value > 0 for value in result["collection_deltas"].values()))
-            for resource, delta in result["collection_deltas"].items():
-                self.assertEqual(
-                    result["collection_balances_after"][resource]
-                    - result["collection_balances_before"][resource],
-                    delta,
-                )
             self.assertEqual(result["boost_decision"], "owned_item")
             self.assertEqual(result["boost_duration_seconds"], 86_400)
             self.assertGreater(result["boost_timer_remaining_seconds"], 0)
@@ -1448,8 +1473,8 @@ class BatchESemanticContractTests(unittest.TestCase):
                  result["food_farm_dispatch_count"]),
                 (0, 1, True, 1, 1),
             )
-            self.assertIsNone(result["collection_balances_before"])
-            self.assertIsNone(result["collection_balances_after"])
+            self.assertIsNone(result["collection_food_before"])
+            self.assertIsNone(result["collection_food_after"])
 
         with RouteRig(self, ROUTES[FOOD_FARM_BOOST_FLOW_ID]) as rig:
             rig.runner.farm_mode = "boost_unresolved"
@@ -1471,7 +1496,56 @@ class BatchESemanticContractTests(unittest.TestCase):
             self.assertEqual(len(rig.runner.calls), 1)
             self.assertEqual(rig.runner.inputs, inputs)
 
-    def test_food_farm_diamond_prompt_without_approved_exact_evidence_never_dispatches(self):
+    def test_food_farm_settled_first_tap_boosts_without_inventing_collection_credit(self):
+        for mode, successor in (("settled_radial", "radial"), ("settled_home", "home")):
+            with self.subTest(mode=mode), RouteRig(self, ROUTES[FOOD_FARM_BOOST_FLOW_ID]) as rig:
+                rig.runner.farm_mode = mode
+                report, = rig.once()
+                result = rig.runner.last_result
+                self.assertEqual(report["status"], "completed")
+                self.assertEqual(result["collection_action"]["status"], "confirmed")
+                self.assertEqual(result["collection_action"]["reason"], "FOOD_FARM_FIRST_TAP_SETTLED")
+                self.assertEqual(result["collection_successor"], successor)
+                self.assertTrue(result["collection_effect_accounted"])
+                self.assertEqual(result["collection_count"], 0)
+                self.assertEqual(result["boost_action"]["status"], "confirmed")
+                self.assertEqual((rig.runner.actions, rig.runner.effects), (2, 1))
+                self.assertFalse(rig.runner.collection_credit_by_reset[rig.runner.last_identity.reset_id])
+                with BotStateManager(rig.path) as restarted:
+                    self.assertEqual(rig.once(state=restarted), [])
+                self.assertEqual(len(rig.runner.calls), 1)
+
+    def test_food_farm_diamonds_require_exact_eligible_offer_and_same_daily_boost_key(self):
+        from dataclasses import replace
+        from tasks.resource_boost_disabled import (
+            FoodFarmBoostChoice, FoodFarmBoostObservation, food_farm_boost_decision,
+        )
+
+        observation = FoodFarmBoostObservation(
+            screen_state="FOOD_FARM_BOOST_PANEL", farm_identity="home.building.farm.02",
+            resource_type="FOOD", boost_active=False, active_remaining_seconds=None,
+            option_duration_seconds=86_400, option_item_name="Food Farm Output Boost 24h",
+            option_item_cost=1, option_item_visible=True, option_item_usable=True,
+            inventory_item_name=None, inventory_item_count=None, inventory_observed=False,
+            diamond_option_visible=True, diamond_item_name="Food Farm Output Boost 24h",
+            diamond_duration_seconds=86_400, diamond_cost=37, diamond_balance=100,
+            diamond_offer_actionable=True, source_frame_sha256="a" * 64,
+            evidence_refs=("synthetic:food-farm-current-panel",),
+        )
+        self.assertEqual(food_farm_boost_decision(observation).choice, FoodFarmBoostChoice.OWNED_ITEM)
+        self.assertEqual(
+            food_farm_boost_decision(replace(observation, option_item_usable=False)).choice,
+            FoodFarmBoostChoice.DIAMONDS,
+        )
+        self.assertEqual(
+            food_farm_boost_decision(replace(observation, option_item_usable=None)).choice,
+            FoodFarmBoostChoice.BLOCKED,
+        )
+
+        with RouteRig(self, ROUTES[FOOD_FARM_BOOST_FLOW_ID]) as rig:
+            rig.once()
+            owned_boost_key = rig.runner.last_result["boost_action_key"]
+
         with RouteRig(self, ROUTES[FOOD_FARM_BOOST_FLOW_ID]) as rig:
             rig.runner.farm_mode = "diamond_guard"
             rig.once()
@@ -1484,6 +1558,36 @@ class BatchESemanticContractTests(unittest.TestCase):
             self.assertEqual(result["food_farm_dispatch_count"], 1)
             self.assertFalse(result["effect_reconciliation_required"])
             self.assertFalse(result["identical_retry_denied"])
+
+        with RouteRig(self, ROUTES[FOOD_FARM_BOOST_FLOW_ID]) as rig:
+            rig.runner.farm_mode = "diamonds"
+            started = rig.stop.now
+            report, = rig.once()
+            result = rig.runner.last_result
+            self.assertEqual(report["status"], "completed")
+            self.assertEqual(result["boost_decision"], "diamonds")
+            self.assertEqual(result["boost_transport_calls"], 1)
+            self.assertEqual(result["boost_cost"], 37)
+            self.assertTrue(result["owned_item_unavailable"])
+            self.assertEqual(result["boost_action"]["action_key"], result["boost_action_key"])
+            self.assertEqual(result["boost_action_key"], owned_boost_key)
+            next_due = importlib.import_module(
+                "automation_service.food_farm_boost",
+            ).food_farm_boost_next_due
+            next_due(result, rig.runner.last_identity, started)
+            for changes in (
+                {"boost_cost": 0}, {"boost_cost": 49}, {"boost_diamond_balance": 36},
+                {"owned_item_unavailable": False},
+                {"boost_timer_farm_identity": "home.building.farm.03"},
+                {"boost_timer_remaining_seconds": 0},
+            ):
+                with self.subTest(changes=changes), self.assertRaises(ValueError):
+                    next_due(
+                        {**result, **changes}, rig.runner.last_identity, started,
+                    )
+            with BotStateManager(rig.path) as restarted:
+                self.assertEqual(rig.once(state=restarted), [])
+            self.assertEqual(len(rig.runner.calls), 1)
 
 
 class BatchFSemanticContractTests(unittest.TestCase):

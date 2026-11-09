@@ -471,8 +471,8 @@
   "production_eligible": false,
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r25",
-    "product_authority_digest": "3dccabe3f905a31e3f8a44dda135ae95845329f6de97b87dd4d17f969a1358fd",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r26",
+    "product_authority_digest": "a7874167f0d4bbbcb7d1ab451df969d3cd1946a29824817f5e9f802379260f50",
     "product_record_id": "daily_shops_purchase",
     "product_record_revision": "daily_shops_purchase-v2",
     "product_record_digest": "e97b9d4fe21f67801e0a38aec1e8c05ee52191bd6d6e7d6fea55bc61994c3088",

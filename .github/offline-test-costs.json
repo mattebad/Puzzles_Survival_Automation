@@ -223,7 +223,6 @@
     "tests.test_supply_depot_verified_route": 4.424,
     "tests.test_supply_depot_vision": 41.029,
     "tests.test_task_module": 0.002,
-    "tests.test_tech_upgrade_disabled": 0.002,
     "tests.test_test_discovery": 0.015,
     "tests.test_test_environment": 0.01,
     "tests.test_training_disabled": 0.002,

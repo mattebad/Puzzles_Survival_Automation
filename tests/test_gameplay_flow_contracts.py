@@ -284,7 +284,7 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertFalse(contract["production_eligible"])
         self.assertEqual(contract["product_authority_binding"]["product_record_id"], "hero_duel")
         self.assertEqual(
-            contract["product_authority_binding"]["product_record_revision"], "hero_duel-v2"
+            contract["product_authority_binding"]["product_record_revision"], "hero_duel-v3"
         )
         self.assertFalse(
             contract["product_authority_binding"]["selected_daily_prerequisite"]
@@ -520,7 +520,7 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(contract["trigger_cadence_type"], "daily_once")
         self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(binding["product_record_id"], "recommended_research")
-        self.assertEqual(binding["product_record_revision"], "recommended_research-v1")
+        self.assertEqual(binding["product_record_revision"], "recommended_research-v2")
         self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
         self.assertFalse(binding["selected_daily_prerequisite"])
         self.assertEqual(
@@ -553,7 +553,7 @@ class GameplayFlowContractTests(unittest.TestCase):
             " ".join(transitions["verify_prerequisites_costs_and_balances"]["postconditions"]).casefold(),
         )
         self.assertIn(
-            "all four ordinary resource debits",
+            "research_active_with_timer",
             " ".join(transitions["verify_queue1_start_and_timer"]["postconditions"]).casefold(),
         )
         unsupported = " ".join(contract["unsupported_or_manual_only_states"]).casefold()
@@ -581,7 +581,7 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(contract["trigger_cadence_type"], "daily_once")
         self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(binding["product_record_id"], "food_farm_output_boost")
-        self.assertEqual(binding["product_record_revision"], "food_farm_output_boost-v1")
+        self.assertEqual(binding["product_record_revision"], "food_farm_output_boost-v2")
         self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
         self.assertFalse(binding["selected_daily_prerequisite"])
         self.assertEqual(
@@ -601,7 +601,7 @@ class GameplayFlowContractTests(unittest.TestCase):
         transitions = {item["transition_id"]: item for item in contract["transition_contracts"]}
         self.assertLess(
             [item["transition_id"] for item in contract["transition_contracts"]].index(
-                "reconcile_entry_collection"
+                "settle_first_farm_tap"
             ),
             [item["transition_id"] for item in contract["transition_contracts"]].index(
                 "apply_one_owned_matching_item"
@@ -612,7 +612,7 @@ class GameplayFlowContractTests(unittest.TestCase):
             " ".join(transitions["enter_mapped_food_farm"]["postconditions"]).casefold(),
         )
         self.assertIn(
-            "independently observed as zero",
+            "positively unavailable",
             " ".join(transitions["observe_exact_diamond_offer_when_no_item"]["postconditions"]).casefold(),
         )
         self.assertIn(
@@ -623,6 +623,10 @@ class GameplayFlowContractTests(unittest.TestCase):
             "positive current timer",
             " ".join(transitions["verify_active_boosting_timer"]["postconditions"]).casefold(),
         )
+        settlement = " ".join(transitions["settle_first_farm_tap"]["postconditions"]).casefold()
+        self.assertIn("unchanged or unreadable", settlement)
+        self.assertIn("collection_count is zero", settlement)
+        self.assertIn("not a boost gate", settlement)
         unsupported = " ".join(contract["unsupported_or_manual_only_states"]).casefold()
         for marker in ("item action cost mistaken for inventory count", "global food output boost", "second boost"):
             self.assertIn(marker, unsupported)

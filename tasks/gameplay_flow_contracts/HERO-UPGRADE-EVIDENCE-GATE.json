@@ -292,8 +292,8 @@
   "production_eligible": false,
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r25",
-    "product_authority_digest": "3dccabe3f905a31e3f8a44dda135ae95845329f6de97b87dd4d17f969a1358fd",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r26",
+    "product_authority_digest": "a7874167f0d4bbbcb7d1ab451df969d3cd1946a29824817f5e9f802379260f50",
     "product_record_id": "hero_upgrade",
     "product_record_revision": "hero_upgrade-v4",
     "product_record_digest": "2f77c6105bf7f3fef95a9f8c0d384fb1a4782d16776073519a2d75c6ef2ef7d8",

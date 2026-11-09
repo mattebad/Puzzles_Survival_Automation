@@ -324,13 +324,13 @@
       "policy_id": "food-farm-output-boost-policy",
       "scope": "daily.food_farm_output_boost",
       "status": "explicitly_approved",
-      "decision": "Approve at most one Food Farm output boost per reset. Use the exact matching owned item first; only when its independently observed inventory count is zero may the current 'Boost output (1-day)' / one-day DIAMONDS offer be considered. Its current numeric price must be freshly read and may not exceed the 48-diamond authorization cap; sufficient current balance and the same exact offer must be verified, including again if a confirmation appears. The cap is not a presumed current price. Reconcile any multi-building collection caused by the first Farm tap as a separate effect.",
+      "decision": "Approve at most one Food Farm output boost per reset. Use a positively usable exact matching owned item first; only when it is positively unavailable may the current 'Boost output (1-day)' / one-day DIAMONDS offer be considered. Its current numeric price must be freshly read and may not exceed the 48-diamond authorization cap; sufficient current balance and the same exact offer must be verified, including again if a confirmation appears. The cap is not a presumed current price. The first tap settles on bound Home or the same Farm radial even with unchanged or unreadable Food HUD. Credit collection only for a positive Food HUD tick; collection is not a boost prerequisite.",
       "maximum_boosts_per_reset": 1,
       "resource_type": "FOOD",
       "owned_item_preferred": true,
-      "inventory_count_must_be_independently_observed": true,
+      "owned_item_usable_must_be_positively_observed": true,
       "item_action_cost_is_not_inventory_count": true,
-      "diamond_fallback_only_when_owned_item_count_is_zero": true,
+      "diamond_fallback_only_when_owned_item_unavailable": true,
       "current_offer_identity_duration_cost_balance_required": true,
       "diamond_fallback_offer": {
         "control": "Boost output (1-day)",
@@ -343,7 +343,8 @@
         "price_and_balance_rechecked_if_confirmation_appears": true
       },
       "diamond_price_cap_not_assumed_current_price": true,
-      "collection_effect_accounting_required": true,
+      "collection_credit_requires_positive_food_hud_tick": true,
+      "positive_collection_required_before_boost": false,
       "buy_box_is_separate": true,
       "dispatch_authority": null,
       "source": "issue-78-owner-decision-2026-11-06"
@@ -749,7 +750,7 @@
       "source": "REC-D01_explicit_completion_boundary"
     }
   ],
-  "authority_revision": "flow-delivery-product-authority-v2-r25",
+  "authority_revision": "flow-delivery-product-authority-v2-r26",
   "product_records": [
     {
       "record_id": "use_resource_item",
@@ -1666,7 +1667,6 @@
         "positive_participation_successor_required": true,
         "confirmed_cycle_progress_persisted": true,
         "transport_is_not_success_proof": true,
-        "pass_balance_decrease_allowed": false,
         "daily_progress_maximum": 3,
         "canonical_home_successor_required": true,
         "daily_ownership": "none",
@@ -1716,8 +1716,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "hero_duel-v2",
-      "record_digest": "6eef740d0ef6f726966573dd2886404a8a3c08d68c5ecac31833c3e32262e63c"
+      "record_revision": "hero_duel-v3",
+      "record_digest": "113f5610c608c1789a0d8c1f84b5aad5ea848d7d302cf82cbd0f4408f3670da4"
     },
     {
       "record_id": "recommended_research",
@@ -1777,7 +1777,6 @@
         "detail_research_control_starts_action": true,
         "active_queue_successor_for_same_identity_required": true,
         "positive_remaining_timer_required": true,
-        "all_four_resource_debits_required": true,
         "dispatch_is_not_success_proof": true,
         "queue2_activation_allowed": false,
         "research_now_diamonds_allowed": false,
@@ -1828,13 +1827,13 @@
           "immutable": true
         }
       ],
-      "record_revision": "recommended_research-v1",
-      "record_digest": "5f418fa51ad2bb8c242d2ffd6789ab6ff43ab9ed47aaefcbcf4bb456bba683f0"
+      "record_revision": "recommended_research-v2",
+      "record_digest": "06db8c3cae85f0bf2b88884999fda4a28ecb05d0c4fd6e07eac100fc31ffcb43"
     },
     {
       "record_id": "food_farm_output_boost",
       "record_type": "food_farm_output_boost",
-      "purpose": "Apply at most one daily Food Farm output boost, preferring the exact matching owned item and permitting only the currently re-observed one-day Food Farm diamond option at or below its 48-diamond authorization cap when no matching item is owned.",
+      "purpose": "Apply at most one daily Food Farm output boost, preferring the exact matching owned item and permitting only the currently re-observed one-day Food Farm diamond option at or below its 48-diamond authorization cap when the matching owned item is positively unavailable.",
       "recurrence": "daily_reset_scoped",
       "semantic_entry_route": {
         "source_home_authorities": [
@@ -1854,10 +1853,10 @@
         "farm_identity": "current_safely_bound_mapped_farm",
         "maximum_boosts_per_reset": 1,
         "owned_item_preferred": true,
-        "owned_item_count_must_be_independently_observed": true,
+        "owned_item_usable_must_be_positively_observed": true,
         "item_action_cost": 1,
         "item_action_cost_is_not_inventory_count": true,
-        "diamond_fallback_only_when_owned_item_count_is_zero": true,
+        "diamond_fallback_only_when_owned_item_unavailable": true,
         "diamond_offer_must_match_current_item_duration_cost_and_balance": true,
         "diamond_fallback_offer": {
           "control": "Boost output (1-day)",
@@ -1885,21 +1884,16 @@
       "semantic_effect": {
         "maximum_boosts_per_reset": 1,
         "item_preferred_over_diamonds": true,
-        "owned_item_identity_count_and_duration_required": true,
+        "owned_item_identity_usability_and_duration_required": true,
         "exact_current_diamond_item_duration_cost_balance_required": true,
         "changed_confirmation_prompt_blocks": true,
         "same_farm_active_boost_successor_required": true,
         "positive_boosting_timer_required": true,
         "dispatch_is_not_success_proof": true,
         "first_farm_tap_may_collect_multiple_buildings": true,
-        "collection_balances_must_be_reconciled_before_boost": true,
-        "collection_exact_balance_delta_for_each_resource_required": true,
-        "collection_balance_resources": [
-          "food",
-          "wood",
-          "steel",
-          "gas"
-        ],
+        "first_tap_bound_home_or_same_farm_radial_required": true,
+        "collection_credit_requires_positive_food_hud_tick": true,
+        "positive_collection_required_before_boost": false,
         "collection_is_not_boost_success": true,
         "global_food_output_boost_item_allowed": false,
         "daily_progress_maximum": 1,
@@ -1918,7 +1912,6 @@
         "global Food Output Boost",
         "unknown item",
         "ambiguous item",
-        "unknown inventory count",
         "inventory count inferred from action cost",
         "unknown duration",
         "unknown diamond price",
@@ -1939,7 +1932,7 @@
         "daily_owner": null,
         "point_credit_trigger": null,
         "selected_daily_prerequisite": false,
-        "notes": "Food Farm output boost is distinct from Buy Box and global Food Output Boost; collection output is separately reconciled and not treated as boost completion."
+        "notes": "Food Farm output boost is distinct from Buy Box and global Food Output Boost; a positive Food HUD tick alone credits collection, independently of first-tap settlement and boost completion."
       },
       "authority_references": [
         {
@@ -1953,8 +1946,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "food_farm_output_boost-v1",
-      "record_digest": "7ef1742cf67b28a27dde83d7c39244228e43ea8085e379a796589a0002afe2e4"
+      "record_revision": "food_farm_output_boost-v2",
+      "record_digest": "769eeaa976edc9b8727703956c5daa7c87ada20efdbdbb34162a5b6a0905d9c2"
     },
     {
       "record_id": "hall_of_war_zombie_zero",
@@ -3845,5 +3838,5 @@
       "record_digest": "73a87b8d13e93bd0bc52748dce924dd79241dcba591f61ef8f78c7798b730ddd"
     }
   ],
-  "authority_digest": "3dccabe3f905a31e3f8a44dda135ae95845329f6de97b87dd4d17f969a1358fd"
+  "authority_digest": "a7874167f0d4bbbcb7d1ab451df969d3cd1946a29824817f5e9f802379260f50"
 }

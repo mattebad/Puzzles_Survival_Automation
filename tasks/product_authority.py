@@ -21,7 +21,7 @@ DEFAULT_AUTHORITY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.jso
 DEFAULT_POLICY_PATH = DEFAULT_AUTHORITY_PATH
 AUTHORITY_SCHEMA_VERSION = 2
 AUTHORITY_REGISTRY_KIND = "flow_delivery_product_policy"
-AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r25"
+AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r26"
 PRODUCT_AUTHORITY_SCHEMA_VERSION = AUTHORITY_SCHEMA_VERSION
 PRODUCT_AUTHORITY_REVISION = AUTHORITY_REVISION
 PRODUCT_RECORDS_FIELD = "product_records"
@@ -1502,7 +1502,6 @@ def _validate_hero_duel_record(record: Mapping[str, Any]) -> None:
         "positive_participation_successor_required": True,
         "confirmed_cycle_progress_persisted": True,
         "transport_is_not_success_proof": True,
-        "pass_balance_decrease_allowed": False,
         "daily_progress_maximum": 3,
         "canonical_home_successor_required": True,
         "daily_ownership": "none",
@@ -1606,7 +1605,6 @@ def _validate_recommended_research_record(record: Mapping[str, Any]) -> None:
         "detail_research_control_starts_action": True,
         "active_queue_successor_for_same_identity_required": True,
         "positive_remaining_timer_required": True,
-        "all_four_resource_debits_required": True,
         "dispatch_is_not_success_proof": True,
         "queue2_activation_allowed": False,
         "research_now_diamonds_allowed": False,
@@ -1650,7 +1648,7 @@ def _validate_recommended_research_record(record: Mapping[str, Any]) -> None:
 
 
 def _validate_food_farm_output_boost_record(record: Mapping[str, Any]) -> None:
-    """Validate one reset-scoped Food Farm boost and any prerequisite collection."""
+    """Validate one reset-scoped Food Farm boost with optional collection credit."""
 
     if record["objective"] != "food_farm_output_boost":
         raise ProductAuthorityError("Food Farm objective must be food_farm_output_boost")
@@ -1672,10 +1670,10 @@ def _validate_food_farm_output_boost_record(record: Mapping[str, Any]) -> None:
         "farm_identity": "current_safely_bound_mapped_farm",
         "maximum_boosts_per_reset": 1,
         "owned_item_preferred": True,
-        "owned_item_count_must_be_independently_observed": True,
+        "owned_item_usable_must_be_positively_observed": True,
         "item_action_cost": 1,
         "item_action_cost_is_not_inventory_count": True,
-        "diamond_fallback_only_when_owned_item_count_is_zero": True,
+        "diamond_fallback_only_when_owned_item_unavailable": True,
         "diamond_offer_must_match_current_item_duration_cost_and_balance": True,
         "diamond_fallback_offer": {
             "control": "Boost output (1-day)",
@@ -1710,7 +1708,7 @@ def _validate_food_farm_output_boost_record(record: Mapping[str, Any]) -> None:
     required_effects = {
         "maximum_boosts_per_reset": 1,
         "item_preferred_over_diamonds": True,
-        "owned_item_identity_count_and_duration_required": True,
+        "owned_item_identity_usability_and_duration_required": True,
         "exact_current_diamond_item_duration_cost_balance_required": True,
         "diamond_price_cap_not_assumed_current_price": True,
         "exact_current_numeric_price_and_balance_required": True,
@@ -1721,8 +1719,9 @@ def _validate_food_farm_output_boost_record(record: Mapping[str, Any]) -> None:
         "positive_boosting_timer_required": True,
         "dispatch_is_not_success_proof": True,
         "first_farm_tap_may_collect_multiple_buildings": True,
-        "collection_exact_balance_delta_for_each_resource_required": True,
-        "collection_balances_must_be_reconciled_before_boost": True,
+        "first_tap_bound_home_or_same_farm_radial_required": True,
+        "collection_credit_requires_positive_food_hud_tick": True,
+        "positive_collection_required_before_boost": False,
         "collection_is_not_boost_success": True,
         "global_food_output_boost_item_allowed": False,
         "daily_progress_maximum": 1,
@@ -1732,7 +1731,7 @@ def _validate_food_farm_output_boost_record(record: Mapping[str, Any]) -> None:
         "identical_retry": False,
     }
     if any(effect.get(key) != value for key, value in required_effects.items()):
-        raise ProductAuthorityError("Food Farm effect weakens inventory or boost accounting")
+        raise ProductAuthorityError("Food Farm effect weakens item-first or timer accounting")
     terminal = record["terminal_requirement"]
     if terminal.get("home_authority") != "HOME_CANONICAL" or terminal.get(
         "return_required"
@@ -1745,7 +1744,6 @@ def _validate_food_farm_output_boost_record(record: Mapping[str, Any]) -> None:
         "global food output boost",
         "unknown item",
         "ambiguous item",
-        "unknown inventory count",
         "inventory count inferred from action cost",
         "unknown duration",
         "unknown diamond price",
@@ -3810,9 +3808,9 @@ def _validate_e_product_decision_policies(payload: Mapping[str, Any]) -> None:
             "maximum_boosts_per_reset": 1,
             "resource_type": "FOOD",
             "owned_item_preferred": True,
-            "inventory_count_must_be_independently_observed": True,
+            "owned_item_usable_must_be_positively_observed": True,
             "item_action_cost_is_not_inventory_count": True,
-            "diamond_fallback_only_when_owned_item_count_is_zero": True,
+            "diamond_fallback_only_when_owned_item_unavailable": True,
             "current_offer_identity_duration_cost_balance_required": True,
             "diamond_fallback_offer": {
                 "control": "Boost output (1-day)",
@@ -3825,7 +3823,8 @@ def _validate_e_product_decision_policies(payload: Mapping[str, Any]) -> None:
                 "price_and_balance_rechecked_if_confirmation_appears": True,
             },
             "diamond_price_cap_not_assumed_current_price": True,
-            "collection_effect_accounting_required": True,
+            "collection_credit_requires_positive_food_hud_tick": True,
+            "positive_collection_required_before_boost": False,
             "buy_box_is_separate": True,
             "dispatch_authority": None,
         },

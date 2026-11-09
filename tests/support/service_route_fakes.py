@@ -140,7 +140,6 @@ from tasks.alliance_help import (
     SOURCE_STATE as ALLIANCE_HELP_SOURCE_STATE, alliance_help_action_key,
 )
 from tasks.ruins_challenge import KNOWN_CHALLENGE_IDENTITIES
-from tasks.tech_upgrade_disabled import RESEARCH_RESOURCES as _RESEARCH_RESOURCES
 from tests.support.service_stop import VirtualStop
 from automation_service.service import ServiceError
 from automation_service.supply import (
@@ -2346,8 +2345,6 @@ def _hero_duel_cycle_proof(identity, event_identity: str, ordinal: int, opponent
         ),
         "free_before": free_before,
         "free_after": free_before - 1,
-        "pass_before": 123,
-        "pass_after": 123,
         "wave_text": "Wave 1/1",
         "battle_board_verified": True,
         "exit_confirmed": True,
@@ -2395,7 +2392,6 @@ def _hero_duel_native_result(
         "current_event_active": not interrupted,
         "initial_free_entries_remaining": 3 if not interrupted else None,
         "ui_inferred_prior_uses": 0 if not interrupted else None,
-        "initial_pass_balance": 123 if not interrupted else None,
         "expected_defense_hero_ids": [] if interrupted else [
             "ulrik", "mccarty", "meyers", "marlowe", "ephraim",
         ],
@@ -2411,7 +2407,6 @@ def _hero_duel_native_result(
         "canonical_confirmed_cycle_ordinals": committed_ordinals,
         "cycle_proofs": proofs,
         "final_free_entries_remaining": 0 if not attempted and not interrupted else None,
-        "final_pass_balance": 123 if not attempted and not interrupted else None,
         "availability_observed_at_utc": observed_at if not attempted and not interrupted else None,
         "total_input_count": input_count,
         "input_accounting_verified": True,
@@ -2436,7 +2431,6 @@ def _research_selection_evidence() -> dict:
         "requirements_scrolled": True,
         "research_start_visible": True,
         "control_class": "RESEARCH_START",
-        "research_now_diamonds": 714,
         "research_now_target_identity": "research-now-diamonds",
         "research_now_tapped": False,
         "overlay_state": "none_observed",
@@ -2524,7 +2518,6 @@ def _research_native_result(
 
     costs = {"food": 100, "wood": 20, "steel": 15, "gas": 5}
     prebalances = {"food": 3_003_682, "wood": 757_050, "steel": 129_702, "gas": 47_775}
-    balances = {key: prebalances[key] - costs[key] for key in _RESEARCH_RESOURCES}
     target = "recommended-research:troop-load-ii:detail-research-button"
     return {
         **base,
@@ -2545,7 +2538,6 @@ def _research_native_result(
         "next_due_utc": completed_at + 3_600,
         "exact_resource_costs": costs,
         "exact_resource_prebalances": prebalances,
-        "exact_resource_balances": balances,
         "start_action": {
             "target_identity": target,
             "source_frame": "frames/research-start-source.png",
@@ -2559,10 +2551,15 @@ def _food_farm_native_result(
     identity, occurrence_key: str, input_count: int, *, mode: str = "completed",
     collection_attempted: bool = True, collection_confirmed: bool = True,
     boost_attempted: bool = True, boost_confirmed: bool = True,
+    collection_collected: bool | None = None,
 ) -> dict:
     farm_identity = "home.building.farm.02"
-    before = {"food": 1000, "wood": 200, "steel": 50, "gas": 20}
-    after = {"food": 1300, "wood": 260, "steel": 65, "gas": 23}
+    food_before = None if mode == "settled_home" else "1000"
+    food_after = None if mode == "settled_home" else "1000" if mode == "settled_radial" else "1300"
+    collected = collection_confirmed and mode not in {"settled_radial", "settled_home"}
+    if collection_collected is not None:
+        collected = collection_collected
+    successor = "home" if mode == "settled_home" else "radial" if mode == "settled_radial" else "hud_tick"
     action_key = {
         "runtime_scope": FIXED_RUNTIME_SCOPE,
         "account_id": identity.account_id,
@@ -2573,24 +2570,21 @@ def _food_farm_native_result(
         **action_key, phase="collection", collection_occurrence_id="1",
     )
     boost_key = food_farm_boost_daily_action_key(**action_key, phase="boost")
-    collection_observed = collection_attempted and collection_confirmed
     base = {
         "status": mode,
         "reason": "FOOD_FARM_NATIVE_RESULT",
         "farm_identity": farm_identity,
         "reset_id": identity.reset_id,
         "collection_transport_calls": int(collection_attempted),
-        "collection_count": int(collection_confirmed),
+        "collection_count": int(collected),
         "collection_effect_accounted": collection_confirmed,
         "collection_occurrence_key": occurrence_key,
         "boost_occurrence_key": boost_key,
         "collection_action_key": collection_key,
         "boost_action_key": boost_key,
-        "collection_balances_before": dict(before) if collection_attempted else None,
-        "collection_balances_after": dict(after) if collection_observed else None,
-        "collection_deltas": {
-            key: after[key] - before[key] for key in _RESEARCH_RESOURCES
-        } if collection_observed else None,
+        "collection_food_before": food_before if collection_attempted else None,
+        "collection_food_after": food_after if collection_attempted and collection_confirmed else None,
+        "collection_successor": successor if collection_confirmed else None,
         "boost_transport_calls": int(boost_attempted),
         "food_farm_dispatch_count": int(collection_attempted) + int(boost_attempted),
         "effect_reconciliation_required": False,
@@ -2607,7 +2601,7 @@ def _food_farm_native_result(
     if collection_attempted:
         base["collection_action"] = {
             "status": "confirmed" if collection_confirmed else "unresolved",
-            "reason": "FOOD_FARM_COLLECTION_RECONCILED" if collection_confirmed
+            "reason": "FOOD_FARM_FIRST_TAP_SETTLED" if collection_confirmed
             else "FOOD_FARM_COLLECTION_REQUIRES_RECONCILIATION",
             "action_key": collection_key,
             "journal_status": "CONFIRMED" if collection_confirmed else "UNRESOLVED",
@@ -2634,8 +2628,8 @@ def _food_farm_native_result(
             "status": "unresolved",
             "reason": "FOOD_FARM_COLLECTION_REQUIRES_RECONCILIATION",
             "collection_count": 0,
-            "collection_balances_after": None,
-            "collection_deltas": None,
+            "collection_food_after": None,
+            "collection_successor": None,
             "collection_effect_accounted": False,
             "boost_transport_calls": 0,
             "food_farm_dispatch_count": 1,
@@ -2689,9 +2683,9 @@ def _food_farm_native_result(
             "status": "already_active",
             "collection_transport_calls": 0,
             "collection_count": 0,
-            "collection_balances_before": None,
-            "collection_balances_after": None,
-            "collection_deltas": None,
+            "collection_food_before": None,
+            "collection_food_after": None,
+            "collection_successor": None,
             "collection_effect_accounted": False,
             "boost_transport_calls": 0,
             "food_farm_dispatch_count": 0,
@@ -2703,7 +2697,7 @@ def _food_farm_native_result(
         return {
             **base,
             "status": "blocked",
-            "reason": "FOOD_FARM_DIAMOND_CONFIRMATION_EVIDENCE_REQUIRED",
+            "reason": "FOOD_FARM_DIAMOND_OFFER_UNKNOWN",
             "boost_transport_calls": 0,
             "food_farm_dispatch_count": int(collection_attempted),
             "boost_decision": "diamonds",
@@ -2739,7 +2733,10 @@ def _food_farm_native_result(
     result = {
         **base,
         "status": "completed",
-        "boost_decision": "owned_item",
+        "boost_decision": "diamonds" if mode == "diamonds" else "owned_item",
+        "boost_cost": 37 if mode == "diamonds" else 1,
+        "boost_diamond_balance": 100 if mode == "diamonds" else None,
+        "owned_item_unavailable": mode == "diamonds",
         "boost_duration_seconds": 86_400,
         "boost_timer_remaining_seconds": 86_390,
         "boost_timer_farm_identity": farm_identity,
@@ -2916,10 +2913,22 @@ class _GuardedEAdapterRunner:
 
 
 def _hero_duel_result_builder(identity, stop, input_count, *, explicit_partial, interrupted, owner):
-    return _hero_duel_native_result(
+    result = _hero_duel_native_result(
         identity, input_count, observed_at=stop.now,
         attempted=explicit_partial, interrupted=interrupted,
     )
+    if owner.duel_mode == "exhausted" and not explicit_partial and not interrupted:
+        result.update(
+            status="deferred", reason="free_entries_exhausted_without_canonical_cycles",
+            initial_free_entries_remaining=0, ui_inferred_prior_uses=3,
+            expected_defense_hero_ids=[], defense_save_confirmed=False,
+            selected_listed_opponents=[], duel_dispatch_count=0, entry_transport_calls=0,
+            flee_transport_calls=0, defense_save_transport_calls=0,
+            defense_selection_transport_calls=0, flee_confirmed_count=0,
+            committed_action_count=0, canonical_confirmed_cycle_ordinals=[], cycle_proofs=[],
+            no_work=True,
+        )
+    return result
 
 
 def _research_result_builder(identity, stop, input_count, *, explicit_partial, interrupted, owner):
@@ -2961,16 +2970,19 @@ def _food_farm_result_builder(identity, stop, input_count, *, explicit_partial, 
             identity, occurrence_key, input_count, mode="boost_replay_blocked",
             collection_attempted=False, collection_confirmed=True,
             boost_attempted=False, boost_confirmed=False,
+            collection_collected=owner.collection_credit_by_reset.get(reset_id, False),
         )
     if reset_id in owner.boost_completed_resets:
         return _food_farm_native_result(
             identity, occurrence_key, input_count, mode="already_complete",
             collection_attempted=False, collection_confirmed=True,
             boost_attempted=False, boost_confirmed=False,
+            collection_collected=owner.collection_credit_by_reset.get(reset_id, False),
         )
     if owner.collection_already_confirmed and owner.collection_confirmation_reset_id is None:
         owner.collection_confirmation_reset_id = reset_id
         owner.collection_confirmed_resets.add(reset_id)
+        owner.collection_credit_by_reset[reset_id] = True
     collection_confirmed = reset_id in owner.collection_confirmed_resets
     mode = owner.farm_mode
     if mode == "already_active":
@@ -2986,6 +2998,7 @@ def _food_farm_result_builder(identity, stop, input_count, *, explicit_partial, 
             collection_attempted=collection_attempted, collection_confirmed=True,
             boost_attempted=True, boost_confirmed=False,
         )
+        owner.collection_credit_by_reset[reset_id] = bool(result["collection_count"])
         owner.collection_confirmed_resets.add(reset_id)
         owner.collection_confirmation_reset_id = reset_id
         owner.collection_already_confirmed = True
@@ -2997,6 +3010,7 @@ def _food_farm_result_builder(identity, stop, input_count, *, explicit_partial, 
             collection_attempted=collection_attempted, collection_confirmed=True,
             boost_attempted=False, boost_confirmed=False,
         )
+        owner.collection_credit_by_reset[reset_id] = bool(result["collection_count"])
         owner.collection_confirmed_resets.add(reset_id)
         owner.collection_confirmation_reset_id = reset_id
         owner.collection_already_confirmed = True
@@ -3005,7 +3019,11 @@ def _food_farm_result_builder(identity, stop, input_count, *, explicit_partial, 
         identity, occurrence_key, input_count, mode=mode,
         collection_attempted=collection_attempted, collection_confirmed=True,
         boost_attempted=True, boost_confirmed=True,
+        collection_collected=(
+            owner.collection_credit_by_reset[reset_id] if collection_confirmed else None
+        ),
     )
+    owner.collection_credit_by_reset[reset_id] = bool(result["collection_count"])
     owner.collection_confirmed_resets.add(reset_id)
     owner.collection_confirmation_reset_id = reset_id
     owner.collection_already_confirmed = True
@@ -3023,6 +3041,7 @@ class GuardedHeroDuelRunner(_GuardedEAdapterRunner):
                 serial=BLUESTACKS_SERIAL, utc_clock=lambda: stop.now,
             ),
         )
+        self.duel_mode = "completed"
 
 
 class GuardedRecommendedResearchRunner(_GuardedEAdapterRunner):
@@ -3052,6 +3071,7 @@ class GuardedFoodFarmBoostRunner(_GuardedEAdapterRunner):
         self.farm_mode = "completed"
         self.collection_already_confirmed = False
         self.collection_confirmed_resets = set()
+        self.collection_credit_by_reset = {}
         self.collection_confirmation_reset_id = None
         self.collection_unresolved_resets = set()
         self.boost_unresolved_resets = set()

@@ -22,7 +22,6 @@ from automation_service.registry import (
     HALL_OF_WAR_PRODUCT_REVISION as HALL_REVISION,
     HERO_DUEL_FLOW_ID as HERO_DUEL,
     HERO_DUEL_PRODUCT_ID as HERO_PRODUCT,
-    HERO_DUEL_PRODUCT_REVISION as HERO_REVISION,
     NANO_MATERIAL_PRODUCTION_FLOW_ID as NANO_PRODUCTION,
     NANO_MATERIAL_PRODUCTION_PRODUCT_ID as NANO_PRODUCTION_PRODUCT,
     NANOWEAPON_FLOW_ID as NANOWEAPON,
@@ -55,6 +54,7 @@ OTHER_TASK = "OTHER-SUPERVISED-TASK"
 # Frozen native token API versions, not registry product-record revisions.
 NANO_PRODUCTION_REVISION = "nano_material_production-v1"
 NANOWEAPON_REVISION = "nanoweapon_normal_craft-v2"
+HERO_REVISION = "hero_duel-v2"
 
 # Native action kinds are independent of product-authority record revisions.
 ALLIANCE_SHOP_ACTION_KIND = "alliance_shop_purchase-v2"
@@ -313,7 +313,7 @@ def research_request():
         task=RESEARCH, action="START_RECOMMENDED_RESEARCH", action_class=ActionClass.SPEND_OR_STRATEGIC,
         kind="research_start", subject="research_alpha", source="RESEARCH_DETAIL",
         target="recommended-research:research_alpha:detail-research-button", control="RESEARCH_START",
-        consequence="start_ordinary_recommended_research", post="RESEARCH_ACTIVE_WITH_TIMER_AND_MATCHED_RESOURCE_DEBIT",
+        consequence="start_ordinary_recommended_research", post="RESEARCH_ACTIVE_WITH_TIMER",
         cost_type="ordinary_resource_bundle", cost=1, quantity=1, resource="food+wood+steel+gas",
         maximum=None, free=False, preconditions=tokens,
     )
@@ -364,9 +364,8 @@ def hero_request(action):
     prefix = (f"hero_duel_product={HERO_PRODUCT}", f"hero_duel_product_revision={HERO_REVISION}", f"hero_duel_event_identity={event}")
     if action == "hero_duel_free_entry":
         tokens = prefix + (
-            "hero_duel_free_allowance_before=3", "hero_duel_pass_balance_before=0",
-            "hero_duel_entry_ordinal=1", f"hero_duel_entry_reset={DAY}",
-            "current_event_is_hero_duel_survival", "event_active", "emergency_details_exclusions_inspected",
+            "hero_duel_free_allowance_before=3", "hero_duel_entry_ordinal=1", f"hero_duel_entry_reset={DAY}",
+            "current_event_is_hero_duel_survival", "event_active",
             "defense_first_five_eligible_saved", "attack_five_eligible_slots_populated",
             "listed_opponent_free_selected", "entry_cost_exactly_zero", "premium_prompt_absent", "overlay_absent",
         )
@@ -376,8 +375,7 @@ def hero_request(action):
         )
     elif action == "hero_duel_flee":
         tokens = prefix + (
-            "hero_duel_free_allowance_at_flee=2", "hero_duel_pass_balance_before=0",
-            "hero_duel_entry_ordinal=1", f"hero_duel_entry_reset={DAY}",
+            "hero_duel_free_allowance_at_flee=2", "hero_duel_entry_ordinal=1", f"hero_duel_entry_reset={DAY}",
             "current_event_is_hero_duel_survival", "entry_same_cycle_ordinal_confirmed", "current_battle_loaded",
             "battle_exit_control_bound", "flee_warning_visible", "flee_button_bound", "fight_control_excluded",
             "premium_prompt_absent", "overlay_absent",
@@ -387,7 +385,7 @@ def hero_request(action):
         )
     else:
         tokens = prefix + (
-            "current_event_is_hero_duel_survival", "event_active", "emergency_details_exclusions_inspected",
+            "current_event_is_hero_duel_survival", "event_active",
             "first_five_eligible_heroes_bound", "five_defense_slots_exact", "prohibited_support_absent", "overlay_absent",
         )
         source, target, control, consequence, post = (
@@ -503,48 +501,40 @@ def farm_collection_request():
     tokens = (
         f"product_id:{FARM_PRODUCT}", f"product_revision:{FARM_REVISION}",
         f"reset_identity:{DAY}", "effect_ordinal:collection=1", f"current_clean_home_atlas_binding:{farm}",
-        "current_collection_balance_before:food=100,wood=200,steel=300,gas=400",
+        "current_food_farm_tap_successor:bound_home_or_same_farm_radial",
         f"canonical_collection_action_key_unclaimed:{key}", "current_runtime_lease_valid",
     )
     return route_request(
         task=FOOD_FARM, action="collect_food_farm_resources", action_class=ActionClass.ZERO_COST_CONSEQUENTIAL,
         kind="collect_food_farm_resources", subject=farm, source="HOME_BASE", target=farm, control="COLLECT",
-        consequence="collect_all_base_resource_building_output", post="FOOD_FARM_COLLECTION_RECONCILED",
+        consequence="collect_all_base_resource_building_output", post="FOOD_FARM_FIRST_TAP_SETTLED",
         cost_type="none", cost=0, quantity=1, resource="none", maximum=0, free=True,
         preconditions=tokens, action_key=key,
     )
 
 
-def farm_boost_request(diamonds=False):
+def farm_boost_request(diamonds=False, *, cost=None, balance=100):
     farm = "home.building.farm.01"
-    item = "unproven_boost_product"
+    item = "food_output_boost_24h"
     key = f"food-farm-output-boost:daily:boost:{'8' * 64}"
-    common = (
+    cost = (48 if diamonds else 1) if cost is None else cost
+    currency = "diamonds" if diamonds else "owned_item"
+    tokens = (
         f"product_id:{FARM_PRODUCT}", f"product_revision:{FARM_REVISION}",
-        f"reset_identity:{DAY}", "effect_ordinal:boost=1", f"current_clean_home_atlas_binding:{farm}",
-        f"same_farm_identity_after_collection:{farm}", "current_food_farm_boost_panel", "boost_inactive",
-        f"exact_owned_item_name:{item}",
+        f"reset_identity:{DAY}", "effect_ordinal:boost=1",
+        f"current_food_farm_boost_panel_binding:{farm}",
+        "exact_current_food_farm_item_name:Food Output Boost (24h)",
+        "exact_current_food_farm_item_duration_seconds:86400",
+        f"canonical_food_farm_boost_action_key_unclaimed:{key}", "current_runtime_lease_valid",
+        "current_food_farm_owned_item_unavailable" if diamonds else "current_food_farm_owned_item_usable",
+        f"current_food_farm_action_cost:{cost}", f"current_food_farm_currency:{currency}",
+        f"current_food_farm_diamond_balance:{balance}" if diamonds else "current_food_farm_item_action_cost:1",
     )
+    cost_type, resource, maximum = currency, currency, cost
     if diamonds:
-        tokens = common + (
-            "owned_inventory_count=0", f"exact_current_diamond_offer_item:{item}",
-            "diamond_offer_duration_seconds=86400", "diamond_offer_price=50", "current_diamond_balance=100",
-            "current_offer_action_or_confirmation:direct", f"canonical_food_farm_boost_action_key_unclaimed:{key}",
-            "current_runtime_lease_valid",
-        )
-        cost_type, cost, resource, maximum, consequence, action = (
-            "diamonds", 50, "diamonds", 50, "spend_exact_diamonds_for_one_food_farm_output_boost",
-            "buy_food_farm_output_boost_diamonds",
-        )
+        consequence, action = "buy_and_apply_exact_food_farm_output_boost_diamonds", "buy_food_farm_output_boost_diamonds"
     else:
-        tokens = common + (
-            "owned_inventory_count>=1:2", "panel_item_action_cost=1", "boost_duration_seconds=86400",
-            f"canonical_food_farm_boost_action_key_unclaimed:{key}", "current_runtime_lease_valid",
-        )
-        cost_type, cost, resource, maximum, consequence, action = (
-            "owned_item", 1, item, 1, "consume_one_exact_named_owned_food_farm_output_boost_item",
-            "apply_food_farm_output_boost_owned_item",
-        )
+        consequence, action = "consume_one_exact_named_owned_food_farm_output_boost_item", "apply_food_farm_output_boost_owned_item"
     return route_request(
         task=FOOD_FARM, action=action, action_class=ActionClass.SPEND_OR_STRATEGIC,
         kind=action, subject=item, source="FOOD_FARM_BOOST_PANEL", target=farm, control="BOOST",
@@ -890,31 +880,34 @@ class ApprovedBaseRoutePolicyTests(unittest.TestCase):
         self.assert_denied(replace(req, semantic_preconditions=req.semantic_preconditions + ("ruins_reward_medals=10",)))
 
     def test_hero_duel_exact_free_entry_flee_and_defense_save(self):
-        for action in ("hero_duel_free_entry", "hero_duel_flee", "hero_duel_save_defense"):
+        for action, length in (("hero_duel_free_entry", 14), ("hero_duel_flee", 15), ("hero_duel_save_defense", 9)):
             with self.subTest(action=action):
-                self.assert_authorized(hero_request(action))
-        req = hero_request("hero_duel_free_entry")
-        tokens = list(req.semantic_preconditions)
-        tokens[7] = "current_event_is_hero_duel_survival=false"
-        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
-        tokens = list(req.semantic_preconditions)
-        tokens[3] = "hero_duel_free_allowance_before=2"
-        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
-        tokens = list(req.semantic_preconditions)
-        tokens[-2] = "premium_prompt_absent=false"
-        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+                req = hero_request(action)
+                self.assertEqual(len(req.semantic_preconditions), length)
+                self.assert_authorized(req)
+        for action, allowance_prefix, allowed in (
+            ("hero_duel_free_entry", "hero_duel_free_allowance_before", (1, 2, 3)),
+            ("hero_duel_flee", "hero_duel_free_allowance_at_flee", (0, 1, 2, 3)),
+        ):
+            req = hero_request(action)
+            for allowance in allowed:
+                tokens = list(req.semantic_preconditions)
+                tokens[3] = f"{allowance_prefix}={allowance}"
+                self.assert_authorized(replace(req, semantic_preconditions=tuple(tokens)))
+            for index, token in (
+                (3, f"{allowance_prefix}=4"),
+                (4, "hero_duel_entry_ordinal=4"),
+                (5, "hero_duel_entry_reset=other-reset"),
+                (6, "current_event_is_hero_duel_survival=false"),
+                (-2, "premium_prompt_absent=false"),
+            ):
+                tokens = list(req.semantic_preconditions)
+                tokens[index] = token
+                self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+            self.assert_denied(replace(req, semantic_preconditions=req.semantic_preconditions + ("hero_duel_pass_balance_before=0",)))
         req = hero_request("hero_duel_flee")
         tokens = list(req.semantic_preconditions)
-        tokens[13] = "fight_control_excluded=false"
-        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
-        tokens = list(req.semantic_preconditions)
-        tokens[3] = "hero_duel_free_allowance_at_flee=4"
-        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
-        tokens = list(req.semantic_preconditions)
-        tokens[3] = "hero_duel_free_allowance_at_flee=1"
-        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
-        tokens = list(req.semantic_preconditions)
-        tokens[4] = "hero_duel_pass_balance_before=-1"
+        tokens[12] = "fight_control_excluded=false"
         self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
 
     def test_troop_training_fixed_configs_claim_and_box_denial(self):
@@ -983,20 +976,58 @@ class ApprovedBaseRoutePolicyTests(unittest.TestCase):
         tokens[6] = "alliance_help_exact_free_label=Help_All"
         self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
 
-    def test_food_farm_collection_and_unproven_boosts(self):
+    def test_food_farm_first_tap_and_owned_first_boost_contract(self):
         self.assert_authorized(farm_collection_request())
-        self.assert_denied(farm_boost_request())
-        self.assert_denied(farm_boost_request(diamonds=True))
+        for premium in (False, True):
+            req = farm_boost_request(diamonds=premium)
+            self.assertEqual(len(req.semantic_preconditions), 13)
+            self.assert_authorized(req)
+            # Frozen native dispatch passes float(cost) and float(maximum_cost).
+            self.assert_authorized(replace(
+                req, maximum_cost=float(req.maximum_cost),
+                observation=replace(req.observation, cost_amount=float(req.observation.cost_amount)),
+            ))
+            for amount in (True, 1.5, float("nan"), float("inf")):
+                self.assert_denied(replace(req, observation=replace(req.observation, cost_amount=amount)))
+            for index, token in (
+                (2, "reset_identity:other-reset"),
+                (4, "current_food_farm_boost_panel_binding:home.building.farm.02"),
+                (6, "exact_current_food_farm_item_duration_seconds:3600"),
+                (7, "canonical_food_farm_boost_action_key_unclaimed:other-key"),
+                (9, "current_food_farm_owned_item_usable" if premium else "current_food_farm_owned_item_unavailable"),
+                (11, "current_food_farm_currency:coins"),
+            ):
+                tokens = list(req.semantic_preconditions)
+                tokens[index] = token
+                self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+            self.assert_denied(replace(req, subject="global_food_output_boost"))
+            self.assert_denied(replace(req, observation=replace(req.observation, expected_postcondition="TRANSPORT_DELIVERED")))
+        self.assertEqual(farm_boost_request().action_key, farm_boost_request(diamonds=True).action_key)
+        for cost in (1, 17, 48):
+            self.assert_authorized(farm_boost_request(diamonds=True, cost=cost, balance=cost))
+        for cost, balance in ((0, 100), (49, 100), (48, 47)):
+            self.assert_denied(farm_boost_request(diamonds=True, cost=cost, balance=balance))
+        self.assert_denied(farm_boost_request(cost=2))
         req = farm_collection_request()
         invalid_key = "food-farm-output-boost:daily:collection:unbound"
         invalid_key_tokens = list(req.semantic_preconditions)
         invalid_key_tokens[6] = f"canonical_collection_action_key_unclaimed:{invalid_key}"
-        self.assert_denied(replace(
-            req, action_key=invalid_key, semantic_preconditions=tuple(invalid_key_tokens),
-        ))
+        self.assert_denied(replace(req, action_key=invalid_key, semantic_preconditions=tuple(invalid_key_tokens)))
         tokens = list(req.semantic_preconditions)
-        tokens[5] = "current_collection_balance_before=food=100,wood=200,steel=300"
+        tokens[5] = "current_collection_balance_before:food=100,wood=200,steel=300,gas=400"
         self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+
+    def test_e_routes_keep_authority_and_runtime_fences(self):
+        for req in (
+            hero_request("hero_duel_free_entry"), hero_request("hero_duel_flee"),
+            hero_request("hero_duel_save_defense"), research_request(),
+            farm_collection_request(), farm_boost_request(), farm_boost_request(diamonds=True),
+        ):
+            for fields in (
+                {"duplicate_action_key": True}, {"unresolved_action": True}, {"lease_valid": False},
+            ):
+                with self.subTest(action=req.semantic_action, fields=fields):
+                    self.assertNotEqual(POLICY.evaluate(replace(req, **fields)).decision, PolicyDecision.AUTHORIZE)
 
     def test_hall_dispatch_requires_current_roi_hashes_and_explicit_no_loss_rule(self):
         self.assert_authorized(hall_dispatch_request())
