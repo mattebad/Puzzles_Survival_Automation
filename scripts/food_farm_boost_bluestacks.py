@@ -19,6 +19,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from safe_action_core import ActionClass, ActionStatus, CentralPolicy, Observation, PolicyRequest, SafeActionExecutor, TransportResult
+from scripts.atlas_runtime_startup import AtlasRuntimeStartupError, normalize_runtime_home_atlas_startup
 from scripts.bounded_tesseract import call_ocr, tesseract_data
 from scripts.home_atlas_bluestacks import bind_or_pan_mapped_home_building, bluestacks_direct_pan_contract
 from scripts.startup_normalization import is_clean_home_frame
@@ -208,10 +209,28 @@ def _item_control_usable(frame: np.ndarray, tokens: tuple[NativeTextToken, ...],
 
 def _home_food_reading(frame: np.ndarray) -> str | None:
     """Read just the Food HUD column, including the game's rounded K/M notation."""
-    values = [token.text.replace(",", "").upper() for token in _ocr_tokens(frame)
-              if 0 <= (token.roi[0] + token.roi[2]) // 2 < 140 and token.roi[1] < 100
-              and re.fullmatch(r"\d+(?:\.\d+)?[KMB]?", token.text.replace(",", "").upper())]
+    # The full-frame sparse OCR misses the Food value beside its icon on the
+    # actual Home HUD. Read its existing column, not an exact inventory amount.
+    if frame.shape[:2] != (1280, 800):
+        return None
+    try:
+        data = call_ocr(tesseract_data, cv2.cvtColor(frame[8:45, 40:139], cv2.COLOR_BGR2GRAY),
+                        config="--psm 7", call_timeout=5.0)
+        values = [str(text).replace(",", "").upper()
+                  for text, confidence in zip(data.get("text", ()), data.get("conf", ()))
+                  if float(confidence) >= 50
+                  and re.fullmatch(r"\d+(?:\.\d+)?[KMB]?", str(text).replace(",", "").upper())]
+    except Exception:
+        return None
     return values[0] if len(values) == 1 else None
+
+
+def _food_reading_increased(before: str | None, after: str | None) -> bool:
+    """Compare rounded HUD readings only; never claim exact collected units."""
+    def amount(value):
+        return float(value.rstrip("KMB")) * (
+            {"K": 1_000, "M": 1_000_000, "B": 1_000_000_000}.get(value[-1], 1))
+    return bool(before is not None and after is not None and amount(after) > amount(before))
 
 
 def _item_subject(name: str) -> str:
@@ -541,7 +560,8 @@ def _dispatch_canonical_action(
     runtime, store, session = context.runtime, context.action_store, context.session
     task_id = FLOW_ID
     action_id = f"food-farm:{hashlib.sha256((action_key + session.invocation_id).encode()).hexdigest()}"
-    if source_capture.sha256 != binding.frame_sha256:
+    # Farm bindings own decoded source pixels, not the transport PNG encoding.
+    if frame_digest(source_capture.frame) != binding.frame_sha256:
         return {"status": "blocked", "reason": "FOOD_FARM_TARGET_REBIND_REQUIRED", "transport_calls": 0,
                 "effect_reconciliation_required": False}
     observation = _route_observation(
@@ -731,6 +751,32 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
                 "collection_count": 0, "collection_effect_accounted": False,
                 "food_farm_dispatch_count": 0, "terminal_home_verified": False}
     home_localization = localizer.localize(farm_capture.frame)
+    if not home_localization.recognized and not home_localization.stale and not home_localization.overlay:
+        context.checkpoint()
+        context.validate_identity()
+        try:
+            # Reuse the driver's bounded startup policy and simultaneous-pointer
+            # transport through the borrowed session, never a route-owned pinch.
+            localizer, _ = normalize_runtime_home_atlas_startup(
+                runtime=runtime, atlas=atlas, atlas_path=atlas_path,
+                execute=runtime.execute, settle_seconds=float(context.settle_seconds),
+                maximum_zoom_inputs=2, session=session,
+            )
+        except AtlasRuntimeStartupError as exc:
+            return {"status": "blocked", "reason": "FOOD_FARM_HOME_ATLAS_UNRECOGNIZED",
+                    "home_zoom_recovery_reason": str(exc),
+                    "boost_transport_calls": 0, "collection_transport_calls": 0,
+                    "collection_count": 0, "collection_effect_accounted": False,
+                    "food_farm_dispatch_count": 0, "terminal_home_verified": False}
+        # Recovery is navigation only; a new clean, localized capture must own
+        # the ordinary mapped Farm binding and every later consequential action.
+        farm_capture = session.observe(runtime.capture, label="food-farm-normalized-home-source")
+        home_localization = localizer.localize(farm_capture.frame)
+        if not is_clean_home_frame(farm_capture.frame):
+            return {"status": "blocked", "reason": "FOOD_FARM_HOME_NOT_CLEAN",
+                    "boost_transport_calls": 0, "collection_transport_calls": 0,
+                    "collection_count": 0, "collection_effect_accounted": False,
+                    "food_farm_dispatch_count": 0, "terminal_home_verified": False}
     if not home_localization.recognized or home_localization.stale or home_localization.overlay:
         return {"status": "blocked", "reason": "FOOD_FARM_HOME_ATLAS_UNRECOGNIZED",
                 "boost_transport_calls": 0, "collection_transport_calls": 0,
@@ -839,7 +885,12 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
         outcome = _json_mapping(outcomes[-1].get("payload_json")) if outcomes else {}
         base.update(collection_count=int(legacy or outcome.get("collected") is True),
                     collection_effect_accounted=True,
-                    collection_successor=outcome.get("successor", "settled"))
+                    collection_successor=outcome.get("successor", "settled"),
+                    collection_food_before=outcome.get("food_before"),
+                    collection_food_after=outcome.get("food_after"),
+                    collection_source_frame=outcome.get("source_frame"),
+                    collection_successor_frame=outcome.get("successor_frame"),
+                    collection_successor_sha256=outcome.get("successor_sha256"))
     if collection_state == "reconciliation_required" or collection_state == "unknown":
         return {**base, "status": "blocked", "reason": "FOOD_FARM_COLLECTION_REQUIRES_RECONCILIATION",
                 "effect_reconciliation_required": True, "identical_retry_denied": True}
@@ -910,11 +961,7 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
             if rebound is None or rebound.building_id != binding.building_id:
                 return False
             food_after = _home_food_reading(captured.frame)
-            def amount(value):
-                return float(value.rstrip("KMB")) * (
-                    {"K": 1_000, "M": 1_000_000, "B": 1_000_000_000}.get(value[-1], 1))
-            positive = bool(food_before is not None and food_after is not None
-                            and amount(food_after) > amount(food_before))
+            positive = _food_reading_increased(food_before, food_after)
             capture_after.update(food_after=food_after, verified=True, collected=positive,
                                  successor="hud_tick" if positive else "home", rebound=rebound)
             return True
@@ -943,6 +990,11 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
                     collection_action=action, collection_food_before=food_before,
                     collection_food_after=capture_after.get("food_after"),
                     collection_successor=capture_after.get("successor"),
+                    collection_source_frame=str(farm_capture.path),
+                    collection_source_sha256=farm_capture.sha256,
+                    collection_successor_frame=action.get("successor_frame"),
+                    collection_successor_sha256=action.get("successor_sha256"),
+                    collection_quantity_is_rounded_hud_evidence=True,
                     collection_effect_accounted=bool(accounted))
         base["food_farm_dispatch_count"] = action["transport_calls"]
         if action["status"] != "confirmed":
@@ -953,7 +1005,12 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
         if row is not None:
             store.audit(FLOW_ID, "food_farm_collection_outcome", context.utc_clock(),
                 {"collected": bool(base["collection_count"]),
-                 "successor": base["collection_successor"]}, action_id=row["action_id"])
+                 "successor": base["collection_successor"],
+                 "food_before": base.get("collection_food_before"),
+                 "food_after": base.get("collection_food_after"),
+                 "source_frame": base.get("collection_source_frame"),
+                 "successor_frame": base.get("collection_successor_frame"),
+                 "successor_sha256": base.get("collection_successor_sha256")}, action_id=row["action_id"])
 
     # A same-reset confirmed boost is never issued again, even if its timer later expires.
     if store.action_key_exists(boost_key):
@@ -966,6 +1023,28 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
     # The first tap may already have opened the radial without collecting anything.
     # Reuse that current surface; otherwise one fresh same-Farm tap opens it.
     radial_source = runtime.capture("food-farm-rebound-before-radial")
+    # The actual first successor precedes the resource animation's HUD tick.
+    # Credit that confirmed first input when its later same-Farm Home capture
+    # proves the increase; no second collection input or balance prerequisite.
+    if (base["collection_transport_calls"] == 1 and base["collection_effect_accounted"]
+            and not base["collection_count"] and is_clean_home_frame(radial_source.frame)):
+        rebound = bind_reachable_farm(radial_source.frame, atlas, localizer)
+        food_after = _home_food_reading(radial_source.frame)
+        if (rebound is not None and rebound.building_id == binding.building_id
+                and _food_reading_increased(base.get("collection_food_before"), food_after)):
+            base.update(collection_count=1, collection_food_after=food_after,
+                        collection_successor="hud_tick",
+                        collection_successor_frame=str(radial_source.path),
+                        collection_successor_sha256=radial_source.sha256)
+            row = store.get_action_by_key(collection_key)
+            if row is not None:
+                store.audit(FLOW_ID, "food_farm_collection_outcome", context.utc_clock(),
+                    {"collected": True, "successor": "hud_tick",
+                     "food_before": base.get("collection_food_before"), "food_after": food_after,
+                     "source_frame": base.get("collection_source_frame"),
+                     "successor_frame": str(radial_source.path),
+                     "successor_sha256": radial_source.sha256}, action_id=row["action_id"])
+    base["partial_failure"] = bool(base["collection_count"])
     fresh_binding = binding
     if _farm_radial_boost_roi(radial_source.frame, binding) is None:
         if not is_clean_home_frame(radial_source.frame):
@@ -1017,7 +1096,7 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
         home = terminal_home()
         if home["status"] != "home":
             return {**base, **home, "status": "blocked", "boost_decision": decision.choice.value}
-        return {**base, **home, "status": "already_active", "reason": decision.reason,
+        return {**base, **home, "status": "already_active", "reason": decision.reason, "partial_failure": False,
                 "boost_decision": decision.choice.value,
                 "active_remaining_seconds": panel.observation.active_remaining_seconds,
                 "active_timer_farm_identity": binding.building_id}
@@ -1064,7 +1143,7 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
     cost_type = "diamonds" if premium else "owned_item"
     panel_binding = FarmBinding(
         binding.building_id, tuple(int(value) for value in button_roi),
-        panel.source_capture.sha256, binding.evidence + ("recognized_food_farm_boost_panel",),
+        frame_digest(panel.source_capture.frame), binding.evidence + ("recognized_food_farm_boost_panel",),
     )
 
     boost_postcondition = {}
@@ -1150,7 +1229,7 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
     if home["status"] != "home":
         return {**base, **home, "status": "blocked", "reason": "FOOD_FARM_BOOST_TERMINAL_HOME_UNVERIFIED",
                 "effect_reconciliation_required": False, "identical_retry_denied": False}
-    return {**base, **home, "status": "completed", "reason": "FOOD_FARM_BOOST_CONFIRMED_WITH_POSITIVE_TIMER",
+    return {**base, **home, "status": "completed", "reason": "FOOD_FARM_BOOST_CONFIRMED_WITH_POSITIVE_TIMER", "partial_failure": False,
             "boost_decision": decision.choice.value}
 
 
@@ -1169,13 +1248,20 @@ def _farm_radial_boost_roi(frame: np.ndarray, binding: FarmBinding) -> tuple[int
         if len(found) != 1:
             return None
         labels[label] = found[0]
-    farm_labels = [
-        token for token in tokens
-        if token.text.casefold().strip(" :") == "farm"
-        and abs((token.roi[0] + token.roi[2]) / 2 - anchor[0]) <= 70
-        and abs((token.roi[1] + token.roi[3]) / 2 - anchor[1]) <= 45
-    ]
-    if len(farm_labels) != 1:
+    # The selected Farm's caption is covered by the radial in the retained
+    # production frame. Nearby "Farm" captions belong to *other* buildings and
+    # cannot establish ownership. Bind the three exact controls geometrically
+    # to the fresh Atlas hit target instead.
+    details, upgrade, boost = (labels[name] for name in ("details", "upgrade", "boost"))
+    dx, dy = ((details.roi[0] + details.roi[2]) / 2, (details.roi[1] + details.roi[3]) / 2)
+    ux, uy = ((upgrade.roi[0] + upgrade.roi[2]) / 2, (upgrade.roi[1] + upgrade.roi[3]) / 2)
+    bx, by = ((boost.roi[0] + boost.roi[2]) / 2, (boost.roi[1] + boost.roi[3]) / 2)
+    if not (
+        _FARM_ID.fullmatch(binding.building_id)
+        and abs(ux - anchor[0]) <= 35 and 60 <= uy - anchor[1] <= 170
+        and 55 <= ux - dx <= 140 and 55 <= bx - ux <= 140
+        and abs(dy - by) <= 20 and 0 <= uy - max(dy, by) <= 45
+    ):
         return None
     boost = labels["boost"]
     roi = (boost.roi[0] - 8, boost.roi[1] - 8, boost.roi[2] + 8, boost.roi[3] + 8)
@@ -1223,6 +1309,9 @@ def _run_navigation_tap(
         "status": "opened" if opened else "blocked",
         "reason": result.reason if opened else "FOOD_FARM_NAVIGATION_INPUT_NOT_CONFIRMED",
         "state": result.state,
+        "navigation_input_count": input_count,
+        "total_input_count": int(getattr(runtime, "input_count", 0)),
+        "identical_retry_denied": bool(input_count and not opened),
         "input_count": input_count, "source_sha256": result.before_sha256,
         "successor_sha256": result.after_sha256,
     }
@@ -1250,7 +1339,8 @@ def _open_food_farm_radial(context, atlas, localizer, binding: FarmBinding) -> d
     control = _farm_radial_boost_roi(opened.frame, binding)
     return {**result, "status": "opened" if control is not None else "blocked",
             "reason": "recognized_same_farm_radial" if control is not None else "radial_successor_lost",
-            "radial_capture": opened, "boost_control_roi": control}
+            "radial_capture": opened, "boost_control_roi": control,
+            "identical_retry_denied": control is None}
 
 
 def _open_food_farm_boost_panel(context, *, farm_id: str, binding: FarmBinding) -> dict[str, Any]:
@@ -1285,7 +1375,8 @@ def _open_food_farm_boost_panel(context, *, farm_id: str, binding: FarmBinding) 
     )
     return {**result, "status": "observed" if panel is not None else "blocked",
             "reason": "food_farm_boost_panel_recognized" if panel is not None else "boost_panel_unknown",
-            "panel": panel, "balance_capture": radial_capture}
+            "panel": panel, "balance_capture": radial_capture,
+            "identical_retry_denied": panel is None}
 
 
 def _return_home_from_boost_panel(context, *, farm_id: str, localizer) -> dict[str, Any]:

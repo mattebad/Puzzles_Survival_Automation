@@ -22,6 +22,7 @@ from scripts import navigation_development_boundary as ownership
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL, FIXED_RUNTIME_SCOPE
 from tasks.scheduler_task_result import SchedulerIdentity
+from tests.support.local_captures import require_capture, requires_local_captures
 
 
 @dataclass(frozen=True)
@@ -371,21 +372,66 @@ class NativeFoodFarmBoostTests(unittest.TestCase):
         self.assertIsNotNone(binding)
         self.assertEqual(binding.building_id, "home.building.farm.02")
 
-    def test_radial_boost_control_requires_nearby_farm_anchor_and_all_expected_labels(self):
+    def test_radial_boost_control_requires_same_farm_geometry_and_all_exact_labels(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         binding = route.FarmBinding("home.building.farm.02", (480, 500, 540, 560), "a" * 64, ("atlas",))
         tokens = (
-            route.NativeTextToken("Farm", 99, (490, 510, 520, 535)),
-            route.NativeTextToken("Details", 99, (570, 490, 620, 515)),
-            route.NativeTextToken("Upgrade", 99, (570, 520, 630, 545)),
-            route.NativeTextToken("Boost", 99, (570, 550, 620, 575)),
+            route.NativeTextToken("Details", 99, (390, 620, 450, 640)),
+            route.NativeTextToken("Upgrade", 99, (470, 640, 550, 660)),
+            route.NativeTextToken("Boost", 99, (570, 620, 620, 640)),
         )
         with patch.object(route, "_ocr_tokens", return_value=tokens):
-            self.assertEqual(route._farm_radial_boost_roi(frame, binding), (562, 542, 628, 583))
+            self.assertEqual(route._farm_radial_boost_roi(frame, binding), (562, 612, 628, 648))
             self.assertIsNone(route._farm_radial_boost_roi(
                 frame, route.FarmBinding("home.building.farm.03", (100, 200, 160, 260),
                                          binding.frame_sha256, binding.evidence)
             ))
+
+    @requires_local_captures
+    def test_retained_actual_farm_radial_uses_mapped_owner_not_occluded_farm_caption(self):
+        invocation = "FOOD-FARM-OUTPUT-BOOST-DAILY-BLUESTACKS-INTEGRATION-20261109T104945190400Z-d4860ecf"
+        frames = (
+            Path(__file__).resolve().parents[2] / "Puzzle_Survival_Runtime_POC"
+            / ".local-captures" / "canonical-owner-replay-20261109T080850495633Z"
+            / "farm-existing-boost-same-building-observation" / invocation
+            / "food-farm-output-boost-20261109T104945271055Z" / "frames"
+        )
+
+        def retained(name):
+            frame = cv2.imread(str(require_capture(frames / name)), cv2.IMREAD_COLOR)
+            self.assertIsNotNone(frame)
+            return frame
+
+        before = retained("0013-food-farm-action-pre-dispatch.png")
+        immediate = retained("0014-food-farm-collect_food_farm_resources-immediate-post.png")
+        rebound = retained("0015-food-farm-rebound-before-radial.png")
+        radial = retained(f"0018-food-farm-open-radial-{invocation}-3-settled.png")
+        atlas = route.load_home_atlas(route.DEFAULT_ATLAS)
+        localizer = route.BlueStacksHomeLocalizer(atlas, route.DEFAULT_ATLAS)
+        binding = route.bind_reachable_farm(rebound, atlas, localizer)
+        self.assertIsNotNone(binding)
+        self.assertEqual(binding.building_id, "home.building.farm.01")
+        roi = route._farm_radial_boost_roi(radial, binding)
+        self.assertIsNotNone(roi)
+        x0, y0, x1, y1 = roi
+        # Independently annotated actual Boost caption, not central Upgrade.
+        self.assertTrue(x0 <= 317 <= x1 and y0 <= 803 <= y1)
+        self.assertFalse(x0 <= 223 <= x1 and y0 <= 826 <= y1)
+        self.assertIsNone(route._farm_radial_boost_roi(rebound, binding))
+        # A nearby other Farm caption cannot transfer radial ownership.
+        self.assertIsNone(route._farm_radial_boost_roi(
+            radial, replace(binding, building_id="home.building.farm.02",
+                            target_roi=(292, 748, 394, 838)),
+        ))
+        without_boost = radial.copy()
+        without_boost[790:816, 280:350] = 0
+        self.assertIsNone(route._farm_radial_boost_roi(without_boost, binding))
+        # Collection's immediate frame precedes the visible broad-resource tick.
+        self.assertEqual(route._home_food_reading(before), "2.43M")
+        self.assertEqual(route._home_food_reading(immediate), "2.43M")
+        self.assertEqual(route._home_food_reading(rebound), "3.04M")
+        self.assertTrue(route._food_reading_increased(
+            route._home_food_reading(before), route._home_food_reading(rebound)))
 
 
 
@@ -446,7 +492,7 @@ class NativeFoodFarmBoostTests(unittest.TestCase):
             result = route.run_food_farm_boost_native(context, {})
         return result, key_factory
 
-    def test_first_tap_observes_one_hud_tick_before_same_farm_boost_rebound(self):
+    def test_first_tap_credits_delayed_hud_tick_before_same_farm_boost_rebound(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         capture = FakeCapture(frame, "7" * 64, Path("collection-successor.png"))
         binding = route.FarmBinding(
@@ -468,7 +514,7 @@ class NativeFoodFarmBoostTests(unittest.TestCase):
             "Boost Output 1-day", capture,
         )
         events = []
-        food_readings = iter(("3.00M", "3.93M"))
+        food_readings = iter(("3.00M", "3.00M", "3.93M"))
 
         class Runtime:
             input_count = 0
@@ -539,6 +585,9 @@ class NativeFoodFarmBoostTests(unittest.TestCase):
         self.assertEqual(result["collection_food_after"], "3.93M")
         self.assertEqual(result["status"], "blocked")
         self.assertTrue(result["evidence_required"])
+        self.assertTrue(result["partial_failure"])
+        self.assertEqual(result["collection_successor"], "hud_tick")
+        self.assertEqual(result["collection_successor_frame"], str(capture.path))
         self.assertEqual(result["boost_transport_calls"], 0)
 
     def test_collection_is_reset_ordinal_and_unknown_inventory_stays_evidence_required(self):
