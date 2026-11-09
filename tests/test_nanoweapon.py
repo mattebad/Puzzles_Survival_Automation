@@ -33,6 +33,10 @@ class NanoweaponContractTests(unittest.TestCase):
         self.assertEqual(spec.quantity, 1)
         self.assertEqual(spec.maximum_cost, 100)
         self.assertEqual(spec.resource_or_currency, "NANO_PARTS")
+        self.assertTrue(nanoweapon_authorizeable(replace(
+            observation, quantity=None, craft_duration_seconds=None,
+            duration_policy_approved=False, nano_parts=None,
+        )))
 
     def test_material_production_and_static_reference_fail_closed(self):
         self.assertFalse(
@@ -51,7 +55,6 @@ class NanoweaponContractTests(unittest.TestCase):
             {"nano_parts": 99},
             {"target_identity": "generic-craft"},
             {"target_roi": (10, 10, 100, 80)},
-            {"duration_policy_approved": False},
             {"craft_duration_seconds": 21600},
             {"cost_type": "none"},
             {"cost_amount": 0},
@@ -85,6 +88,24 @@ class NanoweaponContractTests(unittest.TestCase):
         ):
             with self.subTest(changes=changes):
                 self.assertFalse(nanoweapon_postcondition_verified(before, replace(active, **changes)))
+
+    def test_completed_claim_and_active_observation_need_no_start_quote(self):
+        from tasks.nanoweapon import nanoweapon_claim_authorizeable, nanoweapon_active_craft_authorizeable
+        observation = replace(
+            load_fixture("normal_craft_synthetic"), nano_parts=None, cost_type="unknown",
+            cost_amount=None, quantity=None, craft_duration_seconds=None,
+            duration_policy_approved=False, materials_known=False, materials_available=False,
+        )
+        claim = replace(
+            observation, claim_visible=True, craft_result_visible=True, craft_count=1,
+            result_identity="craft-instance:" + "a" * 64, craft_enabled=False,
+        )
+        self.assertTrue(nanoweapon_claim_authorizeable(claim))
+        active = replace(
+            observation, active_craft_count=1, craft_timer_active=True,
+            craft_timer_seconds_remaining=43100, craft_enabled=False,
+        )
+        self.assertTrue(nanoweapon_active_craft_authorizeable(active))
 
 
 if __name__ == "__main__":

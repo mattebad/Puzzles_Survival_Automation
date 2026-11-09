@@ -67,7 +67,6 @@ MAX_ACTIONS = 2
 DEFAULT_ATLAS = Path(__file__).resolve().parents[1] / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
 GEAR_FACTORY_ID = "home.building.gear_factory"
 _TIMER_RE = re.compile(r"(?<![0-9])([0-9]{1,2}):([0-5][0-9]):([0-5][0-9])(?![0-9])", re.ASCII)
-_DURATION_RE = re.compile(r"\b(?:duration|production time)\s*[:=-]?\s*(21600\s*(?:seconds?|s)|6\s*(?:hours?|hrs?)|06:00:00)\b", re.IGNORECASE | re.ASCII)
 
 # Mapped-owner-anchor-relative "Gear Factory" radial control measured on the
 # actual 2026-11-08 radial (owner anchor (230.5, 738.5); circle centre
@@ -225,38 +224,6 @@ def _bounds(words: tuple[_Word, ...]) -> tuple[int, int, int, int] | None:
     )
 
 
-def _zero_cost_proof(lines) -> bool:
-    panel_lines = tuple(
-        (text, words)
-        for text, words in lines
-        if _safe_nav_roi(_bounds(words))
-    )
-    cost_lines = [_normal(text) for text, _words in panel_lines if "cost" in _normal(text)]
-    zero_cost = any(
-        re.search(r"\bcost\s*(?:none\s*)?(?:[:=-]\s*)?0\b", line, re.ASCII)
-        or re.search(r"\bcost\s+free\b", line, re.ASCII)
-        for line in cost_lines
-    )
-    no_other_costs = any(
-        _normal(text) in {"no other costs", "other costs 0", "additional costs 0", "no additional costs"}
-        for text, _words in panel_lines
-    )
-    forbidden_cost = any(
-        marker in _normal(text)
-        for text, _words in panel_lines
-        for marker in (
-            "diamond", "nano parts", "coins", "gold", "silver", "currency",
-            "food", "wood", "steel", "gas", "oil", "iron", "alloy", "ore",
-            "crystal", "energy", "token", "ticket", "voucher", "credit", "cash",
-            "box", "crate", "chest", "item",
-        )
-    )
-    return bool(zero_cost and no_other_costs and not forbidden_cost)
-
-
-def _duration_proof(lines) -> bool:
-    return any(_DURATION_RE.search(text) for text, _words in lines)
-
 
 def _panel_observation(captured, *, context, occurrence_key: str) -> _PanelRead:
     # Production Claim/Start belongs only to the positively selected Material
@@ -265,8 +232,8 @@ def _panel_observation(captured, *, context, occurrence_key: str) -> _PanelRead:
         return _PanelRead(None, None, "material_production_tab_not_positively_selected")
     words = _ocr_words(captured.frame)
     lines = _lines(words)
-    duration = NANO_MATERIAL_PRODUCTION_DURATION_SECONDS if _duration_proof(lines) else None
-    cost_known = _zero_cost_proof(lines)
+    duration = None  # Fixed mechanic duration is policy, not a required screen quote.
+    cost_known = False
 
     timers: list[tuple[int, str, tuple[_Word, ...]]] = []
     for line, line_words in lines:
@@ -303,32 +270,35 @@ def _panel_observation(captured, *, context, occurrence_key: str) -> _PanelRead:
         and len(claim_crop) == 1 and len(_phrase_lines(claim_crop, "Produce")) == 1
         and not starts and not timers and not claims
     )
-    if not one_slot and not (complete_profile or idle_profile):
+    active_profile = bool(
+        output_profile and not starts and not claims
+        and not _phrase_lines(claim_crop, "Produce")
+        and not _phrase_lines(claim_crop, "Claim")
+        and len(timers) == 1
+        and 0 < timers[0][0] <= NANO_MATERIAL_PRODUCTION_DURATION_SECONDS
+    )
+    if not one_slot and not (complete_profile or idle_profile or active_profile):
         return _PanelRead(None, None, "one_slot_state_not_recognized")
     control = None
     if complete_profile:
-        # The approved named free-reward profile owns one completed batch, not
-        # an OCR'd START quote, timer, or literal active/completed counter.
         production_state, active_count, completed_count, remaining, claim_visible, start_enabled = "complete", 0, 1, None, True, False
-        control, duration, cost_known = _MATERIAL_COMPLETE_CLAIM_CONTROL, None, True
+        control = _MATERIAL_COMPLETE_CLAIM_CONTROL
     elif idle_profile:
-        # Actual Claim successor: the same empty slot exposes Produce. This
-        # proves idle, but neither a duration nor a zero-cost START quote.
         production_state, active_count, completed_count, remaining, claim_visible, start_enabled = "idle", 0, 0, None, False, True
-        control, duration, cost_known = _MATERIAL_COMPLETE_CLAIM_CONTROL, None, False
-    elif len(claims) == 1 and len(starts) == 0 and len(timers) == 1 and timers[0][0] == 0 and len(complete_markers) == 1 and cost_known:
+        control = _MATERIAL_COMPLETE_CLAIM_CONTROL
+    elif len(claims) == 1 and not starts and len(timers) == 1 and timers[0][0] == 0 and len(complete_markers) == 1:
         production_state, active_count, completed_count, remaining, claim_visible, start_enabled = "complete", 0, 1, 0, True, False
         control = _word_roi(claims[0][1])
-    elif len(starts) == 1 and len(claims) == 0 and len(timers) == 1 and timers[0][0] == 0 and len(idle_markers) == 1:
+    elif len(starts) == 1 and not claims and len(timers) == 1 and timers[0][0] == 0 and len(idle_markers) == 1:
         production_state, active_count, completed_count, remaining, claim_visible, start_enabled = "idle", 0, 0, 0, False, True
         control = _word_roi(starts[0][1])
-    elif len(starts) == 0 and len(claims) == 0 and len(timers) == 1 and 0 < timers[0][0] <= NANO_MATERIAL_PRODUCTION_DURATION_SECONDS and len(active_markers) == 1:
+    elif active_profile or (not starts and not claims and len(timers) == 1 and 0 < timers[0][0] <= NANO_MATERIAL_PRODUCTION_DURATION_SECONDS and len(active_markers) == 1):
         production_state, active_count, completed_count, remaining, claim_visible, start_enabled = "active", 1, 0, timers[0][0], False, False
-        control = _word_roi(timers[0][2])
+        control = _MATERIAL_COMPLETE_CLAIM_CONTROL if active_profile else _word_roi(timers[0][2])
     else:
         return _PanelRead(None, None, "production_state_unknown_or_ambiguous")
     panel_words = tuple(word for _line, line_words in lines for word in line_words)
-    panel = _MATERIAL_COMPLETE_PANEL if complete_profile or idle_profile else _bounds(panel_words)
+    panel = _MATERIAL_COMPLETE_PANEL if complete_profile or idle_profile or active_profile else _bounds(panel_words)
     if panel is None or control is None or not (panel[0] <= control[0] < control[2] <= panel[2] and panel[1] <= control[1] < control[3] <= panel[3]):
         return _PanelRead(None, None, "production_target_bounds_unknown")
     evidence_ref = _evidence_ref(captured, context.session)
@@ -631,7 +601,7 @@ def _dispatch_action(context, *, before_capture, before: MaterialProductionObser
     sent = int(runtime.input_count) - starting_inputs
     confirmed = bool(
         execution is not None and execution.status is ActionStatus.CONFIRMED
-        and native_action.status == "completed" and sent == 1
+        and sent == 1
     )
     unresolved = bool(
         (execution is not None and execution.status is ActionStatus.UNRESOLVED)
@@ -1354,6 +1324,7 @@ def _base_result(context, occurrence_key: str) -> dict[str, object]:
         "accounting_verified": False,
         "terminal_home_verified": False,
         "zero_resource_cost_confirmed": False,
+        "production_action_evidence": {},
     }
 
 
@@ -1446,8 +1417,9 @@ def _finalize(context, result: dict[str, object], *, current, return_home: bool,
         else:
             result["terminal_home_verified"] = False
             if status in {"completed", "deferred"}:
-                result.update(status="unresolved", reason="canonical_home_successor_not_verified")
-                if int(result.get("production_transport_calls", 0)):
+                unresolved = result.get("production_transport_calls") != result.get("committed_action_count")
+                result.update(status="unresolved" if unresolved else "blocked", reason="canonical_home_successor_not_verified")
+                if unresolved:
                     result.update(effect_reconciliation_required=True, identical_retry_denied=True)
     calls = result.get("production_transport_calls")
     attempted_known = type(calls) is int and calls >= 0
@@ -1513,6 +1485,7 @@ def run_material_production_in_context(context, *, occurrence_key: str, return_h
             and claim.get("successor_observation") is not None
             and calls == 1
         )
+        result["production_action_evidence"]["claim"] = claim.get("last_action_evidence")
         result["production_transport_calls"] = calls
         result["committed_action_count"] = int(claim_confirmed)
         if not claim_confirmed:
@@ -1563,26 +1536,6 @@ def run_material_production_in_context(context, *, occurrence_key: str, return_h
         status = "completed"
         reason = "MATERIAL_PRODUCTION_CLAIMED_THEN_RESTARTED"
     if before.production_state == "idle":
-        try:
-            material_production_start_spec(before)
-        except ValueError:
-            # A confirmed claim remains confirmed; an idle identity is not a
-            # fresh duration/cost quote and must never cause another input.
-            result.update(
-                production_state="idle", active_production_count=0, completed_batch_count=0,
-                production_duration_seconds=before.production_duration_seconds,
-                timer_seconds_remaining=before.timer_seconds_remaining,
-                zero_resource_cost_confirmed=bool(result["committed_action_count"]),
-                production_occurrence_key=occurrence_key,
-                production_target_identity=NANO_MATERIAL_PRODUCTION_TARGET,
-                production_state_frame=_retained_capture_reference(context, current),
-                production_state_observation_sha256=current.sha256,
-            )
-            return _finalize(
-                context, result, current=current, return_home=return_home,
-                occurrence_key=occurrence_key, status="blocked",
-                reason="MATERIAL_PRODUCTION_START_QUOTE_UNKNOWN",
-            )
         start = _dispatch_action(
             context,
             before_capture=current,
@@ -1590,6 +1543,7 @@ def run_material_production_in_context(context, *, occurrence_key: str, return_h
             occurrence_key=occurrence_key,
             action_kind="START_NANO_MATERIAL_PRODUCTION",
         )
+        result["production_action_evidence"]["start"] = start.get("last_action_evidence")
         calls = int(start.get("transport_calls", 0))
         start_confirmed = bool(
             start.get("status") == "confirmed"
@@ -1599,30 +1553,28 @@ def run_material_production_in_context(context, *, occurrence_key: str, return_h
         result["production_transport_calls"] = int(result["production_transport_calls"]) + calls
         result["committed_action_count"] = int(result["committed_action_count"]) + int(start_confirmed)
         if not start_confirmed:
-            sent = int(result["production_transport_calls"])
             evidence = start.get("last_action_evidence")
+            unresolved = bool(calls or start.get("effect_reconciliation_required"))
             result.update(
-                last_action_evidence=evidence,
-                action_evidence_required=bool(
-                    calls and (
-                        not isinstance(evidence, Mapping)
-                        or evidence.get("before") is None
-                        or evidence.get("after") is None
-                    )
-                ),
-                status="unresolved" if sent else "blocked",
+                last_action_evidence=evidence if calls else result.get("last_action_evidence"),
+                action_evidence_required=bool(calls and (
+                    not isinstance(evidence, Mapping) or evidence.get("before") is None or evidence.get("after") is None
+                )),
+                production_state=before.production_state,
+                active_production_count=before.active_production_count,
+                completed_batch_count=before.completed_batch_count,
+                production_occurrence_key=occurrence_key,
+                production_target_identity=NANO_MATERIAL_PRODUCTION_TARGET,
+                production_state_frame=_retained_capture_reference(context, current),
+                production_state_observation_sha256=current.sha256,
+                status="unresolved" if unresolved else "blocked",
                 reason=str(start.get("reason") or "MATERIAL_PRODUCTION_START_SUCCESSOR_UNKNOWN"),
-                effect_reconciliation_required=bool(sent),
-                identical_retry_denied=bool(sent),
+                effect_reconciliation_required=unresolved,
+                identical_retry_denied=unresolved,
             )
             return _finalize(
-                context,
-                result,
-                current=current,
-                return_home=return_home,
-                occurrence_key=occurrence_key,
-                status=str(result["status"]),
-                reason=str(result["reason"]),
+                context, result, current=current, return_home=return_home,
+                occurrence_key=occurrence_key, status=str(result["status"]), reason=str(result["reason"]),
             )
         current = start["successor_capture"]
         before = start["successor_observation"]
@@ -1635,12 +1587,11 @@ def run_material_production_in_context(context, *, occurrence_key: str, return_h
     try:
         before, state_frame = _retained_panel_proof(context, current, occurrence_key)
     except Exception as exc:
-        sent = int(result["production_transport_calls"])
         result.update(
-            status="unresolved" if sent else "blocked",
+            status="blocked",
             reason=f"retained_production_state_not_proven:{type(exc).__name__}",
-            effect_reconciliation_required=bool(sent),
-            identical_retry_denied=bool(sent),
+            effect_reconciliation_required=False,
+            identical_retry_denied=False,
         )
         return _finalize(context, result, current=current, return_home=return_home, occurrence_key=occurrence_key, status=str(result["status"]), reason=str(result["reason"]))
     now = float(context.utc_clock())

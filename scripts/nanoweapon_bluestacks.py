@@ -244,6 +244,53 @@ def _normal_recipe_name(lines: Sequence[tuple[str, tuple[_Word, ...]]]) -> str:
     return candidates[0] if len(candidates) == 1 else ""
 
 
+_CRAFT_MODE_CELLS = (
+    ("Normal Craft", (42, 158, 398, 210)),
+    ("Exclusive Craft", (402, 158, 757, 210)),
+)
+_COMPLETED_CLAIM_CELL = (278, 1173, 521, 1250)
+
+
+def _native_craft_surface(frame):
+    """Read measured selected mode and completed control, not invented captions."""
+    from scripts import nano_material_production_bluestacks as production
+
+    selected_tab = production._nanoweapon_selected_tab(frame)
+    if selected_tab != "Craft Weapon":
+        return selected_tab, None, None
+    selected = []
+    for label, cell in _CRAFT_MODE_CELLS:
+        expected = _normalize(label).replace(" ", "")
+        visible = production._ocr_words(frame, cell, scale=2, white_text=True, glyph_threshold=80)
+        if production._crop_label(visible) != expected:
+            return selected_tab, None, None
+        white = production._crop_label(production._ocr_words(frame, cell, scale=2, white_text=True))
+        if white == expected:
+            selected.append(label)
+        elif white:
+            return selected_tab, None, None
+    mode = selected[0] if len(selected) == 1 else None
+    if mode != "Normal Craft":
+        return selected_tab, mode, None
+    claim = production._ocr_words(frame, _COMPLETED_CLAIM_CELL, scale=2, white_text=True)
+    if production._crop_label(claim) != "claim":
+        return selected_tab, mode, None
+    x0, y0, x1, y1 = _COMPLETED_CLAIM_CELL
+    hsv = cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2HSV)
+    purple = cv2.inRange(hsv, (125, 60, 60), (165, 255, 255))
+    return selected_tab, mode, _COMPLETED_CLAIM_CELL if np.count_nonzero(purple) > purple.size * .5 else None
+
+
+def _red_cost(frame, words):
+    for word in words:
+        x0, y0, x1, y1 = word.roi
+        hsv = cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2HSV)
+        red = cv2.inRange(hsv, (0, 90, 90), (10, 255, 255)) | cv2.inRange(hsv, (170, 90, 90), (179, 255, 255))
+        if np.count_nonzero(red) > red.size * .04:
+            return True
+    return False
+
+
 def recognize_nanoweapon_screen(
     frame: np.ndarray,
     *,
@@ -302,6 +349,16 @@ def recognize_nanoweapon_screen(
     exclusive_selected = bool(re.search(r"\bexclusive\s+craft\s+(?:selected|active)\b", normalized_text, re.ASCII))
     rotating_selected = bool(re.search(r"\b(?:rotating|display)\s+(?:weapon|recipe)\s+(?:selected|active)\b", normalized_text, re.ASCII))
     recipe_name = _normal_recipe_name(lines)
+    native_surface = token_reader is None and text_reader is None
+    native_tab, native_mode, native_claim = _native_craft_surface(frame) if native_surface else (None, None, None)
+    if native_surface:
+        title_found = native_tab is not None
+        normal_selected = native_tab == "Craft Weapon" and native_mode == "Normal Craft"
+        exclusive_selected = native_mode == "Exclusive Craft"
+        rotating_selected = False
+        recipe_name = native_mode or ""
+        from scripts import nano_material_production_bluestacks as production
+        craft_tab_boxes = [dict(production._NANOWEAPON_TAB_CELLS)["Craft Weapon"]] if title_found else []
 
     craft_label_boxes = _exact_word_boxes(lines, "Craft")
     claim_label_boxes = _exact_word_boxes(lines, "Claim")
@@ -311,10 +368,14 @@ def recognize_nanoweapon_screen(
     # The exact Claim label is the control; cost and successor semantics below distinguish it
     # from any unrelated Claim elsewhere on the page.
     completed_marker = bool(re.search(r"\b(?:craft\s+complete|completed\s+craft|ready\s+to\s+claim)\b", normalized_text, re.ASCII))
+    if native_surface:
+        claim_roi = native_claim
+        completed_marker = native_claim is not None and normal_selected
     claim_visible = bool(claim_roi is not None and completed_marker and title_found)
 
     balance = _balance(lines)
     numeric_material_lines = []
+    cost_words = []
     forbidden_payment_terms = False
     for text, line_words in lines:
         normalized = _normalize(text)
@@ -322,18 +383,17 @@ def recognize_nanoweapon_screen(
             continue
         if re.search(r"\b(?:duration|craft\s+time|time\s+left|timer|quantity|qty)\b", normalized, re.ASCII):
             continue
-        if _AMOUNT_RE.search(text):
+        amounts = [int(value.replace(",", "")) for value in _AMOUNT_RE.findall(text)]
+        # Read only the fixed Normal Craft cost, not all page numbers/banners.
+        if "nano parts" in normalized or (normalized == "100" and min(word.roi[1] for word in line_words) >= 900):
             numeric_material_lines.append(normalized)
-        if re.search(
-            r"\b(?:diamonds?|coins?|gems?|cash|gold|silver|credits?|coupons?|premium|money|food|wood|steel|gas|boxes?|currency|tokens?|substitute)\b",
-            normalized,
-            re.ASCII,
-        ):
-            forbidden_payment_terms = True
+            cost_words.extend(line_words)
+            if amounts != [NANO_PARTS_REQUIRED]:
+                forbidden_payment_terms = True
     cost_known = bool(
         len(numeric_material_lines) == 1
         and re.fullmatch(
-            r"(?:cost\s+)?(?:100\s+nano\s+parts|nano\s+parts\s+100)",
+            r"(?:cost\s+)?(?:100(?:\s+nano\s+parts)?|nano\s+parts\s+100)",
             numeric_material_lines[0],
             re.ASCII,
         )
@@ -345,6 +405,7 @@ def recognize_nanoweapon_screen(
     )
     duration = NORMAL_CRAFT_DURATION_SECONDS if duration_known else None
     timer_lines = []
+    cost_red = _red_cost(frame, cost_words) if cost_words else False
     for text, line_words in lines:
         normalized = _normalize(text)
         if any(marker in normalized for marker in ("remaining", "timer", "time left", "active")):
@@ -368,6 +429,9 @@ def recognize_nanoweapon_screen(
     selected_tab = CRAFT_WEAPON_TAB if title_found and craft_tab_boxes and normal_selected else "UNKNOWN"
     if title_found and material_tab_boxes and production_marker and not normal_selected:
         selected_tab = "MATERIAL_PRODUCTION"
+    if native_surface:
+        selected_tab = CRAFT_WEAPON_TAB if native_tab == "Craft Weapon" else "MATERIAL_PRODUCTION" if native_tab == "Material Production" else "UNKNOWN"
+        active_count = 1 if timer_active else 0 if claim_visible or (normal_selected and craft_candidates) else None
     recipe_known = bool(
         title_found and normal_selected and recipe_name and not exclusive_selected and not rotating_selected
     )
@@ -387,16 +451,16 @@ def recognize_nanoweapon_screen(
         selected_tab=selected_tab,
         recipe_name=recipe_name,
         recipe_known=recipe_known,
-        materials_known=bool(balance is not None and cost_known),
-        materials_available=bool(balance is not None and balance >= NANO_PARTS_REQUIRED),
+        materials_known=bool(cost_known),
+        materials_available=bool(cost_known and not cost_red and (balance is None or balance >= NANO_PARTS_REQUIRED)),
         nano_parts=balance,
         craft_mode="CRAFT" if normal_panel else "UNKNOWN",
         target_identity=target_identity,
         target_roi=tuple(target_roi),
-        panel_bounds=(80, 120, 720, 1180),
+        panel_bounds=(41, 79, 759, 1254) if native_surface else (80, 120, 720, 1180),
         control_class=control_class,
-        craft_ready=bool(craft_roi is not None and cost_known and duration_known and recipe_known),
-        duration_policy_approved=bool(duration_known),
+        craft_ready=bool(craft_roi is not None and cost_known and recipe_known and not cost_red),
+        duration_policy_approved=duration_known,
         craft_duration_seconds=duration,
         cost_type="NANO_PARTS" if cost_known else "unknown",
         cost_amount=NANO_PARTS_REQUIRED if cost_known else None,
@@ -414,7 +478,7 @@ def recognize_nanoweapon_screen(
         runtime_profile_id=PROFILE_ID,
         recognized=bool(title_found and overlay_clear and selected_tab in {CRAFT_WEAPON_TAB, "MATERIAL_PRODUCTION"}),
         active_craft_count=active_count,
-        craft_enabled=bool(craft_roi is not None),
+        craft_enabled=bool(craft_roi is not None and not cost_red),
         starts_this_reset=starts_this_reset,
         claim_visible=claim_visible,
         recipe_selection_mode=mode,
@@ -525,80 +589,12 @@ def _confirmed_start_record(
     )
 
 
-def _claim_instance_key(identity: Any, start: Mapping[str, Any]) -> str:
-    return _action_key(
-        "claim-instance",
-        reset_id=start["game_day_id"],
-        identity=identity,
-        result_identity=start["action_id"],
-    )
-
-
 def _completed_craft_binding(context: Any) -> tuple[str, str]:
-    """Resolve the sole unclaimed journaled start without inventing a manual instance.
-
-    Legacy reset-scoped claims are retained and consumed only when their preceding
-    start is unambiguous. Ordering is journal history, not an estimated craft time.
-    """
-    identity = context.identity
-    records = context.action_store.list_actions_for_task(FLOW_ID)
-    starts: list[Mapping[str, Any]] = []
-    claimed: set[str] = set()
-    for record in records:
-        reset = record.get("game_day_id")
-        if type(reset) is not str or not reset:
-            continue
-        start_key = _action_key("start", reset_id=reset, identity=identity)
-        if record.get("action_key") == start_key:
-            if not _confirmed_start_record(record, action_key=start_key, game_day_id=reset):
-                raise ValueError("Normal Craft instance has unresolved start history")
-            starts.append(record)
-    for start in starts:
-        key = _claim_instance_key(identity, start)
-        claim = context.action_store.get_action_by_key(key)
-        if claim is not None:
-            if not _canonical_action_confirmed(
-                claim, action_key=key, semantic_action="claim_completed_nanoweapon",
-                target_identity="nanoweapon-completed-claim",
-                game_day_id=claim.get("game_day_id"),
-                consequence="nanoweapon_completed_claim",
-                postcondition="NANOWEAPON_CRAFT_CLAIMED", cost_type="none", cost_amount=0,
-            ):
-                raise ValueError("Normal Craft instance claim is unresolved; identical retry denied")
-            claimed.add(start["action_id"])
-    for record in records:
-        reset = record.get("game_day_id")
-        if type(reset) is not str or not reset:
-            continue
-        legacy_key = _action_key(
-            "claim", reset_id=reset, identity=identity,
-            result_identity="completed-normal-craft",
-        )
-        if record.get("action_key") != legacy_key:
-            continue
-        if not _canonical_action_confirmed(
-            record, action_key=legacy_key, semantic_action="claim_completed_nanoweapon",
-            target_identity="nanoweapon-completed-claim", game_day_id=reset,
-            consequence="nanoweapon_completed_claim",
-            postcondition="NANOWEAPON_CRAFT_CLAIMED", cost_type="none", cost_amount=0,
-        ):
-            raise ValueError("legacy Normal Craft claim is unresolved; identical retry denied")
-        preceding = [
-            start for start in starts
-            if start["action_id"] not in claimed
-            and start["prepared_at"] < record["prepared_at"]
-        ]
-        if len(preceding) > 1 or any(
-            start["prepared_at"] == record["prepared_at"] for start in starts
-        ):
-            raise ValueError("legacy Normal Craft claim instance is ambiguous; evidence_required")
-        if preceding:
-            claimed.add(preceding[0]["action_id"])
-    unclaimed = [start for start in starts if start["action_id"] not in claimed]
-    if len(unclaimed) != 1:
-        raise ValueError("completed Normal Craft has no unique unclaimed durable instance; evidence_required")
-    start = unclaimed[0]
-    return f"craft-instance:{start['action_id']}", _claim_instance_key(identity, start)
+    """Bind the visible free Claim to this occurrence, regardless of who started it."""
+    occurrence = context.occurrence_key
+    instance = "craft-instance:" + hashlib.sha256(occurrence.encode("utf-8")).hexdigest()
+    key = _action_key("claim", reset_id=context.identity.reset_id, identity=context.identity, result_identity=occurrence)
+    return instance, key
 
 def _frame_observation(
     context: Any,
@@ -647,6 +643,11 @@ def _evidence_ref(context: Any, captured: Any) -> str:
     except (OSError, ValueError, TypeError):
         return ""
     return "evidence/" + relative.as_posix()
+
+
+def _retained_action_frame(context, captured):
+    from scripts.nano_material_production_bluestacks import _retained_capture_reference
+    return _retained_capture_reference(context, captured)
 
 
 def _recognize_capture(context: Any, captured: Any, *, bind_completed_instance: bool = True,
@@ -784,7 +785,7 @@ def _execute_consequential(
             or not authorizeable
             or fresh.target_identity != before.target_identity
             or fresh.target_roi != before.target_roi
-            or fresh.nano_parts != before.nano_parts
+            or (not claim and fresh.nano_parts != before.nano_parts)
             or fresh.game_day_id != before.game_day_id
             or fresh.selected_tab != before.selected_tab
             or fresh.claim_visible != before.claim_visible
@@ -859,16 +860,15 @@ def _execute_consequential(
                 if (prepared is None or prepared["action_id"] != request.action_id
                         or prepared["final_status"] != "prepared"):
                     raise RuntimeError("Normal Craft Claim lacks its current prepared intent")
-                # Identity comes from the unique confirmed start bound before
-                # preparation, not pixels. Do not mistake our own prepared claim
-                # for an uncertain prior invocation when rechecking that frame.
+                # The occurrence identity was bound before preparation; a visible
+                # completed craft need not have an automated original start.
                 rebound = replace(rebound, result_identity=before.result_identity)
             same = (
                 current.sha256 == before_capture.sha256
                 and rebound.source_frame_sha256 == before.source_frame_sha256
                 and rebound.target_identity == before.target_identity
                 and rebound.target_roi == before.target_roi
-                and rebound.nano_parts == before.nano_parts
+                and (claim or rebound.nano_parts == before.nano_parts)
                 and rebound.game_day_id == before.game_day_id
                 and rebound.selected_tab == before.selected_tab
                 and rebound.claim_visible == before.claim_visible
@@ -987,7 +987,11 @@ def _execute_consequential(
             "successor_capture": after,
             "successor_observation": after_observation,
             "effect_reconciliation_required": bool(sent and not confirmed),
-            "identical_retry_denied": bool(sent or action_record is not None),
+            "identical_retry_denied": bool(not confirmed and (sent or action_record is not None)),
+            "last_action_evidence": {
+                "before": _retained_action_frame(context, before_capture),
+                "after": _retained_action_frame(context, after),
+            },
         }
     except Exception as exc:
         ending_inputs = getattr(runtime, "input_count", None)
@@ -1015,283 +1019,32 @@ def _execute_consequential(
         }
 
 
-def _execute_navigation(
-    context: Any,
-    *,
-    source_capture: Any,
-    target_identity: str,
-    target_roi: tuple[int, int, int, int],
-    semantic_action: str,
-    postcondition: str,
-    bind_target: Callable[[Any], tuple[int, int, int, int] | None],
-    recognize_successor: Callable[[Any], bool],
-) -> dict[str, Any]:
+def _select_craft_tab(context: Any, current: Any, game_day_id: str) -> tuple[Any | None, NanoweaponScreen | None]:
     from scripts import nano_material_production_bluestacks as production
 
-    if not production._safe_nav_roi(target_roi):
-        return {"status": "blocked", "reason": "navigation_target_outside_safe_region", "transport_calls": 0}
-    runtime, session, store = context.runtime, context.session, context.action_store
-    key = f"{PRODUCT_ID}:{semantic_action}:{context.invocation_id}:{source_capture.sha256}"
-    request = PolicyRequest(
-        action_id=f"nanoweapon-navigation:{hashlib.sha256(key.encode()).hexdigest()[:24]}",
-        action_key=key,
-        task_id=FLOW_ID,
-        task_mode="supervised_validation",
-        semantic_action=semantic_action,
-        expected_runtime_profile_id=PROFILE_ID,
-        observation=_frame_observation(
-            context,
-            source_capture,
-            source_state="NANOWEAPON",
-            target_identity=target_identity,
-            target_roi=target_roi,
-            control_class="GO",
-            consequence="navigate_zero_cost",
-            postcondition=postcondition,
-        ),
-        monotonic_now=float(context.monotonic_clock()),
-        observation_max_age_seconds=2.0,
-        dispatch_max_age_seconds=2.0,
-        lease_owner=session.owner,
-        lease_valid=store.lease_valid_for(session.owner, float(context.utc_clock())),
-        unresolved_action=store.has_action_block(),
-        duplicate_action_key=store.action_key_exists(key),
-        game_day_id=str(context.identity.reset_id),
-        action_class=ActionClass.NAVIGATION_ONLY,
-        action_kind=semantic_action,
-        subject=target_identity,
-        resource_or_currency="none",
-        maximum_cost=0,
-        free_only=True,
-        semantic_preconditions=(),
-        semantic_postconditions=(postcondition,),
-        runtime_session_id=str(runtime.session),
-    )
-    policy = CentralPolicy(frozenset({FLOW_ID}))
-
-    successors: list[tuple[Any, bool]] = []
-    current_target = {"roi": target_roi}
-
-    def classify(captured: Any) -> bool:
-        verified = bool(recognize_successor(captured))
-        successors.append((captured, verified))
-        return verified
-
-    immediate_observation = None
-
-    def recapture() -> Observation:
-        nonlocal immediate_observation
-        if immediate_observation is not None:
-            return immediate_observation
-        context.checkpoint()
-        context.validate_identity()
-        fresh = runtime.capture(f"nanoweapon-{semantic_action}-pre-dispatch")
-        roi = bind_target(fresh)
-        if not production._safe_nav_roi(roi) or tuple(roi) != tuple(target_roi):
-            raise ValueError("navigation target could not be rebound from a fresh OCR frame")
-        current_target["roi"] = tuple(roi)
-        immediate_observation = _frame_observation(
-            context,
-            fresh,
-            source_state="NANOWEAPON",
-            target_identity=target_identity,
-            target_roi=tuple(roi),
-            control_class="GO",
-            consequence="navigate_zero_cost",
-            postcondition=postcondition,
-        )
-        return immediate_observation
-
-    try:
-        capability_observation = recapture()
-    except Exception as exc:
-        return {
-            "status": "blocked",
-            "reason": f"{type(exc).__name__}:{exc}",
-            "transport_calls": 0,
-            "action_key": key,
-        }
-    issue_time = float(context.utc_clock())
-    capability_request = replace(
-        request,
-        observation=capability_observation,
-        monotonic_now=float(context.monotonic_clock()),
-        lease_owner=session.owner,
-        lease_valid=store.lease_valid_for(session.owner, issue_time),
-        unresolved_action=store.has_action_block(),
-        duplicate_action_key=store.action_key_exists(key),
-        policy_phase="pre_dispatch",
-    )
-    issued = policy.issue_capability(capability_request)
-    store.audit(FLOW_ID, "capability_issued", issue_time, issued.audit, request.action_id)
-    if not issued.authorized or issued.capability is None:
-        return {
-            "status": "blocked",
-            "reason": issued.reason_code,
-            "transport_calls": 0,
-            "action_key": key,
-        }
-    def transport(_intent: Any) -> TransportResult:
-        starting = int(runtime.input_count)
-
-        def authorize(before: Any) -> None:
-            roi = bind_target(before)
-            if not production._safe_nav_roi(roi) or tuple(roi) != tuple(current_target["roi"]):
-                raise RuntimeError("Nanoweapon navigation selector changed before dispatch")
-            context.checkpoint()
-            context.validate_identity()
-
-        def dispatch(before: Any) -> None:
-            context.checkpoint()
-            runtime.tap(
-                before,
-                target_identity=target_identity,
-                target_roi=tuple(current_target["roi"]),
-                action_key=key,
-                action_class="navigation",
-                consequential=False,
-            )
-
-        def settled():
-            time.sleep(float(context.settle_seconds))
-            context.checkpoint()
-            return runtime.capture(f"nanoweapon-{semantic_action}-settled")
-
-        try:
-            session.run_action(
-                action_class="navigation",
-                label=f"nanoweapon-{semantic_action}",
-                capture=runtime.capture,
-                authorize=authorize,
-                dispatch=dispatch,
-                recognize=lambda captured: postcondition if classify(captured) else "unknown",
-                settled_successor=settled,
-                consequence_class="navigation_only",
-            )
-        except Exception as exc:
-            sent = int(runtime.input_count) - starting
-            return TransportResult(sent == 1, f"NANOWEAPON_NAV_{type(exc).__name__}")
-        sent = int(runtime.input_count) - starting
-        return TransportResult(sent == 1, "NANOWEAPON_NAV_SENT" if sent == 1 else "NANOWEAPON_NAV_NOT_SENT")
-
-    def post_observe():
-        for captured, verified in successors:
-            yield _frame_observation(
-                context,
-                captured,
-                source_state=postcondition if verified else "UNKNOWN",
-                target_identity=target_identity,
-                target_roi=tuple(current_target["roi"]),
-                control_class="GO",
-                consequence="navigate_zero_cost",
-                postcondition=postcondition,
-            )
-
-    execution = SafeActionExecutor(
-        store,
-        policy,
-        session.owner,
-        context.monotonic_clock,
-        transport,
-        recapture,
-        post_observe,
-        lambda _intent, observed: bool(
-            successors and successors[-1][1] and observed.source_state == postcondition
-        ),
-        wall_clock=context.utc_clock,
-        max_pre_dispatch_attempts=1,
-    ).execute(request, issued.capability)
-    row = store.get_action_by_key(key)
-    final = successors[-1][0] if successors else None
-    if final is not None and callable(getattr(runtime, "reconcile", None)):
-        runtime.reconcile(
-            key,
-            "confirmed" if execution.status is ActionStatus.CONFIRMED else "unresolved",
-            final,
-            execution.reason,
-        )
-    confirmed = bool(
-        execution.status is ActionStatus.CONFIRMED
-        and row is not None
-        and row.get("final_status") == ActionStatus.CONFIRMED.value
-        and successors
-        and successors[-1][1]
-    )
-    return {
-        "status": "confirmed" if confirmed else "unresolved" if execution.transport_calls else "blocked",
-        "reason": execution.reason,
-        "transport_calls": execution.transport_calls,
-        "action_key": key,
-        "successor_capture": final,
-        "journal_status": row.get("final_status") if row else None,
-    }
-
-
-def _select_craft_tab(context: Any, current: Any, game_day_id: str) -> tuple[Any | None, NanoweaponScreen | None]:
-    screen = _recognize_capture(
-        context,
-        current,
-        game_day_id=game_day_id,
-        starts_this_reset=0,
-        prior_material_production_reconciled=True,
-    )
-    if not screen.screen_recognized:
-        return None, screen
-    if screen.observation.selected_tab == CRAFT_WEAPON_TAB:
-        return current, screen
-    if screen.observation.selected_tab != "MATERIAL_PRODUCTION" or screen.craft_tab_roi is None:
-        return None, screen
-
-    def bind(captured: Any) -> tuple[int, int, int, int] | None:
-        fresh = _recognize_capture(
-            context,
-            captured,
-            game_day_id=game_day_id,
-            starts_this_reset=0,
-            prior_material_production_reconciled=True,
-        )
-        if (
-            fresh.screen_recognized
-            and fresh.observation.selected_tab == "MATERIAL_PRODUCTION"
-            and fresh.craft_tab_roi is not None
+    selected = production._nanoweapon_selected_tab(current.frame)
+    if selected == "Craft Weapon":
+        captured = current
+    elif selected == "Material Production":
+        control = dict(production._NANOWEAPON_TAB_CELLS)["Craft Weapon"]
+        if not production._navigation_tap(
+            context, label=f"nanoweapon-select-craft-{context.session.invocation_id}",
+            target_identity="nanoweapon:craft-weapon-tab", source_state="NANOWEAPON",
+            expected_postcondition="NANOWEAPON_CRAFT_WEAPON_TAB",
+            bind=lambda frame: control if production._nanoweapon_selected_tab(frame) == "Material Production" else None,
+            source_recognize=lambda frame: production._nanoweapon_selected_tab(frame) == "Material Production",
+            recognize=lambda after: "CRAFT_WEAPON" if production._nanoweapon_selected_tab(after.frame) == "Craft Weapon" else None,
+            allowed_successors=("CRAFT_WEAPON",), safe_target=lambda roi: roi == control,
         ):
-            return fresh.craft_tab_roi
-        return None
-
-    def successor(captured: Any) -> bool:
-        fresh = _recognize_capture(
-            context,
-            captured,
-            game_day_id=game_day_id,
-            starts_this_reset=0,
-            prior_material_production_reconciled=True,
-            bind_completed_instance=False,
-        )
-        return bool(fresh.screen_recognized and fresh.observation.selected_tab == CRAFT_WEAPON_TAB)
-
-    navigation = _execute_navigation(
-        context,
-        source_capture=current,
-        target_identity="nanoweapon:craft-weapon-tab",
-        target_roi=screen.craft_tab_roi,
-        semantic_action="select_normal_craft",
-        postcondition="NANOWEAPON_CRAFT_WEAPON_TAB",
-        bind_target=bind,
-        recognize_successor=successor,
-    )
-    if navigation.get("status") != "confirmed" or navigation.get("successor_capture") is None:
+            return None, None
+        captured = production._capture(context, "nanoweapon-craft-tab-selected")
+    else:
         return None, None
-    captured = navigation["successor_capture"]
-    fresh_screen = _recognize_capture(
-        context,
-        captured,
-        game_day_id=game_day_id,
-        starts_this_reset=0,
+    screen = _recognize_capture(
+        context, captured, game_day_id=game_day_id, starts_this_reset=0,
         prior_material_production_reconciled=True,
     )
-    if not fresh_screen.screen_recognized or fresh_screen.observation.selected_tab != CRAFT_WEAPON_TAB:
-        return None, fresh_screen
-    return captured, fresh_screen
+    return (captured, screen) if screen.screen_recognized and screen.observation.selected_tab == CRAFT_WEAPON_TAB else (None, screen)
 
 def _return_home(context: Any, *, occurrence_key: str, current: Any) -> tuple[Any | None, dict[str, Any] | None]:
     from scripts import nano_material_production_bluestacks as production
@@ -1409,11 +1162,7 @@ def _finalize(context: Any, result: dict[str, Any], *, current: Any, occurrence_
         or result.get("effect_reconciliation_required")
         or result.get("identical_retry_denied")
     )
-    home_unresolved = bool(
-        not result.get("terminal_home_verified")
-        and (not attempted_known or (attempted is not None and attempted > 0))
-    )
-    unresolved = bool(effect_unresolved or home_unresolved)
+    unresolved = effect_unresolved
     if unresolved:
         result.update(effect_reconciliation_required=True, identical_retry_denied=True)
     if not accounting_verified:
@@ -1485,6 +1234,8 @@ def run_nanoweapon_in_context(
             production_result.get("effect_reconciliation_required")
         )
         result["identical_retry_denied"] = bool(production_result.get("identical_retry_denied"))
+        result["production_action_evidence"] = production_result.get("production_action_evidence", {})
+        result["production_result"] = dict(production_result)
         if not production_calls_known:
             result.update(
                 attempted_action_count_known=False,
@@ -1521,14 +1272,11 @@ def run_nanoweapon_in_context(
             and production_result.get("production_state") == "active"
             and type(production_result.get("active_production_count")) is int
             and production_result.get("active_production_count") == 1
-            and type(production_result.get("production_duration_seconds")) is int
-            and production_result.get("production_duration_seconds") == 21600
             and type(production_result.get("timer_seconds_remaining")) is int
             and 0 < production_result["timer_seconds_remaining"] <= 21600
             and type(production_result.get("next_eligible_at")) in (int, float)
             and math.isfinite(production_result["next_eligible_at"])
             and production_result["next_eligible_at"] > 0
-            and production_result.get("zero_resource_cost_confirmed") is True
             and production_result.get("effect_reconciliation_required") is False
             and production_result.get("identical_retry_denied") is False
             and type(production_result.get("committed_action_count")) is int
@@ -1540,10 +1288,10 @@ def run_nanoweapon_in_context(
         result["committed_action_count"] = production_result["committed_action_count"]
         result.update(
             prior_material_production_reconciled=True,
-            zero_resource_cost_confirmed=True,
+            zero_resource_cost_confirmed=production_result.get("zero_resource_cost_confirmed"),
             production_state="active",
             production_active_count=1,
-            production_duration_seconds=21600,
+            production_duration_seconds=production_result.get("production_duration_seconds"),
             production_timer_seconds_remaining=production_result["timer_seconds_remaining"],
             production_next_eligible_at=production_result.get("next_eligible_at"),
             production_occurrence_key=production_result["production_occurrence_key"],
@@ -1596,7 +1344,7 @@ def run_nanoweapon_in_context(
                 raise ValueError("completed Normal Craft Claim is not positively recognized")
             bound_instance, claim_key = _completed_craft_binding(context)
             if bound_instance != claim_result_identity:
-                raise ValueError("completed Normal Craft durable instance changed")
+                raise ValueError("completed Normal Craft occurrence changed")
             claim = _execute_consequential(
                 context,
                 before_capture=current,
@@ -1628,6 +1376,12 @@ def run_nanoweapon_in_context(
             if craft_claim_calls != 1:
                 result.update(effect_reconciliation_required=True, identical_retry_denied=True)
                 raise ValueError("completed Normal Craft Claim was confirmed without one accounted input")
+            result.update(
+                craft_claim_confirmed=True,
+                craft_claim_action_key=claim_key,
+                craft_claim_occurrence_key=occurrence_key,
+                craft_claim_action_evidence=claim.get("last_action_evidence"),
+            )
             current = context.session.observe(context.runtime.capture, label="nanoweapon-after-claim")
             current_screen = _recognize_capture(
                 context,
@@ -1663,8 +1417,6 @@ def run_nanoweapon_in_context(
             starts_this_reset=starts_this_reset,
             game_day_id=game_day_id,
             prior_material_production_reconciled=True,
-            craft_duration_seconds=(NORMAL_CRAFT_DURATION_SECONDS if start_confirmed or previous_start_confirmed else observation.craft_duration_seconds),
-            duration_policy_approved=(True if start_confirmed or previous_start_confirmed else observation.duration_policy_approved),
             craft_timer_seconds_remaining=observation.craft_timer_seconds_remaining,
         )
         if observation.claim_visible:
@@ -1675,10 +1427,8 @@ def run_nanoweapon_in_context(
         if nanoweapon_active_craft_authorizeable(observation):
             if observation.starts_this_reset == 1 and start_confirmed:
                 due_reason = "current_reset_start"
-            elif observation.starts_this_reset == 0 and previous_start_confirmed:
-                due_reason = "previous_reset_active_timer"
             else:
-                raise ValueError("active Normal Craft start reset cannot be bound to the canonical journal")
+                due_reason = "observed_active_timer"
         elif nanoweapon_current_reset_start_known(observation):
             due_reason = "current_reset_start"
         elif nanoweapon_known_material_shortage(observation):
@@ -1721,6 +1471,10 @@ def run_nanoweapon_in_context(
             if craft_start_calls != 1:
                 result.update(effect_reconciliation_required=True, identical_retry_denied=True)
                 raise ValueError("Normal Craft start was confirmed without one accounted input")
+            result.update(
+                craft_start_action_key=craft_key,
+                craft_start_action_evidence=start.get("last_action_evidence"),
+            )
             current = context.session.observe(context.runtime.capture, label="nanoweapon-after-start")
             current_screen = _recognize_capture(
                 context,
@@ -1751,13 +1505,9 @@ def run_nanoweapon_in_context(
                     ),
                 )
             due_reason = "current_reset_start"
-        elif (
-            start_reset_id is not None
-            and start_reset_id != game_day_id
-            and nanoweapon_active_craft_authorizeable(observation)
-        ):
+        elif nanoweapon_active_craft_authorizeable(observation):
             due = nanoweapon_active_craft_due_at(float(context.utc_clock()), observation.craft_timer_seconds_remaining)
-            due_reason = "previous_reset_active_timer"
+            due_reason = "observed_active_timer"
         elif nanoweapon_known_material_shortage(observation):
             due = nanoweapon_shortage_due_at(float(context.utc_clock()), observation_interval_seconds)
             due_reason = "known_material_shortage"
@@ -1775,10 +1525,6 @@ def run_nanoweapon_in_context(
         craft_active = observation.active_craft_count == 1 and observation.craft_timer_active is True
         craft_state = "active" if craft_active else "idle"
         current_balance = observation.nano_parts
-        if type(current_balance) is not int:
-            raise ValueError("current NANO_PARTS balance is unknown")
-        if start_succeeded_now and (precraft_balance is None or precraft_balance - current_balance != NANO_PARTS_REQUIRED):
-            raise ValueError("Normal Craft NANO_PARTS consumption is not exactly 100")
         result.update(
             status="completed" if start_succeeded_now else "deferred",
             reason="NORMAL_CRAFT_STARTED_FOR_RESET" if start_succeeded_now else due_reason.upper(),

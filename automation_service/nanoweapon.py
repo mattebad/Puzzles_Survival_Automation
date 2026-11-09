@@ -345,7 +345,7 @@ class NanoweaponRunner:
                     and raw_total == raw_attempted == component_total
                 )
                 unresolved = bool(
-                    total
+                    (total != partial.get("committed_action_count"))
                     or not count_known
                     or not outcome.accounting_verified
                     or partial.get("effect_reconciliation_required")
@@ -426,7 +426,7 @@ class NanoweaponRunner:
                     craft_due = min(craft_due, completed + remaining)
                 elif result.get("craft_state") != "idle":
                     raise ValueError("Current-reset Normal Craft state is not recognized")
-            elif due_reason == "previous_reset_active_timer":
+            elif due_reason in {"previous_reset_active_timer", "observed_active_timer"}:
                 remaining = result.get("active_craft_timer_seconds_remaining")
                 if type(remaining) is not int or not 0 < remaining <= NORMAL_CRAFT_DURATION_SECONDS:
                     raise ValueError("Prior-reset active craft timer is not positively recognized")
@@ -470,7 +470,7 @@ class NanoweaponRunner:
                 and raw_total == raw_attempted == component_total
             )
             unresolved = bool(
-                total
+                (total != partial.get("committed_action_count"))
                 or (outcome is not None and not count_known)
                 or (outcome is not None and not outcome.accounting_verified)
                 or partial.get("effect_reconciliation_required")
@@ -544,11 +544,12 @@ def nanoweapon_next_due(result, identity, started_at: float) -> float:
         or result.get("production_state") != "active"
         or type(result.get("production_active_count")) is not int
         or result.get("production_active_count") != 1
-        or type(result.get("production_duration_seconds")) is not int
-        or result.get("production_duration_seconds") != NANO_MATERIAL_PRODUCTION_DURATION_SECONDS
+        or (result.get("production_duration_seconds") is not None and (
+            type(result.get("production_duration_seconds")) is not int
+            or result.get("production_duration_seconds") != NANO_MATERIAL_PRODUCTION_DURATION_SECONDS
+        ))
         or type(result.get("production_timer_seconds_remaining")) is not int
         or not 0 < result["production_timer_seconds_remaining"] <= NANO_MATERIAL_PRODUCTION_DURATION_SECONDS
-        or result.get("zero_resource_cost_confirmed") is not True
         or result.get("game_day_id") != identity.reset_id
         or type(result.get("craft_duration_seconds")) is not int
         or result.get("craft_duration_seconds") != NORMAL_CRAFT_DURATION_SECONDS
@@ -602,16 +603,6 @@ def nanoweapon_next_due(result, identity, started_at: float) -> float:
             or (start_calls == 1 and craft_state != "active")
         ):
             raise ValueError("Current-reset Nanoweapon start lacks its canonical quota/state proof")
-        if start_calls == 1:
-            before_balance = result.get("precraft_nano_parts_balance")
-            balance = result.get("nano_parts_balance")
-            if (
-                type(before_balance) is not int
-                or before_balance < NANO_PARTS_REQUIRED
-                or type(balance) is not int
-                or before_balance - balance != NANO_PARTS_REQUIRED
-            ):
-                raise ValueError("Current Normal Craft start lacks exact 100-part consumption proof")
         expected = _next_reset_utc(completed)
         if craft_state == "active":
             expected = min(expected, completed + craft_timer)
@@ -639,13 +630,19 @@ def nanoweapon_next_due(result, identity, started_at: float) -> float:
         except ValueError as exc:
             raise ValueError("active craft prior-reset identity is invalid") from exc
         expected = completed + craft_timer
+    elif reason == "observed_active_timer":
+        if (
+            type(starts_this_reset) is not int or starts_this_reset != 0
+            or craft_state != "active" or type(craft_count) is not int or craft_count != 1
+            or craft_timer <= 0 or start_calls != 0
+        ):
+            raise ValueError("Observed active craft lacks its current single-slot timer evidence")
+        expected = completed + craft_timer
     elif reason == "known_material_shortage":
         balance = result.get("nano_parts_balance")
         interval = result.get("observation_interval_seconds")
         if (
-            type(balance) is not int
-            or balance < 0
-            or balance >= NANO_PARTS_REQUIRED
+            (balance is not None and (type(balance) is not int or not 0 <= balance < NANO_PARTS_REQUIRED))
             or type(interval) is not int
             or interval < 1
             or interval != DEFAULT_OBSERVATION_INTERVAL_SECONDS

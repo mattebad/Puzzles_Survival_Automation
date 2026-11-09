@@ -21,10 +21,9 @@ _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 @dataclass(frozen=True)
 class MaterialProductionObservation:
-    """Current owned slot; unknown original duration/timer remains None.
+    """Current owned slot for the fixed free six-hour mechanic.
 
-    Cost fields describe the current actionable control (Claim or Start), not
-    an inferred future quote. Recognition of an idle slot is not START authority.
+    Optional quote fields are observations, never prerequisites for Produce.
     """
 
     screen_state: str
@@ -81,7 +80,7 @@ def _has_native_source(observation: MaterialProductionObservation) -> bool:
 def material_production_authorizeable(
     observation: MaterialProductionObservation,
 ) -> bool:
-    """Recognize the owned slot state, separately from a fresh START quote."""
+    """Recognize the owned slot independently of a resource/duration quote."""
 
     common = bool(
         observation.screen_state == NANOWEAPON_SCREEN
@@ -111,7 +110,6 @@ def material_production_authorizeable(
             and (observation.timer_seconds_remaining is None or (
                 type(observation.timer_seconds_remaining) is int and observation.timer_seconds_remaining == 0
             ))
-            and _zero_current_control_cost(observation)
             and observation.claim_visible
             and not observation.start_enabled
         )
@@ -135,24 +133,6 @@ def material_production_authorizeable(
     )
 
 
-def _zero_current_control_cost(observation: MaterialProductionObservation) -> bool:
-    return bool(
-        observation.cost_known is True
-        and observation.cost_type == "none"
-        and type(observation.cost_amount) is int and observation.cost_amount == 0
-        and observation.other_costs_known is True
-        and observation.nonzero_other_costs is False
-    )
-
-
-def _start_quote_known(observation: MaterialProductionObservation) -> bool:
-    return bool(
-        material_production_authorizeable(observation)
-        and observation.production_state == "idle"
-        and type(observation.production_duration_seconds) is int
-        and observation.production_duration_seconds == NANO_MATERIAL_PRODUCTION_DURATION_SECONDS
-        and _zero_current_control_cost(observation)
-    )
 
 def material_production_claim_spec(
     observation: MaterialProductionObservation,
@@ -187,7 +167,7 @@ def material_production_claim_spec(
 def material_production_start_spec(
     observation: MaterialProductionObservation,
 ) -> ActionTransactionSpec:
-    if not _start_quote_known(observation):
+    if not material_production_authorizeable(observation) or observation.production_state != "idle":
         raise ValueError("Material Production is not positively idle and startable")
     return ActionTransactionSpec(
         action_kind="START_NANO_MATERIAL_PRODUCTION",
@@ -241,7 +221,8 @@ def material_production_start_postcondition_verified(
 
     return bool(
         after is not None
-        and _start_quote_known(before)
+        and material_production_authorizeable(before)
+        and before.production_state == "idle"
         and material_production_authorizeable(after)
         and after.production_state == "active"
         and after.active_production_count == 1
@@ -286,11 +267,6 @@ def material_production_transition(
             next_action="claim_then_observe_idle",
         )
     if observation.production_state == "idle":
-        if not _start_quote_known(observation):
-            return TaskResult(
-                TaskOutcome.BLOCKED, "MATERIAL_PRODUCTION_START_QUOTE_UNKNOWN",
-                verified=True, state="production_idle",
-            )
         return TaskResult.progress(
             "One zero-resource six-hour Material Production start is eligible",
             "production_idle",
@@ -340,22 +316,18 @@ def material_production_replay(
                 state="production_complete",
                 details={
                     "production_transport_calls": 1,
+                    "committed_action_count": 0,
                     "effect_reconciliation_required": True,
                     "identical_retry_denied": True,
                 },
             )
         idle, claim_calls = claim_successor, 1
-    if not _start_quote_known(idle):
-        return TaskResult(
-            TaskOutcome.BLOCKED, "MATERIAL_PRODUCTION_START_QUOTE_UNKNOWN",
-            verified=True, state="production_idle",
-            details={"production_transport_calls": claim_calls, "committed_action_count": claim_calls},
-        )
     if start_successor is None:
         return TaskResult.progress(
             "Idle Material Production is recognized; start successor remains unproven",
             "production_idle",
             production_transport_calls=claim_calls,
+            committed_action_count=claim_calls,
         )
     if not material_production_start_postcondition_verified(idle, start_successor):
         return TaskResult(
@@ -365,6 +337,7 @@ def material_production_replay(
             state="production_idle",
             details={
                 "production_transport_calls": claim_calls + 1,
+                "committed_action_count": claim_calls,
                 "effect_reconciliation_required": True,
                 "identical_retry_denied": True,
             },
@@ -374,6 +347,7 @@ def material_production_replay(
         NANO_MATERIAL_PRODUCTION_COMPLETION,
         "production_active",
         production_transport_calls=claim_calls + 1,
+        committed_action_count=claim_calls + 1,
         production_duration_seconds=NANO_MATERIAL_PRODUCTION_DURATION_SECONDS,
         active_production_count=1,
     )

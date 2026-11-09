@@ -149,11 +149,11 @@ class NanoMaterialProductionServiceAdapterTests(unittest.TestCase):
             occurrence_key=SERVICE_OCCURRENCE,
         )
 
-    def test_confirmed_claim_without_start_quote_preserves_partial_progress_not_due(self):
+    def test_confirmed_claim_then_unsent_start_failure_preserves_partial_progress(self):
         outcome = _production_outcome(
             status="blocked", calls=1, committed=1, input_count=3,
             result_changes={
-                "reason": "MATERIAL_PRODUCTION_START_QUOTE_UNKNOWN",
+                "reason": "MATERIAL_PRODUCTION_START_REFUSED",
                 "production_state": "idle", "active_production_count": 0, "completed_batch_count": 0,
                 "production_duration_seconds": None, "timer_seconds_remaining": None,
                 "next_eligible_at": None, "zero_resource_cost_confirmed": True,
@@ -188,7 +188,7 @@ class NanoMaterialProductionServiceAdapterTests(unittest.TestCase):
         outcome = _production_outcome(
             status="blocked", calls=1, committed=1, input_count=3, session_input_count=2,
             result_changes={
-                "reason": "MATERIAL_PRODUCTION_START_QUOTE_UNKNOWN",
+                "reason": "MATERIAL_PRODUCTION_START_REFUSED",
                 "production_state": "idle", "active_production_count": 0, "completed_batch_count": 0,
             },
         )
@@ -219,11 +219,11 @@ class NanoMaterialProductionServiceAdapterTests(unittest.TestCase):
         mismatched = self.runner(_production_outcome(flow_id="other-flow"))
         with self.assertRaises(service.NanoMaterialProductionRunnerError) as caught:
             self.run_route(mismatched)
-        self.assertEqual(caught.exception.partial_result["status"], "unresolved")
+        self.assertEqual(caught.exception.partial_result["status"], "blocked")
         self.assertEqual(caught.exception.partial_result["production_transport_calls"], 1)
         self.assertEqual(caught.exception.partial_result["committed_action_count"], 1)
-        self.assertTrue(caught.exception.partial_result["effect_reconciliation_required"])
-        self.assertTrue(caught.exception.partial_result["identical_retry_denied"])
+        self.assertFalse(caught.exception.partial_result["effect_reconciliation_required"])
+        self.assertFalse(caught.exception.partial_result["identical_retry_denied"])
         self.assertIn("flow mismatch", caught.exception.partial_result["reason"])
 
     def test_runner_request_and_normalized_evidence_include_claims_in_action_budget(self):

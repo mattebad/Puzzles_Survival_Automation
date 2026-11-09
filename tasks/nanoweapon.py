@@ -1,8 +1,8 @@
 """Offline Normal Craft action semantics.
 
-One enabled Normal Craft start consumes exactly 100 nano parts, requires a
-balance of at least 100, and starts one 43200-second active craft. Material
-Production, Exclusive Craft, rotating selection, and ambiguous states fail closed.
+One affordable Normal Craft start consumes the fixed 100 nano parts and starts
+one 43200-second craft. Completed claims and active observations are independent
+of a new-start quote. Exclusive Craft and ambiguous states fail closed.
 """
 
 from __future__ import annotations
@@ -90,7 +90,7 @@ def _has_native_source(observation: NanoweaponObservation) -> bool:
 
 
 def nanoweapon_authorizeable(observation: NanoweaponObservation) -> bool:
-    """Require exact Normal Craft, current balance, reset and slot boundaries."""
+    """Require affordable fixed Normal Craft, reset and empty-slot boundaries."""
 
     return bool(
         observation.screen_state == NANOWEAPON_SCREEN
@@ -105,9 +105,8 @@ def nanoweapon_authorizeable(observation: NanoweaponObservation) -> bool:
         and observation.materials_known
         and type(observation.materials_available) is bool
         and observation.materials_available
-        and type(observation.nano_parts) is int
+        and (observation.nano_parts is None or (type(observation.nano_parts) is int and observation.nano_parts >= NANO_PARTS_REQUIRED))
         and observation.prior_material_production_reconciled is True
-        and observation.nano_parts >= NANO_PARTS_REQUIRED
         and observation.craft_mode == "CRAFT"
         and observation.recipe_selection_mode == "normal_recipe"
         and observation.target_identity == NANOWEAPON_NORMAL_TARGET
@@ -116,15 +115,13 @@ def nanoweapon_authorizeable(observation: NanoweaponObservation) -> bool:
         and observation.craft_ready
         and type(observation.craft_enabled) is bool
         and observation.craft_enabled
-        and type(observation.duration_policy_approved) is bool
-        and observation.duration_policy_approved
-        and type(observation.craft_duration_seconds) is int
-        and observation.craft_duration_seconds == NORMAL_CRAFT_DURATION_SECONDS
+        and (observation.quantity is None or (type(observation.quantity) is int and observation.quantity == 1))
+        and (observation.craft_duration_seconds is None or (
+            type(observation.craft_duration_seconds) is int and observation.craft_duration_seconds == NORMAL_CRAFT_DURATION_SECONDS
+        ))
         and observation.cost_type == "NANO_PARTS"
         and type(observation.cost_amount) is int
         and observation.cost_amount == NANO_PARTS_REQUIRED
-        and type(observation.quantity) is int
-        and observation.quantity == 1
         and type(observation.active_craft_count) is int
         and observation.active_craft_count == 0
         and type(observation.starts_this_reset) is int
@@ -166,13 +163,6 @@ def nanoweapon_active_craft_authorizeable(observation: NanoweaponObservation) ->
         and observation.craft_timer_active is True
         and type(observation.craft_timer_seconds_remaining) is int
         and 0 < observation.craft_timer_seconds_remaining <= NORMAL_CRAFT_DURATION_SECONDS
-        and type(observation.craft_duration_seconds) is int
-        and observation.craft_duration_seconds == NORMAL_CRAFT_DURATION_SECONDS
-        and type(observation.nano_parts) is int
-        and observation.nano_parts >= 0
-        and observation.cost_type == "NANO_PARTS"
-        and type(observation.cost_amount) is int
-        and observation.cost_amount == NANO_PARTS_REQUIRED
         and type(observation.game_day_id) is str
         and bool(observation.game_day_id)
         and observation.overlay_state in {"none", "none_observed"}
@@ -199,8 +189,7 @@ def nanoweapon_known_material_shortage(observation: NanoweaponObservation) -> bo
         and observation.materials_available is False
         and observation.craft_ready is False
         and observation.craft_enabled is False
-        and type(observation.nano_parts) is int
-        and 0 <= observation.nano_parts < NANO_PARTS_REQUIRED
+        and (observation.nano_parts is None or (type(observation.nano_parts) is int and 0 <= observation.nano_parts < NANO_PARTS_REQUIRED))
         and type(observation.active_craft_count) is int
         and observation.active_craft_count == 0
         and type(observation.starts_this_reset) is int
@@ -208,8 +197,6 @@ def nanoweapon_known_material_shortage(observation: NanoweaponObservation) -> bo
         and observation.cost_type == "NANO_PARTS"
         and type(observation.cost_amount) is int
         and observation.cost_amount == NANO_PARTS_REQUIRED
-        and type(observation.craft_duration_seconds) is int
-        and observation.craft_duration_seconds == NORMAL_CRAFT_DURATION_SECONDS
         and type(observation.craft_timer_seconds_remaining) is int
         and observation.craft_timer_seconds_remaining == 0
         and observation.claim_visible is False
@@ -237,8 +224,6 @@ def nanoweapon_current_reset_start_known(observation: NanoweaponObservation) -> 
         and observation.active_craft_count == 0
         and type(observation.starts_this_reset) is int
         and observation.starts_this_reset == 1
-        and type(observation.nano_parts) is int
-        and observation.nano_parts >= 0
         and type(observation.game_day_id) is str
         and bool(observation.game_day_id)
         and observation.overlay_state in {"none", "none_observed"}
@@ -263,13 +248,6 @@ def nanoweapon_claim_authorizeable(observation: NanoweaponObservation) -> bool:
         and bool(observation.recipe_name.strip())
         and observation.recipe_selection_mode == "normal_recipe"
         and observation.target_identity == NANOWEAPON_NORMAL_TARGET
-        and observation.cost_type == "NANO_PARTS"
-        and type(observation.cost_amount) is int
-        and observation.cost_amount == NANO_PARTS_REQUIRED
-        and type(observation.quantity) is int
-        and observation.quantity == 1
-        and type(observation.nano_parts) is int
-        and observation.nano_parts >= 0
         and observation.craft_result_visible is True
         and type(observation.result_identity) is str
         and observation.result_identity.startswith("craft-instance:")
@@ -282,8 +260,6 @@ def nanoweapon_claim_authorizeable(observation: NanoweaponObservation) -> bool:
         and observation.craft_timer_active is False
         and type(observation.craft_timer_seconds_remaining) is int
         and observation.craft_timer_seconds_remaining == 0
-        and type(observation.craft_duration_seconds) is int
-        and observation.craft_duration_seconds == NORMAL_CRAFT_DURATION_SECONDS
         and type(observation.game_day_id) is str
         and bool(observation.game_day_id)
         and observation.overlay_state in {"none", "none_observed"}
@@ -313,7 +289,7 @@ def nanoweapon_transaction_spec(observation: NanoweaponObservation) -> ActionTra
             "normal_craft_tab",
             "recipe_selection=normal",
             f"game_day_id={observation.game_day_id}",
-            f"nano_parts_balance={observation.nano_parts}",
+            "materials_affordable=1",
             "cost=NANO_PARTS:100",
             "duration_seconds=43200",
             "active_craft_count=0",
@@ -371,13 +347,6 @@ def nanoweapon_claim_postcondition_verified(
         and after.recipe_selection_mode == "normal_recipe"
         and after.craft_mode == "CRAFT"
         and after.target_identity == NANOWEAPON_NORMAL_TARGET
-        and after.cost_type == "NANO_PARTS"
-        and type(after.cost_amount) is int
-        and after.cost_amount == NANO_PARTS_REQUIRED
-        and type(after.quantity) is int
-        and after.quantity == 1
-        and type(after.craft_duration_seconds) is int
-        and after.craft_duration_seconds == NORMAL_CRAFT_DURATION_SECONDS
         and after.craft_result_visible is False
         and after.result_identity == ""
         and after.claim_visible is False
@@ -386,11 +355,8 @@ def nanoweapon_claim_postcondition_verified(
         and after.craft_timer_active is False
         and type(after.craft_timer_seconds_remaining) is int
         and after.craft_timer_seconds_remaining == 0
-        and type(after.nano_parts) is int
-        and after.nano_parts == before.nano_parts
         and type(after.starts_this_reset) is int
         and after.starts_this_reset == before.starts_this_reset
-        and after.nano_parts == before.nano_parts
         and after.game_day_id == before.game_day_id
         and after.overlay_state in {"none", "none_observed"}
         and after.recognized is True
@@ -416,19 +382,12 @@ def nanoweapon_postcondition_verified(
         and after.recipe_name == before.recipe_name
         and after.recipe_selection_mode == "normal_recipe"
         and after.craft_mode == "CRAFT"
-        and after.cost_type == "NANO_PARTS"
-        and type(after.cost_amount) is int
-        and after.cost_amount == NANO_PARTS_REQUIRED
-        and type(after.quantity) is int
-        and after.quantity == 1
-        and after.duration_policy_approved is True
-        and type(after.nano_parts) is int
         and type(after.active_craft_count) is int
         and type(after.starts_this_reset) is int
         and after.target_identity == NANOWEAPON_NORMAL_TARGET
-        and type(after.craft_duration_seconds) is int
-        and after.craft_duration_seconds == NORMAL_CRAFT_DURATION_SECONDS
-        and after.nano_parts == before.nano_parts - NANO_PARTS_REQUIRED
+        and (before.nano_parts is None or after.nano_parts is None or (
+            type(after.nano_parts) is int and after.nano_parts == before.nano_parts - NANO_PARTS_REQUIRED
+        ))
         and after.active_craft_count == 1
         and after.craft_timer_active is True
         and type(after.craft_timer_seconds_remaining) is int
@@ -598,6 +557,7 @@ def nanoweapon_replay(
                     "craft_transport_calls": 1,
                     "craft_claim_transport_calls": 1,
                     "craft_start_transport_calls": 0,
+                    "committed_action_count": 0,
                     "effect_reconciliation_required": True,
                     "identical_retry_denied": True,
                 },
@@ -617,6 +577,7 @@ def nanoweapon_replay(
                 craft_transport_calls=claim_calls,
                 craft_claim_transport_calls=claim_calls,
                 craft_start_transport_calls=0,
+                committed_action_count=claim_calls,
             ),
         )
     if nanoweapon_known_material_shortage(current):
@@ -632,6 +593,7 @@ def nanoweapon_replay(
                 craft_transport_calls=claim_calls,
                 craft_claim_transport_calls=claim_calls,
                 craft_start_transport_calls=0,
+                committed_action_count=claim_calls,
             ),
         )
     if nanoweapon_current_reset_start_known(current):
@@ -647,11 +609,12 @@ def nanoweapon_replay(
                 craft_transport_calls=claim_calls,
                 craft_claim_transport_calls=claim_calls,
                 craft_start_transport_calls=0,
+                committed_action_count=claim_calls,
             ),
         )
     if not nanoweapon_authorizeable(current):
         return TaskResult(
-            TaskOutcome.FAILED_SAFE if claim_calls else TaskOutcome.BLOCKED,
+            TaskOutcome.BLOCKED,
             "NANOWEAPON_CRAFT_PRECONDITION_NOT_PROVEN",
             verified=True,
             state=NANOWEAPON_SCREEN,
@@ -659,8 +622,9 @@ def nanoweapon_replay(
                 "craft_transport_calls": claim_calls,
                 "craft_claim_transport_calls": claim_calls,
                 "craft_start_transport_calls": 0,
-                "effect_reconciliation_required": bool(claim_calls),
-                "identical_retry_denied": bool(claim_calls),
+                "committed_action_count": claim_calls,
+                "effect_reconciliation_required": False,
+                "identical_retry_denied": False,
             },
         )
     if craft_successor is None:
@@ -670,6 +634,7 @@ def nanoweapon_replay(
             craft_transport_calls=claim_calls,
             craft_claim_transport_calls=claim_calls,
             craft_start_transport_calls=0,
+            committed_action_count=claim_calls,
         )
     if not nanoweapon_postcondition_verified(current, craft_successor):
         return TaskResult(
@@ -681,6 +646,7 @@ def nanoweapon_replay(
                 "craft_transport_calls": claim_calls + 1,
                 "craft_claim_transport_calls": claim_calls,
                 "craft_start_transport_calls": 1,
+                "committed_action_count": claim_calls,
                 "effect_reconciliation_required": True,
                 "identical_retry_denied": True,
             },
@@ -692,4 +658,5 @@ def nanoweapon_replay(
         craft_transport_calls=claim_calls + 1,
         craft_claim_transport_calls=claim_calls,
         craft_start_transport_calls=1,
+        committed_action_count=claim_calls + 1,
     )

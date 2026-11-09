@@ -260,7 +260,7 @@ class NanoMaterialProductionNativeSmokeTests(unittest.TestCase):
             self.assertEqual(result["production_transport_calls"], 0)
             self.assertEqual(result["committed_action_count"], 0)
             self.assertEqual(result["production_state"], "active")
-            self.assertEqual(result["production_duration_seconds"], 21600)
+            self.assertIsNone(result["production_duration_seconds"])
             self.assertEqual(result["active_production_count"], 1)
             self.assertGreater(result["timer_seconds_remaining"], 0)
             self.assertEqual(result["native_occurrence_key"], context.occurrence_key)
@@ -338,13 +338,12 @@ class NanoMaterialProductionNativeSmokeTests(unittest.TestCase):
                            source_frame_sha256="b" * 64)
             route.material_production_claim_spec(before)
             self.assertTrue(route.material_production_claim_postcondition_verified(before, idle))
-            with self.assertRaises(ValueError):
-                route.material_production_start_spec(idle)
+            route.material_production_start_spec(idle)
             active = replace(idle, production_state="active", active_production_count=1,
                              start_enabled=False, timer_seconds_remaining=21599,
                              source_frame_sha256="c" * 64)
             self.assertTrue(route.material_production_authorizeable(active))
-            self.assertFalse(route.material_production_start_postcondition_verified(idle, active))
+            self.assertTrue(route.material_production_start_postcondition_verified(idle, active))
             quoted = replace(idle, production_duration_seconds=21600, cost_known=True,
                              cost_type="none", cost_amount=0, other_costs_known=True)
             self.assertTrue(route.material_production_start_postcondition_verified(quoted, active))
@@ -352,20 +351,26 @@ class NanoMaterialProductionNativeSmokeTests(unittest.TestCase):
         finally:
             context.close()
 
-    def test_confirmed_claim_preserved_when_idle_start_quote_missing(self):
+    def test_confirmed_claim_preserved_when_later_start_is_refused(self):
         context = self._context(state="complete")
         def panel(captured, **_kwargs):
             observation = self._owned_observation(captured, context.occurrence_key, state=context.runtime.state)
             return route._PanelRead(observation, observation.target_roi, "recognized")
+        dispatch = route._dispatch_action
+        def claim_only(ctx, **kwargs):
+            if kwargs["action_kind"] == "START_NANO_MATERIAL_PRODUCTION":
+                return {"status": "blocked", "reason": "start_refused", "transport_calls": 0}
+            return dispatch(ctx, **kwargs)
         try:
             with (
                 mock.patch.object(route, "_panel_observation", side_effect=panel),
                 mock.patch.object(route, "_prepare_route_source", side_effect=lambda _ctx, current, _key: current),
+                mock.patch.object(route, "_dispatch_action", side_effect=claim_only),
             ):
                 result = route.run_material_production_in_context(
                     context, occurrence_key=context.occurrence_key, return_home=False,
                 )
-            self.assertEqual(result["reason"], "MATERIAL_PRODUCTION_START_QUOTE_UNKNOWN")
+            self.assertEqual(result["reason"], "start_refused")
             self.assertEqual(result["status"], "blocked")
             self.assertEqual(result["committed_action_count"], 1)
             self.assertEqual(result["production_transport_calls"], 1)

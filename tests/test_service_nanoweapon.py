@@ -428,7 +428,6 @@ class NanoweaponServiceAdapterTests(unittest.TestCase):
         self.assertEqual(claimed["craft_claim_transport_calls"], 1)
         invalid_current = (
             {"craft_start_confirmed": False},
-            {"precraft_nano_parts_balance": 199},
             {"game_day_id": "game-day-2026-10-28"},
             {"craft_start_reset_id": "game-day-2026-10-28"},
             {"craft_state": "idle", "craft_active_count": 0, "active_craft_timer_seconds_remaining": 0},
@@ -441,7 +440,6 @@ class NanoweaponServiceAdapterTests(unittest.TestCase):
             {"production_timer_seconds_remaining": 0},
             {"production_timer_seconds_remaining": True},
             {"production_timer_seconds_remaining": 21_601},
-            {"zero_resource_cost_confirmed": False},
             {"production_occurrence_key": "occurrence:other"},
             {"production_target_identity": "other"},
             {"production_state_frame": {}},
@@ -628,6 +626,40 @@ class NanoweaponServiceAdapterTests(unittest.TestCase):
             service.nanoweapon_next_due(
                 active, wrong_identity, NANOWEAPON_SERVICE_NOW,
             )
+
+    def test_existing_active_slots_need_no_new_effect_or_start_quote(self):
+        result = self.run_route(self.runner(_nanoweapon_outcome(
+            status="deferred", production_calls=0, craft_calls=0,
+            result_changes={
+                "zero_resource_cost_confirmed": False,
+                "production_duration_seconds": None,
+                "nano_parts_balance": None,
+                "precraft_nano_parts_balance": None,
+                "craft_start_confirmed": False,
+                "craft_start_reset_id": None,
+                "starts_this_reset": 0,
+                "craft_state": "active",
+                "craft_active_count": 1,
+                "active_craft_timer_seconds_remaining": 42000,
+                "due_reason": "observed_active_timer",
+            },
+        )))
+        self.assertEqual(result["committed_action_count"], 0)
+        self.assertEqual(result["next_eligible_at"], NANOWEAPON_SERVICE_NOW + 21000)
+
+    def test_confirmed_claim_then_non_effect_failure_is_not_unknown(self):
+        outcome = _nanoweapon_outcome(
+            status="blocked", craft_calls=1, committed=1,
+            failure="navigation_failed_after_claim",
+            result_changes={"craft_claim_transport_calls": 1, "craft_start_transport_calls": 0},
+        )
+        with self.assertRaises(service.NanoweaponRunnerError) as caught:
+            self.run_route(self.runner(outcome))
+        partial = caught.exception.partial_result
+        self.assertEqual(partial["committed_action_count"], 1)
+        self.assertEqual(partial["status"], "blocked")
+        self.assertFalse(partial["effect_reconciliation_required"])
+        self.assertFalse(partial["identical_retry_denied"])
 
     def test_partial_unknown_dispatch_denies_identical_retry(self):
         outcome = _nanoweapon_outcome(

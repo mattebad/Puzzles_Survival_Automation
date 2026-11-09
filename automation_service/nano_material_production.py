@@ -315,7 +315,7 @@ class NanoMaterialProductionRunner:
                 count_known = type(raw_calls) is int and raw_calls >= 0
                 calls = raw_calls if count_known else 0
                 unresolved = bool(
-                    calls
+                    (calls != partial.get("committed_action_count"))
                     or not count_known
                     or not outcome.accounting_verified
                     or partial.get("effect_reconciliation_required")
@@ -336,12 +336,12 @@ class NanoMaterialProductionRunner:
                 or not 0 <= inputs[0] <= MAX_INPUTS
                 or len(set(inputs)) != 1 or calls > inputs[0]
             ):
+                native_result["accounting_verified"] = False
                 raise ValueError("Nano Material Production SDK input accounting is disputed")
             if calls:
                 _require_effect_evidence(native_result)
             if (
                 native_result.get("status") == "blocked"
-                and native_result.get("reason") == "MATERIAL_PRODUCTION_START_QUOTE_UNKNOWN"
                 and calls == committed == 1
                 and type(native_result.get("active_production_count")) is int
                 and type(native_result.get("completed_batch_count")) is int
@@ -444,9 +444,10 @@ class NanoMaterialProductionRunner:
             count_known = type(raw_calls) is int and raw_calls >= 0
             calls = raw_calls if count_known else 0
             unresolved = bool(
-                calls
+                (calls != partial.get("committed_action_count"))
                 or (outcome is not None and not count_known)
                 or (outcome is not None and not outcome.accounting_verified)
+                or partial.get("accounting_verified") is False
                 or partial.get("effect_reconciliation_required")
                 or partial.get("status") == "unresolved"
             )
