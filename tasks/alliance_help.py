@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from enum import Enum
 import hashlib
 import json
-from typing import Mapping, Sequence
 
 
 DAILY_REQUEST_LIMIT = 10
@@ -16,6 +15,7 @@ SEMANTIC_ACTION = "HELP_ALLIANCE_REQUEST"
 CONSEQUENCE = "alliance_help_zero_cost"
 POSTCONDITION = "ALLIANCE_HELP_REQUEST_RESULT"
 CONTROL_CLASS = "FREE_HELP"
+HELP_ALL_CONTROL_CLASS = "FREE_HELP_ALL"
 
 
 class HelpAction(str, Enum):
@@ -39,7 +39,12 @@ class HelpRequest:
 
 @dataclass(frozen=True)
 class HelpObservation:
-    """Fresh screen evidence; a static screen or tap is never a result."""
+    """Fresh screen evidence; a static screen or tap is never a result.
+
+    ``help_all_success_count`` is an attributable helped-request count shown by the game
+    for a Help All result. ``None`` means no such count was recognized; it never means
+    zero and is never inferred from rows leaving the list.
+    """
 
     screen_state: str
     captured_at: float
@@ -50,11 +55,7 @@ class HelpObservation:
     help_all_roi: tuple[int, int, int, int] | None = None
     help_all_free: bool = False
     exact_no_requests_message: bool = False
-    pending_count: int | None = None
-    request_list_complete: bool = False
     cost_marker_seen: bool = False
-    daily_alliance_coin_balance: int | None = None
-    daily_alliance_coin_limit: int | None = None
     help_success_message: bool = False
     help_all_success_count: int | None = None
     recognizer_reason: str | None = None
@@ -69,12 +70,24 @@ class HelpPlan:
     reason: str
 
 
-def choose_help_action(observation: HelpObservation, remaining: int, *, allow_help_all: bool = False) -> HelpPlan:
+@dataclass(frozen=True)
+class HelpResult:
+    """A positively acknowledged Help operation.
+
+    ``proven_request_count`` is the attributable number of successful requests, or
+    ``None`` for a known successful Help All batch whose quantity is unproven.
+    """
+
+    action: HelpAction
+    proven_request_count: int | None
+
+
+def choose_help_action(observation: HelpObservation, remaining: int) -> HelpPlan:
     """Choose one safe transaction from exact current evidence.
 
-    Help All is admissible only when the complete current request set is positively
-    bounded and no larger than the still-unfilled quota. Incomplete or unknown lists
-    fall back to one independently bound free Help control.
+    A bound free Help All control is the native action whenever free requests are
+    visible; it may cover several requests and needs no request census. One
+    individually bound free Help control is the fallback when Help All is not bound.
     """
     if type(remaining) is not int or not 0 <= remaining <= DAILY_REQUEST_LIMIT:
         return HelpPlan(HelpAction.UNKNOWN, None, None, (), "invalid_remaining_quota")
@@ -89,107 +102,78 @@ def choose_help_action(observation: HelpObservation, remaining: int, *, allow_he
         if observation.requests:
             return HelpPlan(HelpAction.UNKNOWN, None, None, (), "no_requests_conflicts_with_controls")
         return HelpPlan(HelpAction.NO_REQUESTS, None, None, (), "exact_no_requests_message")
+    # A still-visible earlier result message would make the next result unattributable.
+    if observation.help_success_message:
+        return HelpPlan(HelpAction.UNKNOWN, None, None, (), "prior_result_message_visible")
 
     requests = observation.requests
-    if requests:
-        balance, limit = observation.daily_alliance_coin_balance, observation.daily_alliance_coin_limit
-        if (type(balance) is not int or type(limit) is not int or not 0 <= balance < limit):
-            return HelpPlan(HelpAction.UNKNOWN, None, None, (), "result_counter_missing_or_at_limit")
     if len({item.request_id for item in requests}) != len(requests):
         return HelpPlan(HelpAction.UNKNOWN, None, None, (), "duplicate_request_identity")
     if any(not item.request_id or not item.free_control or not item.exact_free_label
            or not _valid_roi(item.target_roi) for item in requests):
         return HelpPlan(HelpAction.UNKNOWN, None, None, (), "unknown_or_nonfree_individual_control")
-
-    # A visibly present Help All control is not proof of how many requests it covers.
-    # Require an independently complete list and exact matching pending count.
-    if allow_help_all and observation.help_all_roi is not None:
+    if not requests:
+        return HelpPlan(HelpAction.FREE_HELP_DISAPPEARED, None, None, (), "no_current_free_request_control")
+    if observation.help_all_roi is not None:
         if not _valid_roi(observation.help_all_roi) or not observation.help_all_free:
             return HelpPlan(HelpAction.UNKNOWN, None, None, (), "help_all_cost_or_binding_unknown")
-        if (observation.request_list_complete and type(observation.pending_count) is int
-                and observation.pending_count == len(requests) and 0 < observation.pending_count <= remaining):
-            return HelpPlan(HelpAction.HELP_ALL, HELP_ALL_TARGET_IDENTITY,
-                            observation.help_all_roi, tuple(item.request_id for item in requests),
-                            "complete_request_list_within_remaining_quota")
-
-    if requests:
-        first = requests[0]
-        return HelpPlan(HelpAction.INDIVIDUAL, INDIVIDUAL_TARGET_IDENTITY,
-                        first.target_roi, (first.request_id,),
-                        "one_current_free_request_bounded_to_one")
-    if not observation.requests or not observation.help_all_free:
-        return HelpPlan(HelpAction.FREE_HELP_DISAPPEARED, None, None, (), "no_current_free_request_control")
-    return HelpPlan(HelpAction.UNKNOWN, None, None, (), "help_all_count_not_proven_bounded")
+        return HelpPlan(HelpAction.HELP_ALL, HELP_ALL_TARGET_IDENTITY, observation.help_all_roi,
+                        tuple(item.request_id for item in requests),
+                        "bound_free_help_all_with_visible_requests")
+    first = requests[0]
+    return HelpPlan(HelpAction.INDIVIDUAL, INDIVIDUAL_TARGET_IDENTITY,
+                    first.target_roi, (first.request_id,),
+                    "one_current_free_request_bounded_to_one")
 
 
-def verified_request_delta(
+def verified_help_result(
     before: HelpObservation,
     after: HelpObservation,
     *,
     plan: HelpPlan,
-    remaining: int,
     transport_calls: int,
-) -> int:
-    """Return only a transported, positive request/result transition; reject ambiguity."""
+) -> HelpResult | None:
+    """Return a transported, positively acknowledged result, or ``None`` when unknown.
+
+    The success acknowledgement must appear after the single input and be absent
+    immediately before it. Rows leaving the list are corroboration only: other members
+    and list motion also remove rows, so they never establish a request count.
+    """
     if (type(transport_calls) is not int or transport_calls != 1
             or before.screen_state != SOURCE_STATE or after.screen_state != SOURCE_STATE
             or not before.source_fresh or not after.source_fresh
             or not before.overlay_clear or not after.overlay_clear
             or after.captured_at <= before.captured_at
             or not before.frame_sha256 or not after.frame_sha256
-            or type(remaining) is not int or not 1 <= remaining <= DAILY_REQUEST_LIMIT
-            or plan.action not in {HelpAction.HELP_ALL, HelpAction.INDIVIDUAL}):
-        return 0
-    before_by_id = {item.request_id: item for item in before.requests}
-    after_by_id = {item.request_id: item for item in after.requests}
-    if len(before_by_id) != len(before.requests) or len(after_by_id) != len(after.requests):
-        return 0
-    if any(not item.request_id for item in (*before.requests, *after.requests)):
-        return 0
-
-    removed = set(before_by_id) - set(after_by_id)
+            or before.help_success_message or not after.help_success_message):
+        return None
+    before_ids = {item.request_id for item in before.requests}
+    if len(before_ids) != len(before.requests) or any(not item for item in before_ids):
+        return None
     if plan.action is HelpAction.INDIVIDUAL:
         selected = plan.request_ids[0] if len(plan.request_ids) == 1 else None
-        coin_delta = _positive_coin_delta(before, after)
-        if (selected is None or selected not in before_by_id or selected not in removed
-                or not before_by_id[selected].free_control
-                or not before_by_id[selected].exact_free_label
-                or not after.help_success_message or coin_delta is None):
-            return 0
-        return 1
-
-    coin_delta = _positive_coin_delta(before, after)
-    if (not before.request_list_complete or not after.request_list_complete
-            or type(before.pending_count) is not int or type(after.pending_count) is not int
-            or before.pending_count != len(before.requests)
-            or after.pending_count != len(after.requests)
-            or not before.help_all_free or not after.help_all_free
-            or plan.request_ids != tuple(item.request_id for item in before.requests)
-            or not removed or len(removed) > remaining
-            or not after.help_success_message
-            or type(after.help_all_success_count) is not int
-            or after.help_all_success_count != len(removed)
-            or coin_delta is None):
-        return 0
-    if len(removed) != before.pending_count - after.pending_count + len(set(after_by_id) - set(before_by_id)):
-        return 0
-    return len(removed)
-
-
-def _positive_coin_delta(before: HelpObservation, after: HelpObservation) -> int | None:
-    old, new = before.daily_alliance_coin_balance, after.daily_alliance_coin_balance
-    old_limit, new_limit = before.daily_alliance_coin_limit, after.daily_alliance_coin_limit
-    if (type(old) is not int or type(new) is not int or type(old_limit) is not int
-            or type(new_limit) is not int or old_limit != new_limit
-            or not 0 <= old <= old_limit or not 0 <= new <= new_limit or new <= old):
-        return None
-    return new - old
+        if (selected is None or selected not in before_ids
+                or selected in {item.request_id for item in after.requests}):
+            return None
+        return HelpResult(HelpAction.INDIVIDUAL, 1)
+    if plan.action is HelpAction.HELP_ALL:
+        count = after.help_all_success_count
+        if (not before_ids or plan.target_identity != HELP_ALL_TARGET_IDENTITY
+                or plan.target_roi != before.help_all_roi
+                or (count is not None and (type(count) is not int or count < 1))):
+            return None
+        return HelpResult(HelpAction.HELP_ALL, count)
+    return None
 
 
 def alliance_help_action_key(
     *, runtime_scope: str, account_id: str, server_id: str, reset_id: str, ordinal: int,
 ) -> str:
-    """Canonical, reset-scoped request-occurrence key persisted in SafetyStore."""
+    """Canonical, reset-scoped Help operation key persisted in SafetyStore.
+
+    ``ordinal`` is the contiguous per-reset operation ordinal shared by individual
+    requests and Help All batches. The key never depends on a readable count.
+    """
     identity = {
         "account_id": account_id,
         "flow_id": "ALLIANCE-HELP-TEN-FREE-REQUESTS",
@@ -200,42 +184,12 @@ def alliance_help_action_key(
     }
     for name, value in identity.items():
         if name == "ordinal":
-            if type(value) is not int or not 1 <= value <= DAILY_REQUEST_LIMIT:
-                raise ValueError("ordinal must name a request in the fixed ten-request quota")
+            if type(value) is not int or value < 1:
+                raise ValueError("ordinal must name a positive per-reset Help operation")
         elif type(value) is not str or not value or value != value.strip() or any(c.isspace() for c in value):
             raise ValueError(f"{name} must be non-empty normalized identity")
     encoded = json.dumps(identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return f"alliance-help:daily:{hashlib.sha256(encoded).hexdigest()}:{ordinal:02d}"
-
-
-def confirmed_request_count(actions: Mapping[int, Mapping[str, object]], *, maximum: int = DAILY_REQUEST_LIMIT) -> int:
-    """Validate an ordinal prefix of canonical action records and return its durable count."""
-    if type(maximum) is not int or maximum != DAILY_REQUEST_LIMIT:
-        raise ValueError("Alliance Help occurrence limit is fixed at ten")
-    count = 0
-    unresolved_seen = False
-    for ordinal in range(1, DAILY_REQUEST_LIMIT + 1):
-        action = actions.get(ordinal)
-        if action is None:
-            if any(key > ordinal for key in actions):
-                raise ValueError("Alliance Help canonical request ordinals are not contiguous")
-            break
-        status = action.get("final_status")
-        quantity = action.get("quantity")
-        if action.get("game_day_id") is None or type(quantity) is not int or quantity != 1:
-            raise ValueError("Alliance Help canonical action record has invalid reset or quantity")
-        if status == "confirmed" and not unresolved_seen:
-            count += 1
-            continue
-        unresolved_seen = True
-        if status not in {"prepared", "input_sent", "unresolved"}:
-            raise ValueError("Alliance Help has non-confirmed action in its occurrence prefix")
-        if any(key > ordinal for key in actions):
-            raise ValueError("Alliance Help cannot continue after an unknown request result")
-        break
-    if not 0 <= count <= DAILY_REQUEST_LIMIT:
-        raise ValueError("Alliance Help durable count is outside its bound")
-    return count
 
 
 def _valid_roi(value: object) -> bool:

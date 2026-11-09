@@ -32,7 +32,6 @@ class RuinsContinuationTests(unittest.TestCase):
         return make_claim_record(
             identity=identity,
             action_key=f"ruins:chest:{identity}:game-day-2026-07-16",
-            medal_delta=100,
             post_frame_path=frame,
             post_frame_sha256=hashlib.sha256(frame.read_bytes()).hexdigest(),
             reset_identity="game-day-2026-07-16",
@@ -64,6 +63,15 @@ class RuinsContinuationTests(unittest.TestCase):
             self.assertEqual(loaded["runtime_profile_id"], RUNTIME_PROFILE_ID)
             self.assertEqual(loaded["package_id"], PACKAGE_ID)
             self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["claims"][0]["status"], "confirmed")
+            self.assertNotIn("medal_delta", loaded["claims"][0])
+            # Earlier exports retain genuine reward observations, but those
+            # numbers are not required to export a new positive Claim successor.
+            claim["medal_delta"] = 100
+            old = build_continuation(
+                reset_identity="game-day-2026-07-16", current_day="Thu",
+                claims=[claim], evidence_root=root,
+            )
+            self.assertEqual(old["claims"][0]["medal_delta"], 100)
 
     def test_history_digest_and_identity_mismatch_fail_closed(self):
         with TemporaryDirectory() as directory:

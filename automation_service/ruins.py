@@ -19,6 +19,7 @@ from safe_action_core import (
     SafeActionExecutor,
     TransportResult,
 )
+from safe_action_core.store import is_no_effect_cancelled
 from tasks.ruins_challenge import (
     KNOWN_CHALLENGE_IDENTITIES,
     RUINS_CHALLENGE_DISPATCH_ACTION,
@@ -156,6 +157,52 @@ class RuinsCanonicalActionBoundary:
             return None
         return action_key, semantic_action, game_day_id
 
+    @property
+    def unresolved_action(self) -> bool:
+        return self.store.has_action_block()
+
+    def reset_progress(self, legacy_action_key: str) -> Mapping[str, Any]:
+        """Read durable reset participation/loss without changing any old action key.
+
+        New results are audited before their action is confirmed. Old confirmed
+        one-attempt records without a proven win remain a conservative reset stop.
+        """
+
+        progress = {"stages_confirmed": 0, "stages_won": 0, "finished": False,
+                    "unresolved": self.store.has_action_block()}
+        for action in self.store.list_actions_for_task(PRODUCT_ID):
+            if (
+                action.get("game_day_id") != self.identity.reset_id
+                or action.get("semantic_action") != RUINS_CHALLENGE_DISPATCH_ACTION
+                or action.get("final_status") != ActionStatus.CONFIRMED.value
+            ):
+                continue
+            outcome = None
+            if action["action_key"] == legacy_action_key:
+                legacy_proof = json.loads(action.get("reconciliation_result_json") or "{}")
+                outcome = legacy_proof.get("result")
+            for event in self.store.audit_events(action["action_id"]):
+                if event["event_type"] != "ruins_stage_result":
+                    continue
+                payload = json.loads(event["payload_json"])
+                if (
+                    payload.get("account_id") == self.identity.account_id
+                    and payload.get("server_id") == self.identity.server_id
+                    and payload.get("runtime_scope") == self.runtime_identity.runtime_scope
+                    and payload.get("reset_id") == self.identity.reset_id
+                ):
+                    proof = json.loads(action.get("reconciliation_result_json") or "{}")
+                    if payload.get("frame_sha256") == proof.get("frame_sha256"):
+                        outcome = payload.get("result")
+            if outcome not in {"success", "failure"} and action["action_key"] != legacy_action_key:
+                continue
+            progress["stages_confirmed"] += 1
+            if outcome == "success":
+                progress["stages_won"] += 1
+            else:
+                progress["finished"] = True
+        return progress
+
     def status(self, spec: Mapping[str, Any]) -> Mapping[str, Any]:
         fields = self._status_spec(spec)
         if fields is None:
@@ -189,6 +236,8 @@ class RuinsCanonicalActionBoundary:
                     return {"status": "blocked", "reason": "ruins_existing_action_cost_conflict"}
             elif actual != expected_value:
                 return {"status": "blocked", "reason": f"ruins_existing_action_{field}_conflict"}
+        if is_no_effect_cancelled(existing):
+            return {"status": "new"}
         final_status = existing.get("final_status")
         if final_status == ActionStatus.CONFIRMED.value:
             proof = existing.get("reconciliation_result_json")
@@ -221,6 +270,12 @@ class RuinsCanonicalActionBoundary:
         prior = self.status(spec)
         if prior.get("status") != "new":
             return {**prior, "transport_calls": 0}
+        existing = self.store.get_action_by_key(action_key)
+        if existing is not None and is_no_effect_cancelled(existing):
+            self.validate_identity()
+            self.store.supersede_no_effect_cancelled_action(
+                existing["action_id"], self.utc_clock(), "superseded_ruins_never_sent_plan",
+            )
         self.validate_identity()
         immediate_capture = capture(f"ruins-{spec['category']}-policy-immediate-before")
         immediate = observe(immediate_capture)
@@ -345,12 +400,27 @@ class RuinsCanonicalActionBoundary:
                 )
 
         def successor_verified(_intent, observed):
-            return bool(
+            positive = bool(
                 post_captures
                 and observed.frame_sha256 == post_captures[-1].sha256
                 and observed.capture_completed_monotonic == post_captures[-1].captured_monotonic
                 and post_states[str(post_captures[-1].path)]
             )
+            if positive and category == "challenge":
+                result = spec.get("result")
+                if result not in {"success", "failure"}:
+                    return False
+                # Written before SafeActionExecutor confirms the stage. A crash
+                # before confirmation leaves its real action unresolved, not retryable.
+                self.store.audit(PRODUCT_ID, "ruins_stage_result", self.utc_clock(), {
+                    "account_id": self.identity.account_id,
+                    "server_id": self.identity.server_id,
+                    "runtime_scope": self.runtime_identity.runtime_scope,
+                    "reset_id": self.identity.reset_id,
+                    "result": result,
+                    "frame_sha256": observed.frame_sha256,
+                }, action_id)
+            return positive
 
         # Keep the original proposal as SafeActionExecutor's base so its
         # immediate recapture is fresh while matching the capability bound above.
@@ -370,12 +440,12 @@ class RuinsCanonicalActionBoundary:
         except Exception as exc:
             calls = self.transport_calls_by_category["challenge"] + self.transport_calls_by_category["chest"]
             exc.partial_result = {
-                "status": "unresolved" if calls else "blocked",
+                "status": "unresolved" if self.store.has_action_block() else "blocked",
                 "reason": f"canonical_action_executor_failed:{type(exc).__name__}",
                 "ruins_dispatch_count": calls,
                 "challenge_transport_calls": self.transport_calls_by_category["challenge"],
                 "chest_claim_transport_calls": self.transport_calls_by_category["chest"],
-                "unresolved_action": calls > 0,
+                "unresolved_action": self.store.has_action_block(),
             }
             raise
         journal = self.store.get_action_by_key(action_key)
@@ -530,8 +600,9 @@ class RuinsRunner:
         native_result = dict(outcome.native_result)
         partial = dict(outcome.partial_result or native_result)
         if not outcome.execution_verified:
+            unresolved = partial.get("unresolved_action", bool(outcome.input_count)) is True
             partial.update(
-                status="unresolved" if outcome.input_count else "blocked",
+                status="unresolved" if unresolved else "blocked",
                 reason=outcome.failure or "native_route_accounting_unverified",
                 flow_id=RUINS_FLOW_ID,
                 product_id=PRODUCT_ID,
@@ -542,7 +613,7 @@ class RuinsRunner:
                 runtime_input_count=outcome.runtime_input_count,
                 accounting_verified=outcome.accounting_verified,
                 terminal_home_verified=False,
-                effect_reconciliation_required=bool(outcome.input_count),
+                effect_reconciliation_required=unresolved,
             )
             partial.setdefault("challenge_transport_calls", 0)
             partial.setdefault("chest_claim_transport_calls", 0)
@@ -550,7 +621,7 @@ class RuinsRunner:
                 "ruins_dispatch_count",
                 partial["challenge_transport_calls"] + partial["chest_claim_transport_calls"],
             )
-            partial.setdefault("unresolved_action", bool(outcome.input_count))
+            partial.setdefault("unresolved_action", unresolved)
             raise RuinsNativePartialResultError(str(partial["reason"]), partial_result=partial)
         validate_identity()
         result = self._normalize_native_result(
@@ -581,7 +652,7 @@ class RuinsRunner:
         chest_calls = native.get("chest_claim_transport_calls")
         total = native.get("ruins_dispatch_count")
         if (
-            type(challenge_calls) is not int or challenge_calls not in (0, 1)
+            type(challenge_calls) is not int or not 0 <= challenge_calls <= MAX_ACTIONS
             or type(chest_calls) is not int or not 0 <= chest_calls <= MAX_CHEST_CATEGORIES
             or type(total) is not int or total != challenge_calls + chest_calls
             or total > MAX_ACTIONS
@@ -590,21 +661,10 @@ class RuinsRunner:
                 "Ruins consequential dispatch accounting is inconsistent",
                 partial_result={**dict(native), "status": "unresolved", "input_count": outcome.input_count},
             )
-        coverage = native.get("chest_coverage")
-        allowed_coverage = {
-            "newly claimed",
-            "already claimed",
-            "locked",
-            "unavailable/no reward",
-            "unresolved",
-        }
-        if (
-            not isinstance(coverage, Mapping)
-            or set(coverage) != set(KNOWN_CHALLENGE_IDENTITIES)
-            or any(status not in allowed_coverage for status in coverage.values())
-        ):
+        chest_status = native.get("chest_status")
+        if chest_status not in {"complete", "partial", "unresolved"}:
             raise RuinsNativePartialResultError(
-                "Ruins chest coverage does not exactly cover the canonical categories",
+                "Ruins chest visit status is invalid",
                 partial_result={**dict(native), "status": "unresolved", "input_count": outcome.input_count},
             )
         if any(
@@ -648,18 +708,29 @@ class RuinsRunner:
             )
         challenge_participation = native.get("challenge_participation_confirmed")
         challenge_status = native.get("challenge_status")
+        stages = native.get("challenge_stages")
         if (
             type(challenge_participation) is not bool
-            or challenge_status not in {"confirmed", "unavailable", "unknown", "unresolved"}
+            or challenge_status not in {"finished", "unavailable", "paused", "unknown", "unresolved"}
             or native.get("daily_action_ready") is not challenge_participation
-            or (
-                challenge_calls == 1
-                and challenge_participation
-                and native.get("challenge_result") not in {"success", "failure"}
+            or not isinstance(stages, list)
+            or len(stages) > challenge_calls
+            or any(
+                not isinstance(stage, Mapping)
+                or stage.get("identity") not in KNOWN_CHALLENGE_IDENTITIES
+                or type(stage.get("stage_cleared")) is not int
+                or type(stage.get("stage_maximum")) is not int
+                or not 0 <= stage["stage_cleared"] < stage["stage_maximum"]
+                or stage.get("result") not in {"success", "failure"}
+                for stage in stages
             )
+            or len({(stage["identity"], stage["stage_cleared"], stage["stage_maximum"]) for stage in stages}) != len(stages)
+            or any(stage["result"] == "failure" for stage in stages[:-1])
+            or (stages and not challenge_participation)
+            or (challenge_status == "finished" and not challenge_participation)
             or (
                 native.get("status") == "completed"
-                and challenge_status not in {"confirmed", "unavailable"}
+                and (challenge_status not in {"finished", "unavailable"} or len(stages) != challenge_calls)
             )
         ):
             raise RuinsNativePartialResultError(
@@ -667,29 +738,22 @@ class RuinsRunner:
                 partial_result={**dict(native), "status": "unresolved", "input_count": outcome.input_count},
             )
         claims = native.get("newly_claimed_chests")
-        resource_delta = native.get("resource_delta")
         if (
             not isinstance(claims, list)
-            or type(resource_delta) is not int
-            or resource_delta < 0
             or any(
                 not isinstance(claim, Mapping)
                 or claim.get("identity") not in KNOWN_CHALLENGE_IDENTITIES
-                or type(claim.get("ruins_medals")) is not int
-                or claim["ruins_medals"] <= 0
-                or coverage.get(claim.get("identity")) != "newly claimed"
                 for claim in claims
             )
             or len({claim["identity"] for claim in claims}) != len(claims)
-            or sum(claim["ruins_medals"] for claim in claims) != resource_delta
-            or (native.get("status") == "completed" and chest_calls != len(claims))
+            or len(claims) > chest_calls
             or (
                 native.get("status") == "completed"
-                and any(value == "unresolved" for value in coverage.values())
+                and (chest_calls != len(claims) or chest_status != "complete")
             )
         ):
             raise RuinsNativePartialResultError(
-                "Ruins confirmed chest rewards do not match their consequential dispatches",
+                "Ruins confirmed chests do not match their consequential dispatches",
                 partial_result={**dict(native), "status": "unresolved", "input_count": outcome.input_count},
             )
         result = dict(native)
@@ -764,25 +828,11 @@ def ruins_next_due(result: Mapping[str, Any], identity: SchedulerIdentity, start
     if reset_date != datetime.fromtimestamp(completed, timezone.utc).date():
         raise ValueError("Ruins scheduler reset does not match the completion UTC day")
     next_reset = datetime.combine(reset_date + timedelta(days=1), datetime_time.min, timezone.utc).timestamp()
-    coverage = result.get("chest_coverage")
-    coverage_complete = isinstance(coverage, Mapping) and set(coverage) == set(KNOWN_CHALLENGE_IDENTITIES) and all(
-        status in {"newly claimed", "already claimed", "locked", "unavailable/no reward"}
-        for status in coverage.values()
-    )
-    challenge_status = result.get("challenge_status")
-    challenge_calls = result.get("challenge_transport_calls")
-    challenge_reconciled = (
-        result.get("challenge_participation_confirmed") is True
-        and challenge_status == "confirmed"
-    ) or (
-        result.get("challenge_participation_confirmed") is False
-        and challenge_status == "unavailable"
-        and challenge_calls == 0
-    )
+    challenge_reconciled = result.get("challenge_status") in {"finished", "unavailable"}
     fully_reconciled = (
         result.get("status") == "completed"
         and challenge_reconciled
-        and coverage_complete
+        and result.get("chest_status") == "complete"
         and not result.get("effect_reconciliation_required")
         and not result.get("identical_retry_denied")
     )

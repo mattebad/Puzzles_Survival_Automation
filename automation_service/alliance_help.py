@@ -12,7 +12,7 @@ from typing import Any, Mapping
 
 from safe_action_core.path_safety import require_no_untrusted_symlinks
 from tasks.alliance_help import (
-    CONSEQUENCE, DAILY_REQUEST_LIMIT, INDIVIDUAL_TARGET_IDENTITY,
+    CONSEQUENCE, DAILY_REQUEST_LIMIT, HELP_ALL_TARGET_IDENTITY, INDIVIDUAL_TARGET_IDENTITY,
     POSTCONDITION, SEMANTIC_ACTION, SOURCE_STATE, alliance_help_action_key,
 )
 from tasks.runtime_identity import (
@@ -227,35 +227,42 @@ def _canonical_confirmations(result: Mapping[str, Any], identity: SchedulerIdent
                              backend: Mapping[str, Any]) -> tuple[int, list[Mapping[str, Any]]]:
     count = result.get("confirmed_request_count")
     records = result.get("confirmed_request_records")
-    if type(count) is not int or not 0 <= count <= DAILY_REQUEST_LIMIT or not isinstance(records, list):
-        raise ValueError("Alliance Help durable confirmed request prefix is malformed")
-    if len(records) != count:
-        raise ValueError("Alliance Help confirmed count differs from canonical request records")
-    runtime_scope = backend.get("runtime_scope")
-    backend_reset = backend.get("reset_id")
+    if type(count) is not int or count < 0 or not isinstance(records, list):
+        raise ValueError("Alliance Help durable confirmed request progress is malformed")
     accepted: list[Mapping[str, Any]] = []
+    proven = 0
     for ordinal, record in enumerate(records, 1):
         if not isinstance(record, Mapping):
-            raise ValueError("Alliance Help canonical request record is malformed")
-        key = alliance_help_action_key(runtime_scope=str(runtime_scope), account_id=identity.account_id,
-            server_id=identity.server_id, reset_id=str(backend_reset), ordinal=ordinal)
+            raise ValueError("Alliance Help canonical operation record is malformed")
+        key = alliance_help_action_key(runtime_scope=str(backend.get("runtime_scope")),
+            account_id=identity.account_id, server_id=identity.server_id,
+            reset_id=str(backend.get("reset_id")), ordinal=ordinal)
+        target = record.get("target_identity")
         expected = {
-            "request_ordinal": ordinal, "action_key": key, "task_id": FLOW_ID,
+            "operation_ordinal": ordinal, "action_key": key, "task_id": FLOW_ID,
             "semantic_action": SEMANTIC_ACTION, "source_state": SOURCE_STATE,
-            "target_identity": INDIVIDUAL_TARGET_IDENTITY, "game_day_id": backend_reset,
-            "expected_postcondition": POSTCONDITION, "consequence": CONSEQUENCE,
-            "cost_type": "none", "cost_amount": 0, "quantity": 1,
-            "consequential": 1, "final_status": "confirmed",
+            "game_day_id": backend.get("reset_id"), "expected_postcondition": POSTCONDITION,
+            "consequence": CONSEQUENCE, "cost_type": "none", "cost_amount": 0,
+            "quantity": 1, "consequential": 1, "final_status": "confirmed",
         }
-        if any(record.get(field) != value for field, value in expected.items()):
-            raise ValueError("Alliance Help canonical request identity or result differs")
+        if (target not in {INDIVIDUAL_TARGET_IDENTITY, HELP_ALL_TARGET_IDENTITY}
+                or any(record.get(field) != value for field, value in expected.items())):
+            raise ValueError("Alliance Help canonical operation identity or result differs")
         if type(record.get("action_id")) is not str or not record["action_id"].strip():
-            raise ValueError("Alliance Help canonical request action id is missing")
+            raise ValueError("Alliance Help canonical action id is missing")
+        quantity = 1 if target == INDIVIDUAL_TARGET_IDENTITY else record.get("proven_request_count")
+        if quantity is not None and (type(quantity) is not int or quantity < 1):
+            raise ValueError("Alliance Help proven batch count is malformed")
+        if target == INDIVIDUAL_TARGET_IDENTITY and record.get("proven_request_count", 1) != 1:
+            raise ValueError("Alliance Help individual operation must prove one request")
+        proven += quantity or 0
         accepted.append(record)
+    if proven != count:
+        raise ValueError("Alliance Help proven count differs from canonical operation records")
     return count, accepted
 
 
-def _validate_successful_dispatches(result: Mapping[str, Any], count: int) -> int:
+def _validate_successful_dispatches(result: Mapping[str, Any]) -> int:
     calls = result.get("help_transport_calls")
     actions = result.get("request_actions", [])
     dispatches = result.get("help_dispatch_evidence", [])
@@ -265,65 +272,64 @@ def _validate_successful_dispatches(result: Mapping[str, Any], count: int) -> in
         raise ValueError("Alliance Help transport evidence is incomplete")
     confirmed = [action for action in actions if isinstance(action, Mapping)
                  and action.get("status") == "confirmed"]
-    if len(confirmed) != calls or count < len(confirmed):
-        raise ValueError("Alliance Help transport evidence differs from confirmed successor count")
+    if len(confirmed) != calls:
+        raise ValueError("Alliance Help transport evidence differs from confirmed operation count")
     by_key = {record.get("action_key"): record for record in result["confirmed_request_records"]}
     dispatch_by_key: dict[str, Mapping[str, Any]] = {}
     for dispatch in dispatches:
         if not isinstance(dispatch, Mapping):
             raise ValueError("Alliance Help dispatch evidence is malformed")
         key, digest = dispatch.get("action_key"), dispatch.get("immediate_before_sha256")
-        if (dispatch.get("target_identity") != INDIVIDUAL_TARGET_IDENTITY
+        if (dispatch.get("target_identity") not in {INDIVIDUAL_TARGET_IDENTITY, HELP_ALL_TARGET_IDENTITY}
                 or type(key) is not str or key in dispatch_by_key
                 or type(digest) is not str or _SHA256_RE.fullmatch(digest) is None):
             raise ValueError("Alliance Help dispatch target or identity is invalid")
         dispatch_by_key[key] = dispatch
+    help_all_calls = 0
     for action in confirmed:
-        ordinal, key = action.get("request_ordinal"), action.get("action_key")
-        if type(ordinal) is not int or not 1 <= ordinal <= count or by_key.get(key) is None:
-            raise ValueError("Alliance Help transported action is not in the canonical confirmed prefix")
+        ordinal, key = action.get("operation_ordinal"), action.get("action_key")
+        record = by_key.get(key)
+        if (type(ordinal) is not int or record is None
+                or ordinal != record.get("operation_ordinal")):
+            raise ValueError("Alliance Help transported action is not in its canonical operation prefix")
+        target = record["target_identity"]
+        help_all = target == HELP_ALL_TARGET_IDENTITY
+        help_all_calls += int(help_all)
+        proven = record.get("proven_request_count") if help_all else 1
         if (action.get("journal_status") != "confirmed"
-                or action.get("verified_request_count") != 1
+                or action.get("verified_request_count") != (proven or 0)
+                or (help_all and action.get("proven_request_count") != proven)
                 or action.get("help_transport_calls") != 1
-                or action.get("effect_reconciliation_required") is not False
-                or _SHA256_RE.fullmatch(str(action.get("selected_request_sha256", ""))) is None):
-            raise ValueError("Alliance Help request action did not confirm one exact free request")
-        immediate_sha = action.get("immediate_before_sha256")
+                or action.get("effect_reconciliation_required") is not False):
+            raise ValueError("Alliance Help action did not confirm its exact free operation")
+        if not help_all and _SHA256_RE.fullmatch(str(action.get("selected_request_sha256", ""))) is None:
+            raise ValueError("Alliance Help selected individual request identity is missing")
         dispatch = dispatch_by_key.get(key)
-        if (not isinstance(dispatch, Mapping) or dispatch.get("immediate_before_sha256") != immediate_sha
+        if (not isinstance(dispatch, Mapping) or dispatch.get("target_identity") != target
+                or dispatch.get("immediate_before_sha256") != action.get("immediate_before_sha256")
                 or not isinstance(action.get("immediate_before_frame"), Mapping)):
             raise ValueError("Alliance Help transport is not bound to its immediate-before frame")
-        before_balance = action.get("immediate_daily_alliance_coin_balance")
-        before_limit = action.get("immediate_daily_alliance_coin_limit")
         evidence = action.get("request_result_evidence")
-        if (type(before_balance) is not int or type(before_limit) is not int
-                or not isinstance(evidence, list) or len(evidence) < 2):
-            raise ValueError("Alliance Help request result lacks a bound coin counter or stable frames")
-        def absent_on_help(frame: Mapping[str, Any]) -> bool:
-            return (frame.get("selected_request_absent") is True
-                    and frame.get("screen_state") == SOURCE_STATE
-                    and frame.get("source_fresh") is True
-                    and frame.get("overlay_clear") is True)
+        if (not isinstance(evidence, list) or len(evidence) < 2
+                or any(not isinstance(frame, Mapping) for frame in evidence)):
+            raise ValueError("Alliance Help request result lacks bound successor frames")
 
-        # The native boundary retains pending captures before the positive
-        # transition. Only a positive frame followed by the final stable
-        # successor establishes success; earlier evidence must remain intact.
-        if any(not isinstance(frame, Mapping) for frame in evidence):
-            raise ValueError("Alliance Help request result evidence is malformed")
-        stable = evidence[-1]
-        if not absent_on_help(stable):
-            raise ValueError("Alliance Help selected request disappearance is ambiguous")
-        positive = [frame for frame in evidence[:-1] if absent_on_help(frame)
+        def current_help(frame: Mapping[str, Any]) -> bool:
+            return (frame.get("screen_state") == SOURCE_STATE
+                    and frame.get("source_fresh") is True and frame.get("overlay_clear") is True
+                    and (help_all or frame.get("selected_request_absent") is True))
+
+        if not current_help(evidence[-1]):
+            raise ValueError("Alliance Help settled successor is ambiguous")
+        positive = [frame for frame in evidence[:-1] if current_help(frame)
                     and frame.get("success_message") is True
-                    and type(frame.get("daily_alliance_coin_balance")) is int
-                    and 0 <= before_balance < frame["daily_alliance_coin_balance"] <= before_limit
-                    and frame.get("daily_alliance_coin_limit") == before_limit
-                    and stable.get("daily_alliance_coin_balance") == frame["daily_alliance_coin_balance"]
-                    and stable.get("daily_alliance_coin_limit") == before_limit]
+                    and (not help_all or frame.get("help_all_success_count") == proven)]
         if not positive:
-            raise ValueError("Alliance Help request lacks its exact success toast and stable positive same-cap coin delta")
+            raise ValueError("Alliance Help action lacks its attributable success toast/count")
+    if help_all_calls > 1:
+        raise ValueError("Alliance Help allows only one Help All batch per bounded visit")
     if set(dispatch_by_key) != {action.get("action_key") for action in confirmed}:
-        raise ValueError("Alliance Help includes a dispatch without one confirmed request result")
+        raise ValueError("Alliance Help includes a dispatch without one confirmed operation")
     return calls
 
 
@@ -350,7 +356,7 @@ def _validate_no_work(result: Mapping[str, Any]) -> None:
 
 def alliance_help_next_due(result: Mapping[str, Any], identity: SchedulerIdentity,
                            started_at: float) -> float:
-    """Admit exact ten-request completion or a normal, Home-closed availability pulse."""
+    """Admit a proven ten-request goal or a Home-closed partial/batch observation pulse."""
     started = _epoch(started_at, "start time")
     completed = _epoch(result.get("completed_at_utc"), "completion time")
     if not isinstance(identity, SchedulerIdentity) or identity.task_id != PRODUCT_ID:
@@ -378,25 +384,33 @@ def alliance_help_next_due(result: Mapping[str, Any], identity: SchedulerIdentit
     backend = _backend_proof(result, identity, completed)
     if result.get("backend_reset_id") != backend.get("reset_id"):
         raise ValueError("Alliance Help backend reset identity was not preserved separately")
-    count, _records = _canonical_confirmations(result, identity, backend)
-    calls = _validate_successful_dispatches(result, count)
-    if result.get("committed_action_count") != count or result.get("verified_request_count") != count:
-        raise ValueError("Alliance Help committed request count is not the durable confirmed prefix")
+    count, records = _canonical_confirmations(result, identity, backend)
+    calls = _validate_successful_dispatches(result)
+    if result.get("committed_action_count") != len(records) or result.get("verified_request_count") != count:
+        raise ValueError("Alliance Help committed operation/proven request counts differ from durable records")
     if result.get("status") == "complete_for_reset":
-        if count != DAILY_REQUEST_LIMIT:
-            raise ValueError("Alliance Help reset completion requires ten confirmed requests")
+        if count < DAILY_REQUEST_LIMIT:
+            raise ValueError("Alliance Help reset completion requires at least ten proven requests")
         reset_due = datetime.fromisoformat(str(backend["reset_deadline_utc"]).replace("Z", "+00:00"))
         return max(completed, reset_due.timestamp())
-    if result.get("status") != "deferred" or count >= DAILY_REQUEST_LIMIT or calls > count:
+    if result.get("status") != "deferred" or count >= DAILY_REQUEST_LIMIT:
         raise ValueError("Alliance Help outcome is not a resumable partial/no-work result")
-    _validate_no_work(result)
+    if result.get("reason") == "help_all_batch_confirmed_reobserve":
+        actions = result.get("request_actions", [])
+        if (calls < 1 or not actions or actions[-1].get("status") != "confirmed"
+                or actions[-1].get("help_variant") != "help_all"
+                or not any(record.get("action_key") == actions[-1].get("action_key")
+                    and record.get("target_identity") == HELP_ALL_TARGET_IDENTITY for record in records)):
+            raise ValueError("Alliance Help batch deferral lacks its confirmed free Help All operation")
+    else:
+        _validate_no_work(result)
     return min(completed + OBSERVATION_RETRY_SECONDS,
                datetime.fromisoformat(str(backend["reset_deadline_utc"]).replace("Z", "+00:00")).timestamp())
 
 
 def normalize_alliance_help_result(result: Mapping[str, Any], identity: SchedulerIdentity,
                                    started_at: float) -> NormalizedResult:
-    """Translate only verified completion or an exact partial availability observation."""
+    """Translate verified request progress separately from confirmed Help All operations."""
     status = result.get("status")
     calls = result.get("help_transport_calls", 0)
     unresolved = bool(result.get("effect_reconciliation_required") or calls or result.get("native_failure"))
@@ -405,6 +419,9 @@ def normalize_alliance_help_result(result: Mapping[str, Any], identity: Schedule
         count = result["confirmed_request_count"]
         actions = result.get("request_actions", [])
         performed = sum(isinstance(item, Mapping) and item.get("status") == "confirmed" for item in actions)
+        unproven_batches = sum(record.get("target_identity") == HELP_ALL_TARGET_IDENTITY
+            and record.get("proven_request_count") is None
+            for record in result["confirmed_request_records"])
         refs = []
         terminal = result.get("terminal_home_frame")
         if isinstance(terminal, Mapping):
@@ -414,11 +431,17 @@ def normalize_alliance_help_result(result: Mapping[str, Any], identity: Schedule
             refs.append(f"frame:{no_work.get('frame_sha256')}")
         outcome = NormalizedOutcome.COMPLETE_FOR_RESET if status == "complete_for_reset" else NormalizedOutcome.DEFERRED
         return NormalizedResult(outcome, "ALLIANCE_HELP_TEN_CONFIRMED" if status == "complete_for_reset"
-            else "ALLIANCE_HELP_AVAILABILITY_DEFERRED", action_count=performed, verified=True,
+            else "ALLIANCE_HELP_BATCH_COUNT_UNPROVEN" if result.get("reason") == "help_all_batch_confirmed_reobserve"
+                and unproven_batches else "ALLIANCE_HELP_AVAILABILITY_DEFERRED",
+            action_count=performed, verified=True,
             next_eligible_at=due, observed_progress={"confirmed_request_count": count,
-                "remaining_request_target": DAILY_REQUEST_LIMIT - count},
-            consequence={"committed_action_count": count, "help_transport_calls": calls,
-                "remaining_request_target": DAILY_REQUEST_LIMIT - count}, evidence_refs=tuple(refs))
+                "remaining_request_target": max(0, DAILY_REQUEST_LIMIT - count),
+                "unproven_help_all_batch_count": unproven_batches,
+                "daily_quantity_proven": unproven_batches == 0},
+            consequence={"committed_action_count": len(result["confirmed_request_records"]),
+                "help_transport_calls": calls, "confirmed_request_count": count,
+                "unproven_help_all_batch_count": unproven_batches,
+                "remaining_request_target": max(0, DAILY_REQUEST_LIMIT - count)}, evidence_refs=tuple(refs))
     if unresolved or status == "reconciliation_required":
         return NormalizedResult(NormalizedOutcome.RECONCILIATION_REQUIRED,
             "ALLIANCE_HELP_EFFECT_REQUIRES_RECONCILIATION", action_count=0, verified=False,

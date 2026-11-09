@@ -15,6 +15,7 @@ from .ruins_challenge import (
     RuinsScreenObservation,
     challenge_action_authorized,
     chest_claim_authorized,
+    challenge_stage,
     chest_claim_postcondition_verified,
     detail_attack_authorized,
     dispatch_authorized,
@@ -46,28 +47,29 @@ class RuinsRuntimeCommand:
 
 
 class RuinsRuntimeController:
-    """One-pulse controller with independent challenge/chest ledgers and duplicate guards."""
+    """One-visit controller: stage-keyed challenges until the first loss, independent chests."""
 
-    def __init__(
-        self,
-        *,
-        reset_identity: str,
-        required_challenges: int = 1,
-        allow_optional_second: bool = False,
-    ) -> None:
+    def __init__(self, *, reset_identity: str) -> None:
         if not reset_identity:
             raise ValueError("Ruins controller requires a reset identity")
         self.reset_identity = reset_identity
-        self.allow_optional_second = allow_optional_second
         self.state = RuinsRuntimeState.HOME
-        self.daily = RuinsDailyState(required_challenges=required_challenges)
+        self.daily = RuinsDailyState()
         self.rows: dict[str, RuinsChallengeRow] = {}
         self.challenge_action_keys: set[str] = set()
-        self.challenge_identities_attempted: set[str] = set()
+        self.challenge_stages_attempted: set[tuple[str, int, int]] = set()
         self.chest_action_keys: set[str] = set()
         self.frame_hashes: set[str] = set()
         self.in_flight_action: str | None = None
         self.unresolved_reason: str | None = None
+        self._transport_sent = False
+
+    def restore_reset_progress(self, *, stages_confirmed: int, stages_won: int, finished: bool) -> None:
+        """Adopt this reset's durable journal progress before any new stage is planned."""
+
+        if stages_confirmed < 0 or not 0 <= stages_won <= stages_confirmed:
+            raise ValueError("Ruins reset progress counts are inconsistent")
+        self.daily = RuinsDailyState(stages_confirmed, stages_won, finished)
 
     def observe_list(self, observation: RuinsScreenObservation) -> None:
         if observation.reset_identity != self.reset_identity:
@@ -92,10 +94,11 @@ class RuinsRuntimeController:
     ) -> RuinsRuntimeCommand:
         if self.in_flight_action is not None:
             return RuinsRuntimeCommand("blocked", row.identity, "prior action unresolved", action_key, True)
-        if self.daily.initiation_complete and not self.allow_optional_second:
-            return RuinsRuntimeCommand("blocked", row.identity, "daily initiation complete", action_key, True)
-        if row.identity in self.challenge_identities_attempted:
-            return RuinsRuntimeCommand("blocked", row.identity, "challenge identity already attempted", action_key, True)
+        if self.daily.challenge_finished:
+            return RuinsRuntimeCommand("blocked", row.identity, "challenge finished for this reset", action_key, True)
+        stage = challenge_stage(row)
+        if stage is not None and (row.identity, *stage) in self.challenge_stages_attempted:
+            return RuinsRuntimeCommand("blocked", row.identity, "challenge stage already attempted", action_key, True)
         if not challenge_action_authorized(
             observation,
             row,
@@ -110,10 +113,33 @@ class RuinsRuntimeController:
             self.state = RuinsRuntimeState.BLOCKED
             return RuinsRuntimeCommand("blocked", row.identity, "challenge authorization failed", action_key, True)
         self.challenge_action_keys.add(action_key)
-        self.challenge_identities_attempted.add(row.identity)
+        self.challenge_stages_attempted.add((row.identity, *stage))
         self.in_flight_action = action_key
         self.state = RuinsRuntimeState.DETAIL
-        return RuinsRuntimeCommand("open_detail", row.identity, "fresh available current-day challenge", action_key)
+        return RuinsRuntimeCommand("open_detail", row.identity, "fresh permitted current-day challenge stage", action_key)
+
+    def release_unsent(self, action_key: str) -> bool:
+        """Drop planning state for an action whose input was never transported.
+
+        The key stays seen for this visit, so the same plan is never re-issued; a
+        transported or uncertain action must never be released here.
+        """
+
+        if (
+            not action_key or self.in_flight_action != action_key
+            or self._transport_sent or self.unresolved_reason is not None
+        ):
+            return False
+        self.in_flight_action = None
+        self.state = RuinsRuntimeState.RUINS_LIST
+        return True
+
+    def mark_input_sent(self, action_key: str) -> None:
+        """Fence planning cleanup immediately before any consequential transport."""
+
+        if self.in_flight_action != action_key:
+            raise ValueError("Ruins input does not match the planned action")
+        self._transport_sent = True
 
     def plan_attack(self, detail: RuinsDetailObservation, *, action_key: str) -> RuinsRuntimeCommand:
         if self.in_flight_action != action_key or not detail_attack_authorized(detail):
@@ -144,11 +170,12 @@ class RuinsRuntimeController:
                "last_dispatch_state": RuinsDispatchState.CONFIRMED,
                "last_postcondition_state": result.result.value},
         )
-        self.daily.challenge_initiations_completed += 1
-        self.daily.ready_to_claim = True
-        self.daily.claim_dormant = True
+        self.daily.stages_confirmed += 1
         if result.result == RuinsResult.SUCCESS:
-            self.daily.successful_challenges_completed += 1
+            self.daily.stages_won += 1
+        else:
+            self.daily.challenge_finished = True
+        self._transport_sent = False
         self.in_flight_action = None
         self.state = RuinsRuntimeState.RUINS_LIST
         return RuinsRuntimeCommand("reconciled", before.identity, result.result.value, "", terminal=False)
@@ -167,8 +194,10 @@ class RuinsRuntimeController:
     def reconcile_chest(self, before: RuinsChallengeRow, after: RuinsChallengeRow, *, action_key: str) -> RuinsRuntimeCommand:
         if self.in_flight_action != action_key or not chest_claim_postcondition_verified(before, after):
             self.state = RuinsRuntimeState.BLOCKED
+            self.unresolved_reason = "chest postcondition unresolved"
             return RuinsRuntimeCommand("blocked", before.identity, "chest postcondition unresolved", action_key, True)
         self.rows[before.identity] = after
+        self._transport_sent = False
         self.in_flight_action = None
         self.state = RuinsRuntimeState.RUINS_LIST
         return RuinsRuntimeCommand("chest_reconciled", before.identity, "claimed exactly once", "")

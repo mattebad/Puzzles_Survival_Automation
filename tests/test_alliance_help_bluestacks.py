@@ -21,137 +21,90 @@ from tasks.alliance_help import (
     DAILY_REQUEST_LIMIT, HELP_ALL_TARGET_IDENTITY,
     INDIVIDUAL_TARGET_IDENTITY, SOURCE_STATE,
     HelpAction, HelpObservation, HelpRequest, alliance_help_action_key,
-    choose_help_action, confirmed_request_count, verified_request_delta,
+    choose_help_action, verified_help_result,
 )
 from tasks.runtime_identity import derive_resource_runtime_identity, resource_fixed_runtime_binding
 
 
 class AllianceHelpSemanticsTests(unittest.TestCase):
-    def _observation(self, *, ids=("a" * 24,), at=1.0, balance=0, limit=50000,
-                     success=False, no_requests=False, complete=False, pending=None,
-                     all_count=None, all_free=True, source_fresh=True, overlay=True,
-                     cost=False):
+    def _observation(self, *, ids=("a" * 24,), at=1.0, success=False,
+                     no_requests=False, all_count=None, help_all=True, source_fresh=True,
+                     overlay=True, cost=False):
         requests = tuple(HelpRequest(item, (550, 260 + index * 80, 680, 310 + index * 80), True, True)
                          for index, item in enumerate(ids))
         return HelpObservation(
             screen_state=SOURCE_STATE, captured_at=at,
-            frame_sha256=hashlib.sha256(f"frame:{at}:{balance}:{ids}".encode()).hexdigest(),
+            frame_sha256=hashlib.sha256(f"frame:{at}:{ids}".encode()).hexdigest(),
             overlay_clear=overlay, source_fresh=source_fresh, requests=requests,
-            help_all_roi=(277, 1188, 523, 1268), help_all_free=all_free,
-            exact_no_requests_message=no_requests, pending_count=pending,
-            request_list_complete=complete, cost_marker_seen=cost,
-            daily_alliance_coin_balance=balance, daily_alliance_coin_limit=limit,
+            help_all_roi=(277, 1188, 523, 1268) if help_all else None, help_all_free=help_all,
+            exact_no_requests_message=no_requests, cost_marker_seen=cost,
             help_success_message=success, help_all_success_count=all_count,
         )
 
-    def test_quota_and_exact_free_individual_selection(self):
-        observation = self._observation(ids=("a" * 24, "b" * 24))
+    def test_quota_and_individual_fallback_selection(self):
+        observation = self._observation(ids=("a" * 24, "b" * 24), help_all=False)
         plan = choose_help_action(observation, DAILY_REQUEST_LIMIT)
         self.assertEqual(plan.action, HelpAction.INDIVIDUAL)
         self.assertEqual(plan.target_identity, INDIVIDUAL_TARGET_IDENTITY)
         self.assertEqual(plan.request_ids, ("a" * 24,))
-        self.assertEqual(plan.reason, "one_current_free_request_bounded_to_one")
         self.assertEqual(choose_help_action(observation, 0).action, HelpAction.STOP_QUOTA)
         self.assertEqual(choose_help_action(observation, DAILY_REQUEST_LIMIT + 1).action, HelpAction.UNKNOWN)
 
-    def test_help_all_requires_explicit_complete_bounded_set(self):
-        requests = ("a" * 24, "b" * 24, "c" * 24)
-        incomplete = self._observation(ids=requests, complete=False, pending=3)
-        self.assertEqual(choose_help_action(incomplete, 3, allow_help_all=True).action,
-                         HelpAction.INDIVIDUAL)
-        complete = self._observation(ids=requests, complete=True, pending=3)
-        plan = choose_help_action(complete, 3, allow_help_all=True)
+    def test_help_all_needs_no_coin_or_census_and_may_exceed_remaining_goal(self):
+        observation = self._observation(ids=("a" * 24, "b" * 24, "c" * 24))
+        plan = choose_help_action(observation, 1)
         self.assertEqual(plan.action, HelpAction.HELP_ALL)
         self.assertEqual(plan.target_identity, HELP_ALL_TARGET_IDENTITY)
-        self.assertEqual(plan.request_ids, requests)
-        self.assertEqual(choose_help_action(complete, 2, allow_help_all=True).action,
-                         HelpAction.INDIVIDUAL)
-        self.assertEqual(choose_help_action(complete, 3).action, HelpAction.INDIVIDUAL)
+        self.assertEqual(plan.target_roi, route.HELP_ALL_ROI)
 
-    def test_no_requests_message_wins_over_visible_help_all_and_costs_block(self):
-        no_requests = self._observation(ids=(), no_requests=True, balance=1000)
-        plan = choose_help_action(no_requests, 10, allow_help_all=True)
-        self.assertEqual(plan.action, HelpAction.NO_REQUESTS)
-        self.assertEqual(plan.reason, "exact_no_requests_message")
-        missing = choose_help_action(self._observation(ids=(), balance=1000), 10)
-        self.assertEqual(missing.action, HelpAction.FREE_HELP_DISAPPEARED)
-        paid = choose_help_action(self._observation(cost=True), 10)
-        self.assertEqual(paid.action, HelpAction.UNKNOWN)
-        stale = choose_help_action(self._observation(source_fresh=False), 10)
-        self.assertEqual(stale.action, HelpAction.UNKNOWN)
-        capped = choose_help_action(self._observation(balance=50000), 10)
-        self.assertEqual(capped.action, HelpAction.UNKNOWN)
+    def test_no_requests_never_taps_help_all_and_unsafe_sources_block(self):
+        no_requests = self._observation(ids=(), no_requests=True)
+        self.assertEqual(choose_help_action(no_requests, 10).action, HelpAction.NO_REQUESTS)
+        self.assertEqual(choose_help_action(self._observation(ids=()), 10).action,
+                         HelpAction.FREE_HELP_DISAPPEARED)
+        for observation in (self._observation(cost=True), self._observation(source_fresh=False),
+                            self._observation(overlay=False), self._observation(success=True)):
+            self.assertEqual(choose_help_action(observation, 10).action, HelpAction.UNKNOWN)
 
-    def test_list_disappearance_and_transport_alone_never_confirm(self):
+    def test_rows_disappearing_and_transport_alone_never_prove_our_help(self):
         before = self._observation()
         plan = choose_help_action(before, 10)
-        disappeared = self._observation(ids=(), at=2.0, balance=0)
-        self.assertEqual(verified_request_delta(before, disappeared, plan=plan,
-            remaining=10, transport_calls=1), 0)
-        unchanged = self._observation(at=2.0, balance=0)
-        self.assertEqual(verified_request_delta(before, unchanged, plan=plan,
-            remaining=10, transport_calls=1), 0)
-        positive_without_transport = self._observation(ids=(), at=2.0,
-            balance=1000, success=True)
-        self.assertEqual(verified_request_delta(before, positive_without_transport,
-            plan=plan, remaining=10, transport_calls=0), 0)
+        for after, calls in ((self._observation(ids=(), at=2), 1),
+                             (self._observation(at=2), 1),
+                             (self._observation(ids=(), at=2, success=True), 0)):
+            self.assertIsNone(verified_help_result(before, after, plan=plan, transport_calls=calls))
 
-    def test_one_request_requires_selected_identity_success_toast_and_positive_counter(self):
-        before = self._observation(balance=0)
+    def test_individual_needs_attributable_success_not_coin_delta(self):
+        before = self._observation(help_all=False)
         plan = choose_help_action(before, 10)
-        success = self._observation(ids=(), at=2.0, balance=1000, success=True)
-        self.assertEqual(verified_request_delta(before, success, plan=plan,
-            remaining=10, transport_calls=1), 1)
-        selected_still_visible = self._observation(at=2.0, balance=1000, success=True)
-        self.assertEqual(verified_request_delta(before, selected_still_visible,
-            plan=plan, remaining=10, transport_calls=1), 0)
-        wrong_cap = self._observation(ids=(), at=2.0, balance=1000,
-            limit=60000, success=True)
-        self.assertEqual(verified_request_delta(before, wrong_cap, plan=plan,
-            remaining=10, transport_calls=1), 0)
-        no_toast = self._observation(ids=(), at=2.0, balance=1000)
-        self.assertEqual(verified_request_delta(before, no_toast, plan=plan,
-            remaining=10, transport_calls=1), 0)
+        after = self._observation(ids=(), at=2, success=True)
+        result = verified_help_result(before, after, plan=plan, transport_calls=1)
+        self.assertEqual(result.proven_request_count, 1)
+        self.assertIsNone(verified_help_result(before,
+            self._observation(at=2, success=True), plan=plan, transport_calls=1))
 
-    def test_bounded_help_all_counts_only_exact_successor_delta(self):
-        ids = ("a" * 24, "b" * 24, "c" * 24)
-        before = self._observation(ids=ids, complete=True, pending=3)
-        plan = choose_help_action(before, 2, allow_help_all=True)
-        self.assertEqual(plan.action, HelpAction.INDIVIDUAL)
-        plan = choose_help_action(before, 3, allow_help_all=True)
-        after = self._observation(ids=("c" * 24,), at=2.0, balance=3000,
-            success=True, complete=True, pending=1, all_count=2)
-        self.assertEqual(verified_request_delta(before, after, plan=plan,
-            remaining=2, transport_calls=1), 2)
-        overshoot = self._observation(ids=(), at=2.0, balance=3000,
-            success=True, complete=True, pending=0, all_count=3)
-        self.assertEqual(verified_request_delta(before, overshoot, plan=plan,
-            remaining=2, transport_calls=1), 0)
-        uncounted = self._observation(ids=("c" * 24,), at=2.0, balance=3000,
-            success=True, complete=True, pending=1, all_count=None)
-        self.assertEqual(verified_request_delta(before, uncounted, plan=plan,
-            remaining=3, transport_calls=1), 0)
+    def test_known_batch_count_unknown_is_distinct_from_unknown_effect_and_never_clipped(self):
+        before = self._observation()
+        plan = choose_help_action(before, 2)
+        known = verified_help_result(before,
+            self._observation(ids=(), at=2, success=True), plan=plan, transport_calls=1)
+        self.assertIsNotNone(known)
+        self.assertIsNone(known.proven_request_count)
+        counted = verified_help_result(before,
+            self._observation(ids=(), at=2, success=True, all_count=13), plan=plan, transport_calls=1)
+        self.assertEqual(counted.proven_request_count, 13)
+        # List motion / other members can remove every visible row. Without the game
+        # acknowledgement neither the batch nor any number of helped requests is proven.
+        self.assertIsNone(verified_help_result(before,
+            self._observation(ids=(), at=2, all_count=13), plan=plan, transport_calls=1))
 
-    def test_recognizer_binds_retained_exact_result_text_and_counter(self):
-        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
-        text = {
-            route.SCREEN_TITLE_ROI: "Speedup Help",
-            route.NO_REQUESTS_ROI: "No help request currently...",
-            route.HELP_SUCCESS_ROI: "Help successful",
-        }
-        with (patch.object(route, "_ocr_text", side_effect=lambda _frame, roi, **_kw: text.get(roi, "")),
-              patch.object(route, "_individual_controls", return_value=()),
-              patch.object(route, "_help_all_control", return_value=(route.HELP_ALL_ROI, True)),
-              patch.object(route, "_coin_counter", return_value=(1000, 50000)),
-              patch.object(route, "_ocr_tokens", return_value=())):
-            result = route.recognize_help_screen(frame, captured_at=10.0,
-                frame_sha256="a" * 64, now=10.1,
-                overlay_reader=lambda _frame: {"recognized": False, "state": "none"})
+    def test_retained_positive_individual_banner_has_no_invented_help_all_count(self):
+        post = _retained(route.HELP_SOURCE_PATH.with_name("alliance_help_post.png"))
+        result = route.recognize_help_screen(post.frame, captured_at=10.0,
+            frame_sha256=post.sha256, now=10.1)
         self.assertEqual(result.screen_state, SOURCE_STATE)
-        self.assertTrue(result.source_fresh)
-        self.assertTrue(result.exact_no_requests_message)
         self.assertTrue(result.help_success_message)
-        self.assertEqual(result.daily_alliance_coin_balance, 1000)
+        self.assertTrue(result.exact_no_requests_message)
         self.assertIsNone(result.help_all_success_count)
 
     def test_service_native_binding_uses_injected_lifecycle_and_fixed_budgets(self):
@@ -175,21 +128,14 @@ class AllianceHelpSemanticsTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             route.create_service_binding(None)
 
-    def test_canonical_request_count_requires_contiguous_confirmed_prefix(self):
-        confirmed = {i: {"final_status": "confirmed", "quantity": 1, "game_day_id": "reset"}
-                     for i in range(1, 4)}
-        self.assertEqual(confirmed_request_count(confirmed), 3)
-        with self.assertRaisesRegex(ValueError, "not contiguous"):
-            confirmed_request_count({1: {"final_status": "confirmed", "quantity": 1, "game_day_id": "reset"},
-                                     3: {"final_status": "confirmed", "quantity": 1, "game_day_id": "reset"}})
-        identity = SimpleNamespace(runtime_scope="slot", account_id="account",
-                                   server_id="server", reset_id="reset")
-        self.assertNotEqual(alliance_help_action_key(runtime_scope=identity.runtime_scope,
-            account_id=identity.account_id, server_id=identity.server_id,
-            reset_id=identity.reset_id, ordinal=1),
-            alliance_help_action_key(runtime_scope=identity.runtime_scope,
-            account_id=identity.account_id, server_id=identity.server_id,
-            reset_id=identity.reset_id, ordinal=2))
+    def test_operation_key_preserves_individual_history_and_is_count_independent(self):
+        identity = dict(runtime_scope="slot", account_id="account", server_id="server", reset_id="reset")
+        key = alliance_help_action_key(**identity, ordinal=1)
+        payload = {**identity, "flow_id": "ALLIANCE-HELP-TEN-FREE-REQUESTS", "ordinal": 1}
+        digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        self.assertEqual(key, f"alliance-help:daily:{digest}:01")
+        self.assertNotEqual(key, alliance_help_action_key(**identity, ordinal=2))
+        self.assertNotEqual(key, alliance_help_action_key(**identity, ordinal=11))
 
     def test_production_route_fake_replay_confirms_ten_then_closes_home(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -293,6 +239,70 @@ class AllianceHelpSemanticsTests(unittest.TestCase):
         self.assertTrue(action_blocked)
         self.assertEqual(runtime.help_taps, 1)
         self.assertLessEqual(result["input_count"], route.MAX_INPUTS)
+
+    def test_help_all_retains_known_batch_unknown_quantity_and_prior_credit_across_restart(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            database = root / "actions.sqlite3"
+            prior, _blocked, _session, _runtime = _run_replay_route(
+                root / "individual", requests=1, store_path=database)
+            batch, blocked, _session, runtime = _run_replay_route(
+                root / "batch", requests=12, store_path=database,
+                help_all_available=True, native_dispatch=True)
+            restarted, _blocked, _session, _runtime = _run_replay_route(
+                root / "restart", requests=0, store_path=database, help_all_available=True)
+        self.assertEqual(prior["confirmed_request_count"], 1)
+        self.assertEqual(runtime.help_taps, 1)
+        self.assertFalse(blocked)
+        self.assertEqual(batch["status"], "deferred")
+        self.assertEqual(batch["reason"], "help_all_batch_confirmed_reobserve")
+        self.assertEqual(batch["confirmed_request_count"], 1)
+        self.assertEqual(batch["committed_action_count"], 2)
+        self.assertEqual(batch["unproven_help_all_batch_count"], 1)
+        self.assertFalse(batch["effect_reconciliation_required"])
+        self.assertFalse(batch["daily_quantity_proven"])
+        record = batch["confirmed_request_records"][-1]
+        self.assertEqual(record["operation_ordinal"], 2)
+        self.assertIsNone(record["proven_request_count"])
+        self.assertEqual(restarted["confirmed_request_records"], batch["confirmed_request_records"])
+        self.assertEqual(restarted["help_transport_calls"], 0)
+
+    def test_durable_attributable_batch_count_is_unclipped_and_legacy_individual_keys_survive(self):
+        # This tests the durable count contract, not an invented native toast/reader.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            database = root / "actions.sqlite3"
+            prior, _blocked, _session, _runtime = _run_replay_route(
+                root / "individual", requests=9, store_path=database)
+            batch, _blocked, _session, _runtime = _run_replay_route(
+                root / "batch", requests=5, store_path=database, help_all_available=True)
+            record = batch["confirmed_request_records"][-1]
+            store = SafetyStore(database)
+            try:
+                store.audit(route.FLOW_ID, route.HELP_ALL_COUNT_EVENT, 1_800_000_000.0,
+                    {"action_key": record["action_key"], "proven_request_count": 5},
+                    record["action_id"])
+            finally:
+                store.close()
+            restarted, _blocked, _session, runtime = _run_replay_route(
+                root / "restart", requests=2, store_path=database, help_all_available=True)
+        self.assertEqual(prior["confirmed_request_count"], 9)
+        self.assertEqual(restarted["status"], "complete_for_reset")
+        self.assertEqual(restarted["confirmed_request_count"], 14)
+        self.assertEqual(restarted["committed_action_count"], 10)
+        self.assertEqual(restarted["confirmed_request_records"][:9], prior["confirmed_request_records"])
+        self.assertEqual(runtime.help_taps, 0)
+
+    def test_help_all_unknown_effect_stops_after_one_tap(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, blocked, _session, runtime = _run_replay_route(
+                Path(directory), requests=12, suppress_effects=True,
+                native_dispatch=True, help_all_available=True)
+        self.assertEqual(runtime.help_taps, 1)
+        self.assertTrue(blocked)
+        self.assertEqual(result["status"], "reconciliation_required")
+        self.assertEqual(result["confirmed_request_count"], 0)
+        self.assertTrue(result["identical_retry_denied"])
 
 
 ALLIANCE_MENU_FIXTURE = Path(__file__).parent / "fixtures" / "alliance_help_menu" / "alliance-menu-help56-0005.png"
@@ -558,7 +568,7 @@ class _ReplayRuntime:
         self.clock = _ReplayClock()
         self.state = "home"
         self.requests = [f"{index:024x}" for index in range(10)]
-        self.coin = 0
+        self.help_all_available = False
         self.toast_remaining = 0
         self.capture_count = 0
         self.input_count = 0
@@ -587,8 +597,6 @@ class _ReplayRuntime:
         if toast:
             self.toast_remaining -= 1
         frame[0, 0, :] = (state_code, toast, len(self.requests) & 0xFF)
-        frame[0, 1, 0] = self.coin & 0xFF
-        frame[0, 1, 1] = (self.coin >> 8) & 0xFF
         frame[0, 2, 0] = self.capture_count & 0xFF
         ok, encoded = cv2.imencode(".png", frame)
         if not ok:
@@ -601,7 +609,7 @@ class _ReplayRuntime:
                                    captured_monotonic=timestamp, label=label)
         self.frame_keys[id(frame)] = digest
         self.snapshots[digest] = SimpleNamespace(state=self.state, requests=tuple(self.requests),
-            coin=self.coin, toast=bool(toast), capture_count=self.capture_count)
+            toast=bool(toast), capture_count=self.capture_count)
         if self.pending_effect:
             self.pending_effect = False
             self._confirm_help()
@@ -626,10 +634,10 @@ class _ReplayRuntime:
             if self.state != "hub":
                 raise ValueError("replay Speedup Help row is no longer current")
             self.state = "help"
-        elif target_identity == INDIVIDUAL_TARGET_IDENTITY:
+        elif target_identity in {INDIVIDUAL_TARGET_IDENTITY, HELP_ALL_TARGET_IDENTITY}:
             self.help_taps += 1
             if self.state != "help" or not self.requests:
-                raise ValueError("replay individual Help target is no longer current")
+                raise ValueError("replay free Help target is no longer current")
             if not self.suppress_effects:
                 if self.delayed_success:
                     self.pending_effect = True
@@ -650,8 +658,10 @@ class _ReplayRuntime:
             raise ValueError(f"replay refuses target {target_identity}")
 
     def _confirm_help(self):
-        self.requests.pop(0)
-        self.coin += 1000
+        if self.help_all_available:
+            self.requests.clear()
+        else:
+            self.requests.pop(0)
         self.toast_remaining = 1
 
     def observe(self, frame, *, captured_at, frame_sha256, now=None, **_kwargs):
@@ -662,11 +672,10 @@ class _ReplayRuntime:
             screen_state=SOURCE_STATE if saved.state == "help" else "UNKNOWN",
             captured_at=captured_at, frame_sha256=frame_sha256,
             overlay_clear=True, source_fresh=(now is None or 0 <= now - captured_at <= 30),
-            requests=requests, help_all_roi=(277, 1188, 523, 1268), help_all_free=True,
+            requests=requests, help_all_roi=route.HELP_ALL_ROI if self.help_all_available else None,
+            help_all_free=self.help_all_available,
             exact_no_requests_message=(saved.state == "help" and not saved.requests),
-            pending_count=None, request_list_complete=False, cost_marker_seen=False,
-            daily_alliance_coin_balance=saved.coin, daily_alliance_coin_limit=50000,
-            help_success_message=saved.toast, help_all_success_count=None,
+            cost_marker_seen=False, help_success_message=saved.toast, help_all_success_count=None,
         )
 
     def reconcile(self, _action_key, _status, _captured, _reason):
@@ -682,6 +691,7 @@ class _NativeReplayRuntime(LocalBlueStacksRuntime):
             box_center((639, 1243, 647, 1251)): ("home-nav-alliance", (639, 1243, 647, 1251)),
             box_center(REPLAY_MENU_HELP_ROI): ("alliance-menu-help", REPLAY_MENU_HELP_ROI),
             box_center(REPLAY_HUB_SPEEDUP_ROI): ("help-hub-speedup-help", REPLAY_HUB_SPEEDUP_ROI),
+            box_center(route.HELP_ALL_ROI): (HELP_ALL_TARGET_IDENTITY, route.HELP_ALL_ROI),
             box_center((550, 260, 680, 310)): (INDIVIDUAL_TARGET_IDENTITY, (550, 260, 680, 310)),
             box_center((45, 8, 160, 58)): ("alliance-help-back", (45, 8, 160, 58)),
         }
@@ -741,7 +751,7 @@ def _run_replay_route(directory: Path, *, requests: int, suppress_effects: bool 
                       store_path: Path | None = None, native_dispatch: bool = False,
                       delayed_success: bool = False, initial_state: str = "home",
                       ignore_back: bool = False, change_before_back: bool = False,
-                      menu_opens: str = "hub"):
+                      menu_opens: str = "hub", help_all_available: bool = False):
     directory.mkdir(parents=True, exist_ok=True)
     now = 1_800_000_000.0
     identity = derive_resource_runtime_identity(resource_fixed_runtime_binding(),
@@ -757,6 +767,7 @@ def _run_replay_route(directory: Path, *, requests: int, suppress_effects: bool 
     runtime = _NativeReplayRuntime(scene, session) if native_dispatch else scene
     session.runtime = runtime
     scene.requests = [f"{index:024x}" for index in range(requests)]
+    scene.help_all_available = help_all_available
     scene.suppress_effects = suppress_effects
     scene.delayed_success = delayed_success
     scene.state = initial_state

@@ -78,9 +78,6 @@ RUINS_CHALLENGE_DISPATCH_ACTION = "ruins_zero_cost_npc_challenge_dispatch"
 RUINS_CHEST_CLAIM_ACTION = "ruins_green_ready_stage_chest_claim"
 RUINS_CHALLENGE_RESULT_POSTCONDITION = "RUINS_CHALLENGE_RESULT_RECOGNIZED"
 RUINS_CHEST_CLAIM_POSTCONDITION = "RUINS_STAGE_CHEST_CLAIMED"
-RUINS_FLOW_ID = "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION"
-RUINS_PRODUCT_ID = "ruins_challenge"
-RUINS_PRODUCT_REVISION = "ruins_challenge-v1"
 
 
 def ruins_daily_action_key(
@@ -217,19 +214,15 @@ class RuinsResultObservation:
 
 @dataclass
 class RuinsDailyState:
-    required_challenges: int = 1
-    challenge_initiations_completed: int = 0
-    successful_challenges_completed: int = 0
-    ready_to_claim: bool = False
-    claim_dormant: bool = True
+    """Per-reset challenge progression: continue through wins until the first loss."""
+
+    stages_confirmed: int = 0
+    stages_won: int = 0
+    challenge_finished: bool = False
 
     @property
-    def initiation_complete(self) -> bool:
-        return self.challenge_initiations_completed >= self.required_challenges
-
-    @property
-    def successful_progress_complete(self) -> bool:
-        return self.successful_challenges_completed >= self.required_challenges
+    def participation_confirmed(self) -> bool:
+        return self.stages_confirmed > 0
 
 
 @dataclass(frozen=True)
@@ -258,6 +251,22 @@ def current_day_allowed(row: RuinsChallengeRow, current_day: str) -> bool:
     return row.day_label is None or row.day_label == current_day
 
 
+def challenge_stage(row: RuinsChallengeRow) -> Optional[tuple[int, int]]:
+    """Return the positively read (cleared, maximum) stage identity, or None.
+
+    Vision reports ``last_successful_level`` only when the row's progress text was
+    actually read; the default ``0/1`` progress of an unread row is not a stage.
+    """
+
+    if (
+        row.last_successful_level is None
+        or row.last_successful_level != row.progress_current
+        or row.progress_current >= row.progress_maximum
+    ):
+        return None
+    return row.progress_current, row.progress_maximum
+
+
 def challenge_action_authorized(
     screen: RuinsScreenObservation,
     row: RuinsChallengeRow,
@@ -267,7 +276,7 @@ def challenge_action_authorized(
     seen_action_keys: set[str] | None = None,
     seen_frame_hashes: set[str] | None = None,
 ) -> bool:
-    """Return true only for a zero-cost, current-day, native, enabled challenge row."""
+    """Return true only for a zero-cost, current-day, native, enabled challenge stage row."""
 
     seen_action_keys = seen_action_keys or set()
     seen_frame_hashes = seen_frame_hashes or set()
@@ -275,8 +284,8 @@ def challenge_action_authorized(
         screen.recognized
         and screen.screen_identity == "RUINS_CHALLENGE"
         and screen.title_visible
-        and screen.points_balance is not None
         and row.identity in KNOWN_CHALLENGE_IDENTITIES
+        and challenge_stage(row) is not None
         and row.availability == RuinsAvailability.AVAILABLE
         and current_day_allowed(row, current_day)
         and row.challenge_control == RuinsControlState.VISIBLE_ENABLED
@@ -313,14 +322,12 @@ def detail_attack_authorized(detail: RuinsDetailObservation) -> bool:
 
 
 def dispatch_authorized(detail: RuinsDetailObservation) -> bool:
+    """Bind the fixed free NPC Dispatch; troop capacity and Skip Battle are not prerequisites."""
+
     return bool(
         detail_attack_authorized(detail)
         and detail.dispatch_control == RuinsControlState.VISIBLE_ENABLED
         and detail.npc_troops_provided
-        and detail.npc_troops_current is not None
-        and detail.npc_troops_maximum is not None
-        and detail.npc_troops_current == detail.npc_troops_maximum
-        and detail.skip_battle_enabled
     )
 
 
@@ -332,13 +339,7 @@ def result_verified(before: RuinsChallengeRow, result: RuinsResultObservation) -
     ):
         return False
     if result.result == RuinsResult.SUCCESS:
-        return bool(
-            result.explicit_success_text
-            and result.progress_after is not None
-            and result.progress_after > before.progress_current
-            and result.maximum_after == before.progress_maximum
-            and result.level_after is not None
-        )
+        return bool(result.explicit_success_text and result.tap_to_continue_visible)
     if result.result == RuinsResult.FAILURE:
         return bool(result.explicit_failure_text and result.tap_to_continue_visible)
     return False

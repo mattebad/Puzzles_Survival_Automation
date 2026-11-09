@@ -9,7 +9,7 @@ import unittest
 from tasks.runtime_identity import derive_resource_runtime_identity, resource_fixed_runtime_binding
 from tasks.scheduler_task_result import SchedulerIdentity
 from tasks.alliance_help import (
-    CONSEQUENCE, DAILY_REQUEST_LIMIT, INDIVIDUAL_TARGET_IDENTITY,
+    CONSEQUENCE, DAILY_REQUEST_LIMIT, HELP_ALL_TARGET_IDENTITY, INDIVIDUAL_TARGET_IDENTITY,
     POSTCONDITION, SEMANTIC_ACTION, SOURCE_STATE, alliance_help_action_key,
 )
 
@@ -107,7 +107,7 @@ class AllianceHelpServiceAdapterTests(unittest.TestCase):
                 reset_id=backend.reset_id, ordinal=ordinal)
             records.append({
                 "action_id": f"synthetic-action-{ordinal}", "action_key": key,
-                "request_ordinal": ordinal, "task_id": FLOW_ID,
+                "operation_ordinal": ordinal, "task_id": FLOW_ID,
                 "semantic_action": SEMANTIC_ACTION, "source_state": SOURCE_STATE,
                 "target_identity": INDIVIDUAL_TARGET_IDENTITY,
                 "game_day_id": backend.reset_id,
@@ -123,29 +123,24 @@ class AllianceHelpServiceAdapterTests(unittest.TestCase):
             success_path, success_sha = self._write_frame(session, f"success-{ordinal}")
             stable_path, stable_sha = self._write_frame(session, f"stable-{ordinal}")
             selected_sha = hashlib.sha256(f"selected-request-{ordinal}".encode()).hexdigest()
-            before_balance = (ordinal - 1) * 1000
             result_evidence = [
                 {"frame_path": success_path, "frame_sha256": success_sha,
                  "selected_request_absent": True, "screen_state": SOURCE_STATE,
                  "source_fresh": True, "overlay_clear": True,
-                 "success_message": True, "daily_alliance_coin_balance": ordinal * 1000,
-                 "daily_alliance_coin_limit": 50000},
+                 "success_message": True},
                 {"frame_path": stable_path, "frame_sha256": stable_sha,
                  "selected_request_absent": True, "screen_state": SOURCE_STATE,
                  "source_fresh": True, "overlay_clear": True,
-                 "success_message": False, "daily_alliance_coin_balance": ordinal * 1000,
-                 "daily_alliance_coin_limit": 50000},
+                 "success_message": False},
             ]
             actions.append({
-                "status": "confirmed", "request_ordinal": ordinal, "action_key": key,
+                "status": "confirmed", "operation_ordinal": ordinal, "action_key": key,
                 "journal_status": "confirmed", "verified_request_count": 1,
                 "help_transport_calls": 1, "effect_reconciliation_required": False,
                 "selected_request_sha256": selected_sha,
                 "immediate_before_frame": immediate_path,
                 "immediate_before_sha256": immediate_sha,
                 "proposal_frame": source_path, "proposal_sha256": source_sha,
-                "immediate_daily_alliance_coin_balance": before_balance,
-                "immediate_daily_alliance_coin_limit": 50000,
                 "request_result_frames": [success_path, stable_path],
                 "request_result_evidence": result_evidence,
             })
@@ -252,6 +247,40 @@ class AllianceHelpServiceAdapterTests(unittest.TestCase):
             self.assertEqual(deferred.observed_progress["confirmed_request_count"], 3)
             self.assertEqual(deferred.observed_progress["remaining_request_target"], 7)
             self.assertEqual(deferred.consequence["committed_action_count"], 3)
+
+    def test_known_help_all_unknown_count_defers_and_proven_overshoot_is_not_clipped(self):
+        backend, identity, now = self._identity()
+        for proven in (None, 13):
+            with self.subTest(proven=proven), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                raw = self._native_result(root / "session", backend, count=1, calls=1)
+                raw["status"] = "deferred" if proven is None else "complete_for_reset"
+                raw["reason"] = "help_all_batch_confirmed_reobserve"
+                raw["confirmed_request_count"] = raw["verified_request_count"] = proven or 0
+                record = raw["confirmed_request_records"][0]
+                record.update(target_identity=HELP_ALL_TARGET_IDENTITY, proven_request_count=proven)
+                action = raw["request_actions"][0]
+                action.update(help_variant="help_all", proven_request_count=proven,
+                    verified_request_count=proven or 0)
+                for frame in action["request_result_evidence"]:
+                    frame["selected_request_absent"] = None
+                    frame["help_all_success_count"] = proven
+                raw["help_dispatch_evidence"][0]["target_identity"] = HELP_ALL_TARGET_IDENTITY
+                native = FakeNativeBoundary(raw, root / "session")
+                result, _checks = self._execute(self._runner(root / "output", native, identity, now), identity)
+                outcome = normalize_alliance_help_result(result, identity, now)
+                self.assertEqual(outcome.action_count, 1)
+                self.assertFalse(outcome.unresolved_action)
+                self.assertEqual(outcome.observed_progress["confirmed_request_count"], proven or 0)
+                self.assertEqual(outcome.consequence["committed_action_count"], 1)
+                if proven is None:
+                    self.assertEqual(outcome.outcome, NormalizedOutcome.DEFERRED)
+                    self.assertEqual(outcome.observed_progress["unproven_help_all_batch_count"], 1)
+                    self.assertFalse(outcome.observed_progress["daily_quantity_proven"])
+                    self.assertEqual(outcome.next_eligible_at, now + 300)
+                else:
+                    self.assertEqual(outcome.outcome, NormalizedOutcome.COMPLETE_FOR_RESET)
+                    self.assertEqual(outcome.observed_progress["remaining_request_target"], 0)
 
     def test_transport_without_bound_success_result_and_corrupt_restart_prefix_rejected(self):
         backend, identity, now = self._identity()

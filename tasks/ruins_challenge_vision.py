@@ -338,7 +338,10 @@ def recognize_ruins_frame(frame: np.ndarray, *, reset_identity: str | None = Non
         row_box = _row_box_from_identity_anchor(anchor)
         row_text = _ocr(frame, row_box, psm=6)
         restriction_text = _ocr(frame, (560, row_box[1], 780, row_box[3]), psm=6)
-        progress = parse_progress(row_text) or (0, 1)
+        parsed_progress = parse_progress(row_text)
+        # An unread row keeps a neutral 0/1 shape but no stage identity
+        # (last_successful_level None); it can never authorize a challenge stage.
+        progress = parsed_progress or (0, 1)
         day_match = _DAY_RE.search(row_text)
         day = day_match.group(1).title() if day_match else None
         locked_text = f"{row_text} {restriction_text}"
@@ -359,15 +362,18 @@ def recognize_ruins_frame(frame: np.ndarray, *, reset_identity: str | None = Non
             targets.append((f"challenge:{identity}", challenge_target))
         else:
             availability, control = RuinsAvailability.UNAVAILABLE, RuinsControlState.HIDDEN
-        chest_target = None if locked or challenge_visible else _available_chest_target(frame, row_box)
+        chest_target = None if locked else _available_chest_target(frame, row_box)
         chest = RuinsChestState.AVAILABLE if chest_target is not None else RuinsChestState.UNKNOWN
         if chest_target is not None:
             targets.append((f"chest:{identity}", chest_target))
-        rows.append(RuinsChallengeRow(identity, day, availability, progress[0], progress[1], None, control, chest,
+        rows.append(RuinsChallengeRow(identity, day, availability, progress[0], progress[1],
+                                      progress[0] if parsed_progress else None, control, chest,
                                       row_box, None, False, False, False, None, None, None, None, digest,
                                       reset_identity, True))
     diagnostics["known_rows"] = [row.identity for row in rows]
-    forbidden = tuple(word for word in ("exchange", "mall", "buy", "purchase", "ticket") if word in full_text)
+    # Exchange/Mall navigation labels are normal overview chrome, not the
+    # isolated Challenge target. A paid/ticket confirmation is still forbidden.
+    forbidden = tuple(word for word in ("buy", "purchase", "ticket", "premium") if word in full_text)
     return RuinsFrameRecognition(
         RuinsScreenObservation(True, "RUINS_CHALLENGE", True, points,
                                RuinsControlState.VISIBLE_ENABLED if "exchange" in control_text else RuinsControlState.UNKNOWN,
@@ -446,13 +452,11 @@ def recognize_ruins_detail_frame(
     orange_button = _orange_detail_attack_target(frame)
     npc_match = re.search(r"(\d{3,})\s*/\s*(\d{3,})", text)
     npc_current, npc_maximum = ((int(npc_match.group(1)), int(npc_match.group(2))) if npc_match else (None, None))
+    # The fixed free NPC binding is the provided-troops panel with its bottom
+    # Dispatch control; troop capacity and Skip Battle are recognition data only.
     dispatch_context = bool(
         orange_button is not None
         and "npc troops" in text
-        and npc_current is not None
-        and npc_maximum is not None
-        and npc_current == npc_maximum
-        and "skip battle" in text
         and not forbidden
     )
     attack = ("attack" in text or (orange_button is not None and detail_context and not dispatch_context)) and not forbidden
@@ -523,8 +527,6 @@ def recognize_ruins_result_frame(
     failure = "lose" in text or "defeated" in text or "defeat" in text
     progress = parse_progress(text)
     result = RuinsResult.SUCCESS if success and not failure else RuinsResult.FAILURE if failure and not success else RuinsResult.AMBIGUOUS
-    if result == RuinsResult.SUCCESS and before_progress is not None and progress and progress[0] <= before_progress:
-        result = RuinsResult.AMBIGUOUS
     return RuinsResultObservation(
         identity=identity,
         result=result,
@@ -599,7 +601,6 @@ def recognize_ruins_reward_frame(
     recognized = bool(
         _normalized(identity) in text
         and "reward available" in text
-        and "can claim once a week" in text
         and claim_box is not None
         and not any(word in text for word in ("exchange", "mall", "purchase", "ticket", "premium"))
     )

@@ -154,8 +154,12 @@ def _validate_claim(
     action_key = _require_text(raw.get("action_key"), "action_key")
     if raw.get("status") != _CLAIM_STATUS:
         raise RuinsContinuationError("unresolved_claim", identity)
+    # Preserve old reward observations for history only. New confirmations do
+    # not require wallet/medal arithmetic or invent an unobserved zero reward.
     medal_delta = raw.get("medal_delta", raw.get("ruins_medals"))
-    if isinstance(medal_delta, bool) or not isinstance(medal_delta, int) or medal_delta < 0:
+    if medal_delta is not None and (
+        isinstance(medal_delta, bool) or not isinstance(medal_delta, int) or medal_delta < 0
+    ):
         raise RuinsContinuationError("malformed", "medal_delta")
     claim_reset = raw.get("reset_identity", expected_reset_identity)
     if claim_reset != expected_reset_identity:
@@ -178,10 +182,11 @@ def _validate_claim(
         "action_key": action_key,
         "status": _CLAIM_STATUS,
         "reset_identity": expected_reset_identity,
-        "medal_delta": medal_delta,
         "post_frame_path": post_rel,
         "post_frame_sha256": post_digest,
     }
+    if medal_delta is not None:
+        normalized["medal_delta"] = medal_delta
     for prefix in ("source", "terminal"):
         optional_path, optional_hash = _frame_fields(raw, prefix)
         if optional_path is None and optional_hash is None:
@@ -451,7 +456,6 @@ def make_claim_record(
     *,
     identity: str,
     action_key: str,
-    medal_delta: int,
     post_frame_path: Path | str,
     post_frame_sha256: str,
     source_frame_path: Path | str | None = None,
@@ -464,7 +468,6 @@ def make_claim_record(
         "identity": identity,
         "action_key": action_key,
         "status": _CLAIM_STATUS,
-        "medal_delta": medal_delta,
         "post_frame_path": str(post_frame_path),
         "post_frame_sha256": post_frame_sha256,
     }

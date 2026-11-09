@@ -1,4 +1,4 @@
-"""Native Alliance Help route: ten positively confirmed, free requests per UTC reset."""
+"""Native Alliance Help route: free Help All / Help toward ten successful requests per UTC reset."""
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
@@ -25,10 +25,10 @@ from automation_service.registry import (
     ALLIANCE_HELP_PRODUCT_ID, ALLIANCE_HELP_PRODUCT_REVISION,
 )
 from tasks.alliance_help import (
-    CONSEQUENCE, CONTROL_CLASS, DAILY_REQUEST_LIMIT, HELP_ALL_TARGET_IDENTITY,
-    INDIVIDUAL_TARGET_IDENTITY, POSTCONDITION, SEMANTIC_ACTION, SOURCE_STATE,
-    HelpAction, HelpObservation, HelpRequest, alliance_help_action_key,
-    choose_help_action, verified_request_delta,
+    CONSEQUENCE, CONTROL_CLASS, DAILY_REQUEST_LIMIT, HELP_ALL_CONTROL_CLASS,
+    HELP_ALL_TARGET_IDENTITY, INDIVIDUAL_TARGET_IDENTITY, POSTCONDITION, SEMANTIC_ACTION,
+    SOURCE_STATE, HelpAction, HelpObservation, HelpPlan, HelpRequest, HelpResult,
+    alliance_help_action_key, choose_help_action, verified_help_result,
 )
 from tasks.home_nav_recognition import recognize_home_nav
 
@@ -57,7 +57,8 @@ HELP_HUB_LABEL_ROI = (200, 90, 600, 450)
 HELP_HUB_ROW_LABELS = ("speedup help", "transport resources", "reinforce allies")
 HELP_HUB_LINE_TOLERANCE = 12
 HELP_HUB_TARGET_PAD = (24, 16)
-ALLIANCE_COIN_ROI = (205, 135, 755, 185)
+# Durable attributable Help All count, bound to its confirmed canonical action record.
+HELP_ALL_COUNT_EVENT = "alliance_help_all_proven_request_count"
 HELP_SUCCESS_ROI = (80, 230, 760, 465)
 NO_REQUESTS_ROI = (80, 430, 760, 700)
 HELP_ROW_SCAN_ROI = (0, 210, 800, 1150)
@@ -125,21 +126,6 @@ def _orange_button(frame: np.ndarray, roi: tuple[int, int, int, int]) -> bool:
     edge = cv2.Canny(gray, 60, 160)
     return (float(np.count_nonzero(orange)) / float(orange.size) >= 0.10
             and float(np.count_nonzero(edge)) / float(edge.size) >= 0.003)
-
-
-def _coin_counter(frame: np.ndarray, *, reader: Callable[..., str] | None = None) -> tuple[int, int] | None:
-    text = _ocr_text(frame, ALLIANCE_COIN_ROI, psm=7, reader=reader).casefold()
-    match = re.search(
-        r"daily\s+alliance\s+coin\s+([0-9][0-9, ]*)\s*/\s*([0-9][0-9, ]*)",
-        text,
-    )
-    if match is None:
-        return None
-    try:
-        balance, limit = (int(re.sub(r"[ ,]", "", value)) for value in match.groups())
-    except (ValueError, OverflowError):
-        return None
-    return (balance, limit) if 0 <= balance <= limit and limit > 0 else None
 
 
 def _request_identifier(tokens: Sequence[HelpToken], center_y: int) -> str | None:
@@ -214,8 +200,10 @@ def recognize_help_screen(
     body = _norm(_ocr_text(frame, NO_REQUESTS_ROI, psm=6, reader=text_reader))
     exact_no_requests = "no help request currently" in body
     result_text = _norm(_ocr_text(frame, HELP_SUCCESS_ROI, psm=6, reader=text_reader))
+    # Retained individual-Help result frames show the exact "Help successful" banner. No
+    # Help All result with requests has been observed yet, so no Help All helped-count
+    # signal is recognized: help_all_success_count stays None until one is captured.
     success_message = "help successful" in result_text
-    coin = _coin_counter(frame, reader=text_reader)
     # Existing captures prove the individual Help button is zero-cost, but not arbitrary
     # currencies or paid controls. Any cost word adjacent to a current CTA invalidates it.
     cost_words = {"buy", "cost", "diamond", "diamonds", "gem", "gems", "cash", "purchase"}
@@ -225,10 +213,7 @@ def recognize_help_screen(
         screen_state=SOURCE_STATE, captured_at=float(captured_at), frame_sha256=frame_sha256,
         overlay_clear=bool(overlay_clear), source_fresh=0 <= current - captured_at <= 30.0,
         requests=requests, help_all_roi=help_all_roi, help_all_free=help_all_free,
-        exact_no_requests_message=exact_no_requests, pending_count=None,
-        request_list_complete=False, cost_marker_seen=cost_marker,
-        daily_alliance_coin_balance=coin[0] if coin else None,
-        daily_alliance_coin_limit=coin[1] if coin else None,
+        exact_no_requests_message=exact_no_requests, cost_marker_seen=cost_marker,
         help_success_message=success_message, help_all_success_count=None,
         recognizer_reason=None if overlay_clear else overlay_reason,
     )
@@ -420,47 +405,87 @@ def _navigation(*, session: Any, runtime: Any, phase: str, name: str,
     return (current.get("after"), str(getattr(outcome.status, "value", outcome.status)))
 
 
+def _operation_key(identity: Any, ordinal: int) -> str:
+    return alliance_help_action_key(runtime_scope=identity.runtime_scope,
+        account_id=identity.account_id, server_id=identity.server_id,
+        reset_id=identity.reset_id, ordinal=ordinal)
+
+
+def _help_all_proven_count(store: Any, row: Mapping[str, Any]) -> tuple[int | None, bool]:
+    """Durable attributable count of one confirmed Help All batch; ``None`` means unproven."""
+    events = [event for event in store.audit_events(row["action_id"])
+              if event.get("event_type") == HELP_ALL_COUNT_EVENT]
+    if not events:
+        return None, True
+    if len(events) != 1:
+        return None, False
+    try:
+        payload = json.loads(str(events[0].get("payload_json")))
+    except ValueError:
+        return None, False
+    if not isinstance(payload, Mapping):
+        return None, False
+    count = payload.get("proven_request_count")
+    if payload.get("action_key") != row.get("action_key") or type(count) is not int or count < 1:
+        return None, False
+    return count, True
+
 
 def _durable_request_count(
     store: Any, identity: Any,
 ) -> tuple[int, bool, str | None, list[dict[str, object]]]:
-    actions: dict[int, Mapping[str, object]] = {}
-    for ordinal in range(1, DAILY_REQUEST_LIMIT + 1):
-        key = alliance_help_action_key(runtime_scope=identity.runtime_scope,
-            account_id=identity.account_id, server_id=identity.server_id,
-            reset_id=identity.reset_id, ordinal=ordinal)
-        row = store.get_action_by_key(key)
-        if row is not None:
-            actions[ordinal] = row
-    if not actions:
-        return 0, True, None, []
+    """Return proven successful requests, validity, reason and the confirmed operation prefix.
 
+    Each reset has one contiguous ordinal sequence of individual Help and Help All
+    operations. Individual records prove one request; a Help All batch proves its durable
+    attributable count, or none when its quantity is unproven. Counts are never clipped.
+    """
+    rows = {row["action_key"]: row for row in store.list_actions_for_task(FLOW_ID)
+            if row.get("game_day_id") == identity.reset_id}
+    proven = 0
     records: list[dict[str, object]] = []
-    for ordinal in range(1, max(actions) + 1):
-        row = actions.get(ordinal)
+    ordinal = 0
+    while rows:
+        ordinal += 1
+        key = _operation_key(identity, ordinal)
+        row = rows.pop(key, None)
         if row is None:
-            return len(records), False, "canonical_request_ordinals_not_contiguous", records
-        key = alliance_help_action_key(runtime_scope=identity.runtime_scope,
-            account_id=identity.account_id, server_id=identity.server_id,
-            reset_id=identity.reset_id, ordinal=ordinal)
+            return proven, False, "canonical_request_ordinals_not_contiguous", records
         expected = {
             "task_id": FLOW_ID, "semantic_action": SEMANTIC_ACTION,
-            "source_state": SOURCE_STATE, "target_identity": INDIVIDUAL_TARGET_IDENTITY,
-            "game_day_id": identity.reset_id, "expected_postcondition": POSTCONDITION,
-            "consequence": CONSEQUENCE, "cost_type": "none", "cost_amount": 0,
-            "quantity": 1, "consequential": 1, "action_key": key,
+            "source_state": SOURCE_STATE, "game_day_id": identity.reset_id,
+            "expected_postcondition": POSTCONDITION, "consequence": CONSEQUENCE,
+            "cost_type": "none", "cost_amount": 0, "quantity": 1, "consequential": 1,
+            "action_key": key,
         }
-        if any(row.get(field) != value for field, value in expected.items()):
-            return len(records), False, "canonical_request_record_identity_mismatch", records
+        variant = row.get("target_identity")
+        if (variant not in {INDIVIDUAL_TARGET_IDENTITY, HELP_ALL_TARGET_IDENTITY}
+                or any(row.get(field) != value for field, value in expected.items())):
+            return proven, False, "canonical_request_record_identity_mismatch", records
         if row.get("final_status") != ActionStatus.CONFIRMED.value:
-            return len(records), False, "canonical_request_result_unknown", records
+            return proven, False, "canonical_request_result_unknown", records
+        if variant == INDIVIDUAL_TARGET_IDENTITY:
+            count: int | None = 1
+        else:
+            count, count_ok = _help_all_proven_count(store, row)
+            if not count_ok:
+                return proven, False, "canonical_help_all_count_conflict", records
+        proven += count or 0
         records.append({field: row.get(field) for field in (
             "action_id", "action_key", "task_id", "semantic_action", "source_state",
             "target_identity", "game_day_id", "expected_postcondition", "consequence",
             "cost_type", "cost_amount", "quantity", "consequential", "final_status",
-        )} | {"request_ordinal": ordinal})
-    return len(records), True, None, records
+        )} | {"operation_ordinal": ordinal, "proven_request_count": count})
+    return proven, True, None, records
 
+
+def _same_plan(left: HelpPlan, right: HelpPlan) -> bool:
+    """The bound Help All control, or the same individual request, is still current."""
+    return (left.action is right.action
+            and left.action in {HelpAction.INDIVIDUAL, HelpAction.HELP_ALL}
+            and left.target_identity == right.target_identity
+            and left.target_roi is not None and left.target_roi == right.target_roi
+            and (left.action is HelpAction.HELP_ALL or left.request_ids == right.request_ids))
 
 
 class AllianceHelpActionBoundary:
@@ -476,18 +501,30 @@ class AllianceHelpActionBoundary:
         self.settle_seconds, self.monotonic_clock, self.wall_clock = settle_seconds, monotonic_clock, wall_clock
         self.observer, self.used = observer, False
 
+    def _proposal(self, ordinal: int) -> tuple[Any, HelpObservation]:
+        source = self.session.observe(self.runtime.capture, label=f"alliance-help-proposal-{ordinal:02d}")
+        observation = _current_observation(self.runtime, source,
+            observer=self.observer, now=self.monotonic_clock())
+        if observation.help_success_message and not observation.exact_no_requests_message:
+            # An earlier result banner is still displayed; observe once more after it settles.
+            time.sleep(self.settle_seconds)
+            source = self.session.observe(self.runtime.capture,
+                label=f"alliance-help-proposal-{ordinal:02d}-settled")
+            observation = _current_observation(self.runtime, source,
+                observer=self.observer, now=self.monotonic_clock())
+        return source, observation
+
     def execute_one(self, *, ordinal: int, remaining: int, occurrence_key: str) -> dict[str, Any]:
         if self.used:
             raise RuntimeError("Alliance Help action boundary is single-use")
         self.used = True
         self.validate_identity()
-        if ordinal != DAILY_REQUEST_LIMIT - remaining + 1 or not 1 <= ordinal <= DAILY_REQUEST_LIMIT:
-            raise ValueError("Alliance Help ordinal must match the exact remaining reset quota")
-        source = self.session.observe(self.runtime.capture, label=f"alliance-help-proposal-{ordinal:02d}")
-        source_observation = _current_observation(self.runtime, source,
-            observer=self.observer, now=self.monotonic_clock())
+        if (type(ordinal) is not int or ordinal < 1
+                or type(remaining) is not int or not 1 <= remaining <= DAILY_REQUEST_LIMIT):
+            raise ValueError("Alliance Help needs a positive operation ordinal and an unfinished goal")
+        source, source_observation = self._proposal(ordinal)
         plan = choose_help_action(source_observation, remaining)
-        if plan.action is not HelpAction.INDIVIDUAL or len(plan.request_ids) != 1:
+        if plan.action not in {HelpAction.INDIVIDUAL, HelpAction.HELP_ALL}:
             deferred = plan.action in {HelpAction.NO_REQUESTS, HelpAction.FREE_HELP_DISAPPEARED}
             return {"status": "deferred" if deferred else "blocked",
                     "reason": plan.reason, "help_transport_calls": 0,
@@ -502,14 +539,13 @@ class AllianceHelpActionBoundary:
                         "exact_no_requests_message": source_observation.exact_no_requests_message,
                         "free_request_controls": sum(item.free_control and item.exact_free_label
                             for item in source_observation.requests),
-                        "daily_alliance_coin_balance": source_observation.daily_alliance_coin_balance,
-                        "daily_alliance_coin_limit": source_observation.daily_alliance_coin_limit,
                         "cost_marker_seen": source_observation.cost_marker_seen,
                         "frame_path": str(source.path), "frame_sha256": source.sha256,
                     } if deferred else None}
-        action_key = alliance_help_action_key(runtime_scope=self.identity.runtime_scope,
-            account_id=self.identity.account_id, server_id=self.identity.server_id,
-            reset_id=self.identity.reset_id, ordinal=ordinal)
+        help_all = plan.action is HelpAction.HELP_ALL
+        target_identity = HELP_ALL_TARGET_IDENTITY if help_all else INDIVIDUAL_TARGET_IDENTITY
+        control_class = HELP_ALL_CONTROL_CLASS if help_all else CONTROL_CLASS
+        action_key = _operation_key(self.identity, ordinal)
         existing = self.store.get_action_by_key(action_key)
         if existing is not None:
             return {"status": "reconciliation_required", "reason": "request_action_key_already_exists",
@@ -525,15 +561,12 @@ class AllianceHelpActionBoundary:
         immediate = _current_observation(self.runtime, immediate_capture,
             observer=self.observer, now=self.monotonic_clock())
         immediate_plan = choose_help_action(immediate, remaining)
-        if (immediate_plan.action is not HelpAction.INDIVIDUAL
-                or immediate_plan.request_ids != plan.request_ids
-                or immediate_plan.target_roi is None
-                or immediate.captured_at <= source_observation.captured_at):
+        if not _same_plan(immediate_plan, plan) or immediate.captured_at <= source_observation.captured_at:
             return {"status": "blocked", "reason": "help_immediate_before_changed",
                     "help_transport_calls": 0, "committed_action_count": 0,
                     "effect_reconciliation_required": False, "identical_retry_denied": False,
                     "proposal_frame": str(source.path), "immediate_frame": str(immediate_capture.path)}
-        selected = immediate_plan.request_ids[0]
+        selected = None if help_all else immediate_plan.request_ids[0]
         target_roi = immediate_plan.target_roi
         target_hash = hashlib.sha256(
             immediate_capture.frame[target_roi[1]:target_roi[3],
@@ -543,8 +576,8 @@ class AllianceHelpActionBoundary:
             capture_completed_monotonic=immediate_capture.captured_monotonic,
             runtime_profile_id=PROFILE_ID, width=800, height=1280,
             valid_png=True, corrupt=False, black=False, source_state=SOURCE_STATE,
-            overlay_state="none", target_identity=INDIVIDUAL_TARGET_IDENTITY,
-            target_roi=target_roi, recognized=True, control_class=CONTROL_CLASS,
+            overlay_state="none", target_identity=target_identity,
+            target_roi=target_roi, recognized=True, control_class=control_class,
             consequence=CONSEQUENCE, cost_type="none", cost_amount=0, quantity=1,
             expected_postcondition=POSTCONDITION,
             evidence_refs=(str(immediate_capture.path),),
@@ -553,14 +586,14 @@ class AllianceHelpActionBoundary:
             ocr_result_capture_completed_monotonic=immediate_capture.captured_monotonic,
             source_family='alliance_help', target_isolated=True,
             package_foreground=self.runtime.measure_foreground_package() == 'com.global.ztmslg')
-        base = {"status": "blocked", "action_key": action_key,
-                "request_ordinal": ordinal,
-                "selected_request_sha256": hashlib.sha256(selected.encode("utf-8")).hexdigest(),
-                "immediate_daily_alliance_coin_balance": immediate.daily_alliance_coin_balance,
-                "immediate_daily_alliance_coin_limit": immediate.daily_alliance_coin_limit,
+        base: dict[str, Any] = {"status": "blocked", "action_key": action_key,
+                "operation_ordinal": ordinal, "help_variant": plan.action.value,
+                "visible_request_rows_before": len(immediate.requests),
                 "help_transport_calls": 0, "committed_action_count": 0,
-                "verified_request_count": 0, "effect_reconciliation_required": False,
-                "identical_retry_denied": False}
+                "verified_request_count": 0, "proven_request_count": None,
+                "effect_reconciliation_required": False, "identical_retry_denied": False}
+        if selected is not None:
+            base["selected_request_sha256"] = hashlib.sha256(selected.encode("utf-8")).hexdigest()
         occurrence_digest = hashlib.sha256(occurrence_key.encode('utf-8')).hexdigest()
         policy_request = PolicyRequest(
             action_id=f'alliance-help-{ordinal:02d}-{occurrence_digest[:8]}-{immediate_capture.sha256[:8]}',
@@ -572,16 +605,16 @@ class AllianceHelpActionBoundary:
                 self.session.owner, self.wall_clock()), unresolved_action=self.store.has_action_block(),
             duplicate_action_key=self.store.action_key_exists(action_key), game_day_id=self.identity.reset_id,
             action_class=ActionClass.ZERO_COST_CONSEQUENTIAL, action_kind=SEMANTIC_ACTION,
-            subject=INDIVIDUAL_TARGET_IDENTITY, maximum_cost=0, free_only=True,
+            subject=target_identity, maximum_cost=0, free_only=True,
             semantic_preconditions=(
                 'alliance_help_product=alliance_help',
                 f'alliance_help_product_revision={PRODUCT_REVISION}',
                 'alliance_help_quota=10',
                 f'alliance_help_request_reset={self.identity.reset_id}',
-                f'alliance_help_request_ordinal={ordinal}',
-                'alliance_help_target_variant=individual',
-                'alliance_help_exact_free_label=Help',
-                'alliance_help_complete_request_transition_required'),
+                f'alliance_help_operation_ordinal={ordinal}',
+                f'alliance_help_target_variant={plan.action.value}',
+                'alliance_help_exact_free_label=' + ('Help_All' if help_all else 'Help'),
+                'alliance_help_positive_result_required'),
             semantic_postconditions=(POSTCONDITION,), runtime_session_id=str(self.runtime.session))
         dispatch_before_capture = self.runtime.capture(
             f'alliance-help-final-immediate-before-{ordinal:02d}')
@@ -589,13 +622,7 @@ class AllianceHelpActionBoundary:
             self.runtime, dispatch_before_capture, observer=self.observer,
             now=self.monotonic_clock())
         dispatch_plan = choose_help_action(dispatch_help_observation, remaining)
-        if (dispatch_plan.action is not HelpAction.INDIVIDUAL
-                or dispatch_plan.request_ids != immediate_plan.request_ids
-                or dispatch_plan.target_roi != immediate_plan.target_roi
-                or dispatch_help_observation.daily_alliance_coin_balance
-                    != immediate.daily_alliance_coin_balance
-                or dispatch_help_observation.daily_alliance_coin_limit
-                    != immediate.daily_alliance_coin_limit):
+        if not _same_plan(dispatch_plan, immediate_plan):
             return {**base, "reason": "help_final_immediate_before_changed",
                     "proposal_frame": str(source.path),
                     "immediate_before_frame": str(dispatch_before_capture.path),
@@ -604,20 +631,13 @@ class AllianceHelpActionBoundary:
         dispatch_target_hash = hashlib.sha256(
             dispatch_before_capture.frame[target_y0:target_y1,
                 target_x0:target_x1].tobytes()).hexdigest()
-        dispatch_observation = Observation(
+        dispatch_observation = replace(observation,
             frame_sha256=dispatch_before_capture.sha256,
             capture_completed_monotonic=dispatch_before_capture.captured_monotonic,
-            runtime_profile_id=PROFILE_ID, width=800, height=1280,
-            valid_png=True, corrupt=False, black=False, source_state=SOURCE_STATE,
-            overlay_state="none", target_identity=INDIVIDUAL_TARGET_IDENTITY,
-            target_roi=dispatch_plan.target_roi, recognized=True, control_class=CONTROL_CLASS,
-            consequence=CONSEQUENCE, cost_type="none", cost_amount=0, quantity=1,
-            expected_postcondition=POSTCONDITION,
             evidence_refs=(str(dispatch_before_capture.path),),
             critical_roi_hashes=(('alliance-help-target', dispatch_target_hash),),
             ocr_result_frame_sha256=dispatch_before_capture.sha256,
             ocr_result_capture_completed_monotonic=dispatch_before_capture.captured_monotonic,
-            source_family='alliance_help', target_isolated=True,
             package_foreground=self.runtime.measure_foreground_package() == 'com.global.ztmslg')
         capability_request = replace(policy_request, observation=dispatch_observation,
                                      monotonic_now=self.monotonic_clock())
@@ -635,7 +655,8 @@ class AllianceHelpActionBoundary:
         session_capture_returned = False
         transport_calls = 0
         dispatch_input_start: int | None = None
-        semantic_success = False
+        semantic_result: HelpResult | None = None
+        positive_frame: Any | None = None
         dispatch_evidence: list[dict[str, Any]] = []
 
         def recapture():
@@ -653,7 +674,6 @@ class AllianceHelpActionBoundary:
                 return dispatch_before_capture
             return self.runtime.capture(label)
 
-
         def _recognized(captured: Any) -> HelpObservation:
             key = str(captured.path)
             if key not in post_semantics:
@@ -667,29 +687,21 @@ class AllianceHelpActionBoundary:
                        and current > dispatch_input_start)
 
         def successor(captured: Any) -> str:
-            nonlocal semantic_success
+            nonlocal semantic_result, positive_frame
             if not any(item.path == captured.path for item in post):
                 post.append(captured)
             if len(post) < 2:
                 return 'pending'
-            latest = post[-1]
-            latest_observation = _recognized(latest)
+            latest_observation = _recognized(post[-1])
+            stable = (latest_observation.screen_state == SOURCE_STATE
+                      and latest_observation.source_fresh and latest_observation.overlay_clear
+                      and (selected is None or selected not in {
+                          item.request_id for item in latest_observation.requests}))
             for success_frame in post[:-1]:
-                success_observation = _recognized(success_frame)
-                if verified_request_delta(dispatch_help_observation or immediate, success_observation,
-                        plan=immediate_plan, remaining=remaining,
-                        transport_calls=observed_transport_calls()) != 1:
-                    continue
-                stable_ids = {item.request_id for item in latest_observation.requests}
-                same_balance = (
-                    latest_observation.daily_alliance_coin_balance
-                    == success_observation.daily_alliance_coin_balance
-                    and latest_observation.daily_alliance_coin_limit
-                    == success_observation.daily_alliance_coin_limit)
-                if (latest_observation.screen_state == SOURCE_STATE
-                        and latest_observation.source_fresh and latest_observation.overlay_clear
-                        and selected not in stable_ids and same_balance):
-                    semantic_success = True
+                result = verified_help_result(dispatch_help_observation, _recognized(success_frame),
+                    plan=dispatch_plan, transport_calls=observed_transport_calls())
+                if result is not None and stable:
+                    semantic_result, positive_frame = result, success_frame
                     return POSTCONDITION
             return 'pending' if len(post) < 3 else 'unknown'
 
@@ -704,14 +716,14 @@ class AllianceHelpActionBoundary:
             start = self.runtime.input_count
             try:
                 self.runtime.tap(before,
-                    target_identity=INDIVIDUAL_TARGET_IDENTITY,
+                    target_identity=target_identity,
                     target_roi=dispatch_plan.target_roi, action_key=action_key,
                     action_class='free_action', consequential=False)
             finally:
                 if self.runtime.input_count > start:
                     dispatch_evidence.append({
                         "immediate_before_sha256": before.sha256,
-                        "target_identity": INDIVIDUAL_TARGET_IDENTITY,
+                        "target_identity": target_identity,
                         "target_roi": dispatch_plan.target_roi,
                         "action_key": action_key,
                     })
@@ -741,14 +753,13 @@ class AllianceHelpActionBoundary:
                 yield Observation(frame_sha256=captured.sha256,
                     capture_completed_monotonic=captured.captured_monotonic,
                     runtime_profile_id=PROFILE_ID, width=800, height=1280,
-                    target_identity=INDIVIDUAL_TARGET_IDENTITY,
+                    target_identity=target_identity,
                     target_roi=dispatch_plan.target_roi,
                     valid_png=True, corrupt=False, black=False,
                     source_state=POSTCONDITION if (
-                        semantic_success and captured.path == post[-1].path
-                        or verified_request_delta(dispatch_help_observation or immediate, observed,
-                            plan=immediate_plan, remaining=remaining,
-                            transport_calls=transport_calls) == 1
+                        semantic_result is not None and captured.path == post[-1].path
+                        or verified_help_result(dispatch_help_observation, observed,
+                            plan=dispatch_plan, transport_calls=transport_calls) is not None
                     ) else 'UNKNOWN',
                     overlay_state='none' if observed.overlay_clear else 'unknown',
                     recognized=observed.source_fresh and observed.overlay_clear,
@@ -756,7 +767,7 @@ class AllianceHelpActionBoundary:
 
         executor = SafeActionExecutor(self.store, policy, self.session.owner,
             self.monotonic_clock, transport, recapture, post_observe,
-            lambda _intent, observed: bool(semantic_success and post
+            lambda _intent, observed: bool(semantic_result is not None and post
                 and observed.capture_completed_monotonic == post[-1].captured_monotonic
                 and observed.frame_sha256 == post[-1].sha256),
             wall_clock=self.wall_clock, max_pre_dispatch_attempts=1)
@@ -766,24 +777,29 @@ class AllianceHelpActionBoundary:
             self.runtime.reconcile(action_key,
                 "confirmed" if execution.status is ActionStatus.CONFIRMED else "unresolved",
                 post[-1], execution.reason)
-        verified = execution.status is ActionStatus.CONFIRMED and result_action.get("final_status") == ActionStatus.CONFIRMED.value
-        dispatch_capture = dispatch_before_capture or immediate_capture
-        dispatch_observation = dispatch_help_observation or immediate
+        verified = bool(execution.status is ActionStatus.CONFIRMED and semantic_result is not None
+                        and result_action.get("final_status") == ActionStatus.CONFIRMED.value)
+        proven = semantic_result.proven_request_count if verified and semantic_result else None
+        if verified and help_all and proven is not None and positive_frame is not None:
+            # Persist the attributable count with the confirmed batch, unclipped by the goal.
+            self.store.audit(FLOW_ID, HELP_ALL_COUNT_EVENT, self.wall_clock(), {
+                "action_key": action_key, "proven_request_count": proven,
+                "frame_sha256": positive_frame.sha256}, result_action["action_id"])
         return {**base,
             "status": "confirmed" if verified else "reconciliation_required" if transport_calls or result_action.get("final_status") in {"input_sent", "unresolved"} else "blocked",
             "reason": execution.reason, "help_transport_calls": transport_calls,
             "help_dispatch_evidence": dispatch_evidence,
             "committed_action_count": 1 if verified else 0,
-            "verified_request_count": 1 if verified else 0,
+            "verified_request_count": proven or 0,
+            "proven_request_count": proven,
             "effect_reconciliation_required": bool(transport_calls and not verified),
             "identical_retry_denied": bool(not verified
                 and (transport_calls or result_action.get("final_status") != "cancelled")),
             "journal_status": result_action.get("final_status"),
             "proposal_frame": str(source.path), "proposal_sha256": source.sha256,
-            "immediate_before_frame": str(dispatch_capture.path),
-            "immediate_before_sha256": dispatch_capture.sha256,
-            "immediate_daily_alliance_coin_balance": dispatch_observation.daily_alliance_coin_balance,
-            "immediate_daily_alliance_coin_limit": dispatch_observation.daily_alliance_coin_limit,
+            "immediate_before_frame": str(dispatch_before_capture.path),
+            "immediate_before_sha256": dispatch_before_capture.sha256,
+            "positive_result_frame_sha256": positive_frame.sha256 if verified and positive_frame else None,
             "request_result_frames": [str(frame.path) for frame in post],
             "request_result_evidence": [{"frame_path": str(frame.path),
                 "frame_sha256": frame.sha256,
@@ -791,9 +807,9 @@ class AllianceHelpActionBoundary:
                 "source_fresh": post_semantics[str(frame.path)].source_fresh,
                 "overlay_clear": post_semantics[str(frame.path)].overlay_clear,
                 "success_message": post_semantics[str(frame.path)].help_success_message,
-                "daily_alliance_coin_balance": post_semantics[str(frame.path)].daily_alliance_coin_balance,
-                "daily_alliance_coin_limit": post_semantics[str(frame.path)].daily_alliance_coin_limit,
-                "selected_request_absent": selected not in {
+                "help_all_success_count": post_semantics[str(frame.path)].help_all_success_count,
+                "visible_request_rows": len(post_semantics[str(frame.path)].requests),
+                "selected_request_absent": None if selected is None else selected not in {
                     request.request_id for request in post_semantics[str(frame.path)].requests}}
                 for frame in post]}
 
@@ -900,7 +916,7 @@ def run_alliance_help(
         _write_result(session, result)
         return result
     result.update(confirmed_request_count=count, confirmed_request_records=confirmed_records,
-                  verified_request_count=count, committed_action_count=count)
+                  verified_request_count=count, committed_action_count=len(confirmed_records))
     if not count_ok:
         result.update(status="reconciliation_required", reason=count_reason,
                       effect_reconciliation_required=True, identical_retry_denied=True)
@@ -931,7 +947,7 @@ def run_alliance_help(
                           effect_reconciliation_required=True, identical_retry_denied=True)
         elif entry_home is None:
             result["reason"] = "alliance_help_route_context_recovery_unproven"
-        elif count == DAILY_REQUEST_LIMIT:
+        elif count >= DAILY_REQUEST_LIMIT:
             result.update(status="complete_for_reset", reason="ten_requests_already_confirmed",
                           confirmed_request_count=count, no_work=True)
         else:
@@ -968,13 +984,14 @@ def run_alliance_help(
                         wall_clock=utc_clock, observer=observer)
                     reason = None
                     status = "deferred"
+                    operation_count = len(confirmed_records)
                     while count < DAILY_REQUEST_LIMIT:
                         validate_identity()
                         if store.has_action_block():
                             status, reason = "reconciliation_required", "canonical_unresolved_action"
                             result.update(effect_reconciliation_required=True, identical_retry_denied=True)
                             break
-                        ordinal = count + 1
+                        ordinal = operation_count + 1
                         one = action.execute_one(ordinal=ordinal,
                             remaining=DAILY_REQUEST_LIMIT - count, occurrence_key=occurrence_key)
                         action = AllianceHelpActionBoundary(session=session, runtime=runtime,
@@ -986,13 +1003,14 @@ def run_alliance_help(
                         result["verified_request_count"] += int(one.get("verified_request_count", 0))
                         result.setdefault("request_actions", []).append(one)
                         if one.get("status") == "confirmed":
+                            operation_count += 1
                             count += one["verified_request_count"]
-                            if count > DAILY_REQUEST_LIMIT:
-                                status, reason = "reconciliation_required", "request_quota_overrun"
-                                result.update(effect_reconciliation_required=True, identical_retry_denied=True)
+                            if count >= DAILY_REQUEST_LIMIT:
+                                status, reason = "complete_for_reset", "ten_free_requests_confirmed"
                                 break
-                            status, reason = "complete_for_reset", "ten_free_requests_confirmed"
-                            if count == DAILY_REQUEST_LIMIT:
+                            if one.get("help_variant") == HelpAction.HELP_ALL.value:
+                                # One freshly bound batch per visit, not repeated taps to fabricate ten.
+                                status, reason = "deferred", "help_all_batch_confirmed_reobserve"
                                 break
                             continue
                         if one.get("status") == "deferred":
@@ -1073,7 +1091,7 @@ def run_alliance_help(
         and len(result["help_dispatch_evidence"]) == result["help_transport_calls"]
         and result["help_transport_calls"] <= MAX_ACTIONS)
     result["input_count"] = result["total_input_count"] = input_count
-    if result.get("confirmed_request_count") == DAILY_REQUEST_LIMIT and result.get("status") == "complete_for_reset":
+    if result.get("confirmed_request_count", 0) >= DAILY_REQUEST_LIMIT and result.get("status") == "complete_for_reset":
         if not result.get("terminal_home_verified"):
             result.update(status="reconciliation_required", reason="ten_requests_confirmed_but_home_not_proven",
                           effect_reconciliation_required=bool(result.get("help_transport_calls")),
@@ -1089,7 +1107,11 @@ def run_alliance_help(
     result["confirmed_request_count"] = durable_count
     result["confirmed_request_records"] = confirmed_records
     result["verified_request_count"] = durable_count
-    result["committed_action_count"] = durable_count
+    result["committed_action_count"] = len(confirmed_records)
+    result["unproven_help_all_batch_count"] = sum(
+        record.get("target_identity") == HELP_ALL_TARGET_IDENTITY
+        and record.get("proven_request_count") is None for record in confirmed_records)
+    result["daily_quantity_proven"] = result["unproven_help_all_batch_count"] == 0
     if not durable_ok:
         result.update(status="reconciliation_required", reason=durable_reason,
                       effect_reconciliation_required=True, identical_retry_denied=True)

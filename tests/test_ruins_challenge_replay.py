@@ -20,7 +20,6 @@ from scripts import ruins_challenge_bluestacks as native_route
 from scripts.bluestacks_native_runtime import CapturedNativeFrame, IntegratedRouteResult
 from scripts.home_atlas_bluestacks import HomeDriverDisposition
 from tasks.ruins_challenge import (
-    KNOWN_CHALLENGE_IDENTITIES,
     RuinsAvailability,
     RuinsChallengeRow,
     RuinsChestState,
@@ -105,6 +104,18 @@ class _FakeRuinsRuntime:
         self.points = 1000
         self.rewards = {"Hero Challenge": 11, "Weapon Trial": 22}
         self.consequential_targets: list[str] = []
+        self.max_inputs = 48
+        self.progress = 6
+        self.wins_before_loss = 0
+        self.stages_dispatched = 0
+        self.last_result = "failure"
+
+    def swipe(self, *_args, **_kwargs):
+        self.input_count += 1
+
+    def back(self, *_args, **_kwargs):
+        self.input_count += 1
+        self.state = "list"
 
     def measure_foreground_package(self):
         return "com.global.ztmslg"
@@ -140,8 +151,12 @@ class _FakeRuinsRuntime:
         elif target_identity.startswith("challenge:") or target_identity == "ruins-attack":
             self.state = "detail"
         elif target_identity == "ruins-dispatch":
+            self.stages_dispatched += 1
+            self.last_result = "success" if self.stages_dispatched <= self.wins_before_loss else "failure"
             self.state = "result"
         elif target_identity == "ruins-result-continue":
+            if self.last_result == "success":
+                self.progress += 1
             self.state = "list"
         elif target_identity.startswith("chest:"):
             self.modal_identity = target_identity.split(":", 1)[1]
@@ -158,6 +173,19 @@ class _FakeCanonicalActionExecutor:
         self.unknown_challenge = unknown_challenge
         self.confirmed: dict[str, dict[str, str]] = {}
         self.transport_calls_by_category = {"challenge": 0, "chest": 0}
+        self.unresolved = False
+        self.prior_result = None
+
+    def reset_progress(self, _legacy_action_key):
+        results = [proof["result"] for proof in self.confirmed.values() if proof["result"] in {"success", "failure"}]
+        if self.prior_result:
+            results.append(self.prior_result)
+        return {
+            "stages_confirmed": len(results),
+            "stages_won": results.count("success"),
+            "finished": "failure" in results,
+            "unresolved": self.unresolved,
+        }
 
     def status(self, spec):
         proof = self.confirmed.get(spec["action_key"])
@@ -175,11 +203,13 @@ class _FakeCanonicalActionExecutor:
         category = spec["category"]
         self.transport_calls_by_category[category] += 1
         if category == "challenge" and self.unknown_challenge:
+            self.unresolved = True
             return {"status": "unresolved", "reason": "fake_result_unknown", "transport_calls": 1}
         post = capture("offline-postcondition")
         if successor(post) != spec["expected_postcondition"]:
+            self.unresolved = True
             return {"status": "unresolved", "reason": "fake_postcondition_missing", "transport_calls": 1}
-        proof = {"result": "failure"} if category == "challenge" else {"result": "confirmed"}
+        proof = {"result": spec["result"]} if category == "challenge" else {"result": "confirmed"}
         self.confirmed[spec["action_key"]] = proof
         return {"status": "confirmed", "reason": "fake_postcondition_confirmed", "transport_calls": 1}
 
@@ -190,14 +220,27 @@ def _run_native_fake_visit(
     unknown_challenge: bool = False,
     challenge_available: bool = True,
     wrong_reward_modal: bool = False,
-    modal_reward_delta_mismatch: bool = False,
     retain_claimed_target: bool = False,
     hide_claimed_row: bool = False,
+    wins_before_loss: int = 0,
+    maximum_inputs: int = 48,
+    unavailable_detail: bool = False,
+    prior_result: str | None = None,
+    challenge_after_claim: bool = False,
+    resume=None,
 ):
     reset_identity = "game-day-2026-07-16"
     current_day = "Thu"
-    runtime = _FakeRuinsRuntime(root / "fake-native-session")
-    executor = _FakeCanonicalActionExecutor(runtime, unknown_challenge=unknown_challenge)
+    if resume is None:
+        runtime = _FakeRuinsRuntime(root / "fake-native-session")
+        runtime.wins_before_loss = wins_before_loss
+        executor = _FakeCanonicalActionExecutor(runtime, unknown_challenge=unknown_challenge)
+        executor.prior_result = prior_result
+    else:
+        runtime, executor = resume
+        runtime.state = "home"
+        runtime.input_count = 0
+    runtime.max_inputs = maximum_inputs
     binding = resource_fixed_runtime_binding()
     backend = derive_resource_runtime_identity(
         binding,
@@ -245,10 +288,14 @@ def _run_native_fake_visit(
             return RuinsFrameRecognition(empty, digest, (), {})
         rows = []
         targets = []
-        for identity in KNOWN_CHALLENGE_IDENTITIES:
+        # Only current visible categories are observed; unrelated categories
+        # are not a completion census prerequisite.
+        for identity in ("Hero Challenge", "Weapon Trial", "Nova Challenge"):
             if hide_claimed_row and identity in runtime.claimed:
                 continue
-            is_challenge = identity == "Nova Challenge" and challenge_available
+            is_challenge = (identity == "Nova Challenge" and challenge_available) or (
+                challenge_after_claim and identity in runtime.claimed
+            )
             chest_state = (
                 RuinsChestState.UNKNOWN
                 if identity in runtime.claimed or identity not in ready_categories
@@ -258,9 +305,9 @@ def _run_native_fake_visit(
                 identity=identity,
                 day_label=current_day if is_challenge else None,
                 availability=RuinsAvailability.AVAILABLE if is_challenge else RuinsAvailability.UNAVAILABLE,
-                progress_current=6,
+                progress_current=runtime.progress if is_challenge else 6,
                 progress_maximum=60,
-                last_successful_level=None,
+                last_successful_level=runtime.progress if is_challenge else 6,
                 challenge_control=(
                     RuinsControlState.VISIBLE_ENABLED if is_challenge else RuinsControlState.HIDDEN
                 ),
@@ -297,9 +344,9 @@ def _run_native_fake_visit(
         observation = RuinsDetailObservation(
             identity=identity,
             recognized=True,
-            floor_current=6,
+            floor_current=runtime.progress,
             floor_maximum=60,
-            attack_control=RuinsControlState.VISIBLE_ENABLED,
+            attack_control=RuinsControlState.HIDDEN if unavailable_detail else RuinsControlState.VISIBLE_ENABLED,
             dispatch_control=RuinsControlState.VISIBLE_ENABLED,
             npc_troops_provided=True,
             npc_troops_current=200200,
@@ -321,13 +368,14 @@ def _run_native_fake_visit(
         valid = int(frame[0, 0, 0]) == 3 and identity == "Nova Challenge"
         observation = RuinsResultObservation(
             identity=identity,
-            result=RuinsResult.FAILURE if valid else RuinsResult.AMBIGUOUS,
+            result=RuinsResult(runtime.last_result) if valid else RuinsResult.AMBIGUOUS,
             progress_after=None,
             maximum_after=None,
             level_after=None,
+            explicit_success_text=valid and runtime.last_result == "success",
             source_frame_sha256=digest,
             reset_identity=reset_identity,
-            explicit_failure_text=valid,
+            explicit_failure_text=valid and runtime.last_result == "failure",
             tap_to_continue_visible=valid,
         )
         targets = (("ruins-result-continue", (250, 1100, 550, 1220)),) if valid else ()
@@ -341,8 +389,6 @@ def _run_native_fake_visit(
             else identity
         )
         medal_amount = runtime.rewards[identity]
-        if modal_reward_delta_mismatch and identity == "Hero Challenge":
-            medal_amount += 1
         return RuinsRewardRecognition(
             modal_identity == identity,
             modal_identity,
@@ -502,16 +548,12 @@ class RuinsChallengeReplayTests(unittest.TestCase):
     def test_production_route_offline_replay_handles_loss_and_independent_green_chests(self):
         route, runtime, executor, outcome = _run_native_fake_visit(self.root)
         self.assertEqual(outcome.status, "completed")
-        self.assertEqual(route.challenge_status, "confirmed")
-        self.assertEqual(route.challenge_result, "failure")
+        self.assertEqual(route.challenge_status, "finished")
+        self.assertEqual(route.challenge_stages[-1]["result"], "failure")
         self.assertTrue(route.challenge_participation_confirmed)
         self.assertEqual(route.challenge_transport_calls, 1)
         self.assertEqual(route.chest_claim_transport_calls, 2)
         self.assertEqual(route.challenge_transport_calls + route.chest_claim_transport_calls, 3)
-        self.assertEqual(route.resource_delta, 33)
-        self.assertEqual(route.chest_coverage["Hero Challenge"], "newly claimed")
-        self.assertEqual(route.chest_coverage["Weapon Trial"], "newly claimed")
-        self.assertEqual(route.chest_coverage["Tech Challenge"], "already claimed")
         self.assertTrue(route.terminal_home_verified)
         self.assertEqual(len(runtime.consequential_targets), 3)
         self.assertEqual(runtime.consequential_targets,
@@ -527,7 +569,6 @@ class RuinsChallengeReplayTests(unittest.TestCase):
         self.assertFalse(route.challenge_participation_confirmed)
         self.assertEqual(route.challenge_transport_calls, 0)
         self.assertEqual(route.chest_claim_transport_calls, 2)
-        self.assertEqual(route.resource_delta, 33)
         self.assertEqual(len(runtime.consequential_targets), 2)
         self.assertEqual(executor.transport_calls_by_category, {"challenge": 0, "chest": 2})
         self.assertTrue(route.terminal_home_verified)
@@ -550,7 +591,7 @@ class RuinsChallengeReplayTests(unittest.TestCase):
         )
         self.assertEqual(outcome.status, "unresolved")
         self.assertIn("ruins_reward_modal_not_exact_zero_cost_identity", outcome.reason)
-        self.assertEqual(route.challenge_result, "failure")
+        self.assertEqual(route.challenge_stages[-1]["result"], "failure")
         self.assertTrue(route.challenge_participation_confirmed)
         self.assertEqual(route.chest_claim_transport_calls, 0)
         self.assertEqual(runtime.consequential_targets, ["ruins-dispatch"])
@@ -562,13 +603,12 @@ class RuinsChallengeReplayTests(unittest.TestCase):
         # a synthetic CLAIMED label; the sibling stays independently ready.
         route, runtime, _executor, outcome = _run_native_fake_visit(self.root)
         self.assertEqual(outcome.status, "completed")
-        self.assertEqual(route.resource_delta, 33)
         self.assertEqual(route.chest_claim_transport_calls, 2)
         self.assertEqual([item["identity"] for item in route.newly_claimed_chests],
             ["Hero Challenge", "Weapon Trial"])
         self.assertEqual(runtime.consequential_targets[0], "ruins-dispatch")
 
-    def test_exact_medals_without_category_or_target_disappearance_stays_unknown(self):
+    def test_green_target_retained_or_exact_row_hidden_stays_unknown(self):
         for options in ({"retain_claimed_target": True}, {"hide_claimed_row": True}):
             with self.subTest(options=options):
                 route, runtime, _executor, outcome = _run_native_fake_visit(self.root, **options)
@@ -576,27 +616,73 @@ class RuinsChallengeReplayTests(unittest.TestCase):
                 self.assertTrue(route.unresolved_action)
                 self.assertEqual(route.chest_claim_transport_calls, 1)
                 self.assertEqual(route.newly_claimed_chests, [])
-                self.assertEqual(route.resource_delta, 0)
                 self.assertEqual(runtime.consequential_targets,
                     ["ruins-dispatch", "ruins-reward-claim"])
 
-    def test_production_route_keeps_medal_delta_mismatch_unresolved(self):
-        route, runtime, executor, outcome = _run_native_fake_visit(
-            self.root, modal_reward_delta_mismatch=True,
+    def test_wins_continue_to_first_loss_then_claims_and_restart_preserves_stop(self):
+        route, runtime, executor, outcome = _run_native_fake_visit(self.root, wins_before_loss=2)
+        self.assertEqual(outcome.status, "completed")
+        self.assertEqual([stage["result"] for stage in route.challenge_stages],
+                         ["success", "success", "failure"])
+        self.assertEqual([stage["stage_cleared"] for stage in route.challenge_stages], [6, 7, 8])
+        self.assertEqual(route.challenge_transport_calls, 3)
+        self.assertEqual(route.chest_claim_transport_calls, 2)
+        self.assertEqual(runtime.consequential_targets[:3], ["ruins-dispatch"] * 3)
+        resumed, _runtime, _executor, second = _run_native_fake_visit(
+            self.root, resume=(runtime, executor),
+        )
+        self.assertEqual(second.status, "completed")
+        self.assertEqual(resumed.challenge_status, "finished")
+        self.assertEqual(resumed.challenge_stages, [])
+        self.assertEqual(resumed.challenge_transport_calls, 0)
+        self.assertEqual(resumed.chest_claim_transport_calls, 0)
+
+    def test_budget_pause_resumes_at_observed_next_stage_not_one_daily_attempt(self):
+        first, runtime, executor, outcome = _run_native_fake_visit(
+            self.root, wins_before_loss=2, maximum_inputs=14,
         )
         self.assertEqual(outcome.status, "unresolved")
-        self.assertIn("fake_postcondition_missing", outcome.reason)
-        self.assertEqual(route.challenge_result, "failure")
-        self.assertEqual(route.chest_claim_transport_calls, 1)
-        self.assertTrue(route.unresolved_action)
-        self.assertEqual(route.chest_coverage["Hero Challenge"], "unresolved")
-        self.assertEqual(route.newly_claimed_chests, [])
-        self.assertEqual(route.resource_delta, 0)
-        self.assertEqual(
-            runtime.consequential_targets,
-            ["ruins-dispatch", "ruins-reward-claim"],
+        self.assertEqual(first.challenge_status, "paused")
+        self.assertFalse(first.unresolved_action)
+        self.assertEqual(first.challenge_transport_calls, 1)
+        self.assertEqual(first.chest_claim_transport_calls, 2)
+        self.assertTrue(first.terminal_home_verified)
+        resumed, _runtime, _executor, second = _run_native_fake_visit(
+            self.root, resume=(runtime, executor),
         )
-        self.assertEqual(executor.transport_calls_by_category, {"challenge": 1, "chest": 1})
+        self.assertEqual(second.status, "completed")
+        self.assertEqual([stage["stage_cleared"] for stage in resumed.challenge_stages], [7, 8])
+        self.assertEqual([stage["result"] for stage in resumed.challenge_stages], ["success", "failure"])
+        self.assertEqual(resumed.chest_claim_transport_calls, 0)
+
+    def test_never_sent_unavailable_detail_releases_plan_for_independent_chests(self):
+        route, runtime, _executor, outcome = _run_native_fake_visit(
+            self.root, unavailable_detail=True,
+        )
+        self.assertEqual(outcome.status, "completed")
+        self.assertEqual(route.challenge_status, "unavailable")
+        self.assertEqual(route.challenge_transport_calls, 0)
+        self.assertEqual(route.chest_claim_transport_calls, 2)
+        self.assertFalse(route.unresolved_action)
+        self.assertEqual(runtime.consequential_targets, ["ruins-reward-claim"] * 2)
+
+    def test_true_unknown_survives_another_visit_without_dispatch(self):
+        _first, runtime, executor, _outcome = _run_native_fake_visit(self.root, unknown_challenge=True)
+        second, _runtime, _executor, outcome = _run_native_fake_visit(
+            self.root, resume=(runtime, executor),
+        )
+        self.assertEqual(outcome.status, "unresolved")
+        self.assertTrue(second.unresolved_action)
+        self.assertEqual(second.challenge_transport_calls, 0)
+        self.assertEqual(second.chest_claim_transport_calls, 0)
+        self.assertEqual(runtime.consequential_targets, ["ruins-dispatch"])
+
+    def test_spent_green_chest_successor_does_not_require_challenge_unavailable(self):
+        route, _runtime, _executor, outcome = _run_native_fake_visit(self.root, challenge_after_claim=True)
+        self.assertEqual(outcome.status, "completed")
+        self.assertEqual(route.chest_claim_transport_calls, 2)
+        self.assertFalse(route.unresolved_action)
+
 
 
 if __name__ == "__main__":

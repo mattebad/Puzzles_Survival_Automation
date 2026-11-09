@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timezone
 from itertools import count
 import json
@@ -33,7 +34,6 @@ from safe_action_core import (
     TransportResult,
 )
 from tasks.ruins_challenge import (
-    KNOWN_CHALLENGE_IDENTITIES,
     RUINS_CHALLENGE_DISPATCH_ACTION,
     RUINS_CHALLENGE_RESULT_POSTCONDITION,
     ruins_daily_action_key,
@@ -82,9 +82,6 @@ class FakeNative:
         request.validate_identity()
         identity = request.identity
         backend = request.arguments["runtime_identity"]
-        coverage = {item: "already claimed" for item in KNOWN_CHALLENGE_IDENTITIES}
-        for claim in self.claims:
-            coverage[claim["identity"]] = "newly claimed"
         chest_calls = len(self.claims)
         total = self.challenge_calls + chest_calls
         native = {
@@ -94,15 +91,22 @@ class FakeNative:
             "ruins_dispatch_count": total,
             "challenge_transport_calls": self.challenge_calls,
             "chest_claim_transport_calls": chest_calls,
-            "challenge_participation_confirmed": self.challenge_status == "confirmed",
-            "daily_action_ready": self.challenge_status == "confirmed",
+            "challenge_participation_confirmed": self.challenge_status == "finished" or (
+                self.challenge_calls > 0 and self.challenge_status == "paused"
+            ),
+            "daily_action_ready": self.challenge_status == "finished" or (
+                self.challenge_calls > 0 and self.challenge_status == "paused"
+            ),
             "challenge_status": self.challenge_status,
-            "challenge_result": "failure" if self.challenge_status == "confirmed" else None,
-            "challenge_identity": "Nova Challenge" if self.challenge_status == "confirmed" else None,
-            "unresolved_action": self.status == "unresolved",
-            "chest_coverage": coverage,
+            "challenge_stages": [
+                {"identity": "Nova Challenge", "stage_cleared": 6 + ordinal,
+                 "stage_maximum": 60,
+                 "result": "failure" if self.challenge_status == "finished" and ordinal == self.challenge_calls - 1 else "success"}
+                for ordinal in range(self.challenge_calls)
+            ] if self.challenge_status != "unresolved" else [],
+            "unresolved_action": self.challenge_status == "unresolved",
+            "chest_status": "complete",
             "newly_claimed_chests": self.claims,
-            "resource_delta": sum(item["ruins_medals"] for item in self.claims),
             "terminal_home_verified": True,
             "terminal_home_frame": {
                 "frame_path": "frames/ruins-home.png",
@@ -171,11 +175,11 @@ class RuinsServiceTests(unittest.TestCase):
     def test_loss_participation_and_independent_claims_count_every_dispatch(self):
         native = FakeNative(
             self.now,
-            challenge_status="confirmed",
+            challenge_status="finished",
             challenge_calls=1,
             claims=[
-                {"identity": "Hero Challenge", "ruins_medals": 101},
-                {"identity": "Weapon Trial", "ruins_medals": 203},
+                {"identity": "Hero Challenge"},
+                {"identity": "Weapon Trial"},
             ],
         )
         result = self.run_fake(native)
@@ -189,12 +193,11 @@ class RuinsServiceTests(unittest.TestCase):
         self.assertEqual(result["status"], "completed")
         self.assertTrue(result["challenge_participation_confirmed"])
         self.assertTrue(result["daily_action_ready"])
-        self.assertEqual(result["challenge_result"], "failure")
+        self.assertEqual(result["challenge_stages"][-1]["result"], "failure")
         self.assertEqual(result["challenge_transport_calls"], 1)
         self.assertEqual(result["chest_claim_transport_calls"], 2)
         self.assertEqual(result["ruins_dispatch_count"], 3)
         self.assertEqual(result["action_count"], 3)
-        self.assertEqual(result["resource_delta"], 304)
         self.assertTrue(result["terminal_home_verified"])
 
     def test_unavailable_challenge_does_not_suppress_ready_chest_or_repeat_due(self):
@@ -202,7 +205,7 @@ class RuinsServiceTests(unittest.TestCase):
             self.now,
             challenge_status="unavailable",
             challenge_calls=0,
-            claims=[{"identity": "Tech Challenge", "ruins_medals": 55}],
+            claims=[{"identity": "Tech Challenge"}],
         )
         result = self.run_fake(native)
         self.assertEqual(result["status"], "completed")
@@ -211,8 +214,24 @@ class RuinsServiceTests(unittest.TestCase):
         self.assertEqual(result["challenge_transport_calls"], 0)
         self.assertEqual(result["chest_claim_transport_calls"], 1)
         self.assertEqual(result["ruins_dispatch_count"], 1)
-        self.assertEqual(result["chest_coverage"]["Tech Challenge"], "newly claimed")
+        self.assertEqual(result["newly_claimed_chests"], [{"identity": "Tech Challenge"}])
         self.assertGreater(result["next_due_at_utc"], result["completed_at_utc"] + REOBSERVE_SECONDS)
+
+    def test_multiple_stages_count_separately_and_budget_pause_is_resumable(self):
+        finished = self.run_fake(FakeNative(
+            self.now, challenge_status="finished", challenge_calls=3,
+            claims=[{"identity": "Hero Challenge"}],
+        ))
+        self.assertEqual(finished["ruins_dispatch_count"], 4)
+        self.assertEqual([stage["result"] for stage in finished["challenge_stages"]],
+                         ["success", "success", "failure"])
+        self.assertGreater(finished["next_due_at_utc"], finished["completed_at_utc"] + REOBSERVE_SECONDS)
+        paused = self.run_fake(FakeNative(
+            self.now, challenge_status="paused", challenge_calls=2, status="unresolved",
+        ))
+        self.assertEqual(paused["next_due_at_utc"], paused["completed_at_utc"] + REOBSERVE_SECONDS)
+        self.assertFalse(paused["effect_reconciliation_required"])
+        self.assertFalse(paused["identical_retry_denied"])
 
     def test_unknown_effect_reobserves_and_is_never_reported_as_done(self):
         native = FakeNative(
@@ -301,17 +320,6 @@ class RuinsServiceTests(unittest.TestCase):
         )
         with self.assertRaises(RuinsNativePartialResultError):
             self.run_fake(bad_accounting)
-        incomplete = FakeNative(self.now, challenge_status="unavailable", challenge_calls=0)
-        run = incomplete.run
-
-        def omit_canonical_category(request):
-            outcome = run(request)
-            outcome.native_result["chest_coverage"].pop("Cube Challenge")
-            return outcome
-
-        incomplete.run = omit_canonical_category
-        with self.assertRaisesRegex(RuinsNativePartialResultError, "chest coverage"):
-            self.run_fake(incomplete)
 
     def test_due_rejects_wrong_identity_or_missing_home(self):
         result = {
@@ -327,8 +335,8 @@ class RuinsServiceTests(unittest.TestCase):
             "accounting_verified": True,
             "status": "completed",
             "challenge_participation_confirmed": True,
-            "challenge_status": "confirmed",
-            "chest_coverage": {item: "already claimed" for item in KNOWN_CHALLENGE_IDENTITIES},
+            "challenge_status": "finished",
+            "chest_status": "complete",
         }
         self.assertGreater(ruins_next_due(result, self.identity, self.now), self.now)
         with self.assertRaises(ValueError):
@@ -410,6 +418,33 @@ class RuinsServiceTests(unittest.TestCase):
         store.prepare_action(intent, policy, 1000.0)
         store.mark_input_sent(action_id, 1000.1, TransportResult(True, "RUINS_DISPATCHED"))
         store.mark_unresolved(action_id, 1000.2, "result_not_observed")
+        stage_keys = []
+        for ordinal, outcome in enumerate(("success", "failure")):
+            stage_key = ruins_daily_action_key(
+                flow_id=RUINS_FLOW_ID, runtime_scope="bluestacks:test-instance",
+                account_id=self.identity.account_id, server_id=self.identity.server_id,
+                reset_identity=reset_id, current_day="Thu",
+                category=f"challenge:nova-challenge:{18 + ordinal}:100",
+            )
+            stage_keys.append(stage_key)
+            stage_intent = replace(intent, action_id=f"stage-{ordinal}", action_key=stage_key)
+            store.prepare_action(stage_intent, policy, 1000.0)
+            store.mark_input_sent(stage_intent.action_id, 1000.1, TransportResult(True, "RUINS_DISPATCHED"))
+            store.audit(PRODUCT_ID, "ruins_stage_result", 1000.2, {
+                "account_id": self.identity.account_id,
+                "server_id": self.identity.server_id,
+                "runtime_scope": "bluestacks:test-instance",
+                "reset_id": reset_id,
+                "result": outcome,
+                "frame_sha256": "c" * 64,
+            }, stage_intent.action_id)
+            store.mark_confirmed(stage_intent.action_id, 1000.3, {
+                "confirmed": True, "frame_sha256": "c" * 64,
+            })
+        cancelled = replace(intent, action_id="never-sent", action_key="never-sent-stage")
+        store.prepare_action(cancelled, policy, 1000.0)
+        store.mark_cancelled(cancelled.action_id, 1000.1, "pre_input_revalidation:not_available")
+        self.assertEqual(len(set(stage_keys + [challenge_key, chest_key])), 4)
         store.close()
 
         history = self.root / "ruins-chest-history.json"
@@ -425,7 +460,7 @@ class RuinsServiceTests(unittest.TestCase):
             boundary = RuinsCanonicalActionBoundary(
                 context,
                 self.identity,
-                SimpleNamespace(),
+                SimpleNamespace(runtime_scope="bluestacks:test-instance"),
                 lambda: None,
                 monotonic_clock=lambda: 2.0,
                 utc_clock=lambda: 1001.0,
@@ -457,6 +492,13 @@ class RuinsServiceTests(unittest.TestCase):
             )
             self.assertEqual(result["status"], "unknown")
             self.assertEqual(result["transport_calls"], 0)
+            self.assertEqual(boundary.reset_progress(challenge_key), {
+                "stages_confirmed": 2, "stages_won": 1, "finished": True, "unresolved": True,
+            })
+            self.assertEqual(boundary.status({**spec, "action_key": "never-sent-stage"})["status"], "new")
+            self.assertEqual(reopened.get_action_by_key(challenge_key)["final_status"], "unresolved")
+            self.assertEqual([reopened.get_action_by_key(key)["final_status"] for key in stage_keys],
+                             ["confirmed", "confirmed"])
         finally:
             reopened.close()
 

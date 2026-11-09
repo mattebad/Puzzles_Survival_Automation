@@ -102,8 +102,8 @@ class BatchBReviewRegressions(unittest.TestCase):
                     'reset_deadline_utc'].replace('Z', '+00:00')).timestamp()
                     if count == 10 else NOW + adapter.OBSERVATION_RETRY_SECONDS)
                 for field, value in (('selected_request_absent', False),
-                                     ('daily_alliance_coin_balance', 0),
-                                     ('daily_alliance_coin_limit', 60000)):
+                                     ('source_fresh', False),
+                                     ('overlay_clear', False)):
                     corrupt = deepcopy(result)
                     corrupt['request_actions'][0]['request_result_evidence'][-1][field] = value
                     with self.assertRaises(ValueError):

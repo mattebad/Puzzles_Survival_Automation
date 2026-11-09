@@ -47,7 +47,6 @@ from tasks.ruins_challenge_runtime import RuinsRuntimeController
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests/fixtures/ruins_challenge_observations.json"
-MATRIX = ROOT / "tasks/daily_quest_execution_matrix.json"
 RESET = "local-2026-07-16-ruins"
 
 
@@ -78,10 +77,7 @@ class RuinsContractTests(unittest.TestCase):
     def test_reward_modal_uses_identity_text_and_native_orange_claim_geometry(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         frame[689:778, 263:537] = (0, 128, 255)
-        text = (
-            "you cleared 60 floors in mon hero challenge reward available "
-            "can claim once a week please claim before the challenge restarts next week"
-        )
+        text = "you cleared 60 floors in mon hero challenge reward available"
         with patch("tasks.ruins_challenge_vision._ocr", return_value=text), patch(
             "tasks.ruins_challenge_vision._ocr_boxes", return_value=[],
         ):
@@ -422,6 +418,9 @@ class RuinsContractTests(unittest.TestCase):
         row = load_row("available_nova")
         valid = screen(row)
         self.assertTrue(challenge_action_authorized(valid, row, current_day="Wed", action_key="nova-1"))
+        self.assertTrue(challenge_action_authorized(
+            replace(valid, points_balance=None), row, current_day="Wed", action_key="nova-without-wallet",
+        ))
         for changes in (
             {"premium": True},
             {"paid": True},
@@ -429,6 +428,7 @@ class RuinsContractTests(unittest.TestCase):
             {"currency_cost": 1},
             {"forbidden_controls_seen": ("exchange",)},
             {"overlay_state": "popup"},
+            {"last_successful_level": None},
             {"source_frame_sha256": ""},
         ):
             candidate = replace(row, **{key: value for key, value in changes.items() if key in row.__dataclass_fields__})
@@ -447,8 +447,11 @@ class RuinsContractTests(unittest.TestCase):
         self.assertTrue(detail_attack_authorized(detail))
         self.assertTrue(dispatch_authorized(detail))
         self.assertFalse(dispatch_authorized(replace(detail, resource_cost=1)))
+        self.assertTrue(dispatch_authorized(replace(
+            detail, npc_troops_current=None, npc_troops_maximum=None, skip_battle_enabled=False,
+        )))
         before = load_row("available_nova")
-        success = RuinsResultObservation("Nova Challenge", RuinsResult.SUCCESS, 20, 100, 20, "f" * 64, RESET, True, False, False)
+        success = RuinsResultObservation("Nova Challenge", RuinsResult.SUCCESS, None, None, None, "f" * 64, RESET, True, False, True)
         failure = RuinsResultObservation("Nova Challenge", RuinsResult.FAILURE, 18, 100, None, "f" * 64, RESET, False, True, True)
         ambiguous = replace(failure, result=RuinsResult.AMBIGUOUS, explicit_failure_text=False)
         self.assertTrue(result_verified(before, success))
@@ -546,11 +549,10 @@ class RuinsContractTests(unittest.TestCase):
         self.assertEqual(generic.observation.dispatch_control, RuinsControlState.HIDDEN)
         self.assertIsNone(generic.target("ruins-dispatch"))
 
-        for text in (
-            "dispatch npc troops 200200/200200",
-            "dispatch npc troops 199999/200200 skip battle",
-            "dispatch npc troops 200200/200200 skip battle purchase",
-        ):
+        reduced = recognize(dispatch_frame(), "dispatch npc troops 199999/200200")
+        self.assertEqual(reduced.observation.dispatch_control, RuinsControlState.VISIBLE_ENABLED)
+        self.assertIsNotNone(reduced.target("ruins-dispatch"))
+        for text in ("dispatch", "dispatch npc troops purchase"):
             negative = recognize(dispatch_frame(), text)
             self.assertEqual(negative.observation.dispatch_control, RuinsControlState.HIDDEN)
             self.assertIsNone(negative.target("ruins-dispatch"))
@@ -574,11 +576,11 @@ class RuinsContractTests(unittest.TestCase):
         controller.observe_list(observation)
         command = controller.plan_chest_claim(observation, before, action_key="chest-hero-1")
         self.assertEqual(command.kind, "claim_chest")
-        self.assertEqual(controller.daily.challenge_initiations_completed, 0)
+        self.assertEqual(controller.daily.stages_confirmed, 0)
         self.assertEqual(controller.reconcile_chest(before, claimed, action_key="chest-hero-1").kind, "chest_reconciled")
         self.assertEqual(controller.plan_chest_claim(replace(observation, rows=(claimed,), source_frame_sha256=claimed.source_frame_sha256), claimed, action_key="chest-hero-1").kind, "blocked")
 
-    def test_one_success_completes_daily_and_default_controller_does_not_do_second(self):
+    def test_win_keeps_daily_participation_and_continues_only_a_fresh_stage(self):
         nova = load_row("available_nova")
         controller = RuinsRuntimeController(reset_identity=RESET)
         observation = screen(nova)
@@ -592,11 +594,15 @@ class RuinsContractTests(unittest.TestCase):
         )
         self.assertEqual(controller.plan_attack(detail, action_key="nova-1").kind, "attack")
         self.assertEqual(controller.plan_dispatch(detail, action_key="nova-1").kind, "dispatch")
-        result = RuinsResultObservation("Nova Challenge", RuinsResult.SUCCESS, 20, 100, 20, "f" * 64, RESET, True, False, False)
+        result = RuinsResultObservation("Nova Challenge", RuinsResult.SUCCESS, None, None, None, "f" * 64, RESET, True, False, True)
         self.assertEqual(controller.reconcile_result(nova, result).kind, "reconciled")
-        self.assertTrue(controller.daily.initiation_complete)
-        self.assertTrue(controller.daily.successful_progress_complete)
+        self.assertTrue(controller.daily.participation_confirmed)
+        self.assertEqual(controller.daily.stages_won, 1)
         self.assertEqual(controller.plan_challenge(observation, nova, current_day="Wed", action_key="nova-2").kind, "blocked")
+        next_stage = replace(nova, progress_current=19, last_successful_level=19, source_frame_sha256="1" * 64)
+        fresh = screen(next_stage, source=next_stage.source_frame_sha256)
+        controller.observe_list(fresh)
+        self.assertEqual(controller.plan_challenge(fresh, next_stage, current_day="Wed", action_key="nova-3").kind, "open_detail")
 
     def test_failed_first_challenge_confirms_participation_and_keeps_chests_eligible(self):
         nova = load_row("available_nova")
@@ -606,10 +612,9 @@ class RuinsContractTests(unittest.TestCase):
         self.assertEqual(controller.plan_challenge(first, nova, current_day="Wed", action_key="nova-1").kind, "open_detail")
         failure = RuinsResultObservation("Nova Challenge", RuinsResult.FAILURE, 18, 100, None, "f" * 64, RESET, False, True, True)
         self.assertEqual(controller.reconcile_result(nova, failure).kind, "reconciled")
-        self.assertTrue(controller.daily.initiation_complete)
-        self.assertTrue(controller.daily.ready_to_claim)
-        self.assertTrue(controller.daily.claim_dormant)
-        self.assertFalse(controller.daily.successful_progress_complete)
+        self.assertTrue(controller.daily.participation_confirmed)
+        self.assertTrue(controller.daily.challenge_finished)
+        self.assertEqual(controller.daily.stages_won, 0)
         self.assertEqual(
             controller.plan_challenge(first, nova, current_day="Wed", action_key="nova-retry").kind,
             "blocked",
@@ -644,19 +649,31 @@ class RuinsContractTests(unittest.TestCase):
 
     def test_ambiguous_result_stops_without_retry(self):
         nova = load_row("available_nova")
-        controller = RuinsRuntimeController(reset_identity=RESET, allow_optional_second=True)
+        controller = RuinsRuntimeController(reset_identity=RESET)
         observation = screen(nova)
         controller.observe_list(observation)
         controller.plan_challenge(observation, nova, current_day="Wed", action_key="nova-1")
         ambiguous = RuinsResultObservation("Nova Challenge", RuinsResult.AMBIGUOUS, None, None, None, "f" * 64, RESET)
         self.assertEqual(controller.reconcile_result(nova, ambiguous).kind, "blocked")
+        self.assertFalse(controller.release_unsent("nova-1"))
         self.assertEqual(controller.plan_challenge(observation, nova, current_day="Wed", action_key="nova-retry").kind, "blocked")
         self.assertEqual(controller.finish().kind, "blocked")
 
-    def test_registration_and_scheduler_remain_disabled(self):
-        row = next(item for item in json.loads(MATRIX.read_text(encoding="utf-8"))["objectives"] if item["objective_key"] == "ruins_challenge")
-        self.assertEqual(row["current_runtime_registration_status"], "NOT_REGISTERED")
-        self.assertFalse(row["scheduler_eligibility"])
+    def test_unsent_plan_can_be_released_but_a_sent_stage_remains_fenced(self):
+        nova = load_row("available_nova")
+        ready = load_row("available_chest")
+        controller = RuinsRuntimeController(reset_identity=RESET)
+        observation = screen(nova)
+        controller.observe_list(observation)
+        controller.plan_challenge(observation, nova, current_day="Wed", action_key="nova-unsent")
+        self.assertTrue(controller.release_unsent("nova-unsent"))
+        current = screen(ready, source=ready.source_frame_sha256)
+        controller.observe_list(current)
+        self.assertEqual(controller.plan_chest_claim(current, ready, action_key="chest-after-unsent").kind, "claim_chest")
+        controller.mark_input_sent("chest-after-unsent")
+        self.assertFalse(controller.release_unsent("chest-after-unsent"))
+        self.assertEqual(controller.finish().kind, "blocked")
+
 
 
 class RuinsNativeWalletTests(unittest.TestCase):
