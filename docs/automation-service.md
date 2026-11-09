@@ -195,14 +195,18 @@ retry. Product approval is not runtime enablement. The Campaign block and final 
 Reset confirmation are unverified, so no Reset input is admitted. Original manual investigation
 is not a completed native acceptance run; permanent controls remain disabled.
 
-B adds Ruins/Help; C adds Donation, Alliance Shop and Daily Shops. These are implemented and
-offline-proven, not newly live-accepted; production and SQLite runtime controls remain disabled.
-Ruins reconciles a claimed overview chest using its exact medal gain, unchanged category/reset
-and disappearance of that ready target; the category itself may remain visible. An unavailable
-challenge does not prevent independent ready chest claims. Help counts confirmed successful
-individual free requests, including delayed pending-to-success transitions; neither tap count
-nor repeated Help All inputs establishes progress. Native replay exercises both paths offline;
-finished-route live acceptance remains `evidence_required`.
+B adds Ruins/Help; C adds Donation, Alliance Shop and Daily Shops. Implementation and historical
+offline proof are separate from current live acceptance; production and SQLite controls remain disabled.
+Ruins confirms each freshly identified free NPC stage result, advances after wins, and durably
+stops further challenges at the first loss for that reset. A finite-budget pause is resumable,
+not daily completion. Independently green-ready overview chests remain eligible when the
+challenge is unavailable; each requires its own positive claim successor, not medal arithmetic
+or exhaustive category coverage. Help prefers one bound free Help All batch per visit when
+requests exist, otherwise individual Help, with no coin gate or complete request census.
+Numeric success evidence credits actual requests toward ten, even if a batch exceeds the
+remaining goal; a positively successful batch with unreadable count is retained and deferred
+without fabricated completion or UNKNOWN. A genuinely ambiguous effect remains fenced against
+identical retry. Finished-route live acceptance remains `evidence_required`.
 
 Donations count actual successful HOT-tech donations, not ranking points. Alliance Shop requires
 one affordable allowlisted Weekly offer or the exact one-star Other fallback, quantity one total.

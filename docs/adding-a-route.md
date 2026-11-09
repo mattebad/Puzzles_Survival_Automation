@@ -157,10 +157,16 @@ Existing layout exceptions:
 * **Batch B Ruins and Alliance Help**: canonical-service-only routes with registered fixed specs and
   injected native bindings; no legacy operator runner or operator-registry row. Queue `NOT_REGISTERED`
   refers only to disabled legacy production posture; SQLite service/flow controls remain off. Both
-  are `evidence_required`, with no current native live acceptance claimed. Ruins attempts the current
-  zero-cost challenge first, then independent green-ready overview chests even if it is unavailable;
-  Help counts actual successful free requests, preserves partial quota, and uses Help All only when
-  the exact request count is known. Help recognizes the Alliance menu by its centered title,
+  are `evidence_required`, with no current native live acceptance claimed. Ruins advances through
+  freshly identified allowed free NPC stages until the first loss or genuine unavailability,
+  then collects independent green-ready overview chests. Loss is durable for that reset;
+  finite-budget pauses preserve the stage prefix for a later visit. No full-troop, Skip Battle,
+  medal arithmetic, weekly wording or twelve-category coverage gate is required.
+  Help prefers one bound free Help All batch per visit when requests are visible, otherwise
+  individual Help. No coin gate or complete request census is required. Credit only actual
+  proven successful requests toward ten; preserve a positively successful unknown-count batch
+  without claiming ten or marking its effect UNKNOWN. A genuinely ambiguous effect remains
+  UNKNOWN with no identical retry. Help recognizes the Alliance menu by its centered title,
   exact bottom-bar labels and clear overlay, and binds the bottom-bar Alliance Help target.
   That opens the distinct Alliance Help hub; only its current recognized Speedup Help row
   may be opened, never Transport Resources or Reinforce Allies. A positively recognized
