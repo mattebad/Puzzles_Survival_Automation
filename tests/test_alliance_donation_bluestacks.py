@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
 from pathlib import Path
 import tempfile
@@ -25,9 +25,12 @@ from tasks.donation_disabled import (
     ALLIANCE_TECH_SCREEN,
     DONATION_TARGET,
     MAX_DONATIONS_PER_RESET,
+    DonationDisposition,
     DonationObservation,
+    donation_disposition,
 )
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID, BLUESTACKS_NATIVE_TARGET_PROVENANCE
+from tests.support.environment import requires_tesseract
 
 from scripts import alliance_donation_bluestacks as route
 
@@ -242,18 +245,13 @@ def _surface_for(context: FakeContext, captured: CapturedNativeFrame, *, reset_i
             donate_control_visible=True,
             control_enabled=True,
             quantity=1,
-            resource_identity="STEEL",
-            resource_known=True,
             donation_amount=1000,
-            resource_balance=50_000 - count * 1000,
+            cost_affordable=True,
             available_attempts=20 - count,
             attempt_capacity=20,
-            active_recharge_timer=True,
             # A live recharge countdown advances with every capture while attempts remain available.
-            next_attempt_available_in_seconds=(3_600 - context.runtime.captures
+            next_attempt_available_in_seconds=(1_800 - context.runtime.captures
                                                if getattr(context.runtime, "recharge_countdown", False) else None),
-            tech_points=2_000 + count * 550,
-            reward_signature=(250, 250, 250, 250),
             game_day_id=reset_id,
             target_provenance=BLUESTACKS_NATIVE_TARGET_PROVENANCE,
             source_frame_sha256=captured.sha256,
@@ -298,6 +296,42 @@ class AllianceDonationNativeSmokeTests(unittest.TestCase):
                 actions = store.list_actions_for_task(ALLIANCE_DONATION_FLOW_ID)
                 self.assertEqual(sum(row["final_status"] == "confirmed" for row in actions), 10)
                 self.assertEqual(len({row["action_key"] for row in actions}), 10)
+                restarted = self._context(Path(directory), store)
+                with patch.object(route, "recognize_surface", side_effect=lambda captured, **kwargs: _surface_for(restarted, captured, **kwargs)):
+                    resumed = route.run_alliance_donation(restarted, {})
+                self.assertEqual(resumed["daily_committed_action_count"], 10)
+                self.assertEqual(restarted.runtime.input_count, 0)
+                self.assertEqual(restarted.runtime.donation_count, 0)
+            finally:
+                store.close()
+
+    def test_ambiguous_counter_preserves_prefix_and_restart_cannot_retry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SafetyStore(Path(directory) / "actions.sqlite3")
+            try:
+                store.acquire_lease("automation-service:alliance-donation", 1_700_000_000.0, 3600.0)
+                context = self._context(Path(directory), store)
+
+                def unchanged_counter(captured, **kwargs):
+                    surface = _surface_for(context, captured, **kwargs)
+                    if surface.donation is not None and context.runtime.donation_count >= 3:
+                        return replace(surface, donation=replace(surface.donation, available_attempts=18))
+                    return surface
+
+                with patch.object(route, "_home_alliance_target", return_value=("home-nav:alliance", (600, 1213, 680, 1280))), \
+                     patch.object(route, "recognize_surface", side_effect=unchanged_counter), \
+                     patch.object(route.time, "sleep", return_value=None):
+                    result = route.run_alliance_donation(context, {})
+                self.assertEqual(context.runtime.donation_count, 3)
+                self.assertEqual(result["daily_committed_action_count"], 2)
+                self.assertEqual(result["committed_action_count"], 2)
+                self.assertTrue(result["effect_reconciliation_required"])
+                self.assertTrue(result["identical_retry_denied"])
+                restarted = self._context(Path(directory), store)
+                with patch.object(route, "recognize_surface", side_effect=lambda captured, **kwargs: _surface_for(restarted, captured, **kwargs)):
+                    resumed = route.run_alliance_donation(restarted, {})
+                self.assertTrue(resumed["effect_reconciliation_required"])
+                self.assertEqual(restarted.runtime.input_count, 0)
             finally:
                 store.close()
 
@@ -326,20 +360,17 @@ class AllianceDonationNativeSmokeTests(unittest.TestCase):
             screen_state=ALLIANCE_TECH_SCREEN, auto_hot_marker=True, tech_identity="Alliance HOT Tech 1",
             target_identity=DONATION_TARGET, target_roi=(430, 620, 690, 710), panel_bounds=(40, 300, 760, 850),
             control_class="DONATE", donate_control_visible=True, control_enabled=True, quantity=1,
-            resource_identity="STEEL", resource_known=True, donation_amount=1000, resource_balance=50_000,
-            available_attempts=3, attempt_capacity=20, active_recharge_timer=True,
+            donation_amount=1000, cost_affordable=True,
+            available_attempts=3, attempt_capacity=20,
             next_attempt_available_in_seconds=900, game_day_id="game-day-2023-11-14",
             target_provenance=BLUESTACKS_NATIVE_TARGET_PROVENANCE, source_frame_sha256="a" * 64,
             evidence_refs=("native-frame://frames/0001.png",), overlay_state="none",
             runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID, recognized=True,
         )
-        from dataclasses import replace
         self.assertTrue(route._same_donation_facts(base, replace(base, next_attempt_available_in_seconds=899)))
-        self.assertFalse(route._same_donation_facts(base, replace(base, next_attempt_available_in_seconds=899,
-                                                                  resource_balance=49_000)))
-        self.assertFalse(route._same_donation_facts(base, replace(base, available_attempts=4)))
-        exhausted = replace(base, available_attempts=0)
-        self.assertFalse(route._same_donation_facts(exhausted, replace(exhausted, next_attempt_available_in_seconds=899)))
+        self.assertFalse(route._same_donation_facts(base, replace(base, cost_affordable=False)))
+        self.assertTrue(route._same_donation_facts(base, replace(base, available_attempts=4)))
+        self.assertFalse(route._same_donation_facts(base, replace(base, available_attempts=0)))
     def test_unseen_auto_hot_marker_blocks_and_returns_home_without_donating(self):
         with tempfile.TemporaryDirectory() as directory:
             store = SafetyStore(Path(directory) / "actions.sqlite3")
@@ -498,6 +529,54 @@ class AllianceDonationActualFrameTests(unittest.TestCase):
                     self.assertEqual(context.runtime.donation_count, 0)
                 finally:
                     store.close()
+
+    @requires_tesseract
+    def test_actual_hot_modal_with_blurred_hud_authorizes_only_ordinary_button(self):
+        fixture = self.fixture.parent.parent / "alliance_donation" / "donation77-0010-current-hot-modal.png"
+        surface = route.recognize_surface(self._captured(fixture=fixture), reset_id="d", evidence_ref="native-frame://modal")
+        self.assertEqual(surface.tech_identity, "Alliance Steel Plant Cap II")
+        self.assertIsNotNone(surface.donation)
+        self.assertIs(donation_disposition(surface.donation, 0), DonationDisposition.READY)
+        self.assertEqual((surface.donation.available_attempts, surface.donation.attempt_capacity), (20, 20))
+        self.assertEqual(surface.donation.donation_amount, 1000)
+        self.assertTrue(surface.donation.cost_affordable)
+        self.assertGreater(surface.target_roi[0], surface.premium_roi[2])
+        tokens = route.policy_preconditions(surface.donation, product_id=ALLIANCE_DONATION_PRODUCT_ID,
+                                            product_revision=ALLIANCE_DONATION_PRODUCT_REVISION, ordinal=1)
+        self.assertIn("alliance_donation_cost_affordable=true", tokens)
+        self.assertFalse(any("balance=" in token for token in tokens))
+
+    @requires_tesseract
+    def test_actual_modal_missing_hot_or_premium_and_ambiguous_buttons_block(self):
+        fixture = self.fixture.parent.parent / "alliance_donation" / "donation77-0010-current-hot-modal.png"
+        original = self._captured(fixture=fixture).frame
+        no_hot = original.copy()
+        no_hot[300:360, 60:210] = original[880:940, 60:210]
+        no_premium = original.copy()
+        no_premium[730:820, 120:375] = original[880:970, 120:375]
+        two_gold = original.copy()
+        two_gold[734:816, 125:372] = original[734:816, 433:680]
+        for name, frame in (("no_hot", no_hot), ("no_premium", no_premium), ("two_gold", two_gold)):
+            with self.subTest(name=name):
+                surface = route.recognize_surface(self._captured(frame, fixture=fixture), reset_id="d", evidence_ref="mutated")
+                self.assertFalse(route.donation_authorizeable(surface.donation))
+
+    def test_measured_modal_title_accepts_short_digit_names(self):
+        for name in ("II", "2", "A", "Tech 2"):
+            title = route.TextWord(name, (257, 391, 350, 411), (1, 1, 1), 95)
+            level = route.TextWord("Level: 2 > 3", (258, 429, 378, 447), (1, 1, 2), 95)
+            with self.subTest(name=name), patch.object(route, "_words", return_value=(title, level)):
+                result = route._modal_title(np.zeros((1280, 800, 3), np.uint8), (62, 304, 203, 355), (401, 703, 713, 728))
+            self.assertEqual(result.text, name)
+
+    def test_cost_color_reads_white_affordable_red_shortage_and_unknown(self):
+        word = route.TextWord("1,000", (20, 20, 70, 40), (1, 1, 1), 95)
+        frame = np.zeros((1280, 800, 3), np.uint8)
+        self.assertIsNone(route._cost_affordable(frame, word))
+        frame[20:40, 20:70] = (255, 255, 255)
+        self.assertTrue(route._cost_affordable(frame, word))
+        frame[20:40, 20:70] = (0, 0, 255)
+        self.assertFalse(route._cost_affordable(frame, word))
 
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 import time
 import unicodedata
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 
 import cv2
@@ -28,6 +28,7 @@ from tasks.donation_disabled import (
     DONATION_ACTION,
     DONATION_CONSEQUENCE,
     DONATION_POSTCONDITION,
+    DONATION_RESOURCE,
     DONATION_TARGET,
     MAX_DONATIONS_PER_RESET,
     DonationActionReconciliationError,
@@ -50,10 +51,12 @@ from automation_service.registry import (
     ALLIANCE_DONATION_PROFILE_ID as PROFILE_ID,
 )
 
-RESOURCE_ORDER = ("FOOD", "WOOD", "STEEL", "GAS", "DIAMOND")
-_RESOURCE_AMOUNT_RE = re.compile(r"^[0-9][0-9,]*(?:\.[0-9]+)?[KMB]?$", re.IGNORECASE | re.ASCII)
 _EXACT_AMOUNT_RE = re.compile(r"^[0-9][0-9,]*$", re.ASCII)
 _TIMER_RE = re.compile(r"(?<![0-9])([0-9]{1,2}):([0-5][0-9]):([0-5][0-9])(?![0-9])", re.ASCII)
+_LEVEL_RE = re.compile(r"^level ([0-9]{1,3}) ([0-9]{1,3})$", re.ASCII)
+HOT_TREE_TARGET = "alliance-tech:hot:current-selected-node"
+# Pixels a stationary HOT widget may jitter between captures; larger moves mean the tree is still scrolling.
+_HOT_STABLE_PIXELS = 6
 
 # Keep Back/border art out of title OCR, without clipping the glyphs at y=17.
 SCREEN_TITLE_ROI = (260, 6, 540, 60)
@@ -164,45 +167,15 @@ def _union(boxes: tuple[ROI, ...] | list[ROI], *, pad_x: int = 0, pad_y: int = 0
     return (x0, y0, x1, y1) if x0 < x1 and y0 < y1 else None
 
 
-def _red_marker(frame: np.ndarray, roi: ROI) -> bool:
-    x0, y0, x1, y1 = roi
-    x0, x1, y0, y1 = max(0, x0 - 22), min(800, x1 + 22), max(0, y0 - 9), min(1280, y1 + 9)
-    patch = frame[y0:y1, x0:x1]
-    if patch.size == 0:
-        return False
-    hsv = cv2.cvtColor(patch, cv2.COLOR_BGR2HSV)
-    red = (((hsv[:, :, 0] <= 9) | (hsv[:, :, 0] >= 170))
-           & (hsv[:, :, 1] >= 85) & (hsv[:, :, 2] >= 70))
-    return float(np.count_nonzero(red)) / float(red.size) >= 0.075
-
-
-def _hot_binding(frame: np.ndarray, words: tuple[TextWord, ...]) -> tuple[TextWord | None, TextLine | None]:
-    candidates = [word for word in words if _normalize(word.text) == "hot" and _red_marker(frame, word.roi)]
-    lines = _lines(words)
-    best: tuple[float, TextWord, TextLine] | None = None
-    for marker in candidates:
-        mx, my = (marker.roi[0] + marker.roi[2]) / 2, (marker.roi[1] + marker.roi[3]) / 2
-        for line in lines:
-            text = _normalize(line.text)
-            if not text or "hot" in text or "donation attempts" in text or "tech pts" in text:
-                continue
-            lx, ly = (line.roi[0] + line.roi[2]) / 2, (line.roi[1] + line.roi[3]) / 2
-            dy, dx = ly - my, abs(lx - mx)
-            if not 20 <= dy <= 150 or dx > 390 or len(text) < 7:
-                continue
-            score = dy + 0.35 * dx
-            if best is None or score < best[0]:
-                best = (score, marker, line)
-    if best is None:
-        return None, None
-    return best[1], best[2]
+def _red_mask(frame: np.ndarray) -> np.ndarray:
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    return (((hsv[:, :, 0] <= 9) | (hsv[:, :, 0] >= 170))
+            & (hsv[:, :, 1] >= 100) & (hsv[:, :, 2] >= 70)).astype(np.uint8)
 
 
 def _tree_hot_marker(frame: np.ndarray, *, ocr_reader=None) -> TextWord | None:
     """Read HOT inside measured red ribbons, including the viewport's bottom edge."""
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    mask = (((hsv[:, :, 0] <= 9) | (hsv[:, :, 0] >= 170))
-            & (hsv[:, :, 1] >= 100) & (hsv[:, :, 2] >= 70)).astype(np.uint8)
+    mask = _red_mask(frame)
     mask[:235] = 0  # Fixed chrome is not scrollable tree content.
     markers = []
     for contour in cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[0]:
@@ -218,24 +191,6 @@ def _tree_hot_marker(frame: np.ndarray, *, ocr_reader=None) -> TextWord | None:
     return markers[0] if len(markers) == 1 else None
 
 
-def _tree_hot_label(words: tuple[TextWord, ...], marker: TextWord) -> TextLine | None:
-    if marker.roi[3] + 100 >= 1270:
-        return None  # A visible first label line is not proof that its suffix is on-screen.
-    center = (marker.roi[0] + marker.roi[2]) // 2
-    below = tuple(word for word in words
-                  if marker.roi[3] + 5 <= word.roi[1] < marker.roi[3] + 100
-                  and word.roi[3] < 1270
-                  and abs((word.roi[0] + word.roi[2]) // 2 - center) <= 80)
-    lines = _lines(below)
-    if not lines or len(lines) > 2:
-        return None
-    text = " ".join(line.text for line in lines)
-    if len(_normalize(text)) < 7 or any(char.isdigit() for char in text):
-        return None
-    roi = _union([word.roi for word in below])
-    return TextLine(text, roi, below) if roi else None
-
-
 def _exact_integer(text: str) -> int | None:
     if not _EXACT_AMOUNT_RE.fullmatch(text):
         return None
@@ -246,166 +201,133 @@ def _exact_integer(text: str) -> int | None:
     return value if value >= 0 else None
 
 
-def _resource_rows(frame: np.ndarray, words: tuple[TextWord, ...]) -> tuple[tuple[str, TextWord, int | None, ROI], ...]:
-    candidates = [word for word in words if word.roi[1] < 95 and word.roi[0] > 25
-                  and _RESOURCE_AMOUNT_RE.fullmatch(word.text.replace(" ", ""))]
-    candidates.sort(key=lambda word: word.roi[0])
-    if len(candidates) != len(RESOURCE_ORDER):
-        return ()
-    rows: list[tuple[str, TextWord, int | None, ROI]] = []
-    for resource, word in zip(RESOURCE_ORDER, candidates):
-        cx = word.roi[0] - 19
-        cy = (word.roi[1] + word.roi[3]) // 2
-        icon_roi = (max(0, cx - 15), max(0, cy - 15), min(800, cx + 15), min(1280, cy + 15))
-        amount = _exact_integer(word.text.replace(" ", ""))
-        rows.append((resource, word, amount, icon_roi))
-    return tuple(rows)
+def _modal_hot_ribbon(frame: np.ndarray, attempts: ROI, *, ocr_reader=None) -> tuple[TextWord, ROI] | None:
+    """Read HOT inside the one measured red modal-header ribbon."""
+    markers = []
+    for contour in cv2.findContours(_red_mask(frame), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[0]:
+        x, y, width, height = cv2.boundingRect(contour)
+        ribbon = (x, y, x + width, y + height)
+        if not (100 <= width <= 180 and 35 <= height <= 65 and x < attempts[0]
+                and 150 <= attempts[1] - ribbon[3] <= 500):
+            continue
+        words = _words(frame, (x + width // 5, y, x + width, y + height), ocr_reader=ocr_reader)
+        if len(words) == 1 and _normalize(words[0].text) == "hot":
+            markers.append((words[0], ribbon))
+    return markers[0] if len(markers) == 1 else None
 
 
-def _icon_similarity(frame: np.ndarray, a: ROI, b: ROI) -> float:
-    def normalized(box: ROI) -> np.ndarray | None:
-        x0, y0, x1, y1 = box
-        crop = frame[y0:y1, x0:x1]
-        if crop.size == 0 or crop.shape[0] < 8 or crop.shape[1] < 8:
-            return None
-        resized = cv2.resize(crop, (32, 32), interpolation=cv2.INTER_AREA)
-        gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
-        return cv2.Canny(gray, 40, 120)
-    left, right = normalized(a), normalized(b)
-    if left is None or right is None:
-        return -1.0
-    score = cv2.matchTemplate(left, right, cv2.TM_CCOEFF_NORMED)
-    return float(score[0, 0]) if score.size else -1.0
+def _modal_title(frame: np.ndarray, ribbon: ROI, attempts: ROI, *, ocr_reader=None) -> TextLine | None:
+    """Bind the title above the adjacent Level row; names may be short, numeric or wrapped."""
+    body = _lines(_words(frame, (ribbon[0], ribbon[3], min(800, 802 - ribbon[0]), attempts[1]),
+                         ocr_reader=ocr_reader))
+    levels = [(index, line) for index, line in enumerate(body) if _LEVEL_RE.fullmatch(_normalize(line.text))]
+    if len(levels) != 1:
+        return None
+    index, level = levels[0]
+    title_lines = [line for line in body[:index] if abs(line.roi[0] - level.roi[0]) <= 12]
+    if not title_lines or not 0 < level.roi[1] - title_lines[-1].roi[3] <= 40:
+        return None
+    title_words = tuple(word for line in title_lines for word in line.words)
+    title = " ".join(line.text for line in title_lines)
+    roi = _union([line.roi for line in title_lines])
+    return TextLine(title, roi, title_words) if roi is not None and _slug(title) else None
 
 
-def _match_resource(frame: np.ndarray, cost_word: TextWord, rows: tuple[tuple[str, TextWord, int | None, ROI], ...]) -> tuple[str | None, int | None]:
-    if not rows:
-        return None, None
-    cx = cost_word.roi[0] - 20
-    cy = (cost_word.roi[1] + cost_word.roi[3]) // 2
-    icon = (max(0, cx - 15), max(0, cy - 15), min(800, cx + 15), min(1280, cy + 15))
-    scores = sorted(((_icon_similarity(frame, icon, row[3]), row) for row in rows), key=lambda item: item[0], reverse=True)
-    if len(scores) < 2 or scores[0][0] < 0.72 or scores[0][0] - scores[1][0] < 0.08:
-        return None, None
-    return scores[0][1][0], scores[0][1][2]
+def _modal_buttons(frame: np.ndarray, attempts: ROI, *, ocr_reader=None):
+    """Bind one gold ordinary Donate and a disjoint red gem-priced premium Donate."""
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    gold = ((hsv[:, :, 0] >= 10) & (hsv[:, :, 0] <= 30) & (hsv[:, :, 1] >= 120)
+            & (hsv[:, :, 2] >= 150)).astype(np.uint8)
+    gem = ((hsv[:, :, 0] >= 85) & (hsv[:, :, 0] <= 115)
+           & (hsv[:, :, 1] >= 90) & (hsv[:, :, 2] >= 150))
+    found = {"ordinary": [], "premium": []}
+    for kind, mask in (("ordinary", gold), ("premium", _red_mask(frame))):
+        for contour in cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[0]:
+            x, y, width, height = cv2.boundingRect(contour)
+            roi = (x, y, x + width, y + height)
+            if not (180 <= width <= 300 and 55 <= height <= 100 and 0 <= y - attempts[3] <= 60):
+                continue
+            words = _words(frame, (x + 4, y + 4, x + width - 4, y + height - 4), ocr_reader=ocr_reader)
+            controls = [word for word in words if _normalize(word.text) == "donate"]
+            costs = [word for word in words if _exact_integer(word.text.replace(" ", "")) is not None]
+            if len(controls) != 1 or len(costs) != 1 or costs[0].roi[3] > controls[0].roi[1] + 4:
+                continue
+            gem_pixels = int(np.count_nonzero(gem[y:y + height // 2 + 6, x:x + width]))
+            if (kind == "premium") != (gem_pixels >= 150):
+                continue
+            found[kind].append((costs[0], _exact_integer(costs[0].text.replace(" ", "")), roi))
+    if len(found["ordinary"]) != 1 or len(found["premium"]) != 1:
+        return None
+    ordinary, premium = found["ordinary"][0], found["premium"][0]
+    a, b = ordinary[2], premium[2]
+    if (abs((a[1] + a[3]) - (b[1] + b[3])) > 24
+            or (a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3])):
+        return None
+    return ordinary, premium
 
 
-def _button_enabled(frame: np.ndarray, roi: ROI) -> bool:
-    x0, y0, x1, y1 = roi
-    patch = frame[max(0, y0 - 14):min(1280, y1 + 14), max(0, x0 - 24):min(800, x1 + 24)]
-    if patch.size == 0:
+def _cost_affordable(frame: np.ndarray, cost: TextWord) -> bool | None:
+    """Read the ordinary cost's white amount or red shortage, without a wallet census."""
+    x0, y0, x1, y1 = cost.roi
+    hsv = cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2HSV)
+    h, s, v = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]
+    white = int(np.count_nonzero((s <= 60) & (v >= 200)))
+    red = int(np.count_nonzero(((h <= 8) | (h >= 170)) & (s >= 120) & (v >= 120)))
+    if red >= 30 and red > white:
         return False
-    hsv = cv2.cvtColor(patch, cv2.COLOR_BGR2HSV)
-    gold = (hsv[:, :, 0] >= 5) & (hsv[:, :, 0] <= 38) & (hsv[:, :, 1] >= 90) & (hsv[:, :, 2] >= 80)
-    return float(np.count_nonzero(gold)) / float(gold.size) >= 0.06
+    return True if white >= 30 and white > red else None
 
 
 def _panel_observation(
-    captured: Any,
-    *,
-    reset_id: str,
-    evidence_ref: str,
-    words: tuple[TextWord, ...],
+    captured: Any, *, reset_id: str, evidence_ref: str, words: tuple[TextWord, ...], ocr_reader=None,
 ) -> DonationSurface | None:
     lines = _lines(words)
-    normalized = tuple((line, _normalize(line.text)) for line in lines)
-    attempts_line = next(((line, text) for line, text in normalized if "donation attempts" in text), None)
-    if attempts_line is None:
+    attempt_lines = [line for line in lines if "donation attempts" in _normalize(line.text)]
+    if len(attempt_lines) != 1:
         return None
-    hot_word, tech_line = _hot_binding(captured.frame, words)
-    hot = hot_word is not None and tech_line is not None
-    attempts_match = re.search(r"([0-9]{1,2})\s*/\s*([0-9]{1,2})", attempts_line[0].text, re.ASCII)
+    attempts_line = attempt_lines[0]
+    ribbon = _modal_hot_ribbon(captured.frame, attempts_line.roi, ocr_reader=ocr_reader)
+    title = _modal_title(captured.frame, ribbon[1], attempts_line.roi, ocr_reader=ocr_reader) if ribbon else None
+    hot = ribbon is not None
+    attempts_match = re.search(r"([0-9]{1,2})\s*/\s*([0-9]{1,2})", attempts_line.text, re.ASCII)
     attempts = int(attempts_match.group(1)) if attempts_match else None
     capacity = int(attempts_match.group(2)) if attempts_match else None
-    timer_match = next((_TIMER_RE.search(line.text) for line, _ in normalized if _TIMER_RE.search(line.text)), None)
+    # Only the modal's recharge timer counts; the tree's daily clock is not a refill.
+    timer_matches = [_TIMER_RE.search(line.text) for line in lines
+                     if ribbon and ribbon[1][3] <= line.roi[1] <= attempts_line.roi[3] + 140
+                     and ribbon[1][0] <= line.roi[0] < 800 - ribbon[1][0]]
+    timer_matches = [match for match in timer_matches if match is not None]
     timer_seconds = None
-    if timer_match:
-        timer_seconds = int(timer_match.group(1)) * 3600 + int(timer_match.group(2)) * 60 + int(timer_match.group(3))
-    resource_rows = _resource_rows(captured.frame, words)
-    donate_words = [word for word in words if _normalize(word.text) == "donate" and word.roi[1] >= attempts_line[0].roi[1]]
-    buttons: list[tuple[TextWord, TextWord, int | None, str | None, int | None, ROI]] = []
-    for control in donate_words:
-        cx = (control.roi[0] + control.roi[2]) / 2
-        cy = (control.roi[1] + control.roi[3]) / 2
-        costs = [word for word in words if _exact_integer(word.text.replace(" ", "")) is not None
-                 and 0 <= cy - (word.roi[1] + word.roi[3]) / 2 <= 78
-                 and abs((word.roi[0] + word.roi[2]) / 2 - cx) <= 100]
-        if not costs:
-            continue
-        cost_word = min(costs, key=lambda word: cy - (word.roi[1] + word.roi[3]) / 2)
-        cost = _exact_integer(cost_word.text.replace(" ", ""))
-        resource, balance = _match_resource(captured.frame, cost_word, resource_rows)
-        button_roi = (max(0, control.roi[0] - 38), max(0, control.roi[1] - 12),
-                      min(800, control.roi[2] + 38), min(1280, control.roi[3] + 12))
-        buttons.append((control, cost_word, cost, resource, balance, button_roi))
-    ordinary = [row for row in buttons if row[3] in {"FOOD", "WOOD", "STEEL", "GAS"}]
-    premium = next((row for row in buttons if row[3] == "DIAMOND"), None)
-    chosen = ordinary[0] if len(ordinary) == 1 else None
-    tech_identity = tech_line.text.strip() if tech_line is not None else ""
+    if len(timer_matches) == 1:
+        match = timer_matches[0]
+        seconds = int(match.group(1)) * 3600 + int(match.group(2)) * 60 + int(match.group(3))
+        if 0 <= seconds <= 1800:
+            timer_seconds = seconds
+    buttons = _modal_buttons(captured.frame, attempts_line.roi, ocr_reader=ocr_reader)
+    chosen, premium = buttons if buttons else (None, None)
+    target_roi = chosen[2] if chosen else None
+    premium_roi = premium[2] if premium else None
+    tech_identity = title.text.strip() if title else ""
     tech_slug = _slug(tech_identity)
-    if chosen is not None:
-        control, cost_word, amount, resource, balance, target_roi = chosen
-        enabled = _button_enabled(captured.frame, target_roi)
-        target_visible = True
-    else:
-        control = cost_word = None
-        amount = resource = balance = None
-        target_roi = None
-        enabled = False
-        target_visible = False
-    premium_roi = premium[-1] if premium is not None else None
-    isolated = bool(
-        chosen is not None and target_roi is not None and premium_roi is not None
-        and not (target_roi[0] < premium_roi[2] and premium_roi[0] < target_roi[2]
-                 and target_roi[1] < premium_roi[3] and premium_roi[1] < target_roi[3])
-    )
-    panel_bounds = _union([line.roi for line, _ in normalized if
-                           "donation attempts" in _ or "tech pts" in _ or
-                           (tech_line is not None and line == tech_line)]
-                          + ([target_roi] if target_roi else []) + ([premium_roi] if premium_roi else []),
-                          pad_x=22, pad_y=18)
-    points_line = next((line for line, text in normalized if "tech pts" in text), None)
-    point_values = [value for value in (points_line.words if points_line else ()) if _exact_integer(value.text.replace(" ", "")) is not None]
-    tech_points = _exact_integer(point_values[0].text.replace(" ", "")) if point_values else None
-    reward_values: list[int] = []
-    for line, text in normalized:
-        if line.roi[1] >= (tech_line.roi[3] if tech_line else 0) and line.roi[1] < attempts_line[0].roi[1]:
-            reward_values.extend(value for value in (_exact_integer(word.text.replace(" ", "")) for word in line.words) if value is not None)
-    reward_signature = tuple(reward_values) if len(reward_values) >= 4 else None
-    observation = DonationObservation(
-        screen_state=ALLIANCE_TECH_SCREEN,
-        auto_hot_marker=hot,
-        tech_identity=tech_identity,
-        target_identity=DONATION_TARGET if target_visible else "unknown",
-        target_roi=target_roi or (0, 0, 1, 1),
-        panel_bounds=panel_bounds or (0, 0, 1, 1),
-        control_class="DONATE" if target_visible else "UNKNOWN",
-        donate_control_visible=target_visible,
-        control_enabled=enabled and isolated,
-        quantity=1,
-        resource_identity=resource or "UNKNOWN",
-        resource_known=resource in {"FOOD", "WOOD", "STEEL", "GAS"} and balance is not None,
-        donation_amount=amount,
-        resource_balance=balance,
-        available_attempts=attempts,
-        attempt_capacity=capacity,
-        active_recharge_timer=bool(timer_seconds) if timer_seconds is not None else None,
-        next_attempt_available_in_seconds=timer_seconds,
-        tech_points=tech_points,
-        reward_signature=reward_signature,
-        game_day_id=reset_id,
-        target_provenance=BLUESTACKS_NATIVE_TARGET_PROVENANCE,
-        source_frame_sha256=captured.sha256,
-        evidence_refs=(evidence_ref,),
-        overlay_state="none",
-        reset_guard_active=False,
-        runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID,
-        recognized=bool(hot and tech_slug and panel_bounds),
+    panel_bounds = _union([attempts_line.roi] + ([title.roi] if title else [])
+                          + ([ribbon[1]] if ribbon else []) + ([target_roi] if target_roi else [])
+                          + ([premium_roi] if premium_roi else []), pad_x=22, pad_y=18)
+    donation = DonationObservation(
+        screen_state=ALLIANCE_TECH_SCREEN, auto_hot_marker=hot, tech_identity=tech_identity,
+        target_identity=DONATION_TARGET if chosen else "unknown", target_roi=target_roi or (0, 0, 1, 1),
+        panel_bounds=panel_bounds or (0, 0, 1, 1), control_class="DONATE" if chosen else "UNKNOWN",
+        donate_control_visible=chosen is not None, control_enabled=buttons is not None, quantity=1,
+        donation_amount=chosen[1] if chosen else None,
+        cost_affordable=_cost_affordable(captured.frame, chosen[0]) if chosen else None,
+        available_attempts=attempts, attempt_capacity=capacity,
+        next_attempt_available_in_seconds=timer_seconds, game_day_id=reset_id,
+        target_provenance=BLUESTACKS_NATIVE_TARGET_PROVENANCE, source_frame_sha256=captured.sha256,
+        evidence_refs=(evidence_ref,), overlay_state="none", reset_guard_active=False,
+        runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID, recognized=bool(hot and panel_bounds),
     )
     return DonationSurface("DONATION_PANEL", captured.sha256, evidence_ref,
-                           DONATION_TARGET if target_visible else None, target_roi,
-                           tech_identity or None, tech_slug, observation, premium_roi,
-                           hot_word.roi if hot_word else None,
+                           DONATION_TARGET if chosen else None, target_roi, tech_identity or None,
+                           tech_slug, donation, premium_roi, ribbon[0].roi if ribbon else None,
                            "current_hot_panel" if hot else "current_hot_marker_unproven")
 
 
@@ -449,24 +371,19 @@ def recognize_surface(
     if home.is_home and is_clean_home_frame(frame):
         return DonationSurface("HOME", digest, evidence_ref)
     words = _words(frame, (0, 35, 800, 1195), ocr_reader=ocr_reader)
-    panel = _panel_observation(captured, reset_id=reset_id, evidence_ref=evidence_ref, words=words)
+    panel = _panel_observation(captured, reset_id=reset_id, evidence_ref=evidence_ref, words=words,
+                               ocr_reader=ocr_reader)
     if panel is not None:
         return panel
     title_words = _words(frame, SCREEN_TITLE_ROI, ocr_reader=ocr_reader)
     header = _normalize(" ".join(word.text for word in sorted(title_words, key=lambda word: word.roi[0])))
     if header == "alliance tech":
-        tree_words = _words(frame, (40, 235, 760, 1280), ocr_reader=ocr_reader)
         hot_word = _tree_hot_marker(frame, ocr_reader=ocr_reader)
-        tech_line = _tree_hot_label(tree_words, hot_word) if hot_word else None
-        tech_slug = _slug(tech_line.text) if tech_line else None
-        target_roi = (_union([hot_word.roi] + ([tech_line.roi] if tech_line else []),
-                             pad_x=18, pad_y=12) if hot_word else None)
-        # The unique current HOT widget authorizes navigation only. A clipped
-        # tree label never supplies a guessed identity or donation authority.
-        target_identity = f"alliance-tech:hot:{tech_slug or 'current-selected-node'}" if hot_word else None
+        target_roi = _union([hot_word.roi], pad_x=18, pad_y=12) if hot_word else None
+        # Tree names may be clipped or abbreviated. HOT selects the node; the modal supplies identity.
         return DonationSurface("TECH_TREE", digest, evidence_ref,
-                               target_identity, target_roi, tech_line.text.strip() if tech_line else None,
-                               tech_slug, hot_roi=hot_word.roi if hot_word else None,
+                               HOT_TREE_TARGET if hot_word else None, target_roi,
+                               hot_roi=hot_word.roi if hot_word else None,
                                reason=("current_hot_bound" if target_roi else
                                        "waiting_for_auto_hot_scroll"))
     if header == "alliance" and _alliance_menu_clear(frame):
@@ -513,9 +430,8 @@ def to_policy_observation(captured: Any, surface: DonationSurface) -> Observatio
 
 def policy_preconditions(donation: DonationObservation, *, product_id: str, product_revision: str,
                          ordinal: int) -> tuple[str, ...]:
-    if (not donation.tech_identity or not donation.resource_known or type(donation.available_attempts) is not int
-            or type(donation.resource_balance) is not int or type(donation.donation_amount) is not int):
-        raise ValueError("exact current donation facts are required for policy")
+    if not donation_authorizeable(donation, ordinal - 1):
+        raise ValueError("current affordable ordinary donation facts are required for policy")
     slug = _slug(donation.tech_identity)
     if slug is None or type(ordinal) is not int or not 1 <= ordinal <= MAX_DONATIONS_PER_RESET:
         raise ValueError("current HOT target or donation ordinal is invalid")
@@ -526,8 +442,8 @@ def policy_preconditions(donation: DonationObservation, *, product_id: str, prod
         "alliance_donation_hot_marker=true",
         f"alliance_donation_target={slug}",
         f"alliance_donation_attempts={donation.available_attempts}/{donation.attempt_capacity}",
-        f"alliance_donation_balance={donation.resource_balance}",
-        f"alliance_donation_resource={donation.resource_identity}",
+        "alliance_donation_cost_affordable=true",
+        f"alliance_donation_resource={DONATION_RESOURCE}",
         f"alliance_donation_cost={donation.donation_amount}",
         "alliance_donation_quantity=1",
         "alliance_donation_single_tap=true",
@@ -584,20 +500,18 @@ def _home_alliance_target(captured: CapturedNativeFrame) -> tuple[str, tuple[int
 
 def _same_donation_facts(left: DonationObservation, right: DonationObservation) -> bool:
     fields = (
-        "screen_state", "auto_hot_marker", "tech_identity", "target_identity", "target_roi", "panel_bounds",
-        "control_class", "donate_control_visible", "control_enabled", "quantity", "resource_identity",
-        "resource_known", "donation_amount", "resource_balance", "available_attempts", "attempt_capacity",
+        "screen_state", "auto_hot_marker", "tech_identity", "target_identity", "target_roi",
+        "control_class", "donate_control_visible", "control_enabled", "quantity",
+        "donation_amount", "cost_affordable", "attempt_capacity",
         "game_day_id", "overlay_state", "reset_guard_active", "runtime_profile_id", "recognized",
     )
     if not all(getattr(left, name) == getattr(right, name) for name in fields):
         return False
-    attempts = left.available_attempts
-    if type(attempts) is int and attempts > 0:
-        # With an unchanged positive attempt count the recharge countdown only describes the next refill;
-        # a tick between captures neither consumes nor grants an attempt, so it cannot change authorization.
-        return True
-    return (left.active_recharge_timer == right.active_recharge_timer
-            and left.next_attempt_available_in_seconds == right.next_attempt_available_in_seconds)
+    # A positive attempt balance can regenerate before dispatch. The fresh capability observation
+    # supplies the actual baseline; the countdown itself never imposes a wait.
+    return (all(type(value) is int and 0 < value <= 20
+                for value in (left.available_attempts, right.available_attempts))
+            and right.available_attempts in (left.available_attempts, left.available_attempts + 1))
 
 
 def _unknown_policy_observation(captured: CapturedNativeFrame, evidence_ref: str) -> Observation:
@@ -626,7 +540,6 @@ def _navigation_action(
     source_state: str,
     destination_state: str,
     bind_target: Callable[[CapturedNativeFrame, DonationSurface], tuple[str, tuple[int, int, int, int]] | None],
-    expected_tech_slug: str | None = None,
 ) -> tuple[CapturedNativeFrame, DonationSurface] | None:
     runtime, session = context.runtime, context.session
     pending: dict[str, Any] = {}
@@ -635,8 +548,6 @@ def _navigation_action(
         captured, surface = _capture_surface(context, before)
         if surface.state != source_state:
             raise RuntimeError("Alliance donation navigation source changed")
-        if expected_tech_slug is not None and surface.tech_slug != expected_tech_slug:
-            raise RuntimeError("Alliance donation auto-HOT target changed before navigation")
         target = bind_target(captured, surface)
         if target is None:
             raise RuntimeError("Alliance donation current-frame navigation target is unavailable")
@@ -663,8 +574,6 @@ def _navigation_action(
         if destination_state == "DONATION_PANEL" and (
                 surface.donation is None or not surface.donation.recognized
                 or not surface.donation.auto_hot_marker or not surface.tech_slug):
-            return "unknown"
-        if expected_tech_slug is not None and surface.tech_slug != expected_tech_slug:
             return "unknown"
         return destination_state
 
@@ -801,56 +710,33 @@ def _action_once(context: Any, *, captured: CapturedNativeFrame, surface: Donati
     if original.game_day_id != reset_id or surface.tech_slug is None:
         return "blocked", "current_hot_reset_or_identity_mismatch", 0
 
-    policy = CentralPolicy({FLOW_ID})
-    action_observation = to_policy_observation(captured, surface)
-    request = PolicyRequest(
-        action_id=f"alliance-donation-{ordinal:02d}-{captured.sha256[:12]}",
-        action_key=action_key,
-        task_id=FLOW_ID,
-        task_mode="supervised_validation",
-        semantic_action=DONATION_ACTION,
-        expected_runtime_profile_id=PROFILE_ID,
-        observation=action_observation,
-        monotonic_now=float(context.monotonic_clock()),
-        observation_max_age_seconds=2.0,
-        dispatch_max_age_seconds=2.0,
-        lease_owner=session.owner,
-        lease_valid=store.lease_valid_for(session.owner, float(context.utc_clock())),
-        unresolved_action=store.has_action_block(),
-        duplicate_action_key=store.action_key_exists(action_key),
-        game_day_id=reset_id,
-        action_class=ActionClass.SPEND_OR_STRATEGIC,
-        action_kind=PRODUCT_REVISION,
-        subject=surface.tech_slug,
-        resource_or_currency=original.resource_identity,
-        maximum_cost=original.donation_amount,
-        free_only=False,
-        semantic_preconditions=policy_preconditions(original, product_id=PRODUCT_ID,
-                                                    product_revision=PRODUCT_REVISION, ordinal=ordinal),
-        semantic_postconditions=(DONATION_POSTCONDITION,),
-        runtime_session_id=str(runtime.session),
-    )
-    # Bind the one-shot capability to a fresh current donation quote. The executor's
-    # pre-dispatch callback reuses this exact frame, which is newer than the planning
-    # observation above and therefore remains inside the core capture guard.
+    # Rebind to this current capture, including any newly regenerated available attempt.
     capability_frame, capability_surface = _capture(
         context, f"alliance-donation-immediate-before-{ordinal:02d}",
     )
     capability_donation = capability_surface.donation
     if (capability_surface.state != "DONATION_PANEL" or capability_donation is None
-            or capability_surface.tech_slug != surface.tech_slug
-            or capability_surface.target_identity != surface.target_identity
-            or capability_surface.target_roi != surface.target_roi
             or not _same_donation_facts(original, capability_donation)
             or not donation_authorizeable(capability_donation, ordinal - 1)):
         return "blocked", "fresh_ordinary_donation_quote_changed_before_capability", 0
+    policy = CentralPolicy({FLOW_ID})
     capability_observation = to_policy_observation(capability_frame, capability_surface)
-    capability_request = replace(
-        request,
-        observation=capability_observation,
-        monotonic_now=float(context.monotonic_clock()),
+    request = PolicyRequest(
+        action_id=f"alliance-donation-{ordinal:02d}-{capability_frame.sha256[:12]}",
+        action_key=action_key, task_id=FLOW_ID, task_mode="supervised_validation",
+        semantic_action=DONATION_ACTION, expected_runtime_profile_id=PROFILE_ID,
+        observation=capability_observation, monotonic_now=float(context.monotonic_clock()),
+        observation_max_age_seconds=15.0, dispatch_max_age_seconds=10.0,
+        lease_owner=session.owner, lease_valid=store.lease_valid_for(session.owner, float(context.utc_clock())),
+        unresolved_action=store.has_action_block(), duplicate_action_key=store.action_key_exists(action_key),
+        game_day_id=reset_id, action_class=ActionClass.SPEND_OR_STRATEGIC, action_kind=PRODUCT_REVISION,
+        subject=capability_surface.tech_slug, resource_or_currency=DONATION_RESOURCE,
+        maximum_cost=capability_donation.donation_amount, free_only=False,
+        semantic_preconditions=policy_preconditions(capability_donation, product_id=PRODUCT_ID,
+                                                    product_revision=PRODUCT_REVISION, ordinal=ordinal),
+        semantic_postconditions=(DONATION_POSTCONDITION,), runtime_session_id=str(runtime.session),
     )
-    issued = policy.issue_capability(capability_request)
+    issued = policy.issue_capability(request)
     store.audit(FLOW_ID, "capability_issued", float(context.utc_clock()), issued.audit, request.action_id)
     if not issued.authorized or issued.capability is None:
         return "blocked", issued.reason_code, 0
@@ -905,7 +791,9 @@ def _action_once(context: Any, *, captured: CapturedNativeFrame, surface: Donati
             post.append((settled_frame, after_surface))
             after_donation = after_surface.donation
             return (DONATION_POSTCONDITION if after_donation is not None and donation_postcondition_verified(
-                before_state["surface"].donation, after_donation, ordinal - 1) else "unknown")
+                before_state["surface"].donation, after_donation, ordinal - 1,
+                elapsed_seconds=settled_frame.captured_monotonic - before_state["captured"].captured_monotonic)
+                    else "unknown")
 
         def settled_successor() -> CapturedNativeFrame:
             time.sleep(max(0.0, float(context.settle_seconds)))
@@ -942,7 +830,8 @@ def _action_once(context: Any, *, captured: CapturedNativeFrame, surface: Donati
         if candidate is None or candidate[1].donation is None:
             return False
         return donation_postcondition_verified(
-            before_state["surface"].donation, candidate[1].donation, ordinal - 1)
+            before_state["surface"].donation, candidate[1].donation, ordinal - 1,
+            elapsed_seconds=candidate[0].captured_monotonic - before_state["captured"].captured_monotonic)
 
     execution = SafeActionExecutor(
         store,
@@ -1052,24 +941,33 @@ def run_alliance_donation(context: Any, arguments: Mapping[str, object]) -> Mapp
         current = menu
 
         hot_deadline = float(context.monotonic_clock()) + MAX_AUTO_HOT_WAIT_SECONDS
-        while current is not None and current[1].state == "TECH_TREE" and current[1].target_roi is None:
+        previous_roi = None
+        while current is not None and current[1].state == "TECH_TREE":
+            roi = current[1].target_roi
+            if roi is not None and previous_roi is not None and all(
+                    abs(a - b) <= _HOT_STABLE_PIXELS for a, b in zip(roi, previous_roi)):
+                break
             if float(context.monotonic_clock()) >= hot_deadline:
-                result["reason"] = "alliance_donation_auto_hot_marker_not_visible"
+                result["reason"] = "alliance_donation_auto_hot_marker_not_stable"
                 return _finish(context, result, current, committed_this_run)
+            previous_roi = roi
             context.checkpoint()
             time.sleep(min(0.5, max(0.05, float(context.settle_seconds))))
             current = _capture(context, "alliance-donation-wait-auto-hot")
         if current is None or current[1].state != "TECH_TREE" or current[1].target_roi is None:
             result["reason"] = "alliance_donation_auto_hot_tree_unrecognized"
             return _finish(context, result, current, committed_this_run)
-        tree_slug = current[1].tech_slug
+        stable_roi = current[1].target_roi
+
+        def bind_current_hot(_captured, fresh):
+            if fresh.target_roi is None or any(
+                    abs(a - b) > _HOT_STABLE_PIXELS for a, b in zip(stable_roi, fresh.target_roi)):
+                return None
+            return _bind_surface_target(_captured, fresh)
+
         opened = _navigation_action(
-            context,
-            label="open-current-auto-hot-tech",
-            source_state="TECH_TREE",
-            destination_state="DONATION_PANEL",
-            bind_target=_bind_surface_target,
-            expected_tech_slug=tree_slug,
+            context, label="open-current-auto-hot-tech", source_state="TECH_TREE",
+            destination_state="DONATION_PANEL", bind_target=bind_current_hot,
         )
         if opened is None:
             result["reason"] = "alliance_donation_hot_panel_successor_unproven"
@@ -1136,8 +1034,7 @@ def run_alliance_donation(context: Any, arguments: Mapping[str, object]) -> Mapp
                     "tech_identity": donation.tech_identity,
                     "available_attempts": donation.available_attempts,
                     "attempt_capacity": donation.attempt_capacity,
-                    "resource_identity": donation.resource_identity,
-                    "resource_balance": donation.resource_balance,
+                    "cost_affordable": donation.cost_affordable,
                     "donation_amount": donation.donation_amount,
                     "game_day_id": donation.game_day_id,
                     "next_attempt_available_in_seconds": timer,
@@ -1151,6 +1048,8 @@ def run_alliance_donation(context: Any, arguments: Mapping[str, object]) -> Mapp
             outcome, reason, calls = _action_once(context, captured=captured, surface=surface,
                                                   ordinal=daily_count + 1)
             result["donation_transport_calls"] += calls
+            result["status"] = outcome
+            result["reason"] = reason
             if outcome == "confirmed":
                 committed_this_run += 1
                 continue
@@ -1185,7 +1084,13 @@ def _finish(context: Any, result: dict[str, Any], current: tuple[CapturedNativeF
     result["daily_committed_action_count"] = 0
     try:
         actions = context.action_store.list_actions_for_task(FLOW_ID)
-        result["daily_committed_action_count"] = _canonical_count(context)
+        # Report the confirmed prefix even when a later ordinal requires reconciliation.
+        result["daily_committed_action_count"] = confirmed_donation_count(
+            [action for action in actions if action.get("final_status") == "confirmed"],
+            flow_id=FLOW_ID, account_id=_identity_value(context.identity, "account_id"),
+            server_id=_identity_value(context.identity, "server_id"),
+            game_day_id=_identity_value(context.identity, "reset_id"),
+        )
         runtime_keys = getattr(context.runtime, "action_keys", set())
         if isinstance(runtime_keys, set):
             prefix = _action_prefix(context)
@@ -1198,6 +1103,7 @@ def _finish(context: Any, result: dict[str, Any], current: tuple[CapturedNativeF
             result["committed_action_count"] = len(runtime_keys & confirmed_keys)
         else:
             result["committed_action_count"] = committed_this_run
+        _canonical_count(context)  # Unresolved/corrupt later rows still deny eligibility and retries.
     except Exception as exc:
         result["committed_action_count"] = committed_this_run
         result["status"] = "reconciliation_required"

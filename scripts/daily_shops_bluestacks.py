@@ -16,7 +16,9 @@ from tasks.purchases_disabled import (
     ShopOffer,
     daily_shop_quantity,
     purchase_dialog_matches,
-    purchase_effect_verified,
+    PURCHASE_ACKNOWLEDGEMENT_ROI,
+    purchase_acknowledgements,
+    purchase_acknowledged,
 )
 
 
@@ -62,6 +64,7 @@ class PurchaseEffect:
     identical_retry_denied: bool = False
     action_key: str = ""
     reason: str = ""
+    acknowledgements: tuple[tuple[str, int], ...] = ()
 
 
 class DailyShopsPort(Protocol):
@@ -222,7 +225,7 @@ class DailyShopsPurchaseRoute:
                 self.port.cancel_quantity_dialog()
             self._tab_result(
                 tab, status="blocked", reason="TAB_QUANTITY_DIALOG_NOT_EXACT",
-                offer=offer, quantity=quantity, source_ref=observation.evidence_ref,
+                offer=offer, source_ref=observation.evidence_ref,
                 source_hash=observation.evidence_frame_sha256,
             )
             return True
@@ -246,7 +249,7 @@ class DailyShopsPurchaseRoute:
             self.port.cancel_quantity_dialog()
             self._tab_result(
                 tab, status="blocked", reason="TAB_NUMERIC_QUANTITY_OR_TOTAL_NOT_EXACT",
-                offer=offer, quantity=quantity, source_ref=observation.evidence_ref,
+                offer=offer, source_ref=observation.evidence_ref,
                 source_hash=observation.evidence_frame_sha256,
             )
             return True
@@ -260,7 +263,7 @@ class DailyShopsPurchaseRoute:
                 tab,
                 status="unresolved" if effect.effect_reconciliation_required else "blocked",
                 reason=effect.reason or "TAB_PURCHASE_NOT_CONFIRMED",
-                offer=offer, quantity=quantity, total=selected.total,
+                offer=offer, quantity=quantity if effect.inner_buy_dispatched else 0, total=selected.total,
                 source_ref=observation.evidence_ref, source_hash=observation.evidence_frame_sha256,
             )
             return not effect.effect_reconciliation_required
@@ -297,24 +300,18 @@ class DailyShopsPurchaseRoute:
         self.result.terminal_home_verified = self.result.home_returned
 
         for tab, (offer, dialog, effect, quantity) in self._effects.items():
-            proved = purchase_effect_verified(
-                offer,
-                quantity=quantity,
-                selected_quantity=dialog.selected_quantity,
-                displayed_total=dialog.total,
-                currency_after=effect.currency_after,
-                stock_after=effect.stock_after,
-                item_quantity_after=effect.item_quantity_after,
-                item_identity_after=effect.item_identity_after,
-                currency_identity_after=effect.currency_identity_after,
-                tab_successor_verified=effect.tab_successor_verified,
-                terminal_home_verified=self.result.terminal_home_verified,
-                inner_buy_dispatched=effect.inner_buy_dispatched,
+            proved = bool(
+                effect.status == effect.journal_status == "confirmed"
+                and effect.inner_buy_dispatched and effect.tab_successor_verified
+                and type(effect.stock_after) is int and effect.stock_after < offer.stock
+                and purchase_acknowledged(
+                    offer, quantity=quantity, acknowledgements=effect.acknowledgements,
+                )
             )
             tab_result = self.result.tab_results[tab]
             tab_result["effect_verified"] = proved
             if not proved:
-                tab_result.update(status="unresolved", reason="ITEM_CURRENCY_TAB_HOME_RECONCILIATION_FAILED")
+                tab_result.update(status="unresolved", reason="PURCHASE_ACKNOWLEDGEMENT_OR_STOCK_NOT_VERIFIED")
                 self.result.effect_reconciliation_required = True
                 self.result.identical_retry_denied = True
 
@@ -330,7 +327,9 @@ class DailyShopsPurchaseRoute:
             self.result.status = "blocked"
             self.result.reason = "DAILY_SHOPS_CONFIRMED_EFFECT_PROOF_MISSING"
         elif "blocked" in statuses:
-            self.result.status = "deferred" if self.result.committed_action_count else "blocked"
+            self.result.status = "deferred" if any(
+                status in {"confirmed", "already_confirmed"} for status in statuses
+            ) else "blocked"
             self.result.reason = "DAILY_SHOPS_TAB_BLOCKED_INDEPENDENT_RESULT_RETAINED"
         elif "deferred" in statuses:
             self.result.status = "deferred"
@@ -356,7 +355,7 @@ def run_daily_shops_route(
 
     return DailyShopsPurchaseRoute(port, action_keys=action_keys).run().to_mapping()
 class DailyShopsLivePort:
-    """Mapped Ruins entry, exact current-frame shop binding and paired purchase proof."""
+    """Mapped Ruins entry, exact current-frame shop binding and purchase acknowledgement."""
 
     def __init__(self, context, *, action_keys: Mapping[str, str], settle_seconds: float):
         self.context, self.session, self.runtime = context, context.session, context.runtime
@@ -371,6 +370,7 @@ class DailyShopsLivePort:
         self._home_localizer = None
         self.entry_reason = ""
         self._rare_earth_reveal_attempted = False
+        self._rare_earth_tab_tap_attempted = False
 
     def _capture(self, label):
         self.context.checkpoint()
@@ -380,10 +380,18 @@ class DailyShopsLivePort:
         return self._ocr_region(captured.frame)
 
     @staticmethod
-    def _ocr_region(frame, roi=None, *, psm=6):
+    def _ocr_region(frame, roi=None, *, psm=6, light_text=False):
         from scripts.bounded_tesseract import call_ocr, tesseract_data
         left, top, right, bottom = roi or (0, 0, 800, 1280)
-        data = call_ocr(tesseract_data, frame[top:bottom, left:right], config=f"--psm {psm}")
+        image = frame[top:bottom, left:right]
+        if light_text:
+            import cv2
+            import numpy as np
+            glyphs = cv2.inRange(cv2.cvtColor(image, cv2.COLOR_BGR2HSV),
+                                np.array((0, 0, 190), dtype=np.uint8),
+                                np.array((179, 70, 255), dtype=np.uint8))
+            image = cv2.cvtColor(255 - glyphs, cv2.COLOR_GRAY2BGR)
+        data = call_ocr(tesseract_data, image, config=f"--psm {psm}")
         groups = {}
         for i, text in enumerate(data.get("text", ())):
             value = str(text).strip()
@@ -489,12 +497,22 @@ class DailyShopsLivePort:
 
     def _page(self, captured):
         lines = self._ocr(captured)
-        header = self._ocr_region(captured.frame, (285, 0, 515, 65), psm=7)
+        header = self._ocr_region(captured.frame, (285, 0, 515, 65), psm=7, light_text=True)
         if self._hits(header, "Shop"):
             selectors = self._ocr_region(captured.frame, (40, 180, 760, 215), psm=7)
+            rare_labels = self._hits(selectors, "Rare Earth Shop")
+            # Retained selected Rare Earth pages clip the label at the strip's left edge.
+            if not rare_labels:
+                rare_labels = [
+                    roi for phrase in ("Earth Shop", "arth Shop")
+                    for roi in self._hits(selectors, phrase) if roi[0] <= 45
+                ]
             selected = [
-                tab for tab, label in ((RUINS_TAB, "Ruins Shop"), (RARE_EARTH_TAB, "Rare Earth Shop"))
-                for roi in self._hits(selectors, label) if self._shop_selected(captured.frame, roi)
+                tab for tab, labels in (
+                    (RUINS_TAB, self._hits(selectors, "Ruins Shop")),
+                    (RARE_EARTH_TAB, rare_labels),
+                )
+                for roi in labels if self._shop_selected(captured.frame, roi)
             ]
             body = tuple(line for line in lines if all(word[1][1] >= 230 for word in line))
             return (selected[0] if len(selected) == 1 else "unknown"), header + selectors + body
@@ -629,7 +647,6 @@ class DailyShopsLivePort:
         return self._open_ruins_shop()
 
     def _read_offer(self, captured, tab):
-        self._owned_evidence_missing = False
         lines = self._ocr(captured)
         expected = {
             RUINS_TAB: (RUINS_SHOP, "3★ Chip Enhance Material", "Ruins Coins"),
@@ -661,7 +678,7 @@ class DailyShopsLivePort:
                 row_prices.append((abs(y - row_y), positive_numbers[0]))
         row_prices.sort(key=lambda x: x[0])
         if (not row_prices or (len(row_prices) > 1 and row_prices[0][0] == row_prices[1][0])
-                or len(set(stocks)) != 1 or len(set(owned_values)) > 1):
+                or len(set(stocks)) != 1):
             return None
         price, price_roi = row_prices[0][1]
         price_icon = self._icon(captured, price_roi)
@@ -673,12 +690,7 @@ class DailyShopsLivePort:
         if len(balances) != 1 or price_icon is None:
             return None
         self.currency_icons[tab] = price_icon
-        # A Bag baseline alone cannot establish a purchase successor while remaining in this
-        # shared shop. Without a current explicit Owned value, paired item proof is unavailable.
-        if len(owned_values) != 1:
-            self._owned_evidence_missing = not owned_values
-            return None
-        count = owned_values[0]
+        count = owned_values[0] if len(owned_values) == 1 else None
         stock = stocks[0]
         offer = ShopOffer(
             shop_identity=shop, item_identity=item, currency_identity=currency,
@@ -698,13 +710,8 @@ class DailyShopsLivePort:
             )
         offer = self._read_offer(captured, tab)
         if offer is None:
-            if self._owned_evidence_missing:
-                return TabOffer(
-                    None, True, "TAB_ITEM_EFFECT_EVIDENCE_REQUIRED",
-                    str(captured.path), captured.sha256,
-                )
             return TabOffer(
-                None, False, "evidence_required:EXACT_DAILY_OFFER_OR_IN_SHOP_OWNED_PROOF_MISSING",
+                None, False, "evidence_required:EXACT_DAILY_OFFER_OR_COST_MISSING",
                 str(captured.path), captured.sha256,
             )
         self.last_offer_capture = captured
@@ -833,9 +840,11 @@ class DailyShopsLivePort:
                             and after.shop_identity == before.shop_identity
                             and after.item_identity == before.item_identity
                             and after.currency_identity == before.currency_identity
-                            and after.balance == balance - total
-                            and after.stock == stock - quantity
-                            and after.item_quantity == before.item_quantity + quantity):
+                            and after.stock < stock
+                            and purchase_acknowledged(
+                                before, quantity=quantity,
+                                acknowledgements=self._purchase_acknowledgements(after_frame),
+                            )):
                         paired = True
                         break
                 if not paired:
@@ -1045,43 +1054,60 @@ class DailyShopsLivePort:
                 return False
         return self.context.is_clean_home(self._capture("daily-shops-terminal-home-final").frame)
 
+    def _purchase_acknowledgements(self, captured):
+        return purchase_acknowledgements(
+            " ".join(word[0] for word in line)
+            for line in self._ocr_region(captured.frame, PURCHASE_ACKNOWLEDGEMENT_ROI)
+        )
+
+    def _selector_labels(self, lines, label):
+        return [roi for roi in self._hits(lines, label) if roi[1] >= 180 and roi[3] <= 215]
+
     def switch_to_rare_earth(self):
-        if self.current_tab == "ruins":
-            tab = "Rare Earth Shop"
-            if not self._tap_text(
-                tab, "daily-shops:rare-earth-tab",
-                lambda after: self._page(after)[0] == RARE_EARTH_TAB,
-            ):
-                if self._rare_earth_reveal_attempted:
-                    return False
-                captured = self._capture("daily-shops-selector-reveal-source")
-                page, lines = self._page(captured)
-                selected = [
-                    roi for roi in self._hits(lines, "Ruins Shop")
-                    if roi[1] >= 180 and roi[3] <= 215
-                    and self._shop_selected(captured.frame, roi)
-                ]
-                if page != RUINS_TAB or len(selected) != 1:
-                    return False
-                self.context.checkpoint()
-                self._rare_earth_reveal_attempted = True
-                self.runtime.swipe(
-                    captured, start=(220, 145), end=(500, 145),
-                    action_key=f"daily-shops:reveal-rare-earth:{captured.sha256}",
-                    target_identity="daily-shops:shop-selector",
-                )
-                if self.settle_seconds:
-                    import time
-                    time.sleep(self.settle_seconds)
-                after = self._capture("daily-shops-selector-reveal-successor")
-                if self._page(after)[0] != RARE_EARTH_TAB and not self._tap_text(
-                    tab, "daily-shops:rare-earth-tab",
-                    lambda result: self._page(result)[0] == RARE_EARTH_TAB,
-                ):
-                    return False
-            self.current_tab = RARE_EARTH_TAB
+        """One measured selector reveal and one exact label tap, never an identical retry."""
+        if self.current_tab == RARE_EARTH_TAB:
             return True
-        return self.current_tab == RARE_EARTH_TAB
+        if self.current_tab != RUINS_TAB or self._rare_earth_tab_tap_attempted:
+            return False
+        source = self._capture("daily-shops-Rare-Earth-Shop-source")
+        page, lines = self._page(source)
+        if page != RUINS_TAB:
+            return False
+        labels = self._selector_labels(lines, "Rare Earth Shop")
+        if not labels:
+            selected = [roi for roi in self._selector_labels(lines, "Ruins Shop")
+                        if self._shop_selected(source.frame, roi)]
+            if self._rare_earth_reveal_attempted or len(selected) != 1:
+                return False
+            self.context.checkpoint()
+            self._rare_earth_reveal_attempted = True
+            self.runtime.swipe(
+                source, start=(220, 145), end=(500, 145),
+                action_key=f"daily-shops:reveal-rare-earth:{source.sha256}",
+                target_identity="daily-shops:shop-selector",
+            )
+            if self.settle_seconds:
+                import time
+                time.sleep(self.settle_seconds)
+            source = self._capture("daily-shops-selector-reveal-successor")
+            page, lines = self._page(source)
+            if page == RARE_EARTH_TAB:
+                self.current_tab = RARE_EARTH_TAB
+                return True
+            if page != RUINS_TAB:
+                return False
+            labels = self._selector_labels(lines, "Rare Earth Shop")
+        if len(labels) != 1:
+            return False
+        self._rare_earth_tab_tap_attempted = True
+        if not self._tap(
+            source, labels[0], "daily-shops:rare-earth-tab",
+            f"daily-shops:daily-shops:rare-earth-tab:{source.sha256}",
+            lambda after: self._page(after)[0] == RARE_EARTH_TAB,
+        ):
+            return False
+        self.current_tab = RARE_EARTH_TAB
+        return True
 
 
 def _purchase_daily_offer(context, port, tab, offer, dialog, action_key, *, settle_seconds):
@@ -1203,30 +1229,28 @@ def _purchase_daily_offer(context, port, tab, offer, dialog, action_key, *, sett
     def post_observe():
         for ordinal in range(1, 4):
             context.checkpoint()
-            if settle_seconds:
+            if ordinal > 1 and settle_seconds:
                 import time
                 time.sleep(settle_seconds)
             captured = port._capture(f"daily-shops-{tab}-purchase-post-{ordinal}")
-            after = port._read_offer(captured, tab)
-            page = port._page(captured)[0]
-            item_after_shop = after.item_quantity if after is not None else None
-            item_effect = item_after_shop == offer.item_quantity + quantity
+            acknowledgements = port._purchase_acknowledgements(captured)
+            acknowledged = purchase_acknowledged(
+                offer, quantity=quantity, acknowledgements=acknowledgements,
+            )
+            # Keep missed-toast attempts cheap so full-page OCR cannot consume the toast's
+            # short lifetime before the next capture.
+            page = port._page(captured)[0] if acknowledged else ""
+            after = port._read_offer(captured, tab) if acknowledged and page == tab else None
             shop_ok = bool(
-                page == tab and after is not None
-                and after.balance == offer.balance - total
-                and after.stock == offer.stock - quantity
-                and item_effect
+                acknowledged and page == tab and after is not None
+                and type(after.stock) is int and after.stock < offer.stock
             )
             if shop_ok:
                 effects.update(
-                    currency_after=after.balance, stock_after=after.stock,
+                    acknowledgements=acknowledgements, stock_after=after.stock,
                     tab_successor_verified=True, shop_frame=captured,
-                )
-                # Settle the actual paired effects here, before switching tabs. Home is a
-                # route-terminal condition, not a reason to leave and re-enter the shop.
-                effects.update(
-                    item_quantity_after=after.item_quantity, item_identity_after=after.item_identity,
-                    currency_identity_after=after.currency_identity, item_effect_verified=True,
+                    item_identity_after=after.item_identity,
+                    currency_identity_after=after.currency_identity, acknowledgement_verified=True,
                 )
                 refs = [str(source.path), str(frames["source"].path), str(captured.path)]
                 if port.last_offer_capture is not None:
@@ -1247,8 +1271,7 @@ def _purchase_daily_offer(context, port, tab, offer, dialog, action_key, *, sett
                     package_foreground=port.runtime.measure_foreground_package() == "com.global.ztmslg",
                 )
                 return
-            roi_hits = port._hits(port._ocr(captured), offer.item_identity)
-            roi = roi_hits[0] if len(roi_hits) == 1 else (0, 0, 1, 1)
+            roi = PURCHASE_ACKNOWLEDGEMENT_ROI
             yield Observation(
                 frame_sha256=captured.sha256, capture_completed_monotonic=captured.captured_monotonic,
                 runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID, width=800, height=1280,
@@ -1264,7 +1287,7 @@ def _purchase_daily_offer(context, port, tab, offer, dialog, action_key, *, sett
 
     def reconcile(_intent, observed):
         return bool(observed.source_state == postcondition
-                    and effects.get("item_effect_verified") is True
+                    and effects.get("acknowledgement_verified") is True
                     and effects.get("tab_successor_verified") is True)
 
     execution = SafeActionExecutor(
@@ -1279,7 +1302,7 @@ def _purchase_daily_offer(context, port, tab, offer, dialog, action_key, *, sett
         context.validate_identity()
         try:
             port.runtime.reconcile(action_key, "confirmed", effects["shop_frame"],
-                                   "exact observed material, currency, stock and tab effects verified")
+                                   "exact purchase acknowledgement and decreased stock on the same tab verified")
         except (AttributeError, KeyError, TypeError, ValueError):
             pass
     return PurchaseEffect(
@@ -1291,6 +1314,7 @@ def _purchase_daily_offer(context, port, tab, offer, dialog, action_key, *, sett
         effect_reconciliation_required=journal in {"input_sent", "unresolved"},
         identical_retry_denied=journal in {"prepared", "input_sent", "unresolved"},
         action_key=action_key, reason=execution.reason,
+        acknowledgements=effects.get("acknowledgements", ()),
     )
 
 

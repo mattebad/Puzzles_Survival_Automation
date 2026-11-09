@@ -19,9 +19,14 @@ DONATION_TARGET = "alliance-tech:ordinary-donate"
 DONATION_ACTION = "DONATE_ALLIANCE_TECH"
 DONATION_CONSEQUENCE = "alliance_tech_donation_effect"
 DONATION_POSTCONDITION = "ALLIANCE_TECH_DONATION_CONFIRMED"
+# The ordinary (non-premium) Donate control's displayed cost; the HOT modal hides the wallet,
+# so no individual resource identity or balance is part of the action contract.
+DONATION_RESOURCE = "ORDINARY_RESOURCE"
 MAX_DONATIONS_PER_RESET = 10
 MAX_AVAILABLE_ATTEMPTS = 20
-ORDINARY_RESOURCES = frozenset({"FOOD", "WOOD", "STEEL", "GAS"})
+ATTEMPT_REGENERATION_SECONDS = 1800
+# Displayed countdowns have one-second resolution and captures are not instantaneous.
+_TIMER_TOLERANCE_SECONDS = 2.0
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -39,7 +44,7 @@ class DonationActionReconciliationError(ValueError):
 
 @dataclass(frozen=True)
 class DonationObservation:
-    """Fresh current-HOT donation evidence; ranking points are deliberately absent."""
+    """Fresh current-HOT donation evidence; the attempt counter is the only action count."""
 
     screen_state: str
     auto_hot_marker: bool
@@ -51,16 +56,12 @@ class DonationObservation:
     donate_control_visible: bool
     control_enabled: bool
     quantity: int
-    resource_identity: str
-    resource_known: bool
     donation_amount: int | None
-    resource_balance: int | None
+    # False when the game shows the ordinary cost as a red shortage; None when unread.
+    cost_affordable: bool | None
     available_attempts: int | None
     attempt_capacity: int | None
-    active_recharge_timer: bool | None = None
     next_attempt_available_in_seconds: int | None = None
-    tech_points: int | None = None
-    reward_signature: tuple[int, ...] | None = None
     game_day_id: str | None = None
     target_provenance: str = "unknown"
     source_frame_sha256: str = ""
@@ -104,18 +105,27 @@ def _native_observation(observation: DonationObservation) -> bool:
     )
 
 
-def _current_hot_panel(observation: DonationObservation | None) -> bool:
+def _current_hot_panel(observation: DonationObservation | None, *, require_title: bool = True) -> bool:
     return bool(
         type(observation) is DonationObservation
         and observation.screen_state == ALLIANCE_TECH_SCREEN
         and observation.auto_hot_marker is True
-        and isinstance(observation.tech_identity, str)
-        and bool(observation.tech_identity.strip())
+        and (not require_title or (isinstance(observation.tech_identity, str)
+                                   and bool(observation.tech_identity.strip())))
         and observation.target_identity == DONATION_TARGET
         and _target_inside_panel(observation)
         and isinstance(observation.game_day_id, str)
         and bool(observation.game_day_id.strip())
         and _native_observation(observation)
+    )
+
+
+def _attempt_counter(observation: DonationObservation) -> bool:
+    return (
+        type(observation.available_attempts) is int
+        and type(observation.attempt_capacity) is int
+        and observation.attempt_capacity == MAX_AVAILABLE_ATTEMPTS
+        and 0 <= observation.available_attempts <= MAX_AVAILABLE_ATTEMPTS
     )
 
 
@@ -129,33 +139,21 @@ def donation_disposition(
         return DonationDisposition.BLOCKED
     if committed_action_count == MAX_DONATIONS_PER_RESET:
         return DonationDisposition.DAILY_TARGET_REACHED
-    if not _current_hot_panel(observation):
-        return DonationDisposition.BLOCKED
-    if (
-        type(observation.available_attempts) is not int
-        or type(observation.attempt_capacity) is not int
-        or observation.attempt_capacity != MAX_AVAILABLE_ATTEMPTS
-        or not 0 <= observation.available_attempts <= MAX_AVAILABLE_ATTEMPTS
-    ):
+    if not _current_hot_panel(observation) or not _attempt_counter(observation):
         return DonationDisposition.BLOCKED
     if observation.available_attempts == 0:
         return DonationDisposition.NO_ATTEMPTS
-    resource = observation.resource_identity
     if (
-        observation.resource_known is not True
-        or not isinstance(resource, str)
-        or resource.upper() not in ORDINARY_RESOURCES
-        or type(observation.donation_amount) is not int
+        type(observation.donation_amount) is not int
         or observation.donation_amount <= 0
-        or type(observation.resource_balance) is not int
-        or observation.resource_balance < 0
+        or type(observation.cost_affordable) is not bool
         or observation.control_class != "DONATE"
         or observation.donate_control_visible is not True
         or type(observation.quantity) is not int
         or observation.quantity != 1
     ):
         return DonationDisposition.BLOCKED
-    if observation.resource_balance < observation.donation_amount:
+    if observation.cost_affordable is False:
         return DonationDisposition.INSUFFICIENT_RESOURCE
     if observation.control_enabled is not True:
         return DonationDisposition.BLOCKED
@@ -171,39 +169,52 @@ def donation_authorizeable(
     return donation_disposition(observation, committed_action_count) is DonationDisposition.READY
 
 
+def attempt_regeneration_observed(
+    before: DonationObservation,
+    after: DonationObservation,
+    elapsed_seconds: float | None,
+) -> bool:
+    """Whether one ordinary 30-minute attempt refill positively happened between two captures.
+
+    The before countdown must have expired within the elapsed capture interval and the after
+    countdown must show a newer period.  An unread or contradictory timer is never a refill.
+    """
+
+    timer = before.next_attempt_available_in_seconds
+    after_timer = after.next_attempt_available_in_seconds
+    return bool(
+        type(timer) is int
+        and 0 <= timer <= ATTEMPT_REGENERATION_SECONDS
+        and type(elapsed_seconds) in (int, float)
+        and math.isfinite(float(elapsed_seconds))
+        and 0 <= elapsed_seconds < ATTEMPT_REGENERATION_SECONDS - _TIMER_TOLERANCE_SECONDS
+        and timer <= float(elapsed_seconds) + _TIMER_TOLERANCE_SECONDS
+        and type(after_timer) is int
+        and timer < after_timer <= ATTEMPT_REGENERATION_SECONDS
+    )
+
+
 def donation_postcondition_verified(
     before: DonationObservation,
     after: DonationObservation | None,
     committed_action_count_before: int = 0,
+    *,
+    elapsed_seconds: float | None,
 ) -> bool:
-    """Require one attempt, exact resource spend and a variable-valued tech/reward successor."""
+    """One ordinary tap consumed exactly one displayed attempt, net of an observed refill."""
 
     if (
         not donation_authorizeable(before, committed_action_count_before)
-        or not _current_hot_panel(after)
+        or not _current_hot_panel(after, require_title=False)
+        or not _attempt_counter(after)
         or after.game_day_id != before.game_day_id
-        or after.resource_identity.upper() != before.resource_identity.upper()
-        or after.available_attempts != before.available_attempts - 1
-        or after.resource_balance != before.resource_balance - before.donation_amount
     ):
         return False
-    tech_successor = (
-        after.tech_identity != before.tech_identity
-        or (
-            after.tech_identity == before.tech_identity
-            and type(before.tech_points) is int
-            and type(after.tech_points) is int
-            and after.tech_points > before.tech_points
-        )
-    )
-    reward_successor = (
-        isinstance(before.reward_signature, tuple)
-        and isinstance(after.reward_signature, tuple)
-        and bool(before.reward_signature)
-        and len(before.reward_signature) == len(after.reward_signature)
-        and after.reward_signature != before.reward_signature
-    )
-    return tech_successor or reward_successor
+    consumed = before.available_attempts - after.available_attempts
+    # A refill landing in the same interval leaves the counter unchanged. It must also be
+    # counted when rejecting a two-attempt decrement hidden by that refill.
+    regenerated = int(attempt_regeneration_observed(before, after, elapsed_seconds))
+    return consumed + regenerated == 1
 
 
 def donation_action_key(
@@ -235,47 +246,44 @@ def _donation_key_prefix(*, account_id: str, server_id: str, game_day_id: str) -
     ).rsplit(":", 1)[0] + ":"
 
 
-def _action_resource_identity(action: Mapping[str, Any], *, flow_id: str, game_day_id: str) -> str | None:
-    resource = action.get("resource_or_currency")
-    if isinstance(resource, str) and resource in ORDINARY_RESOURCES:
-        return resource
-    if resource not in (None, "ordinary_resource"):
-        return None
+def _action_request_matches(action: Mapping[str, Any], *, flow_id: str, game_day_id: str) -> bool:
     try:
         request = json.loads(action.get("policy_request_json"))
     except (TypeError, ValueError):
-        return None
+        return False
     if not isinstance(request, Mapping):
-        return None
+        return False
     observation = request.get("observation")
     preconditions = request.get("semantic_preconditions")
     if not isinstance(observation, Mapping) or not isinstance(preconditions, list):
-        return None
-    identity = request.get("resource_or_currency")
+        return False
     amount = observation.get("cost_amount")
+    # Retain confirmed/cancelled rows written under the old per-resource contract. This is
+    # historical journal interpretation only: new requests always use DONATION_RESOURCE.
+    resource = request.get("resource_or_currency")
+    if resource not in {DONATION_RESOURCE, "FOOD", "WOOD", "STEEL", "GAS"}:
+        return False
     required = {
         f"alliance_donation_game_day={game_day_id}",
-        f"alliance_donation_resource={identity}",
+        f"alliance_donation_resource={resource}",
         f"alliance_donation_cost={amount}",
         "alliance_donation_quantity=1",
     }
-    if (
-        not isinstance(identity, str) or identity not in ORDINARY_RESOURCES
-        or request.get("task_id") != flow_id or request.get("action_key") != action.get("action_key")
-        or request.get("semantic_action") != DONATION_ACTION
-        or request.get("action_class") != "spend_or_strategic"
-        or request.get("game_day_id") != game_day_id
-        or request.get("maximum_cost") != action.get("cost_amount")
-        or observation.get("source_state") != ALLIANCE_TECH_SCREEN
-        or observation.get("target_identity") != DONATION_TARGET
-        or observation.get("expected_postcondition") != DONATION_POSTCONDITION
-        or observation.get("consequence") != DONATION_CONSEQUENCE
-        or observation.get("cost_type") != "ordinary_resource"
-        or amount != action.get("cost_amount") or observation.get("quantity") != 1
-        or not required.issubset(set(preconditions))
-    ):
-        return None
-    return identity
+    return bool(
+        request.get("resource_or_currency") == resource
+        and request.get("task_id") == flow_id and request.get("action_key") == action.get("action_key")
+        and request.get("semantic_action") == DONATION_ACTION
+        and request.get("action_class") == "spend_or_strategic"
+        and request.get("game_day_id") == game_day_id
+        and request.get("maximum_cost") == action.get("cost_amount")
+        and observation.get("source_state") == ALLIANCE_TECH_SCREEN
+        and observation.get("target_identity") == DONATION_TARGET
+        and observation.get("expected_postcondition") == DONATION_POSTCONDITION
+        and observation.get("consequence") == DONATION_CONSEQUENCE
+        and observation.get("cost_type") == "ordinary_resource"
+        and amount == action.get("cost_amount") and observation.get("quantity") == 1
+        and required.issubset(set(preconditions))
+    )
 
 
 def confirmed_donation_count(
@@ -312,9 +320,6 @@ def confirmed_donation_count(
         if ordinal in ordinals:
             raise DonationActionReconciliationError("duplicate canonical donation ordinal")
         ordinals.add(ordinal)
-        resource_identity = _action_resource_identity(
-            action, flow_id=flow_id, game_day_id=game_day_id,
-        )
         if (
             action.get("semantic_action") != DONATION_ACTION
             or action.get("source_state") != ALLIANCE_TECH_SCREEN
@@ -324,11 +329,11 @@ def confirmed_donation_count(
             or action.get("game_day_id") != game_day_id
             or action.get("quantity") != 1
             or action.get("cost_type") != "ordinary_resource"
-            or resource_identity is None
             or type(action.get("cost_amount")) not in (int, float)
             or type(action.get("cost_amount")) is bool
             or not math.isfinite(float(action["cost_amount"]))
             or action["cost_amount"] <= 0
+            or not _action_request_matches(action, flow_id=flow_id, game_day_id=game_day_id)
         ):
             raise DonationActionReconciliationError("canonical donation action does not match its exact contract")
         if action.get("final_status") in {"prepared", "input_sent", "unresolved"}:
@@ -346,5 +351,3 @@ def confirmed_donation_count(
     if len(matched) > MAX_DONATIONS_PER_RESET:
         raise DonationActionReconciliationError("canonical confirmed donation count exceeds ten")
     return len(matched)
-
-

@@ -172,13 +172,11 @@ def alliance_donation_next_due(
         else:
             raise ValueError("Alliance donation attempt defer has no permitted timer policy")
     elif reason == "insufficient_resource":
-        balance, cost = evidence.get("resource_balance"), evidence.get("donation_amount")
-        resource = evidence.get("resource_identity")
-        if (attempts <= 0 or type(balance) is not int or type(cost) is not int
-                or resource not in {"FOOD", "WOOD", "STEEL", "GAS"}
-                or balance < 0 or cost <= 0 or balance >= cost
+        cost = evidence.get("donation_amount")
+        if (not 0 < attempts <= capacity or type(cost) is not int or cost <= 0
+                or evidence.get("cost_affordable") is not False
                 or source != "safe_resource_recheck" or next_due != observed + RECHECK_SECONDS):
-            raise ValueError("Alliance donation resource defer lacks a safe, exact recheck proof")
+            raise ValueError("Alliance donation resource defer lacks an observed red-cost recheck proof")
     else:
         raise ValueError("Alliance donation defer reason is not an observed availability stop")
     return min(max(completed, next_due), reset_deadline.timestamp())

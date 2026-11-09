@@ -104,11 +104,12 @@ class ReplayAllianceShopPort:
             return self.effect
         return PurchaseEffect(
             status="confirmed", journal_status="confirmed", inner_buy_dispatched=True,
-            purchase_transport_calls=1, currency_after=selected.balance - selected.unit_price,
-            stock_after=selected.stock - 1, item_quantity_after=selected.item_quantity + 1,
+            purchase_transport_calls=1, currency_after=None,
+            stock_after=None, item_quantity_after=None,
             item_identity_after=selected.item_identity,
             currency_identity_after=selected.currency_identity,
             tab_successor_verified=True, action_key=key,
+            acknowledgements=((selected.item_identity, 1),),
         )
 
     def return_home(self):
@@ -119,14 +120,14 @@ class ReplayAllianceShopPort:
 class ActualSafetyStoreAlliancePort(ReplayAllianceShopPort):
     """Synthetic observed shop frames; policy, capabilities and SQLite are real."""
 
-    def __init__(self, context, *, fallback=False, missing_item_effect=False, changed_immediate=False):
+    def __init__(self, context, *, fallback=False, missing_acknowledgement=False, changed_immediate=False):
         selected = (offer(ALLIANCE_OTHER_SHOP, ALLIANCE_FALLBACK_ITEM, price=9, rarity=1)
                     if fallback else offer(ALLIANCE_WEEKLY_SHOP, "Bioenhance Scheme"))
         super().__init__(weekly=() if fallback else (selected,), fallback=selected if fallback else None)
         self.context = context
         self.selected = selected
         self.current_tab = "other" if fallback else "weekly"
-        self.missing_item_effect = missing_item_effect
+        self.missing_acknowledgement = missing_acknowledgement
         self.capture_count = 0
         self.dialog_reads = []
         self.tap_frame_hashes = []
@@ -167,9 +168,7 @@ class ActualSafetyStoreAlliancePort(ReplayAllianceShopPort):
         return self.current_tab, ""
 
     def _read_offer(self, captured, *args):
-        return replace(self.selected, balance=self.selected.balance - self.selected.unit_price,
-                       stock=self.selected.stock - 1,
-                       item_quantity=self.selected.item_quantity + (0 if self.missing_item_effect else 1))
+        return self.selected
 
     def _words(self, captured):
         return ()
@@ -179,7 +178,9 @@ class ActualSafetyStoreAlliancePort(ReplayAllianceShopPort):
 
     def purchase_one(self, selected, dialog, key):
         self.purchases.append((selected, key))
-        with patch.object(native, "_hits", return_value=[(100, 300, 400, 350)]):
+        acknowledgements = () if self.missing_acknowledgement else ((selected.item_identity, 1),)
+        with patch.object(native, "_hits", return_value=[(100, 300, 400, 350)]), \
+                patch.object(native, "_purchase_acknowledgements", return_value=acknowledgements):
             return native._purchase_alliance_offer(
                 self.context, self, selected, dialog, key, settle_seconds=0,
             )
@@ -347,7 +348,7 @@ class AllianceShopInventoryPixelTests(unittest.TestCase):
         port.current_tab = "weekly"
         return port, swipes
 
-    def test_actual_inventory_selects_exact_quote_without_scroll_or_buy(self):
+    def test_actual_inventory_selects_exact_quote_after_proving_list_end(self):
         source = self.inventory_frame()
         port, swipes = self.port([source])
         scan = port.scan_weekly_offers()
@@ -357,35 +358,34 @@ class AllianceShopInventoryPixelTests(unittest.TestCase):
         self.assertEqual(selected.status, "selected")
         row = scan.offers[0]
         self.assertEqual(row.item_identity, "Bioenhance Scheme")
-        self.assertEqual((row.unit_price, row.balance, row.stock, row.item_quantity),
-                         (80000, 1464257, 5, 29))
+        self.assertEqual((row.unit_price, row.balance, row.stock),
+                         (80000, 1464257, 5))
         self.assertEqual(row.currency_identity, ALLIANCE_CURRENCY)
         self.assertTrue(row.recognized)
-        self.assertEqual(swipes, [])
+        self.assertEqual(len(swipes), 1)
         self.assertEqual(port.offer_evidence[row.item_identity].sha256, source.sha256)
         buy = port._outer_buy_roi(source, row)
         self.assertTrue(548 <= buy[0] < buy[2] <= 720)
         self.assertTrue(663 <= buy[1] < buy[3] <= 692)
 
-    def test_unknown_owned_is_not_complete_or_preferred_absence(self):
-        def hide_owned(frame):
-            frame[710:746, 60:200] = 0
-        before = self.changed(self.inventory_frame(), hide_owned)
-        after = self.changed(self.inventory_frame(2), hide_owned)
-        port, swipes = self.port([before, after])
-        scan = port.scan_weekly_offers()
-        self.assertFalse(scan.complete)
-        self.assertEqual(scan.reason, "WEEKLY_OFFER_FIELDS_UNRESOLVED")
-        self.assertEqual(len(scan.offers), 1)
-        self.assertFalse(scan.offers[0].recognized)
-        self.assertIsNone(scan.offers[0].item_quantity)
-        self.assertEqual(len(scan.evidence_frame_sha256s), 2)
-        self.assertEqual(len(swipes), 1)
-        _source, gesture = swipes[0]
-        buttons = native._offer_buttons(before)
-        self.assertLess(gesture["start"][0], min(roi[0] for roi in buttons))
-        self.assertEqual(gesture["start"][0], gesture["end"][0])
-        self.assertGreater(gesture["start"][1], gesture["end"][1])
+    def test_scan_does_not_select_bioenhance_before_resolving_higher_priority_joy(self):
+        before, after = self.inventory_frame(), self.inventory_frame(2)
+        port, _swipes = self.port([before, after])
+        bio = offer(ALLIANCE_WEEKLY_SHOP, "Bioenhance Scheme")
+        joy = offer(ALLIANCE_WEEKLY_SHOP, "Joy Coin")
+        def read_offer(captured, item, _shop, _rarity):
+            if captured.sha256 == before.sha256 and item == bio.item_identity:
+                return bio
+            if captured.sha256 == after.sha256 and item == joy.item_identity:
+                return joy
+            return None
+        port._read_offer = read_offer
+        with patch.object(port, "_scroll", return_value=after) as scroll, patch.object(native, "_same_offer_view", return_value=False):
+            scan = port.scan_weekly_offers()
+        self.assertTrue(scan.complete)
+        self.assertEqual(AllianceShopPurchaseRoute._choice(scan).offer, joy)
+        self.assertEqual(scroll.call_count, 1)
+
 
     def test_actual_refresh_tick_is_not_offer_list_progress(self):
         before, after = self.inventory_frame(), self.inventory_frame(2)
@@ -412,7 +412,7 @@ class AllianceShopInventoryPixelTests(unittest.TestCase):
         self.assertIsNotNone(weekly)
         self.assertIsNotNone(fallback)
         self.assertTrue(fallback.recognized)
-        self.assertEqual((fallback.unit_price, fallback.stock, fallback.item_quantity), (1000, 10055, 11052))
+        self.assertEqual((fallback.unit_price, fallback.stock), (1000, 10055))
         replay = ReplayAllianceShopPort(
             weekly=(replace(weekly, balance=weekly.unit_price - 1),), fallback=fallback,
         )
@@ -646,6 +646,9 @@ class PurchaseRunTransport:
             self.state = RUN_MODAL
         elif self.state == RUN_MODAL and inside(point, (376, 816, 426, 842)):
             self.bought, self.posts, self.state = True, [RUN_POST_1], RUN_POST_2
+    def dispatch_swipe(self, start, end, *_duration):
+        self.inputs.append(("swipe", self.state.name[:4]))
+
 
     def dispatch_back(self):
         self.inputs.append(("back", self.state.name[:4]))
@@ -657,6 +660,14 @@ class PurchaseRunTransport:
 
 
 class AllianceShopPurchaseRunReplayTests(unittest.TestCase):
+    def test_actual_0031_toast_acknowledges_exact_bioenhance_purchase(self):
+        from scripts.bluestacks_native_runtime import captured_native_frame_from_png
+        captured = captured_native_frame_from_png(
+            RUN_POST_1.read_bytes(), captured_monotonic=1, path=RUN_POST_1,
+        )
+        self.assertEqual(native._purchase_acknowledgements(captured),
+                         (("Bioenhance Scheme", 1),))
+
     def test_startup_purchase_and_terminal_return_revisit_identical_alliance_menu(self):
         import json
         import time
@@ -682,9 +693,36 @@ class AllianceShopPurchaseRunReplayTests(unittest.TestCase):
                 result = native._service_driver(context, {"action_key": "purchase-run", "settle_seconds": 0})
                 self.assertEqual(result["status"], "completed", result)
                 self.assertTrue(result["offer_effect_verified"] and result["terminal_home_verified"])
-                self.assertEqual((result["purchase_transport_calls"], result["input_count"]), (1, 9))
+                self.assertEqual((result["purchase_transport_calls"], result["input_count"]), (1, 10))
                 self.assertEqual(store.get_action_by_key("purchase-run")["final_status"], "confirmed")
                 self.assertEqual(bound, [hashlib.sha256(RUN_HOME.read_bytes()).hexdigest()])
+                # Exercise the production restart reader, not the replay port's prior flag.
+                live = native.AllianceShopLivePort(context, settle_seconds=0)
+                self.assertEqual(live.action_status("purchase-run"), "confirmed")
+                inputs_before_restart = runtime.input_count
+                restarted = AllianceShopPurchaseRoute(live, action_key="purchase-run").run()
+                self.assertEqual(restarted.status, "already_complete")
+                self.assertEqual(runtime.input_count, inputs_before_restart)
+
+                # Model a historical Home-digest receipt while retaining its original
+                # policy request and all rooted evidence references.
+                action = store.get_action_by_key("purchase-run")
+                request = json.loads(action["policy_request_json"])
+                proof = json.loads(action["reconciliation_result_json"])
+                receipt_home = Path(request["runtime_session_id"]) / "historical-home.png"
+                receipt_home.write_bytes(RUN_HOME.read_bytes())
+                proof["frame_sha256"] = hashlib.sha256(receipt_home.read_bytes()).hexdigest()
+                proof["evidence_refs"] = list(proof["evidence_refs"]) + [str(receipt_home)]
+                self.assertGreaterEqual(len(set(proof["evidence_refs"])), 4)
+                store.connection.execute(
+                    "UPDATE actions SET reconciliation_result_json=? WHERE action_key=?",
+                    (json.dumps(proof), "purchase-run"),
+                )
+                self.assertEqual(live.action_status("purchase-run"), "confirmed")
+                historical_restart = AllianceShopPurchaseRoute(live, action_key="purchase-run").run()
+                self.assertEqual(historical_restart.status, "already_complete")
+                self.assertEqual(historical_restart.purchase_transport_calls, 0)
+                self.assertEqual(runtime.input_count, inputs_before_restart)
                 dispatches = [json.loads(line) for line in runtime.events.read_text(encoding="utf-8").splitlines()]
                 menu = hashlib.sha256(RUN_MENU.read_bytes()).hexdigest()
                 self.assertEqual(sorted(row["target_identity"] for row in dispatches
@@ -741,12 +779,12 @@ class AllianceShopNativeReplayTests(unittest.TestCase):
                 finally:
                     store.close()
 
-    def test_native_spend_without_item_delta_stays_unknown_and_never_retries(self):
+    def test_native_missing_acknowledgement_stays_unknown_and_never_retries(self):
         with tempfile.TemporaryDirectory() as directory:
             store = SafetyStore(Path(directory) / "actions.sqlite3")
             try:
                 context = safety_store_purchase_context(directory, store)
-                port = ActualSafetyStoreAlliancePort(context, missing_item_effect=True)
+                port = ActualSafetyStoreAlliancePort(context, missing_acknowledgement=True)
                 first = AllianceShopPurchaseRoute(port, action_key="native-unknown").run()
                 self.assertEqual(first.status, "unresolved")
                 self.assertTrue(first.identical_retry_denied)
@@ -807,6 +845,18 @@ class AllianceShopNativeReplayTests(unittest.TestCase):
         )
         self.assertTrue(evidence["fallback_inventory"]["complete"])
         self.assertEqual(evidence["fallback_offer"]["offer_identity"], fallback.offer_identity)
+
+    def test_red_preferred_shortage_falls_back_without_owned_or_numeric_baseline(self):
+        weekly = replace(offer(
+            ALLIANCE_WEEKLY_SHOP, "Bioenhance Scheme", price=None, balance=None, owned=None,
+        ), price_shortage=True)
+        fallback = offer(ALLIANCE_OTHER_SHOP, ALLIANCE_FALLBACK_ITEM,
+                         price=9, rarity=1, owned=None)
+        port = ReplayAllianceShopPort(weekly=(weekly,), fallback=fallback)
+        result = AllianceShopPurchaseRoute(port, action_key="red-shortage").run()
+        self.assertEqual(result.status, "completed", result.to_mapping())
+        self.assertTrue(port.other_entered)
+        self.assertEqual(port.purchases, [(fallback, "red-shortage")])
 
     def test_diamond_int_recruit_coin_never_substitutes_for_timed_recruit_coin(self):
         excluded = offer(ALLIANCE_WEEKLY_SHOP, "Int. Recruit Coin", "Diamonds", price=1)
@@ -879,9 +929,10 @@ class AllianceShopNativeReplayTests(unittest.TestCase):
         preferred = offer(ALLIANCE_WEEKLY_SHOP, "Joy Coin")
         port = ReplayAllianceShopPort(weekly=(preferred,), home=False)
         result = AllianceShopPurchaseRoute(port, action_key="reset-bound-key").run()
-        self.assertEqual(result.status, "unresolved")
+        self.assertEqual(result.status, "blocked")
         self.assertFalse(result.terminal_home_verified)
-        self.assertTrue(result.effect_reconciliation_required)
+        self.assertTrue(result.offer_effect_verified)
+        self.assertFalse(result.effect_reconciliation_required)
 
 
 if __name__ == "__main__":

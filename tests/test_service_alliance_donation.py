@@ -138,7 +138,7 @@ class AllianceDonationServiceAdapterTests(unittest.TestCase):
                     "source_frame_sha256": "b" * 64, "evidence_ref": "evidence/donation-source",
                     "tech_identity": "current automatic HOT tech", "game_day_id": identity.reset_id,
                     "available_attempts": 0, "attempt_capacity": 20,
-                    "resource_identity": "STEEL", "resource_balance": 1000,
+                    "cost_affordable": True,
                     "donation_amount": 1000, "next_attempt_available_in_seconds": 120,
                     "next_eligibility_source": "observed_attempt_timer",
                 },
@@ -160,7 +160,7 @@ class AllianceDonationServiceAdapterTests(unittest.TestCase):
                     "source_frame_sha256": "c" * 64, "evidence_ref": "evidence/donation-source",
                     "tech_identity": "current automatic HOT tech", "game_day_id": identity.reset_id,
                     "available_attempts": 18, "attempt_capacity": 20,
-                    "resource_identity": "STEEL", "resource_balance": 999,
+                    "cost_affordable": False,
                     "donation_amount": 1000, "next_eligibility_source": "safe_resource_recheck",
                 },
             ), now=now,
@@ -168,6 +168,30 @@ class AllianceDonationServiceAdapterTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             alliance_donation_next_due(result, identity, now)
 
+
+    def test_observed_red_cost_defers_without_wallet_until_bounded_recheck(self):
+        now = 1_700_000_000.0
+        _binding, _backend, identity, now = self._identity(now)
+        evidence = {
+            "reason": "insufficient_resource", "observed_at_utc": now,
+            "source_frame_sha256": "c" * 64, "evidence_ref": "evidence/donation-source",
+            "tech_identity": "2", "game_day_id": identity.reset_id,
+            "available_attempts": 18, "attempt_capacity": 20,
+            "cost_affordable": False, "donation_amount": 1000,
+            "next_eligibility_source": "safe_resource_recheck",
+        }
+        result, _native, identity, _backend, now = self._execute(
+            self._successful_result(
+                status="deferred", reason="insufficient_resource", donation_transport_calls=2,
+                committed_action_count=2, daily_committed_action_count=4,
+                availability_evidence=evidence, next_eligible_at=now + 300,
+            ), now=now,
+        )
+        self.assertEqual(alliance_donation_next_due(result, identity, now), now + 300)
+        for affordable in (None, True):
+            with self.subTest(affordable=affordable), self.assertRaises(ValueError):
+                alliance_donation_next_due({**result, "availability_evidence": {
+                    **evidence, "cost_affordable": affordable}}, identity, now)
     def test_unknown_dispatched_donation_preserves_effect_and_denies_retry(self):
         result, _native, identity, _backend, now = self._execute(self._successful_result(
             status="reconciliation_required", reason="unexpected_successor",

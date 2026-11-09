@@ -126,7 +126,6 @@ def _validate_tab_offer(row: Mapping[str, Any], tab: str, *, no_work: bool) -> N
         or type(price) is not int or price <= 0
         or type(balance) is not int or balance < 0
         or type(stock) is not int or stock < 0
-        or type(row.get("item_quantity_before")) is not int or row["item_quantity_before"] < 0
         or type(quantity) is not int
         or not isinstance(row.get("source_frame_ref"), str) or not row["source_frame_ref"]
         or not isinstance(row.get("source_frame_sha256"), str)
@@ -177,21 +176,14 @@ def daily_shops_next_due(
                 raise ValueError("Daily Shops deferred tab cannot claim a verified effect")
             if row.get("reason") == "TAB_NO_AFFORDABLE_STOCK":
                 _validate_tab_offer(row, tab, no_work=True)
-            elif row.get("reason") == "TAB_ITEM_EFFECT_EVIDENCE_REQUIRED":
-                source_ref, source_hash = row.get("source_frame_ref"), row.get("source_frame_sha256")
-                if (
-                    type(row.get("quantity")) is not int or row["quantity"] != 0
-                    or row.get("total") is not None
-                    or any(row.get(field) is not None for field in (
-                        "offer_identity", "shop_identity", "item_identity", "currency_identity",
-                        "rarity", "unit_price", "balance_before", "stock_before", "item_quantity_before",
-                    ))
-                    or not isinstance(source_ref, str) or not source_ref.strip()
-                    or not isinstance(source_hash, str) or _SHA256_RE.fullmatch(source_hash) is None
-                ):
-                    raise ValueError("Daily Shops unproved tab requires retained source and zero purchase")
             else:
-                raise ValueError("Daily Shops deferred tab lacks an exact no-work or evidence-required reason")
+                raise ValueError("Daily Shops deferred tab lacks an exact no-work reason")
+        elif status == "blocked" and result.get("status") == "deferred":
+            deferred += 1
+            if (row.get("effect_verified") is not False
+                    or type(row.get("quantity")) is not int or row["quantity"] != 0
+                    or not isinstance(row.get("reason"), str) or not row["reason"]):
+                raise ValueError("Daily Shops blocked tab cannot claim a purchase effect")
         else:
             raise ValueError("Daily Shops tab is blocked or unresolved")
     calls = result.get("purchase_transport_calls")
@@ -347,7 +339,10 @@ class DailyShopsRunner:
                      for value in statuses)):
             status = "blocked"
         elif "blocked" in statuses:
-            status = "blocked"
+            status = "deferred" if (
+                result.get("terminal_home_verified") is True and accounting
+                and any(value in {"confirmed", "already_confirmed"} for value in statuses)
+            ) else "blocked"
         elif (result.get("terminal_home_verified") is True and accounting
               and all(value in {"confirmed", "already_confirmed"} for value in statuses)
               and all(row.get("effect_verified") is True for row in tabs.values())):

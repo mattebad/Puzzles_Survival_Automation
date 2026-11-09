@@ -135,10 +135,11 @@ def _validate_offer_evidence(row: Any, *, shop: str, item: str, rarity: int | No
         or row.get("currency_identity") != ALLIANCE_CURRENCY or row.get("rarity") != rarity
         or row.get("recognized") is not True or row.get("premium") is not False
         or not isinstance(row.get("offer_identity"), str) or not row["offer_identity"]
-        or type(price) is not int or price <= 0
-        or type(balance) is not int or balance < 0
-        or type(stock) is not int or stock < 0
-        or type(available) is not bool or available != (stock > 0)
+        or (row.get("price_shortage") is not True and (
+            type(price) is not int or price <= 0
+            or type(balance) is not int or balance < 0
+            or type(stock) is not int or stock < 0
+            or type(available) is not bool or available != (stock > 0)))
     ):
         raise ValueError("Alliance Shop offer identity or numeric readiness is unverified")
 
@@ -181,10 +182,15 @@ def _validate_selection_evidence(result: Mapping[str, Any], selected: Mapping[st
         if evidence.get("fallback_inventory") is not None or evidence.get("fallback_offer") is not None:
             raise ValueError("Alliance Shop Weekly selection contains an unrelated fallback scan")
         matching = [row for row in weekly_offers if row.get("item_identity") == item]
-        if (len(matching) != 1 or not matching[0].get("available")
+        if (len(matching) != 1 or matching[0].get("price_shortage") is True or not matching[0].get("available")
                 or matching[0].get("balance", 0) < matching[0].get("unit_price", 1)
                 or not _selected_offer_matches_row(selected, matching[0])):
             raise ValueError("Alliance Shop Weekly purchase was not the exact affordable scanned offer")
+        for row in weekly_offers:
+            if ALLIANCE_WEEKLY_ITEMS.index(row["item_identity"]) < ALLIANCE_WEEKLY_ITEMS.index(item):
+                _validate_unaffordable_offer(
+                    row, shop=ALLIANCE_WEEKLY_SHOP, item=row["item_identity"], rarity=None,
+                )
         return
 
     if shop != ALLIANCE_OTHER_SHOP or item != ALLIANCE_FALLBACK_ITEM:
@@ -201,14 +207,15 @@ def _validate_selection_evidence(result: Mapping[str, Any], selected: Mapping[st
     _validate_offer_evidence(
         fallback_offer, shop=ALLIANCE_OTHER_SHOP, item=ALLIANCE_FALLBACK_ITEM, rarity=1,
     )
-    if (not fallback_offer.get("available") or fallback_offer["balance"] < fallback_offer["unit_price"]
+    if (fallback_offer.get("price_shortage") is True or not fallback_offer.get("available")
+            or fallback_offer["balance"] < fallback_offer["unit_price"]
             or not _selected_offer_matches_row(selected, fallback_offer)):
         raise ValueError("Alliance Shop fallback was not affordable or did not match its fresh scan")
 
 
 def _validate_unaffordable_offer(row: Any, *, shop: str, item: str, rarity: int | None) -> None:
     _validate_offer_evidence(row, shop=shop, item=item, rarity=rarity)
-    if row["available"] and row["balance"] >= row["unit_price"]:
+    if row.get("price_shortage") is not True and row["available"] and row["balance"] >= row["unit_price"]:
         raise ValueError("Alliance Shop offer is affordable")
 
 
@@ -275,8 +282,6 @@ def alliance_shop_next_due(
                 or type(offer.get("balance_before")) is not int
                 or offer["balance_before"] < offer["unit_price"]
                 or type(offer.get("stock_before")) is not int or offer["stock_before"] < 1
-                or type(offer.get("item_quantity_before")) is not int
-                or offer["item_quantity_before"] < 0
                 or offer.get("currency_identity") != ALLIANCE_CURRENCY
                 or not isinstance(offer.get("offer_identity"), str) or not offer["offer_identity"]):
             raise ValueError("Alliance Shop completion lacks its exact paired purchase proof")

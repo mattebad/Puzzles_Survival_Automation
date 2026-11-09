@@ -214,7 +214,7 @@ class DailyShopsServiceAdapterTests(unittest.TestCase):
         self.assertEqual(result["tab_results"]["rare_earth"]["quantity"], 0)
         self.assertEqual(daily_shops_next_due(result, identity, now), now + 300)
 
-    def test_committed_tab_with_blocked_sibling_is_not_due_eligible(self):
+    def test_committed_tab_with_zero_quantity_blocked_sibling_defers_safely(self):
         _binding, identity, now = self._identity()
         base = route_result(identity)
         rows = {tab: dict(row) for tab, row in base["tab_results"].items()}
@@ -232,12 +232,11 @@ class DailyShopsServiceAdapterTests(unittest.TestCase):
                 identity, None, lambda: None, runtime_input_lock=FakeRuntimeInputLock(),
                 occurrence_key="opaque-partial-blocked",
             )
-        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["status"], "deferred")
         self.assertEqual(result["native_status"], "deferred")
         self.assertEqual(result["committed_action_count"], 1)
         self.assertEqual(result["purchase_transport_calls"], 1)
-        with self.assertRaises(ValueError):
-            daily_shops_next_due(result, identity, now)
+        self.assertEqual(daily_shops_next_due(result, identity, now), now + 300)
 
     def test_restart_confirmed_tab_counts_once_without_rebuy_or_transport(self):
         _binding, identity, now = self._identity()
@@ -294,29 +293,42 @@ class DailyShopsServiceAdapterTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             daily_shops_next_due(result, identity, now)
 
-    def test_blocked_tab_is_not_downgraded_to_partial_completion(self):
+    def test_restart_confirmed_tab_with_blocked_sibling_defers_without_rebuy(self):
         _binding, identity, now = self._identity()
-        base = route_result(identity)
-        keys = {tab: row["action_key"] for tab, row in base["tab_results"].items()}
+        rows = {tab: dict(row) for tab, row in route_result(identity)["tab_results"].items()}
+        rows["ruins"].update(status="already_confirmed")
+        rows["rare_earth"].update(
+            status="blocked", effect_verified=False, quantity=0, total=None,
+            reason="EXACT_TAB_OFFER_NOT_AVAILABLE",
+        )
+        payload = route_result(
+            identity, status="deferred", purchase_transport_calls=0, committed_action_count=0,
+            tab_results=rows,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            result = self._runner(FakeNativeBoundary(payload), directory, now)(
+                identity, None, lambda: None, runtime_input_lock=FakeRuntimeInputLock(),
+                occurrence_key="opaque-restart-blocked-tab",
+            )
+        self.assertEqual(result["status"], "deferred", result)
+        self.assertEqual(result["committed_action_count"], 0)
+        self.assertEqual(result["purchase_transport_calls"], 0)
+        self.assertEqual(daily_shops_next_due(result, identity, now), now + 300)
+
+    def test_blocked_sibling_with_nonzero_quantity_is_not_safe_partial(self):
+        _binding, identity, now = self._identity()
+        rows = {tab: dict(row) for tab, row in route_result(identity)["tab_results"].items()}
+        rows["rare_earth"].update(status="blocked", effect_verified=False,
+                                 reason="EXACT_TAB_OFFER_NOT_AVAILABLE")
         payload = route_result(
             identity, status="deferred", purchase_transport_calls=1, committed_action_count=1,
-            tab_results={
-                "ruins": {"status": "blocked", "effect_verified": False, "action_key": keys["ruins"]},
-                "rare_earth": {
-                    "status": "confirmed", "effect_verified": True, "action_key": keys["rare_earth"],
-                },
-            },
+            tab_results=rows,
         )
-        native = FakeNativeBoundary(payload, count=6)
         with tempfile.TemporaryDirectory() as directory:
-            result = self._runner(native, directory, now)(
+            result = self._runner(FakeNativeBoundary(payload), directory, now)(
                 identity, None, lambda: None, runtime_input_lock=FakeRuntimeInputLock(),
-                occurrence_key="opaque-blocked-tab",
+                occurrence_key="opaque-invalid-blocked-quantity",
             )
-        self.assertEqual(result["status"], "blocked")
-        self.assertEqual(result["native_status"], "deferred")
-        self.assertEqual(result["committed_action_count"], 1)
-        self.assertEqual(result["purchase_transport_calls"], 1)
         with self.assertRaises(ValueError):
             daily_shops_next_due(result, identity, now)
 

@@ -24,7 +24,8 @@ from tasks.purchases_disabled import (
     purchase_authorizeable,
     purchase_dialog_matches,
     purchase_disabled_dispatch,
-    purchase_effect_verified,
+    purchase_acknowledgements,
+    purchase_acknowledged,
     purchase_postcondition_verified,
     canonical_purchase_action_key,
 )
@@ -323,7 +324,7 @@ class ApprovedPurchasePolicyTests(unittest.TestCase):
             self.assertIsNone(daily_shop_quantity(changed, shop_identity=RARE_EARTH_SHOP))
         self.assertIsNone(daily_shop_quantity(valid, shop_identity=RUINS_SHOP))
 
-    def test_numeric_quantity_total_and_paired_effects_are_required(self):
+    def test_numeric_quantity_and_total_bind_the_purchase_dialog(self):
         offer = shop_offer(
             RUINS_SHOP, RUINS_CHIP_ITEM, RUINS_CURRENCY,
             13, 85, 20, 10, rarity=3,
@@ -337,31 +338,42 @@ class ApprovedPurchasePolicyTests(unittest.TestCase):
         self.assertFalse(purchase_dialog_matches(
             offer, quantity=6, selected_quantity=6, displayed_total=77,
         ))
-        proof = dict(
-            quantity=6,
-            selected_quantity=6,
-            displayed_total=78,
-            currency_after=7,
-            stock_after=14,
-            item_quantity_after=16,
-            item_identity_after=RUINS_CHIP_ITEM,
-            currency_identity_after=RUINS_CURRENCY,
-            tab_successor_verified=True,
-            terminal_home_verified=True,
-            inner_buy_dispatched=True,
+
+    def test_exact_acknowledgement_binds_item_and_quantity_without_owned(self):
+        offer = shop_offer(
+            RUINS_SHOP, RUINS_CHIP_ITEM, RUINS_CURRENCY,
+            13, 85, 20, None, rarity=3,
         )
-        self.assertTrue(purchase_effect_verified(offer, **proof))
-        for changed in (
-            {"currency_after": 6},
-            {"stock_after": 13},
-            {"item_quantity_after": 15},
-            {"item_identity_after": "different item"},
-            {"currency_identity_after": "Diamonds"},
-            {"tab_successor_verified": False},
-            {"terminal_home_verified": False},
-            {"inner_buy_dispatched": False},
-        ):
-            self.assertFalse(purchase_effect_verified(offer, **(proof | changed)))
+        acknowledgements = purchase_acknowledgements(
+            ("Obtained [3★ Chip Enhance Material]x6",),
+        )
+        self.assertEqual(acknowledgements, ((RUINS_CHIP_ITEM, 6),))
+        self.assertTrue(purchase_acknowledged(
+            offer, quantity=6, acknowledgements=acknowledgements,
+        ))
+        for observed in ((), ((RUINS_CHIP_ITEM, 5),),
+                         (("3★ Module Enhance Material", 6),),
+                         acknowledgements + acknowledgements):
+            self.assertFalse(purchase_acknowledged(
+                offer, quantity=6, acknowledgements=observed,
+            ))
+
+    def test_red_preferred_shortage_allows_fallback_without_numeric_baseline(self):
+        preferred = replace(shop_offer(
+            ALLIANCE_WEEKLY_SHOP, "Bioenhance Scheme", ALLIANCE_CURRENCY,
+            None, None, 4, None,
+        ), price_shortage=True)
+        fallback = shop_offer(
+            ALLIANCE_OTHER_SHOP, ALLIANCE_FALLBACK_ITEM, ALLIANCE_CURRENCY,
+            9, 100, 10, None, rarity=1,
+        )
+        choice = alliance_shop_choice(
+            (preferred,), fallback, weekly_inventory_complete=True,
+            fallback_inventory_complete=True,
+        )
+        self.assertEqual((choice.status, choice.offer, choice.quantity),
+                         ("selected", fallback, 1))
+
     def test_canonical_action_keys_are_reset_scoped_not_pulse_scoped(self):
         class Identity:
             account_id = "account-a"

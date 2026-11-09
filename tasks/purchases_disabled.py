@@ -1,4 +1,4 @@
-"""Offline purchase policy and paired-effect arithmetic for exact Daily shop offers.
+"""Offline purchase policy and game-acknowledgement checks for exact Daily shop offers.
 
 This module selects only the approved shop products; service policy and canonical
 action storage remain the dispatch authorities.
@@ -10,7 +10,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 import re
-from typing import Optional
+from typing import Iterable, Optional
 
 from .contracts import ROI, TaskOutcome, TaskResult
 from .profile import ACTIVE_RUNTIME_PROFILE_ID, BLUESTACKS_NATIVE_TARGET_PROVENANCE
@@ -183,11 +183,19 @@ RUINS_CHIP_ITEM = "3★ Chip Enhance Material"
 RARE_EARTH_MODULE_ITEM = "3★ Module Enhance Material"
 RUINS_CURRENCY = "Ruins Coins"
 RARE_EARTH_CURRENCY = "Rare Earth"
+# Observed native 800x1280 band of the game's own "Obtained [item]xN" toast. Its first
+# observation is the Alliance Weekly purchase (0031, about one second after Buy).
+PURCHASE_ACKNOWLEDGEMENT_ROI = (40, 250, 760, 450)
 
 
 @dataclass(frozen=True)
 class ShopOffer:
-    """One exact current row; absent/unknown OCR must not be represented as a row."""
+    """One exact current row; absent/unknown OCR must not be represented as a row.
+
+    ``price_shortage`` is the game's own red cost rendering: the row is unaffordable even
+    when its numeric balance, stock or Owned fields are not read. Owned is optional display
+    evidence only; no purchase decision or success proof depends on it.
+    """
 
     shop_identity: str
     item_identity: str
@@ -195,12 +203,13 @@ class ShopOffer:
     unit_price: Optional[int]
     balance: Optional[int]
     stock: Optional[int]
-    item_quantity: Optional[int]
+    item_quantity: Optional[int] = None
     rarity: Optional[int] = None
     available: Optional[bool] = None
     premium: bool = False
     recognized: bool = True
     offer_identity: str = ""
+    price_shortage: bool = False
 
 
 @dataclass(frozen=True)
@@ -243,18 +252,21 @@ def alliance_shop_choice(
             or row.shop_identity != ALLIANCE_WEEKLY_SHOP
             or row.currency_identity != ALLIANCE_CURRENCY
             or row.premium
-            or type(row.available) is not bool
+        ):
+            return AlliancePurchaseChoice("blocked", "PREFERRED_OFFER_EVIDENCE_CHANGED")
+        if not row.price_shortage and (
+            type(row.available) is not bool
             or not _known_positive(row.unit_price)
             or not _known_nonnegative(row.balance)
             or not _known_nonnegative(row.stock)
-            or not _known_nonnegative(row.item_quantity)
             or row.available != (row.stock > 0)
         ):
             return AlliancePurchaseChoice("blocked", "PREFERRED_OFFER_EVIDENCE_CHANGED")
         matched[row.item_identity] = row
     for item in ALLIANCE_WEEKLY_ITEMS:
         row = matched.get(item)
-        if row is not None and row.available and row.balance >= row.unit_price:
+        if (row is not None and not row.price_shortage
+                and row.available and row.balance >= row.unit_price):
             return AlliancePurchaseChoice("selected", "AFFORDABLE_PREFERRED_OFFER", row, 1)
     if not fallback_inventory_complete:
         return AlliancePurchaseChoice("blocked", "FALLBACK_INVENTORY_INCOMPLETE")
@@ -269,11 +281,15 @@ def alliance_shop_choice(
         or row.currency_identity != ALLIANCE_CURRENCY
         or row.rarity != 1
         or row.premium
-        or type(row.available) is not bool
+    ):
+        return AlliancePurchaseChoice("blocked", "FALLBACK_OFFER_EVIDENCE_CHANGED")
+    if row.price_shortage:
+        return AlliancePurchaseChoice("deferred", "NO_AFFORDABLE_ALLOWLISTED_OFFER")
+    if (
+        type(row.available) is not bool
         or not _known_positive(row.unit_price)
         or not _known_nonnegative(row.balance)
         or not _known_nonnegative(row.stock)
-        or not _known_nonnegative(row.item_quantity)
         or row.available != (row.stock > 0)
     ):
         return AlliancePurchaseChoice("blocked", "FALLBACK_OFFER_EVIDENCE_CHANGED")
@@ -302,7 +318,6 @@ def daily_shop_quantity(offer: ShopOffer, *, shop_identity: str) -> Optional[int
         or not _known_positive(offer.unit_price)
         or not _known_nonnegative(offer.balance)
         or not _known_nonnegative(offer.stock)
-        or not _known_nonnegative(offer.item_quantity)
         or offer.available != (offer.stock > 0)
     ):
         return None
@@ -336,10 +351,10 @@ def purchase_dialog_matches(
         and offer.currency_identity == ALLIANCE_CURRENCY
         and offer.recognized
         and not offer.premium
+        and not offer.price_shortage
         and offer.available is True
         and _known_nonnegative(offer.balance)
         and _known_nonnegative(offer.stock)
-        and _known_nonnegative(offer.item_quantity)
         and offer.stock > 0
         and offer.balance >= offer.unit_price
     ):
@@ -351,10 +366,10 @@ def purchase_dialog_matches(
         and offer.rarity == 1
         and offer.recognized
         and not offer.premium
+        and not offer.price_shortage
         and offer.available is True
         and _known_nonnegative(offer.balance)
         and _known_nonnegative(offer.stock)
-        and _known_nonnegative(offer.item_quantity)
         and offer.stock > 0
         and offer.balance >= offer.unit_price
     ):
@@ -371,51 +386,58 @@ def purchase_dialog_matches(
     )
 
 
-def purchase_effect_verified(
+_ACKNOWLEDGEMENT_RE = re.compile(
+    r"obtained\s*[\[\(\{]\s*(?P<item>[^\]\)\}]+?)\s*[\]\)\}]\s*[x×]\s*(?P<quantity>\d[\d,]*)",
+    re.IGNORECASE,
+)
+
+
+def purchase_acknowledgements(lines: Iterable[str]) -> tuple[tuple[str, int], ...]:
+    """Parse every game "Obtained [item]xN" acknowledgement in OCR text lines."""
+
+    found = []
+    for line in lines:
+        for match in _ACKNOWLEDGEMENT_RE.finditer(str(line)):
+            found.append((match.group("item"), int(match.group("quantity").replace(",", ""))))
+    return tuple(found)
+
+
+def _acknowledged_item_matches(identity: str, observed: str) -> bool:
+    def key(value: str) -> str:
+        return re.sub(r"[^0-9a-z]+", "", value.casefold())
+
+    expected, seen = key(identity), key(observed)
+    if seen == expected:
+        return True
+    # The rarity star may OCR as one stray letter; the rarity digit and full name still bind.
+    star = re.match(r"(\d+)★", identity)
+    if star is None:
+        return False
+    digits = star.group(1)
+    return bool(
+        len(seen) == len(expected) + 1
+        and seen.startswith(digits)
+        and seen[len(digits)].isalpha()
+        and seen[:len(digits)] + seen[len(digits) + 1:] == expected
+    )
+
+
+def purchase_acknowledged(
     offer: ShopOffer,
     *,
     quantity: int,
-    selected_quantity: Optional[int],
-    displayed_total: Optional[int],
-    currency_after: Optional[int],
-    stock_after: Optional[int],
-    item_quantity_after: Optional[int],
-    item_identity_after: str,
-    currency_identity_after: str,
-    tab_successor_verified: bool,
-    terminal_home_verified: bool,
-    inner_buy_dispatched: bool,
+    acknowledgements: tuple[tuple[str, int], ...],
 ) -> bool:
-    """Reconcile the exact item and currency effects with both semantic successors."""
+    """One game acknowledgement of exactly this item and quantity is positive purchase proof."""
 
-    if (
-        type(offer) is not ShopOffer
-        or not _known_nonnegative(offer.balance)
-        or not _known_nonnegative(offer.stock)
-        or not _known_nonnegative(offer.item_quantity)
-        or not _known_positive(offer.unit_price)
-        or type(quantity) is not int
-        or quantity <= 0
-        or not purchase_dialog_matches(
-            offer, quantity=quantity, selected_quantity=selected_quantity,
-            displayed_total=displayed_total,
-        )
-        or not _known_nonnegative(currency_after)
-        or not _known_nonnegative(stock_after)
-        or not _known_nonnegative(item_quantity_after)
-        or type(item_identity_after) is not str
-        or type(currency_identity_after) is not str
-    ):
-        return False
     return bool(
-        inner_buy_dispatched is True
-        and tab_successor_verified is True
-        and terminal_home_verified is True
-        and item_identity_after == offer.item_identity
-        and currency_identity_after == offer.currency_identity
-        and currency_after == offer.balance - quantity * offer.unit_price
-        and stock_after == offer.stock - quantity
-        and item_quantity_after == offer.item_quantity + quantity
+        type(offer) is ShopOffer
+        and type(quantity) is int
+        and quantity > 0
+        and type(acknowledgements) is tuple
+        and len(acknowledgements) == 1
+        and acknowledgements[0][1] == quantity
+        and _acknowledged_item_matches(offer.item_identity, acknowledgements[0][0])
     )
 
 

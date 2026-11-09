@@ -1,0 +1,29 @@
+{
+  "ticket": 72,
+  "scope": "Canonical #72 gold-selector live run: 7 navigation inputs, 0 purchases. Ruins Shop selected with an exact 3★ Chip Enhance Material row that shows no Owned field; one bounded 220,145->500,145 selector reveal fully exposed an unselected Rare Earth Shop label, but the textured Shop header OCR failed on the revealed frame so no Rare Earth tab tap was bound. No Rare Earth selected successor and no purchase evidence.",
+  "source_root": "Puzzle_Survival_Runtime_POC",
+  "source_session": ".local-captures/development-sessions/restart-resume-20261108T035832132346Z/daily-shops72-gold-selector-native/native/DAILY-SHOPS-PURCHASE-EVIDENCE-GATE-20261108T070626226743Z-7e36d7dd/daily-shops-native-20261108T070626315616Z",
+  "frames": [
+    {
+      "fixture": "0017-daily-shops-ruins-offer-source.png",
+      "source": "frames/0017-daily-shops-ruins-offer-source.png",
+      "sha256": "fafcec39bdf32649b8a1ad39cc80a7dc521196c5dccd7cea8d855d77d12eb043",
+      "kind": "unaltered immutable Original native 800x1280 frame",
+      "note": "Ruins Shop selected; 3★ Chip Enhance Material price 15, 100 Left, balance 16,649; the row has no Owned field (the old route stopped here)."
+    },
+    {
+      "fixture": "0019-daily-shops-selector-reveal-source.png",
+      "source": "frames/0019-daily-shops-selector-reveal-source.png",
+      "sha256": "c4f001d676fd065bb03390f92413c9e075980cb2e5c8f2bd0115e40ceafe4396",
+      "kind": "unaltered immutable Original native 800x1280 frame",
+      "note": "Ruins Shop selected; Rare Earth label clipped at the left edge (reveal source)."
+    },
+    {
+      "fixture": "0021-daily-shops-Rare-Earth-Shop-source.png",
+      "source": "frames/0021-daily-shops-Rare-Earth-Shop-source.png",
+      "sha256": "586e2c7f7d4748fee41906ca54997e673357d268571bd9498ec43c783cea9767",
+      "kind": "unaltered immutable Original native 800x1280 frame",
+      "note": "After the reveal: Ruins Shop still selected, Rare Earth Shop label fully visible and unselected at 270,180-407,215."
+    }
+  ]
+}

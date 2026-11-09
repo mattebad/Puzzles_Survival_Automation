@@ -253,6 +253,17 @@ class AllianceShopServiceAdapterTests(unittest.TestCase):
         self.assertEqual(result["selected_offer"]["shop_identity"], "Other")
         self.assertEqual(alliance_shop_next_due(result, identity, now), expected_reset)
 
+    def test_red_shortage_weekly_allows_exact_fallback_without_owned_or_balance(self):
+        _binding, identity, now = self._identity()
+        payload = fallback_purchase_result(weekly_balance=None)
+        weekly = payload["selection_evidence"]["weekly_offers"][0]
+        weekly.update(unit_price=None, stock=None, available=None, price_shortage=True)
+        payload["selected_offer"]["item_quantity_before"] = None
+        result = self._invoke(payload, identity, now)
+        self.assertEqual(result["status"], "complete_for_reset", result)
+        self.assertEqual(result["selected_offer"]["shop_identity"], "Other")
+        self.assertGreater(alliance_shop_next_due(result, identity, now), now)
+
     def test_other_fallback_rejects_affordable_or_incomplete_weekly_scan(self):
         _binding, identity, now = self._identity()
         for payload in (

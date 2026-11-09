@@ -22,7 +22,9 @@ from tasks.purchases_disabled import (
     ShopOffer,
     alliance_shop_choice,
     purchase_dialog_matches,
-    purchase_effect_verified,
+    PURCHASE_ACKNOWLEDGEMENT_ROI,
+    purchase_acknowledgements,
+    purchase_acknowledged,
 )
 
 
@@ -62,6 +64,7 @@ class PurchaseEffect:
     identical_retry_denied: bool = False
     action_key: str = ""
     reason: str = ""
+    acknowledgements: tuple[tuple[str, int], ...] = ()
 
 
 class AllianceShopPort(Protocol):
@@ -137,6 +140,7 @@ def _offer_readiness(offer: ShopOffer | None) -> Mapping[str, Any] | None:
         "premium": offer.premium,
         "recognized": offer.recognized,
         "offer_identity": offer.offer_identity,
+        "price_shortage": offer.price_shortage,
     }
 
 
@@ -306,25 +310,19 @@ class AllianceShopPurchaseRoute:
         self.result.terminal_home_verified = self.result.home_returned
         if self._effect is not None and self._offer is not None and self._dialog is not None:
             effect = self._effect
-            self.result.offer_effect_verified = purchase_effect_verified(
-                self._offer,
-                quantity=1,
-                selected_quantity=self._dialog.selected_quantity,
-                displayed_total=self._dialog.total,
-                currency_after=effect.currency_after,
-                stock_after=effect.stock_after,
-                item_quantity_after=effect.item_quantity_after,
-                item_identity_after=effect.item_identity_after,
-                currency_identity_after=effect.currency_identity_after,
-                tab_successor_verified=effect.tab_successor_verified,
-                terminal_home_verified=self.result.terminal_home_verified,
-                inner_buy_dispatched=effect.inner_buy_dispatched,
+            self.result.offer_effect_verified = bool(
+                effect.status == effect.journal_status == "confirmed"
+                and effect.inner_buy_dispatched
+                and effect.tab_successor_verified
+                and purchase_acknowledged(
+                    self._offer, quantity=1, acknowledgements=effect.acknowledgements,
+                )
             )
             if not self.result.offer_effect_verified:
                 self.result.status = "unresolved" if (
                     effect.inner_buy_dispatched or effect.journal_status == "confirmed"
                 ) else "blocked"
-                self.result.reason = "ALLIANCE_ITEM_CURRENCY_HOME_RECONCILIATION_FAILED"
+                self.result.reason = "ALLIANCE_PURCHASE_ACKNOWLEDGEMENT_NOT_VERIFIED"
                 unresolved = effect.inner_buy_dispatched or effect.journal_status == "confirmed"
                 self.result.effect_reconciliation_required = unresolved
                 self.result.identical_retry_denied = unresolved
@@ -332,6 +330,9 @@ class AllianceShopPurchaseRoute:
                 self.result.status = "completed"
                 self.result.reason = "ALLIANCE_ALLOWLISTED_PURCHASE_AND_HOME_VERIFIED"
                 self.result.accounting_verified = True
+            elif purchase_ready:
+                self.result.status = "blocked"
+                self.result.reason = "ALLIANCE_CANONICAL_HOME_NOT_VERIFIED"
         elif self.result.status == "deferred" and self.result.terminal_home_verified:
             self.result.accounting_verified = self.result.purchase_transport_calls == 0
         elif not self.result.terminal_home_verified:
@@ -476,6 +477,13 @@ def _offer_field(captured, roi, label):
         if match:
             values.append(int(match.group(1).replace(",", "")))
     return values[0] if len(values) == 1 else None
+
+
+def _purchase_acknowledgements(captured):
+    words = _ocr_words(captured, PURCHASE_ACKNOWLEDGEMENT_ROI)
+    return purchase_acknowledgements(
+        " ".join(word.text for word in line) for line in _lines(words)
+    )
 
 
 def _same_offer_view(before, after):
@@ -770,7 +778,20 @@ class AllianceShopLivePort:
             frame = cv2.imread(str(matching[0]), cv2.IMREAD_COLOR)
             from scripts.startup_normalization import is_clean_home_frame
             if not is_clean_home_frame(frame):
-                return "unresolved"
+                from types import SimpleNamespace
+                captured = SimpleNamespace(frame=frame)
+                item = next(name for name, subject in ALLIANCE_PURCHASE_SUBJECTS.items()
+                            if subject == terms["subject"])
+                expected_tab = "weekly" if terms["shop"] == "weekly_offers" else "other"
+                row = ShopOffer(
+                    "Weekly Offers" if expected_tab == "weekly" else "Other",
+                    item, "Alliance Coins", terms["unit_price"], terms["balance"], terms["stock"],
+                )
+                if (self._page(captured)[0] != expected_tab
+                        or not purchase_acknowledged(
+                            row, quantity=1, acknowledgements=_purchase_acknowledgements(captured),
+                        )):
+                    return "unresolved"
         except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError, IndexError):
             return "unresolved"
         return "confirmed"
@@ -901,6 +922,13 @@ class AllianceShopLivePort:
             amount_words = _ocr_words(captured, (coin[2] + 1, y0, x1 - 2, mid + 2), psm=7)
             amounts = [(value, word) for line in _lines(amount_words) for value, word in _numbers(line)]
             price = amounts[0] if len(amounts) == 1 else None
+        price_shortage = False
+        if coin is not None and _has(buy_words, "Buy"):
+            hsv = cv2.cvtColor(captured.frame[y0:mid + 2, coin[2] + 1:x1 - 2], cv2.COLOR_BGR2HSV)
+            red = ((hsv[:, :, 0] <= 10) | (hsv[:, :, 0] >= 170))
+            price_shortage = bool(np.count_nonzero(
+                red & (hsv[:, :, 1] >= 140) & (hsv[:, :, 2] >= 110),
+            ) >= 30)
         footer_top, footer_bottom = max(230, y1 - 20), min(1280, y1 + 60)
         owned = _offer_field(captured, (60, footer_top, 200, footer_bottom), "Owned")
         stock = _offer_field(
@@ -909,7 +937,7 @@ class AllianceShopLivePort:
         )
         balance_words = _ocr_words(captured, (610, 12, 750, 58), psm=7)
         balances = [value for line in _lines(balance_words) for value, _word in _numbers(line)]
-        coin_known = price is not None
+        coin_known = coin is not None and _has(buy_words, "Buy")
         balance = balances[0] if len(balances) == 1 and coin_known else None
         if price is not None and coin_known:
             self.currency_icons[f"{shop}:{item}"] = _header_coin(captured)
@@ -923,12 +951,14 @@ class AllianceShopLivePort:
             item_quantity=owned,
             rarity=rarity,
             available=(stock > 0 if stock is not None else None),
-            recognized=bool(coin_known and balance is not None and price is not None
-                            and stock is not None and owned is not None),
+            recognized=bool(coin_known and (price_shortage or (
+                balance is not None and price is not None and stock is not None
+            ))),
             offer_identity=f"{shop}:{item}",
+            price_shortage=price_shortage,
         )
 
-    def _scroll(self, captured, page):
+    def _scroll(self, captured, page, *, reverse=False):
         buttons = _offer_buttons(captured)
         if len(buttons) < 2:
             return None
@@ -943,12 +973,14 @@ class AllianceShopLivePort:
         end = (x, (top[1] + top[3]) // 2)
         if start[1] - end[1] < 80:
             return None
+        if reverse:
+            start, end = end, start
         self.context.checkpoint()
         self.runtime.swipe(
             captured,
             start=start,
             end=end,
-            action_key=f"alliance-shop:{page}-scroll:{captured.sha256}",
+            action_key=f"alliance-shop:{page}-scroll:{'up' if reverse else 'down'}:{captured.sha256}",
             target_identity=f"alliance-shop:{page}-offer-list-scroll",
         )
         if self.settle_seconds:
@@ -979,14 +1011,16 @@ class AllianceShopLivePort:
                 if offer is not None:
                     offers[item] = offer
                     self.offer_evidence[item] = captured
-            if any(
-                row.recognized and row.currency_identity == "Alliance Coins"
-                and row.item_quantity is not None and row.available is True
-                and row.stock and row.balance is not None
-                and row.unit_price is not None and row.balance >= row.unit_price
-                for row in offers.values()
-            ):
-                return scan_result(True)
+            # Do not buy a lower-priority row before resolving the rows above it in the
+            # allowlist. Missing preferred items become absent only at the proven list end.
+            for item in ALLIANCE_WEEKLY_ITEMS:
+                row = offers.get(item)
+                if row is None or not row.recognized:
+                    break
+                if (not row.price_shortage and row.available
+                        and row.balance is not None and row.unit_price is not None
+                        and row.balance >= row.unit_price):
+                    return scan_result(True)
             successor = self._scroll(captured, "weekly")
             if successor is None:
                 return scan_result(False, "WEEKLY_LIST_END_NOT_PROVEN")
@@ -1086,12 +1120,19 @@ class AllianceShopLivePort:
 
     def open_quantity_dialog(self, offer):
         captured = self._capture("alliance-shop-outer-buy-source")
-        if self._page(captured)[0] != self.current_tab:
-            return None
-        try:
-            self._outer_buy_roi(captured, offer)
-        except ValueError:
-            return None
+        for ordinal in range(6):
+            if captured is None or self._page(captured)[0] != self.current_tab:
+                return None
+            try:
+                self._outer_buy_roi(captured, offer)
+                break
+            except ValueError:
+                if self.current_tab != "weekly" or ordinal == 5:
+                    return None
+                previous = captured
+                captured = self._scroll(captured, "weekly", reverse=True)
+                if captured is None or _same_offer_view(previous, captured):
+                    return None
         if not self._tap_roi(
             lambda before: self._outer_buy_roi(before, offer),
             f"alliance-shop:outer-buy:{offer.item_identity}", "open-quantity-dialog",
@@ -1350,58 +1391,35 @@ def _purchase_alliance_offer(context, port, offer, dialog, action_key, *, settle
     def post_observe():
         for ordinal in range(1, 4):
             context.checkpoint()
-            if settle_seconds:
+            if ordinal > 1 and settle_seconds:
                 time.sleep(settle_seconds)
             captured = port._capture(f"alliance-shop-purchase-post-{ordinal}")
-            page = port._page(captured)[0]
-            after = port._read_offer(captured, offer.item_identity, offer.shop_identity, offer.rarity)
-            matched = bool(
-                page == port.current_tab
-                and after is not None
-                and after.currency_identity == offer.currency_identity
-                and after.balance == offer.balance - offer.unit_price
-                and after.stock == offer.stock - 1
-                and after.item_quantity == offer.item_quantity + 1
-            )
+            acknowledgements = _purchase_acknowledgements(captured)
+            matched = purchase_acknowledged(offer, quantity=1, acknowledgements=acknowledgements)
+            page = port._page(captured)[0] if matched else ""
+            matched = bool(matched and page == port.current_tab)
             frames["shop_successor"] = captured
-            if after is not None:
-                effect_data.update(
-                    currency_after=after.balance,
-                    stock_after=after.stock,
-                    item_quantity_after=after.item_quantity,
-                    item_identity_after=after.item_identity,
-                    currency_identity_after=after.currency_identity,
-                    tab_successor_verified=page == port.current_tab,
-                    shop_successor=captured,
-                    paired_effect_verified=matched,
-                )
             if matched:
-                home_ok = port.return_home()
-                home_frame = port._capture("alliance-shop-purchase-terminal-home")
-                home_ok = bool(home_ok and port._home(home_frame))
-                effect_data["terminal_home_verified"] = home_ok
-                effect_data["home_frame"] = home_frame
-                roi = _hits(port._words(captured), offer.item_identity)[0]
-                yield as_observation(
-                    home_frame,
-                    source=postcondition if home_ok else "ALLIANCE_SHOP_HOME_NOT_VERIFIED",
-                    roi=roi,
-                    positive=home_ok,
+                effect_data.update(
+                    acknowledgements=acknowledgements,
+                    item_identity_after=offer.item_identity,
+                    currency_identity_after=offer.currency_identity,
+                    tab_successor_verified=True,
+                    shop_successor=captured,
+                    acknowledgement_verified=True,
                 )
-                return
-            roi_hits = _hits(port._words(captured), offer.item_identity)
-            roi = roi_hits[0] if len(roi_hits) == 1 else (0, 0, 1, 1)
             yield as_observation(
-                captured, source="ALLIANCE_SHOP_EFFECT_NOT_RECONCILED",
-                roi=roi, positive=False,
+                captured, source=postcondition if matched else "ALLIANCE_SHOP_EFFECT_NOT_RECONCILED",
+                roi=PURCHASE_ACKNOWLEDGEMENT_ROI, positive=matched,
             )
+            if matched:
+                return
 
     def reconcile(_intent, observed):
         return bool(
             observed.source_state == postcondition
-            and effect_data.get("paired_effect_verified") is True
+            and effect_data.get("acknowledgement_verified") is True
             and effect_data.get("tab_successor_verified") is True
-            and effect_data.get("terminal_home_verified") is True
         )
 
     # The one-shot capability binds the exact immediate numeric readback, not the
@@ -1429,8 +1447,8 @@ def _purchase_alliance_offer(context, port, offer, dialog, action_key, *, settle
         context.validate_identity()
         try:
             runtime.reconcile(
-                action_key, "confirmed", effect_data["home_frame"],
-                "exact Alliance item, Alliance Coin, tab and Home deltas verified",
+                action_key, "confirmed", effect_data["shop_successor"],
+                "exact Alliance purchase acknowledgement verified on its shop tab",
             )
         except (AttributeError, KeyError, TypeError, ValueError):
             pass
@@ -1449,6 +1467,7 @@ def _purchase_alliance_offer(context, port, offer, dialog, action_key, *, settle
         identical_retry_denied=terminal_status in {"prepared", "input_sent", "unresolved"},
         action_key=action_key,
         reason=execution.reason,
+        acknowledgements=effect_data.get("acknowledgements", ()),
     )
 
 
