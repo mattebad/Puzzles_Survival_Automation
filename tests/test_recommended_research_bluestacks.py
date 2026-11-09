@@ -276,19 +276,52 @@ class RecommendedResearchNativeParserTests(unittest.TestCase):
             source_frame_sha256="d" * 64,
             evidence_refs=("synthetic:active",),
             ocr_data=_ocr([
-                ("Researching Troop Load II", 130, 650),
-                ("05:55:00", 200, 690),
+                ("Development", 265, 35),
+                ("Troop Load II (8/10)", 120, 650),
+                ("Original Time", 120, 845),
+                ("Actual Time", 400, 845),
+                ("09:34:35", 120, 875),
+                ("05:56:53", 400, 875),
+                ("No idle queue 05:56:52", 160, 960),
+                ("Help", 550, 960),
+                ("Research Center: Lv.24", 160, 1020),
+                ("2,209,410/0", 160, 1100),
+                ("05:56:52", 240, 1170),
+                ("Help", 550, 1170),
             ]),
+            expected_detail_identity=listing.first_recommendation_identity,
         )
         self.assertEqual(active_screen.screen_state, ACTIVE_SCREEN)
         active = route._build_active_observation(active_screen)
         self.assertIsNotNone(active)
         self.assertEqual(active.active_technology_identity, detail.first_recommendation_identity)
-        self.assertEqual(active.remaining_seconds, 5 * 3600 + 55 * 60)
+        self.assertEqual(active.remaining_seconds, 5 * 3600 + 56 * 60 + 52)
         self.assertTrue(tech_upgrade_postcondition_verified(detail, active, listing))
         self.assertIsNotNone(route._build_active_observation(replace(active_screen, active_resource_rows=())))
         self.assertFalse(tech_upgrade_postcondition_verified(detail, replace(active, remaining_seconds=0), listing))
         self.assertFalse(tech_upgrade_postcondition_verified(detail, replace(active, active_technology_identity="rider-atk"), listing))
+        # A retained static quote, an available start, or contradictory
+        # countdowns must not be mistaken for the active same-tech successor.
+        for old, new in (
+            ("05:56:52", "00:00:00"),
+            ("05:56:52", "05:55:00"),
+            ("Help", "Research"),
+        ):
+            data = _ocr([
+                ("Troop Load II (8/10)", 120, 650),
+                ("Original Time 09:34:35", 120, 790),
+                ("Actual Time 05:56:53", 360, 790),
+                ("No idle queue 05:56:52", 160, 960),
+                (new if old == "Help" else "Help", 550, 960),
+                (new if old != "Help" else "05:56:52", 240, 1170),
+            ])
+            with self.subTest(active_change=(old, new)):
+                rejected = route.recognize_research_screen(
+                    _frame(), source_frame_sha256="e" * 64,
+                    evidence_refs=("synthetic:ambiguous-active",), ocr_data=data,
+                    expected_detail_identity=listing.first_recommendation_identity,
+                )
+                self.assertNotEqual(rejected.screen_state, ACTIVE_SCREEN)
 
     def test_displayed_non_center_prerequisite_red_ink_is_unmet_and_unknown_ink_blocks(self) -> None:
         data = _top_detail_ocr()
@@ -434,6 +467,35 @@ class RecommendedResearchNativeParserTests(unittest.TestCase):
         # is here; the superseded anchor projected onto ground to its left.
         self.assertTrue(320 <= sx <= 430 and 330 <= sy <= 465)
         self.assertTrue(point_in_polygon(binding.atlas_anchor, building.polygon))
+
+    @requires_local_captures
+    def test_walkthrough_same_tech_help_countdown_without_poststart_census(self) -> None:
+        path = (
+            RESEARCH_CAPTURE_DIR.parents[1]
+            / "manual-walkthrough-2026-11-09T04-42-35-490Z"
+            / "0179-research76-ordinary-start.jpg"
+        )
+        require_capture(path)
+        source_frame = cv2.imread(str(path), cv2.IMREAD_COLOR)
+        # Measured game viewport excluding the retained desktop app chrome.
+        frame = cv2.resize(
+            source_frame[34:1212, 0:738], (800, 1280),
+            interpolation=cv2.INTER_CUBIC,
+        )
+        screen = route.recognize_research_screen(
+            frame, source_frame_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+            evidence_refs=(str(path),), expected_detail_identity="troop-load-ii",
+        )
+        self.assertEqual(screen.screen_state, ACTIVE_SCREEN)
+        active = route._build_active_observation(screen)
+        self.assertIsNotNone(active)
+        self.assertEqual(active.active_technology_identity, "troop-load-ii")
+        self.assertEqual(active.remaining_seconds, 21_412)
+        self.assertEqual(active.resource_rows, ())
+        self.assertTrue(tech_upgrade_postcondition_verified(
+            _task_detail(), active, _task_listing(),
+        ))
+
 
     @requires_local_captures
     def test_current_native_research_anchor_hits_the_observed_dome(self) -> None:

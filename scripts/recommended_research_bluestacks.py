@@ -990,6 +990,38 @@ def recognize_research_screen(
         _line_bounds(line)[0] > 320 and _line_bounds(line)[1] > 500
         for line in _exact_word_lines(lines, "research")
     )
+    # The observed post-start detail retains both static time quotes and
+    # repeats its live countdown in "No idle queue" and the bottom progress
+    # bar. Help replaces Research; neither duplicate clocks nor the distant
+    # detail heading makes this same-technology successor ambiguous.
+    if detail_title_line is not None and selected_identity is not None:
+        detail_bottom = _line_bounds(detail_title_line)[3]
+        no_idle_queue = any(
+            "noidlequeue" in _normalize(_line_text(line))
+            and _line_bounds(line)[1] > detail_bottom
+            for line in lines
+        )
+        help_visible = any(
+            word.normalized == "help"
+            and word.roi[0] > 320 and word.roi[1] > detail_bottom
+            for word in words
+        )
+        detail_timers = [
+            word for word in timers if word.roi[1] > detail_bottom
+        ]
+        countdowns = {_clock_seconds(word.text) for word in detail_timers}
+        if (
+            no_idle_queue and help_visible and not ordinary_start
+            and not research_now_lines and len(countdowns) == 1
+            and (remaining := next(iter(countdowns))) is not None
+            and remaining > 0
+        ):
+            return ResearchScreenObservation(
+                screen_state=ACTIVE_SCREEN, frame_sha256=source_frame_sha256,
+                evidence_refs=refs, text=text, words=words,
+                active_title=selected_title, active_identity=selected_identity,
+                active_remaining_seconds=remaining, recognized=True,
+            )
     if active_titles and len(timers) == 1 and not ordinary_start and not research_now_lines:
         title, title_line = min(active_titles, key=lambda item: abs(_line_bounds(item[1])[1] - timers[0].roi[1]))
         if abs(_line_bounds(title_line)[1] - timers[0].roi[1]) <= 160:
