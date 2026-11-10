@@ -71,7 +71,7 @@
     {
       "fixture_id": "accepted_campaign_atlas_replay",
       "status": "available",
-      "path": ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY/campaign-atlas-native-800x1280-v4/atlas.json",
+      "path": "tasks/assets/campaign_atlas/bluestacks/800x1280/campaign-atlas-native-800x1280-v4/atlas.json",
       "sha256": "11214e52a1004cb72c15df0dab5db2b11047b96c0b0f17f078d73208b67b5ac7",
       "notes": "Sequential traversal-post chain with corrected transforms, Chapters 15/20 attached, Home-style atlas.png mosaic; not a synthetic fixture."
     },

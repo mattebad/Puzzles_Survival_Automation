@@ -664,6 +664,8 @@ def run_campaign_ap_destination_zero_transport_replay(
     from pathlib import Path
 
     from tasks.campaign_atlas import (
+        CAMPAIGN_ATLAS_ASSET_ROOT,
+        DEFAULT_ATLAS_ID,
         LandmarkKind,
         load_campaign_atlas,
         resolve_campaign_consumer_destination,
@@ -688,10 +690,7 @@ def run_campaign_ap_destination_zero_transport_replay(
             static_ap_cost=_static_cost_for_destination(stage.identity),
         )
 
-    default_atlas = Path(
-        ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY/"
-        "campaign-atlas-native-800x1280-v4/atlas.json"
-    )
+    default_atlas = CAMPAIGN_ATLAS_ASSET_ROOT / DEFAULT_ATLAS_ID / "atlas.json"
     atlas_file = Path(atlas_path) if atlas_path is not None else default_atlas
     if not atlas_file.is_file():
         return CampaignDestinationReplayResult(

@@ -39,6 +39,9 @@ DEFAULT_ATLAS_ARTIFACT_ROOT = Path(
     ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY"
 )
 DEFAULT_ATLAS_ID = "campaign-atlas-native-800x1280-v4"
+CAMPAIGN_ATLAS_ASSET_ROOT = (
+    Path(__file__).resolve().parent / "assets" / "campaign_atlas" / "bluestacks" / "800x1280"
+)
 Matrix3 = tuple[tuple[float, float, float], ...]
 Point = tuple[float, float]
 Box = tuple[int, int, int, int]

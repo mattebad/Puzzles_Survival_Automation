@@ -11,6 +11,22 @@ runner. Ordinary registered selection remains non-consuming and keeps its
 14-AP minimum; the explicit runner may observe below-cost AP and complete with
 zero inputs. No timer estimate or old receipt substitutes for a fresh AP reading.
 
+## Portable Campaign Atlas
+
+The accepted native v4 atlas is tracked at
+`tasks/assets/campaign_atlas/bluestacks/800x1280/campaign-atlas-native-800x1280-v4/`.
+It contains `atlas.json`, `atlas.png`, `provenance.json` and all 62 referenced
+native viewport tiles. Default chapter navigation and destination replay resolve
+this asset from the installed source location, not the current working directory
+or an ignored capture folder. Atlas metadata retains its accepted SHA-256
+`11214e52a1004cb72c15df0dab5db2b11047b96c0b0f17f078d73208b67b5ac7`.
+
+The original survey captures and replay receipts remain unchanged under
+`.local-captures/`; provenance references to them remain historical records.
+Atlas builders still write new artifacts there by default. Shipping the accepted
+map closes the missing-asset distribution gap, not current-source live acceptance
+or permission to operate the game.
+
 ## Current acceptance
 
 The October 30 current-source cohort `1d7d1315` completed 7,200.337 seconds with

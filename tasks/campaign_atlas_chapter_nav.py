@@ -18,8 +18,8 @@ import numpy as np
 from scripts.bounded_tesseract import call_ocr, tesseract_data
 
 from tasks.campaign_atlas import (
+    CAMPAIGN_ATLAS_ASSET_ROOT,
     CAMPAIGN_PROFILE_ID,
-    DEFAULT_ATLAS_ARTIFACT_ROOT,
     DEFAULT_ATLAS_ID,
     Box,
     CampaignAmbiguityState,
@@ -40,7 +40,7 @@ from tasks.campaign_atlas_vision import (
 
 NATIVE_WIDTH = 800
 NATIVE_HEIGHT = 1280
-DEFAULT_CAMPAIGN_ATLAS_PATH = DEFAULT_ATLAS_ARTIFACT_ROOT / DEFAULT_ATLAS_ID / "atlas.json"
+DEFAULT_CAMPAIGN_ATLAS_PATH = CAMPAIGN_ATLAS_ASSET_ROOT / DEFAULT_ATLAS_ID / "atlas.json"
 
 
 @dataclass(frozen=True)

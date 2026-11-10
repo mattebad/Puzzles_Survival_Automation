@@ -1,0 +1,1868 @@
+{
+  "atlas_id": "campaign-atlas-native-800x1280-v4",
+  "created_at_utc": "2026-07-24T05:09:21Z",
+  "cross_difficulty_compared": true,
+  "difficulty_used_as_recenter": false,
+  "flow_id": "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY",
+  "height": 2379,
+  "image_path": "atlas.png",
+  "landmarks": [
+    {
+      "atlas_roi": [
+        1736,
+        845,
+        1796,
+        905
+      ],
+      "kind": "chapter",
+      "label": "Chapter 15",
+      "landmark_id": "chapter-chapter-15",
+      "source_viewport_id": "viewport-009",
+      "spatially_associated": true,
+      "supporting_frame_sha256": "b7551a7f47258ca209fb97867460bd533ec4f2009136934216dac840230382c1"
+    },
+    {
+      "atlas_roi": [
+        670,
+        1425,
+        715,
+        1471
+      ],
+      "kind": "chapter",
+      "label": "Chapter 2",
+      "landmark_id": "chapter-chapter-2",
+      "source_viewport_id": "viewport-062",
+      "spatially_associated": true,
+      "supporting_frame_sha256": "42263f3d19401a7dfd0ef0fee585edad47a6c149f3e2eb295bbb73989e6232d2"
+    },
+    {
+      "atlas_roi": [
+        1409,
+        1888,
+        1467,
+        1943
+      ],
+      "kind": "chapter",
+      "label": "Chapter 20",
+      "landmark_id": "chapter-chapter-20",
+      "source_viewport_id": "viewport-014",
+      "spatially_associated": true,
+      "supporting_frame_sha256": "307d8c567e2c3f71a47924818c545076139ad84938b3a6075c9375e15888d408"
+    },
+    {
+      "atlas_roi": [
+        891,
+        1348,
+        949,
+        1403
+      ],
+      "kind": "chapter",
+      "label": "Chapter 21",
+      "landmark_id": "chapter-chapter-21",
+      "source_viewport_id": "viewport-062",
+      "spatially_associated": true,
+      "supporting_frame_sha256": "c592c03d88d2c919808308e2fc2c43edf41dac6503afc922868273fed486e8ba"
+    },
+    {
+      "atlas_roi": [
+        1052,
+        1142,
+        1121,
+        1201
+      ],
+      "kind": "chapter",
+      "label": "Chapter 24",
+      "landmark_id": "chapter-chapter-24",
+      "source_viewport_id": "viewport-062",
+      "spatially_associated": true,
+      "supporting_frame_sha256": "42263f3d19401a7dfd0ef0fee585edad47a6c149f3e2eb295bbb73989e6232d2"
+    },
+    {
+      "atlas_roi": [
+        951,
+        1348,
+        1011,
+        1402
+      ],
+      "kind": "chapter",
+      "label": "Chapter 26",
+      "landmark_id": "chapter-chapter-26",
+      "source_viewport_id": "viewport-062",
+      "spatially_associated": true,
+      "supporting_frame_sha256": "c592c03d88d2c919808308e2fc2c43edf41dac6503afc922868273fed486e8ba"
+    },
+    {
+      "atlas_roi": [
+        1060,
+        1116,
+        1120,
+        1164
+      ],
+      "kind": "chapter",
+      "label": "Chapter 3",
+      "landmark_id": "chapter-chapter-3",
+      "source_viewport_id": "viewport-062",
+      "spatially_associated": true,
+      "supporting_frame_sha256": "42263f3d19401a7dfd0ef0fee585edad47a6c149f3e2eb295bbb73989e6232d2"
+    },
+    {
+      "atlas_roi": [
+        601,
+        1394,
+        656,
+        1439
+      ],
+      "kind": "chapter",
+      "label": "Chapter 4",
+      "landmark_id": "chapter-chapter-4",
+      "source_viewport_id": "viewport-062",
+      "spatially_associated": true,
+      "supporting_frame_sha256": "42263f3d19401a7dfd0ef0fee585edad47a6c149f3e2eb295bbb73989e6232d2"
+    },
+    {
+      "atlas_roi": [
+        919,
+        1347,
+        981,
+        1402
+      ],
+      "kind": "chapter",
+      "label": "Chapter 47",
+      "landmark_id": "chapter-chapter-47",
+      "source_viewport_id": "viewport-062",
+      "spatially_associated": true,
+      "supporting_frame_sha256": "c592c03d88d2c919808308e2fc2c43edf41dac6503afc922868273fed486e8ba"
+    },
+    {
+      "atlas_roi": [
+        584,
+        929,
+        633,
+        983
+      ],
+      "kind": "chapter",
+      "label": "Chapter 6",
+      "landmark_id": "chapter-chapter-6",
+      "source_viewport_id": "viewport-062",
+      "spatially_associated": true,
+      "supporting_frame_sha256": "14c67b9d240d88ac1deaa8f275274b49349f3c862cdcff25c1bc7a922c3eaef3"
+    },
+    {
+      "atlas_roi": [
+        551,
+        1415,
+        613,
+        1485
+      ],
+      "kind": "chapter",
+      "label": "Chapter 7",
+      "landmark_id": "chapter-chapter-7",
+      "source_viewport_id": "viewport-062",
+      "spatially_associated": true,
+      "supporting_frame_sha256": "14c67b9d240d88ac1deaa8f275274b49349f3c862cdcff25c1bc7a922c3eaef3"
+    },
+    {
+      "atlas_roi": [
+        972,
+        1538,
+        1058,
+        1560
+      ],
+      "kind": "ultimate_challenge",
+      "label": "Ultimate Challenge",
+      "landmark_id": "ultimate_challenge-ultimate-challenge",
+      "source_viewport_id": "viewport-062",
+      "spatially_associated": true,
+      "supporting_frame_sha256": "c592c03d88d2c919808308e2fc2c43edf41dac6503afc922868273fed486e8ba"
+    }
+  ],
+  "loop_closure_residual_px": 0.0,
+  "native_height": 1280,
+  "native_width": 800,
+  "package": "com.global.ztmslg",
+  "platform": "BlueStacks 5 / Android",
+  "profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+  "schema_version": 1,
+  "source_survey_session_ids": [
+    "survey-20260724T012057293610Z",
+    "survey-20260724T021222146973Z",
+    "survey-20260724T023336884972Z"
+  ],
+  "viewports": [
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-001.png",
+      "overlap_ratio": 1.0,
+      "residual_px": 0.0,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "6dd085d5136281b760a37eb110f769fa5c547e317ca819f852e9230b12f5b891",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          516.0
+        ],
+        [
+          0.0,
+          1.0,
+          360.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "b851f2238edc95fb78e327a7359c4b9e026d3361e383b8d91517041501274614",
+      "viewport_id": "viewport-001"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-002.png",
+      "overlap_ratio": 0.81328125,
+      "residual_px": 0.1212158203125,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "2270f1b4ced462f2cc7404c2a8b66a02342695f4e6d777ea316358c6904676ba",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          516.0
+        ],
+        [
+          0.0,
+          1.0,
+          121.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "9898556a130fedf727934c5146d650adcbdd4204982863bea557035eee9b4301",
+      "viewport_id": "viewport-002"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-003.png",
+      "overlap_ratio": 0.90703125,
+      "residual_px": 0.0,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "23c918aa42c6685092ce0238be3c4bcb6627278a7d4af002cfabc8f57a30d5c7",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          516.0
+        ],
+        [
+          0.0,
+          1.0,
+          2.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "126e253f60cad65e1569025561bb057174f7c62ac4f4212c807b2557c52310a7",
+      "viewport_id": "viewport-003"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-004.png",
+      "overlap_ratio": 0.7062399673461914,
+      "residual_px": 0.191986083984375,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "24709806de99286d4ca97b31e7c2fa4032d2a02fecf7aee184421b5ad8e370aa",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          751.0080261230469
+        ],
+        [
+          0.0,
+          1.0,
+          2.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "a39c6643ed54f9e22bb9b0a6de4a22738206c0896628da69085c0b0a7c83c1fa",
+      "viewport_id": "viewport-004"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-005.png",
+      "overlap_ratio": 0.7075,
+      "residual_px": 0.0,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "5c96f1284213ca26242555176e5a9789a26d253ece917171bc544b93d399af6e",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          985.0080261230469
+        ],
+        [
+          0.0,
+          1.0,
+          2.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "d4083ba0765b385ab3ef5e98b8817de0fdb11caaf7f20cfdb14b1e255e0bcce3",
+      "viewport_id": "viewport-005"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-006.png",
+      "overlap_ratio": 0.7083999824523926,
+      "residual_px": 0.42659759521484375,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "62fb5fadaafb8bd410c010124cb724f1ef15690ac34c24e09ceeb14a9dea3134",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1218.2880401611328
+        ],
+        [
+          0.0,
+          1.0,
+          2.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "b819c356861eb160643e7a33f2665403f3686c21d5fc70462e9acbfa4e6de5b5",
+      "viewport_id": "viewport-006"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-007.png",
+      "overlap_ratio": 0.7012000274658203,
+      "residual_px": 0.5759429931640625,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "2253f65b20f25a94df393c75274bf85dcc144d410db84844cb1c6eeaeaeb5806",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1457.3280181884766
+        ],
+        [
+          0.0,
+          1.0,
+          2.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "ffe41cf69b851d0bf2bfb33bbfa433cb03b5b6090a6328b9cefc763c69f4b550",
+      "viewport_id": "viewport-007"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-008.png",
+      "overlap_ratio": 0.7902502160131039,
+      "residual_px": 0.48386383056640625,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "f3c05f53b9920d2c44d80249f488fc3258d797ed0a953c6594359d98ecf7775c",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1486.704002380371
+        ],
+        [
+          0.0,
+          1.0,
+          231.92083740234375
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "060db3ea897ca92170f5537d751da5e7403cde3acde86f68c6403b16a43fd344",
+      "viewport_id": "viewport-008"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-009.png",
+      "overlap_ratio": 0.81328125,
+      "residual_px": 0.1212158203125,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "b7551a7f47258ca209fb97867460bd533ec4f2009136934216dac840230382c1",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1486.704002380371
+        ],
+        [
+          0.0,
+          1.0,
+          470.92083740234375
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "240690874deaf407f72d2bfe35149a09e7f3e9106bd8b8a8de95a28c84ec6a2f",
+      "viewport_id": "viewport-009"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-010.png",
+      "overlap_ratio": 0.8190624833106994,
+      "residual_px": 0.1862030029296875,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "1420a2c08df69a443c92f1e260ed574d6ed043425146331ac16419656c387b33",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1486.704002380371
+        ],
+        [
+          0.0,
+          1.0,
+          702.5208587646484
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "eb20799e8d3e39f7bfdc60f93d222e5e949c2d85e0988a0df6fdb8cbb91f73f8",
+      "viewport_id": "viewport-010"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-011.png",
+      "overlap_ratio": 0.8125,
+      "residual_px": 0.0,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "223883131cb6adf9696510659b9622e906b88dc762e6ea115c16a586d58b9990",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1486.704002380371
+        ],
+        [
+          0.0,
+          1.0,
+          942.5208587646484
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "0fd3c38544984cd4cfb8530b21c7555dbaca9a7ccd928e8daa028a067d64609e",
+      "viewport_id": "viewport-011"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-012.png",
+      "overlap_ratio": 0.878125,
+      "residual_px": 0.47998046875,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "b27928ef308b1f2bc03440500eca3517e0538887d659099994d2f97034edafac",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1486.704002380371
+        ],
+        [
+          0.0,
+          1.0,
+          1098.5208587646484
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "569eeb1388e1ff99dbc41eb0ea816eefb555e381ede369c2419636aad60d90f1",
+      "viewport_id": "viewport-012"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-013.png",
+      "overlap_ratio": 0.7,
+      "residual_px": 0.0,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "a57dcbf6e4d77055e32ea76bead9190878e95c86d297d9cee48009e8d7246141",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1246.704002380371
+        ],
+        [
+          0.0,
+          1.0,
+          1098.5208587646484
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "669ae9f26960e2dc9980871272519a56f5f45ff2c1028ac65bf98e19dc465c46",
+      "viewport_id": "viewport-013"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-014.png",
+      "overlap_ratio": 0.6975999450683594,
+      "residual_px": 0.0799713134765625,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "307d8c567e2c3f71a47924818c545076139ad84938b3a6075c9375e15888d408",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1004.7839736938477
+        ],
+        [
+          0.0,
+          1.0,
+          1098.5208587646484
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "f9199962f541adece2244f99b422ee1b6df18c7bb68ede7c90a9e98d186bc97b",
+      "viewport_id": "viewport-014"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-015.png",
+      "overlap_ratio": 0.7096959686279297,
+      "residual_px": 0.643218994140625,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "302821364269a3c249ec3c2c2c713d5bc415c5603e73c35d601a3b2850e422a0",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          772.5407485961914
+        ],
+        [
+          0.0,
+          1.0,
+          1098.5208587646484
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "14558300f33d38a9a2b0fcf24b9ef026155e5f30e03a313e105c7da1557f747f",
+      "viewport_id": "viewport-015"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-016.png",
+      "overlap_ratio": 0.6993280029296876,
+      "residual_px": 0.462371826171875,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "da2193c7b73ad7033fe7321c130c95c780cd844b19eb680faf5c5e7da0557efb",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          532.0031204223633
+        ],
+        [
+          0.0,
+          1.0,
+          1098.5208587646484
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "79dc49d0b41d9c115fc733fcc9fb96124aa236f8e9f2a71a51f114244d8a3825",
+      "viewport_id": "viewport-016"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-017.png",
+      "overlap_ratio": 0.695,
+      "residual_px": 0.684814453125,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "9ddbd051d1b196c0f18a94feee38dd9b098de822b5ebd5c5f648112976eafc8f",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          288.0031204223633
+        ],
+        [
+          0.0,
+          1.0,
+          1098.5208587646484
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "c7fad5c6fedbbcf0f4cde0ac459a968a662bb7f18addc9ed25919ecbaf45dbae",
+      "viewport_id": "viewport-017"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-018.png",
+      "overlap_ratio": 0.6954399871826172,
+      "residual_px": 0.20742034912109375,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "92abcdc03e3cd2f3798f52e0f95703a89370731e5989031a387a65048c63ed3a",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          44.35511016845703
+        ],
+        [
+          0.0,
+          1.0,
+          1098.5208587646484
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "5c83cc0331318ae64f06f2658b32e0d78a92c71d3dd02081f16a2c8bdb3d1920",
+      "viewport_id": "viewport-018"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-019.png",
+      "overlap_ratio": 0.9459999847412109,
+      "residual_px": 1.52587890625e-05,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "cac658e1e08dd2f6bf700635feca6bacaa4a86b1dfae42ff1059c73069d6c103",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1.1550979614257812
+        ],
+        [
+          0.0,
+          1.0,
+          1098.5208587646484
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "9c6c18d661fc5aada1a7fa65a654392d20aa2e3f32353578a769d6626c22e4b5",
+      "viewport_id": "viewport-019"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-020.png",
+      "overlap_ratio": 0.7125,
+      "residual_px": 0.175994873046875,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "e3fa757b16f36511afee0d00d85f2357e991f02ff9f0cdd0f89aee744fc67b7b",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          231.15509796142578
+        ],
+        [
+          0.0,
+          1.0,
+          1098.5208587646484
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "48f10db9914ed12c675da908128d4f6cd339c00e917240c414c304e31a8e34ca",
+      "viewport_id": "viewport-020"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-021.png",
+      "overlap_ratio": 0.7029999732971192,
+      "residual_px": 0.6000213623046875,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "bda783aa6e317504cb9b495a33409524b75424f11dd84bf2dd2f19488f3bd89e",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          468.75511932373047
+        ],
+        [
+          0.0,
+          1.0,
+          1098.5208587646484
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "012c6c6805026c0f9ba3254dc68c0f56e13c552df0a823035e04a343eda3f9b3",
+      "viewport_id": "viewport-021"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-022.png",
+      "overlap_ratio": 0.69625,
+      "residual_px": 0.0,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "fd229158338fa69759c422fd419124655e01c1e9ad208fac453c554b760f12ff",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          711.7551193237305
+        ],
+        [
+          0.0,
+          1.0,
+          1098.5208587646484
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "45f96c8e1ae4c02352241831f531a5f700acb2fb36dfa6626b7f4b7827812f8e",
+      "viewport_id": "viewport-022"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-023.png",
+      "overlap_ratio": 0.71375,
+      "residual_px": 0.8240203857421875,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "e093d7878be6afe7ac08cd5f9988af1ff024f8440fb0ac8bc9afc4f2a0906b29",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          940.7551193237305
+        ],
+        [
+          0.0,
+          1.0,
+          1098.5208587646484
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "6dd32111fa12b255b082fb8269710fc008f0152485b6ea04f411b8a5340b64f7",
+      "viewport_id": "viewport-023"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-024.png",
+      "overlap_ratio": 0.6993279647827149,
+      "residual_px": 0.462371826171875,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "e00b2e6f9e2a8d8ee17973f31454c99f174871f5b10c0582464efa64e3012eec",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1181.2927474975586
+        ],
+        [
+          0.0,
+          1.0,
+          1098.5208587646484
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "cab52f2f23bdfb52b5def517246180ed13df840e326976019b54092e2a0e3061",
+      "viewport_id": "viewport-024"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-025.png",
+      "overlap_ratio": 0.6970000076293945,
+      "residual_px": 0.479949951171875,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "ec2929bb2bb7ab2fecfc3a9a3bed035bf962046b711fecd6ab83ea708517a7ef",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1423.692741394043
+        ],
+        [
+          0.0,
+          1.0,
+          1098.5208587646484
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "ce17846c5fe5ffc7537956e4b9338e473bbebeae61f6e0e61e15135be3dacb73",
+      "viewport_id": "viewport-025"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-026.png",
+      "overlap_ratio": 0.74563671875,
+      "residual_px": 0.8772791748068871,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "9fd49df6ddfa6ccc2e40c363e7e11121dd7a6bdcab0fc93e98b32067485a0fa9",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1486.692741394043
+        ],
+        [
+          0.0,
+          1.0,
+          854.5208587646484
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "2f63c4d848e6d7a1c748a3bf8dc3ac3674bb40a37ecc29dd50524f48d0b02e21",
+      "viewport_id": "viewport-026"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-027.png",
+      "overlap_ratio": 0.69875,
+      "residual_px": 0.4623565673828125,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "d2da52741b92e26b52f8f6cbe8d77f35f4d17e157999025ac5918d30ce4197ca",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1245.692741394043
+        ],
+        [
+          0.0,
+          1.0,
+          854.5208587646484
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "a58efaff1ec9b93373eb0dfee8a0242fe966acef7fc3542dac97b91ce86b4266",
+      "viewport_id": "viewport-027"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-028.png",
+      "overlap_ratio": 0.7062399291992187,
+      "residual_px": 0.191986083984375,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "d7e1531ae87aba668e396de2a948ada471c108526b287d1593efe7b8506a581c",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1010.6847152709961
+        ],
+        [
+          0.0,
+          1.0,
+          854.5208587646484
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "759aeac2776ff3b41997864d8381e7c673f5de602e3c8fabd143f7f5a1f66123",
+      "viewport_id": "viewport-028"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-029.png",
+      "overlap_ratio": 0.7164999389648438,
+      "residual_px": 0.199981689453125,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "5eccac73e827416b97f8048ffece825747a8c4d10e92d0e79cd209b06a7ebe8e",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          783.8846969604492
+        ],
+        [
+          0.0,
+          1.0,
+          854.5208587646484
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "ce2a5d4ea75127ebf39bd9c5719a5882f2e4c54bde805bcd3606dcbf36fdbc3b",
+      "viewport_id": "viewport-029"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-030.png",
+      "overlap_ratio": 0.6984999847412109,
+      "residual_px": 0.1999969482421875,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "6eba7c5e4fd8b489f0dbcb715d63d57f5d0eac4f34b0a03167f7fd9cb20bc574",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          542.684700012207
+        ],
+        [
+          0.0,
+          1.0,
+          854.5208587646484
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "d30a99c2907071a77c28d63f787b146da60c6d238109e252692a9fc2d0c1c0e7",
+      "viewport_id": "viewport-030"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-031.png",
+      "overlap_ratio": 0.7019200134277344,
+      "residual_px": 0.414764404296875,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "d7e103e7a198be1c88be26c4a732419071e8fca0ca11d4acde69ed86002e2d7c",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          304.2206802368164
+        ],
+        [
+          0.0,
+          1.0,
+          854.5208587646484
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "ef4889f158ebf60f8f09cd5bdc88e4aac2c283245babeb1f95cb522737f5ebb2",
+      "viewport_id": "viewport-031"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-032.png",
+      "overlap_ratio": 0.7,
+      "residual_px": 0.0,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "14993781b07ee38d9bc5c1df572c1145ed20abc3a421c6eacff06488c95481a7",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          64.2206802368164
+        ],
+        [
+          0.0,
+          1.0,
+          854.5208587646484
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "3e73f631c9bb45c29cdf2c37ec8bfd54cdfce81d176208693ab229ed3ecb1b10",
+      "viewport_id": "viewport-032"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-033.png",
+      "overlap_ratio": 0.92125,
+      "residual_px": 0.0,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "c36505ef98e2aa1f354719414c513a160116368b3dcd751eb49fc6d35c18c6a2",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1.2206802368164062
+        ],
+        [
+          0.0,
+          1.0,
+          854.5208587646484
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "34409d1103a7ef3077f3d0988cc9cc7ebd3e0cd247ceba7d0d6b8849975d1702",
+      "viewport_id": "viewport-033"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-034.png",
+      "overlap_ratio": 0.8211250305175781,
+      "residual_px": 0.1399688720703125,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "7e91173022d7a67523fc8a55abb672afca7ec5d504c87002a9f118951ddc71ca",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1.2206802368164062
+        ],
+        [
+          0.0,
+          1.0,
+          625.5608367919922
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "3dbb01745c060b956708ab5915819f7e50814b70c87c3ed90b105575ab853be8",
+      "viewport_id": "viewport-034"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-035.png",
+      "overlap_ratio": 0.695,
+      "residual_px": 0.5199661254882812,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "bcb241125f59170b7148f22fd7dcfa5e99e59a405ed03fd8fdb8dcf0a520c10d",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          245.2206802368164
+        ],
+        [
+          0.0,
+          1.0,
+          625.5608367919922
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "9d29c6451efc02424348d8369630c3fa5a79276d6fd5258032f7d31ddc1a6733",
+      "viewport_id": "viewport-035"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-036.png",
+      "overlap_ratio": 0.7029999923706055,
+      "residual_px": 0.399993896484375,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "f9569855553b538e5e3ce26f1df4ab0cc3fd901c6683a767675b617954c47b48",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          482.82068634033203
+        ],
+        [
+          0.0,
+          1.0,
+          625.5608367919922
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "0b647cb33026a11110715cd44d10cd9a5ca4dcc2dea4bf2dd1c6a3ab0f1c9f87",
+      "viewport_id": "viewport-036"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-037.png",
+      "overlap_ratio": 0.71,
+      "residual_px": 0.2432403564453125,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "9097e14b6a318614fa346743803eadb24707d75ab2423c72136b03b0752989a2",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          714.820686340332
+        ],
+        [
+          0.0,
+          1.0,
+          625.5608367919922
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "66dcda2379dbcf3cb32d0a5cefcac9b277986268a3852b021fb86f4df9ef112d",
+      "viewport_id": "viewport-037"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-038.png",
+      "overlap_ratio": 0.7138215446472168,
+      "residual_px": 0.2572479248046875,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "df05b0913a1db5acfadcb4e3a98d4d8faf65be6aeb9d1eeca1e3b9602b126d22",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          943.7634506225586
+        ],
+        [
+          0.0,
+          1.0,
+          625.5608367919922
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "6e946d9ddbe34373d6f54556598ef6384fee7f32c2f9b7e75e503fb484cd6312",
+      "viewport_id": "viewport-038"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-039.png",
+      "overlap_ratio": 0.71,
+      "residual_px": 0.24322509765625,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "3573c079d314d9c00859f7541a46ad10d8880d5e87e813d153c5e544c42ee966",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1175.7634506225586
+        ],
+        [
+          0.0,
+          1.0,
+          625.5608367919922
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "17e131df4d0771709eb1a38da45bc5229e47cfe621af9cc6594a8095eb78351b",
+      "viewport_id": "viewport-039"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-040.png",
+      "overlap_ratio": 0.7029999923706055,
+      "residual_px": 0.864013671875,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "b2e3ad89182a34a36c05c2bfb3bbf2dbed2fda471f1d230ebe96d134ed79554d",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1413.3634567260742
+        ],
+        [
+          0.0,
+          1.0,
+          625.5608367919922
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "36fade533b144b776c89f6a314093af83c405d0e24792b1e30b83fb551393637",
+      "viewport_id": "viewport-040"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-041.png",
+      "overlap_ratio": 0.908499984741211,
+      "residual_px": 0.20001220703125,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "fd1374435a8e19bb907e447effbcefcd19656962cf9a36a26dbcabfce0036bfd",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1486.5634689331055
+        ],
+        [
+          0.0,
+          1.0,
+          625.5608367919922
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "409e1254d23e7336803baf792a54829b89fb95256e92bd98e02d6fb6d05ac62a",
+      "viewport_id": "viewport-041"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-042.png",
+      "overlap_ratio": 0.8211250305175781,
+      "residual_px": 0.0399932861328125,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "12e0c64286e2fb707240908b0b57d4b832d1ab18a34879332c5e9debb187edd6",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1486.5634689331055
+        ],
+        [
+          0.0,
+          1.0,
+          396.600830078125
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "62b0e6bc91e57830f790d20e2b0114f56cf052fd9eb3fcff5ab0ecc4da904be1",
+      "viewport_id": "viewport-042"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-043.png",
+      "overlap_ratio": 0.6984999847412109,
+      "residual_px": 0.1999969482421875,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "4a17a559e2136c511139bb8cb1dc820120baeb3f014fedba026d24170a7018a3",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1245.3634719848633
+        ],
+        [
+          0.0,
+          1.0,
+          396.600830078125
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "12fb70988c4d66a891369fd3668e52c3abac7c28953f429d856848895829949b",
+      "viewport_id": "viewport-043"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-044.png",
+      "overlap_ratio": 0.7155999755859375,
+      "residual_px": 0.5200042724609375,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "c0548953d3f334ed9ba8be1490d1beeb34511d45d5c1a6d2ffb6bce54125eb38",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1017.8434677124023
+        ],
+        [
+          0.0,
+          1.0,
+          396.600830078125
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "32a25c008a9faaba094dd3ac8d6a8002f64e18b095133645290e51a290c05988",
+      "viewport_id": "viewport-044"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-045.png",
+      "overlap_ratio": 0.70375,
+      "residual_px": 0.0,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "745e5a4a55af32a60aa5990c38432ff815c46c8ead432726fb87ba16fcecaa3c",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          780.8434677124023
+        ],
+        [
+          0.0,
+          1.0,
+          396.600830078125
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "091d306b84d4f21d9f01d52715008b74f7ed2ed0d11856581edfb672ef6c6366",
+      "viewport_id": "viewport-045"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-046.png",
+      "overlap_ratio": 0.6984999847412109,
+      "residual_px": 0.20001220703125,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "16cb56e36ecd64c4ef1e86dc344204e952ef76b2b740035408f14d981ad9f836",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          539.6434555053711
+        ],
+        [
+          0.0,
+          1.0,
+          396.600830078125
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "825f096780c410a588c525a4bac4562394514430d9e56b4616a811ff24799724",
+      "viewport_id": "viewport-046"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-047.png",
+      "overlap_ratio": 0.6984999847412109,
+      "residual_px": 0.20001220703125,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "5f8305fb14b5e676887f5b7b7fd7fe04c3175227ae94ebd366c0502ecd1ab524",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          298.44344329833984
+        ],
+        [
+          0.0,
+          1.0,
+          396.600830078125
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "965efdb9c079f3a5a990e596c0421a89e2e79c1e2614b51ae9a9fc30ff7ff3ba",
+      "viewport_id": "viewport-047"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-048.png",
+      "overlap_ratio": 0.6975999450683594,
+      "residual_px": 0.079986572265625,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "03ac6b6a5ae450af7148b0187da6e0d257011b0f415d6d0a02f30629c75c8250",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          56.52342987060547
+        ],
+        [
+          0.0,
+          1.0,
+          396.600830078125
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "0651ab71bb762d74c1735bd47e52cc586fcd0e14c088a5be51dc826c52593d9b",
+      "viewport_id": "viewport-048"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-049.png",
+      "overlap_ratio": 0.93,
+      "residual_px": 0.0,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "63a124943b81e4894f350fb55cd56e629c24accaeeac4afc92716ae18088bc5d",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          0.5234298706054688
+        ],
+        [
+          0.0,
+          1.0,
+          396.600830078125
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "d804f3e219fbea665e1218d4760b64ddc262bf50e4f6c2d02d6ecacd996192a8",
+      "viewport_id": "viewport-049"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-050.png",
+      "overlap_ratio": 0.8244999885559082,
+      "residual_px": 0.359954833984375,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "6087ea7c367450a22104bddb346693f9b32f7f3c62ce0fb238acbf3dc56d636a",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          0.5234298706054688
+        ],
+        [
+          0.0,
+          1.0,
+          171.96078491210938
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "f7674138981a0cb302e746b05668c1ba10991b4a49ae99fc7b70d582e49f5eb5",
+      "viewport_id": "viewport-050"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-051.png",
+      "overlap_ratio": 0.7075,
+      "residual_px": 0.0,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "4e634478f7214b9f9a8970578b26a24ff6dada7b5c6966a89875b7beb6a5942d",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          234.52342987060547
+        ],
+        [
+          0.0,
+          1.0,
+          171.96078491210938
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "24a815ec1f968aba18545ba6395720ab528edc51233a4eba7147aa00739a147c",
+      "viewport_id": "viewport-051"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-052.png",
+      "overlap_ratio": 0.7174719429016113,
+      "residual_px": 0.281982421875,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "eb1ab3c24838dba62ac9d71cabb2be97712ad76bd9bb0d5450b5fdd57d6d8240",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          460.5458755493164
+        ],
+        [
+          0.0,
+          1.0,
+          171.96078491210938
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "757fbdec7effba784a717e712d1fc259e9931b80f23ddbd258428be6dd6efce0",
+      "viewport_id": "viewport-052"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-053.png",
+      "overlap_ratio": 0.6985000038146972,
+      "residual_px": 0.1999969482421875,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "186bebc2cbac367d3566026bf846835ceedb289022519d58291c5b868a71ce40",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          701.7458724975586
+        ],
+        [
+          0.0,
+          1.0,
+          171.96078491210938
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "8a003b2892e3d32a7a0cb4949ec4b660feef800fedea0e2854c8f51edc08cdd4",
+      "viewport_id": "viewport-053"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-054.png",
+      "overlap_ratio": 0.7014015197753907,
+      "residual_px": 0.1212158203125,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "7f4dedc5cf01cbced48f98e12ed39e17bcc127df5a848d7594fe0a391460b644",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          940.6246566772461
+        ],
+        [
+          0.0,
+          1.0,
+          171.96078491210938
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "39536df7f8684851dfd5b3bdfeae921e051f27d47a50301f34064e4caaf12741",
+      "viewport_id": "viewport-054"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-055.png",
+      "overlap_ratio": 0.6975999641418457,
+      "residual_px": 0.0799713134765625,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "8eff9678c26b5c9b4c29e20723529a46d3d7a2caedae96ae4aa3c03fea7bd9ed",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1182.5446853637695
+        ],
+        [
+          0.0,
+          1.0,
+          171.96078491210938
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "8e45e8354db913c702c3f68e42ef603e73e5f3cd69041fbf13d468e58ebe4f5a",
+      "viewport_id": "viewport-055"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-056.png",
+      "overlap_ratio": 0.69625,
+      "residual_px": 0.0,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "25aaa087a32b98675cb9f540e977ee15e565bd550a86805ea56072abf777e05f",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1425.5446853637695
+        ],
+        [
+          0.0,
+          1.0,
+          171.96078491210938
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "68424fac5b6588db09efca87aae5124d905a2c508923d1b92f95509584c246a2",
+      "viewport_id": "viewport-056"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-057.png",
+      "overlap_ratio": 0.9243999862670899,
+      "residual_px": 0.345611572265625,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "342e881da8a8c2843766e97c0592d365b8e06f56c044ad5c01446e921de1681d",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1486.0246963500977
+        ],
+        [
+          0.0,
+          1.0,
+          171.96078491210938
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "6bc88a6127653a8da2566a9fb64337b8ad2adb85192f62ebb1d13f5fc91f0bd9",
+      "viewport_id": "viewport-057"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-058.png",
+      "overlap_ratio": 0.599986328125,
+      "residual_px": 1.2272152215573444,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "7ff19492a094ce48845cb762d220dc465828167bcfb051b333e0934e4a534fcb",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          694.6246566772461
+        ],
+        [
+          0.0,
+          1.0,
+          0.960784912109375
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "00b9e7c25529fb32771590f1c4de4e6e03757eac14e463e37b9c8ae113788603",
+      "viewport_id": "viewport-058"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-059.png",
+      "overlap_ratio": 0.7164999771118165,
+      "residual_px": 0.199981689453125,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "bbf4761d1a09aeda5219cc753c1be3d68f6e65642f5330b48d12d50bc859cd9a",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          921.424674987793
+        ],
+        [
+          0.0,
+          1.0,
+          0.960784912109375
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "1b5741658d149624e62b6c3bad19f39bc503074efd8897ae41e5c769b9e3ab8f",
+      "viewport_id": "viewport-059"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-060.png",
+      "overlap_ratio": 0.70125,
+      "residual_px": 1.0,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "be30506a9d78902875e10595eb2704601938fe6c22631a1bbdb2ff80631fd8c2",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1160.424674987793
+        ],
+        [
+          0.0,
+          1.0,
+          0.960784912109375
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "e0728f49b708ae4166c5ffae2f2998b7f4cb155861cb0f952e82e031fdee38dc",
+      "viewport_id": "viewport-060"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-061.png",
+      "overlap_ratio": 0.715,
+      "residual_px": 0.0,
+      "source_session_id": "survey-20260724T012057293610Z",
+      "source_sha256": "5a7dce47b7eb525edbe38d25eeafcdced01e115249183908887d55a787b31f3d",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          1388.424674987793
+        ],
+        [
+          0.0,
+          1.0,
+          0.960784912109375
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "a5b453ded25b37936f1d4959a71db6b7184019de29f956f86b6b4b90a4dc58e3",
+      "viewport_id": "viewport-061"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-062.png",
+      "overlap_ratio": 0.571515198469162,
+      "residual_px": 1.2119218132073262,
+      "source_session_id": "survey-20260724T021222146973Z",
+      "source_sha256": "42263f3d19401a7dfd0ef0fee585edad47a6c149f3e2eb295bbb73989e6232d2",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          515.7551193237305
+        ],
+        [
+          0.0,
+          1.0,
+          595.7208404541016
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "transport_sha256": "375be8c638e0191864fe94d0248f7073fc4cc3457033139b7a445bb3f7222209",
+      "viewport_id": "viewport-062"
+    }
+  ],
+  "width": 2287
+}

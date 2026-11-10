@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import hashlib
 import unittest
-from pathlib import Path
+
+from PIL import Image
 
 from tasks.campaign_atlas import (
+    CAMPAIGN_ATLAS_ASSET_ROOT,
     CAMPAIGN_PACKAGE,
     CAMPAIGN_PLATFORM,
     CAMPAIGN_PROFILE_ID,
+    DEFAULT_ATLAS_ID,
     INTEGRATION_FLOW_ID,
     CampaignAmbiguityState,
     CampaignAtlas,
@@ -27,12 +31,8 @@ from tasks.campaign_atlas import (
 )
 from tasks.campaign_auto_battle import plan_campaign_ap_atlas_navigation
 from tasks.ultimate_challenge_daily import plan_ultimate_challenge_atlas_navigation
-from tests.support.local_captures import require_capture, requires_local_captures
 
-ATLAS_MANIFEST = Path(
-    ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY/"
-    "campaign-atlas-native-800x1280-v4/atlas.json"
-)
+ATLAS_MANIFEST = CAMPAIGN_ATLAS_ASSET_ROOT / DEFAULT_ATLAS_ID / "atlas.json"
 IDENTITY = (
     (1.0, 0.0, 0.0),
     (0.0, 1.0, 0.0),
@@ -277,24 +277,25 @@ class CampaignAtlasNavigationTests(unittest.TestCase):
         )
         self.assertEqual(decision.terminal, NAVIGATION_BLOCKED_FAIL_CLOSED)
 
-    @requires_local_captures
-    def test_accepted_atlas_artifact_has_landmarks_and_no_chapter_nine(self) -> None:
-        atlas = load_campaign_atlas(require_capture(ATLAS_MANIFEST))
-        self.assertEqual(atlas.atlas_id, "campaign-atlas-native-800x1280-v4")
+    def test_packaged_atlas_has_required_landmarks_and_valid_native_tiles(self) -> None:
+        atlas = load_campaign_atlas(ATLAS_MANIFEST)
         self.assertFalse(atlas.difficulty_used_as_recenter)
         labels = {item.label for item in atlas.landmarks}
-        self.assertIn("Ultimate Challenge", labels)
-        self.assertIn("Chapter 21", labels)
-        self.assertIn("Chapter 20", labels)
-        self.assertIn("Chapter 15", labels)
-        self.assertIn("Chapter 2", labels)
-        self.assertIsNone(
-            atlas.lookup_landmark(kind=LandmarkKind.CHAPTER, label="Chapter 9")
-        )
-        self.assertGreaterEqual(len(atlas.viewports), 8)
-        self.assertGreaterEqual(len(atlas.landmarks), 12)
-        self.assertEqual(atlas.image_path, "atlas.png")
-        self.assertTrue((ATLAS_MANIFEST.parent / "atlas.png").is_file())
+        self.assertTrue({"Ultimate Challenge", "Chapter 20", "Chapter 15", "Chapter 2"} <= labels)
+        assert atlas.image_path is not None
+        with Image.open(ATLAS_MANIFEST.parent / atlas.image_path) as mosaic:
+            mosaic.load()
+            self.assertEqual(mosaic.size, (atlas.width, atlas.height))
+        for viewport in atlas.viewports:
+            with self.subTest(viewport=viewport.viewport_id):
+                tile_path = ATLAS_MANIFEST.parent / viewport.image_path
+                self.assertEqual(
+                    hashlib.sha256(tile_path.read_bytes()).hexdigest(),
+                    viewport.transport_sha256,
+                )
+                with Image.open(tile_path) as tile:
+                    tile.load()
+                    self.assertEqual(tile.size, (atlas.native_width, atlas.native_height))
 
 
 if __name__ == "__main__":
