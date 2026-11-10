@@ -164,12 +164,41 @@ class Relaunch:
         }
 
 
+class Restart:
+    """One system stop/start, observing the committed budget before transport."""
+
+    def __init__(self, env):
+        self.env = env
+        self.calls = []
+        self.lands_on = HOME
+        self.failure = False
+
+    def __call__(self):
+        env = self.env
+        with BotStateManager(env.state_path, read_only=True) as persisted:
+            episode = persisted.get_network_recovery(SCOPE)
+        self.calls.append({
+            "episode": episode,
+            "taps": list(env.device.taps),
+            "network_rows": env.network_rows(),
+            "captured_paths": {row["path"] for row in env.events() if row["type"] == "capture"},
+        })
+        if self.failure:
+            raise RuntimeError("system restart completion uncertain")
+        env.device.current = self.lands_on
+        return {
+            "system_stop_count": 1, "system_launch_count": 1,
+            "game_input_count": 0, "transport_status": "returned",
+        }
+
+
 class Environment:
     def __init__(self, root: Path, stack: ExitStack):
         self.root = root
         self.device = ReplayDevice()
         self.clock = FixtureClock()
         self.relaunch = Relaunch(self)
+        self.restart = Restart(self)
         self.stop_after_intent = False
         self.state_path = root / "state.sqlite3"
         self.state = BotStateManager(
@@ -234,12 +263,14 @@ class Environment:
     def episode(self):
         return self.state.get_network_recovery(SCOPE)
 
-    def recover(self, *, observe_context=observe, recognize_successor=None, timeout_seconds=30.0, poll_seconds=10.0):
+    def recover(self, *, observe_context=observe, recognize_successor=None, timeout_seconds=30.0,
+                poll_seconds=10.0, restart=None):
         return recovery.recover_network_disconnect(
             self.runtime, state_manager=self.state, action_store=self.store, owner=OWNER,
             checkpoint=self.checkpoint, observe_context=observe_context, relaunch=self.relaunch,
             scope_key=SCOPE, authorization=AUTHORIZATION,
             recognize_successor=recognize_successor,
+            restart=restart,
             timeout_seconds=timeout_seconds, poll_seconds=poll_seconds,
             utc_clock=self.clock.utc, monotonic_clock=self.clock.monotonic, sleep=self.clock.sleep,
         )
@@ -312,6 +343,148 @@ class NetworkDisconnectRecoveryTests(unittest.TestCase):
         self.assertLess(immediate["captured_monotonic"], after["captured_monotonic"])
         self.assertEqual(dispatch["source_sha256"], result["immediate_before_sha256"])
         self.assertNotEqual(result["immediate_before_sha256"], result["source_sha256"])
+
+    def update_environment(self):
+        path = Path(__file__).parent / "fixtures/runtime-update-restart/update-required.png"
+        frame = cv2.imread(str(path), cv2.IMREAD_COLOR)
+        if frame is None:
+            self.fail(f"missing retained update recognition fixture: {path}")
+        self.assertEqual(frame.shape, SHAPE)
+
+        def message(current):
+            # ReplayDevice changes only the last row to prove capture freshness.
+            if np.array_equal(current[:-1], frame[:-1]):
+                return recognition.UPDATE_RESTART_MESSAGE
+            return disconnect_message(current)
+
+        self.stack.enter_context(patch.object(
+            recognition, "_read_disconnect_message", side_effect=message,
+        ))
+        return self.environment(frame)
+
+    def test_exact_update_restarts_once_without_confirm_and_verifies_fresh_connected_context(self):
+        for destination in (HOME, OVERLAY):
+            with self.subTest(destination=destination):
+                env = self.update_environment()
+                env.restart.lands_on = destination
+                env.runtime.max_inputs = 0
+                result = env.recover(restart=env.restart)
+
+                self.assertEqual(result["status"], "recovered")
+                self.assertTrue(result["route_ready"])
+                self.assertTrue(result["accounting_verified"])
+                self.assertFalse(result["unresolved_action"])
+                self.assertEqual((result["input_count"], result["game_input_count"],
+                                  result["system_stop_count"], result["system_launch_count"]), (0, 0, 1, 1))
+                self.assertEqual(result["interruption_identity"], "UPDATE_RESTART_REQUIRED")
+                self.assertEqual(env.device.taps, [])
+                self.assertEqual(env.runtime.input_count, 0)
+                self.assertEqual(env.relaunch.calls, [])
+                self.assertEqual(env.network_rows(), [])
+                self.assertFalse(any(row["type"] == "dispatch" for row in env.events()))
+                call, = env.restart.calls
+                reserved = call["episode"]
+                self.assertEqual(reserved.interruption_identity, "UPDATE_RESTART_REQUIRED")
+                self.assertEqual((reserved.confirm_attempts, reserved.relaunch_attempts,
+                                  reserved.restart_attempts), (0, 0, 1))
+                self.assertEqual(reserved.restart_transport_status, "attempted")
+                self.assertEqual(call["taps"], [])
+                self.assertEqual(call["network_rows"], [])
+                self.assertNotIn(result["terminal_frame"], call["captured_paths"])
+                self.assertNotEqual(result["terminal_sha256"], result["source_sha256"])
+                terminal = cv2.imread(result["terminal_frame"], cv2.IMREAD_COLOR)
+                self.assertEqual(marker(terminal), destination)
+                episode = env.episode()
+                self.assertEqual(episode.episode_id, reserved.episode_id)
+                self.assertEqual(episode.status, "RECOVERED")
+                self.assertEqual(episode.restart_transport_status, "returned")
+                self.assertEqual((episode.confirm_attempts, episode.relaunch_attempts,
+                                  episode.restart_attempts), (0, 0, 1))
+                self.assertEqual(episode.source_frame_hash, result["source_sha256"])
+                self.assertEqual(episode.last_frame_hash, result["terminal_sha256"])
+                self.assertEqual(episode.deadline_at_utc, reserved.deadline_at_utc)
+                env.restart_process()
+                self.assertEqual(env.episode(), episode)
+                self.assert_gameplay_untouched(env)
+
+    def test_uncertain_update_restart_is_durable_and_never_retried_even_on_fresh_home(self):
+        env = self.update_environment()
+        env.restart.failure = True
+        result = env.recover(restart=env.restart, timeout_seconds=3, poll_seconds=1)
+        self.assertFalse(result["route_ready"])
+        self.assertNotEqual(result["status"], "recovered")
+        self.assertEqual(result["game_input_count"], 0)
+        self.assertEqual(len(env.restart.calls), 1)
+        original = env.episode()
+        self.assertEqual(original.status, "MANUAL_REQUIRED")
+        self.assertEqual(original.restart_transport_status, "unknown")
+        self.assertEqual(original.restart_attempts, 1)
+
+        for source, elapsed in ((env.device.current, 0), (HOME, 4)):
+            with self.subTest(elapsed=elapsed):
+                env.clock.advance(elapsed)
+                env.restart_process()
+                env.device.current = source
+                resumed = env.recover(restart=env.restart, timeout_seconds=90, poll_seconds=1)
+                self.assertFalse(resumed["route_ready"])
+                self.assertNotEqual(resumed["status"], "recovered")
+                self.assertEqual(resumed["game_input_count"], 0)
+                self.assertEqual((resumed["system_stop_count"], resumed["system_launch_count"]), (0, 0))
+                self.assertEqual(len(env.restart.calls), 1)
+                self.assertEqual(env.device.taps, [])
+                self.assertEqual(env.relaunch.calls, [])
+                self.assertEqual(env.network_rows(), [])
+                episode = env.episode()
+                self.assertEqual(episode.episode_id, original.episode_id)
+                self.assertEqual(episode.deadline_at_utc, original.deadline_at_utc)
+                self.assertEqual(episode.source_frame_hash, original.source_frame_hash)
+                self.assertEqual(episode.restart_attempts, 1)
+                self.assertEqual(episode.restart_transport_status, "unknown")
+                self.assert_gameplay_untouched(env)
+
+    def test_persistent_exact_update_stops_after_one_returned_restart_across_reopen(self):
+        env = self.update_environment()
+        env.restart.lands_on = env.device.current
+        result = env.recover(restart=env.restart, timeout_seconds=3, poll_seconds=1)
+        self.assertFalse(result["route_ready"])
+        self.assertNotEqual(result["status"], "recovered")
+        self.assertEqual((result["game_input_count"], result["system_stop_count"],
+                          result["system_launch_count"]), (0, 1, 1))
+        original = env.episode()
+        self.assertEqual(original.status, "MANUAL_REQUIRED")
+        self.assertEqual(original.restart_transport_status, "returned")
+        env.restart_process()
+        resumed = env.recover(restart=env.restart, timeout_seconds=90, poll_seconds=1)
+        self.assertFalse(resumed["route_ready"])
+        self.assertEqual((resumed["game_input_count"], resumed["system_stop_count"],
+                          resumed["system_launch_count"]), (0, 0, 0))
+        self.assertEqual(len(env.restart.calls), 1)
+        self.assertEqual(env.device.taps, [])
+        self.assertEqual(env.relaunch.calls, [])
+        self.assertEqual(env.network_rows(), [])
+        self.assertEqual(env.episode().episode_id, original.episode_id)
+        self.assertEqual(env.episode().deadline_at_utc, original.deadline_at_utc)
+        self.assertEqual((env.episode().confirm_attempts, env.episode().relaunch_attempts,
+                          env.episode().restart_attempts), (0, 0, 1))
+        self.assert_gameplay_untouched(env)
+
+    def test_prior_unresolved_core_action_blocks_update_restart_without_touching_journal(self):
+        env = self.update_environment()
+        env.store.prepare_action(intent("update-blocker", "day-1:claim:row-2"), APPROVED, NOW - 20)
+        env.store.mark_input_sent("update-blocker", NOW - 19, TransportResult(True, "OK"))
+        env.store.mark_unresolved("update-blocker", NOW - 18, "result_not_observed")
+        before = dict(env.store.get_action("update-blocker"))
+        result = env.recover(restart=env.restart)
+        self.assert_no_input(env, result, rows_before=[])
+        self.assertEqual(result["system_stop_count"], 0)
+        self.assertEqual(env.restart.calls, [])
+        self.assertEqual(dict(env.store.get_action("update-blocker")), before)
+        self.assertTrue(env.store.has_action_block())
+        episode = env.episode()
+        if episode is not None:
+            self.assertEqual((episode.confirm_attempts, episode.relaunch_attempts,
+                              episode.restart_attempts), (0, 0, 0))
+        self.assert_gameplay_untouched(env)
 
     def test_original_deadline_exhausted_before_immediate_or_during_dispatch_ocr_sends_no_input(self):
         for stage in ("immediate", "dispatch_ocr"):

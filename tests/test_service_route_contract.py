@@ -367,6 +367,139 @@ class BorrowedOwnerTests(unittest.TestCase):
                         pass
 
 
+class ReturnedOutcomeMarkerTests(unittest.TestCase):
+    def test_normalized_confirmed_partial_keeps_effect_when_return_home_fails(self):
+        from dataclasses import replace
+        from automation_service.contracts import NormalizedOutcome
+
+        with RouteRig(self, ROUTES[RECOMMENDED_RESEARCH_FLOW_ID]) as rig:
+            original_runner = rig.runner
+
+            def returned_partial(*args, **kwargs):
+                normalized = original_runner(*args, **kwargs)
+                native = dict(normalized.consequence["native_result"])
+                native.update(
+                    status="blocked", reason="terminal_home_not_verified",
+                    terminal_home_verified=False, identical_retry_denied=True,
+                )
+                return replace(
+                    normalized, outcome=NormalizedOutcome.BLOCKED,
+                    reason_code="RESEARCH_RETURN_HOME_BLOCKED", verified=False,
+                    observed_progress=native,
+                    consequence=dict(normalized.consequence, native_result=native),
+                )
+
+            rig.service.recommended_research_runner = returned_partial
+            report, = rig.once()
+            run, = rig.runs()
+            assert run is not None
+            self.assertEqual(report["status"], "blocked")
+            self.assertIs(run.state, RunState.BLOCKED)
+            self.assertEqual(run.terminal_outcome, SchedulerTaskOutcome.BLOCKED.value)
+            self.assertEqual(run.consumed_actions, 1)
+            self.assertEqual(run.consumed_inputs, len(rig.runner.inputs))
+            self.assertEqual(report["result"]["committed_action_count"], 1)
+            self.assertFalse(report["result"]["terminal_home_verified"])
+            self.assertFalse(report["result"]["effect_reconciliation_required"])
+            self.assertTrue(report["result"]["identical_retry_denied"])
+            flow = rig.state.get_flow(RECOMMENDED_RESEARCH_FLOW_ID)
+            assert flow is not None
+            self.assertFalse(flow.blocked)
+
+    def test_known_guard_noop_and_confirmed_partial_clear_only_owned_crash_marker(self):
+        cases = (
+            ("blocked", 0, 0, False),
+            ("blocked", 4, 0, False),
+            ("reward_unavailable", 18, 1, True),
+            ("unavailable", 0, 0, False),
+        )
+        for mode, inputs, actions, failed_home in cases:
+            with self.subTest(mode=mode, inputs=inputs), RouteRig(self, ROUTES[HALL_OF_WAR_FLOW_ID]) as rig:
+                rig.runner.hall_mode = mode
+                rig.runner.input_count = inputs
+                if failed_home:
+                    native = rig.runner.adapter.native
+                    original_builder = native.result_builder
+
+                    def returned_partial(*args, **kwargs):
+                        result = original_builder(*args, **kwargs)
+                        result.update(
+                            status="blocked", reason="terminal_home_not_verified",
+                            terminal_home_verified=False, terminal_home_frame=None,
+                        )
+                        return result
+
+                    native.result_builder = returned_partial
+                report, = rig.once()
+                run, = rig.runs()
+                assert run is not None
+                deferred = mode == "unavailable"
+                self.assertEqual(report["status"], "deferred" if deferred else "blocked")
+                self.assertIs(run.state, RunState.DEFERRED if deferred else RunState.BLOCKED)
+                self.assertEqual((run.consumed_inputs, run.consumed_actions), (inputs, actions))
+                self.assertEqual(report["result"]["committed_action_count"], actions)
+                flow = rig.state.get_flow(HALL_OF_WAR_FLOW_ID)
+                assert flow is not None
+                self.assertFalse(flow.blocked)
+                self.assertIsNone(flow.blocked_reason)
+                if failed_home:
+                    self.assertFalse(report["result"]["terminal_home_verified"])
+                    self.assertFalse(report["result"]["effect_reconciliation_required"])
+                    self.assertEqual(run.terminal_outcome, SchedulerTaskOutcome.BLOCKED.value)
+                if not deferred:
+                    retry_at = flow.retry_not_before_utc
+                    assert retry_at is not None
+                    self.assertGreater(retry_at, rig.stop.now)
+                    self.assertEqual(flow.consecutive_failures, 1)
+                    rig.stop.now = retry_at - 0.25
+                    with BotStateManager(rig.path) as restarted:
+                        rig.once(state=restarted)
+                    self.assertEqual(len(rig.runner.calls), 1)
+                    self.assertEqual(len(rig.runner.inputs), inputs)
+
+    def test_normally_returned_unknown_keeps_interrupted_marker_and_attempts(self):
+        with RouteRig(self, ROUTES[HALL_OF_WAR_FLOW_ID]) as rig:
+            rig.runner.hall_mode = "unresolved_dispatch"
+            report, = rig.once()
+            run, = rig.runs()
+            assert run is not None
+            self.assertEqual(report["status"], "blocked")
+            self.assertIs(run.state, RunState.FAILED)
+            self.assertEqual(run.terminal_outcome, SchedulerTaskOutcome.RECONCILIATION_REQUIRED.value)
+            self.assertEqual((run.consumed_inputs, run.consumed_actions), (18, 1))
+            self.assertEqual(report["result"]["committed_action_count"], 0)
+            self.assertTrue(report["result"]["effect_reconciliation_required"])
+            flow = rig.state.get_flow(HALL_OF_WAR_FLOW_ID)
+            assert flow is not None
+            self.assertTrue(flow.blocked)
+            self.assertEqual(flow.blocked_reason, f"EXECUTOR_INTERRUPTED_REQUIRES_INSPECTION:{run.run_id}")
+            with BotStateManager(rig.path) as restarted:
+                self.assertEqual(rig.once(state=restarted)[0]["status"], "paused")
+            self.assertEqual(len(rig.runner.calls), 1)
+
+    def test_unverified_returned_accounting_keeps_inspection_block(self):
+        with RouteRig(self, ROUTES[HALL_OF_WAR_FLOW_ID]) as rig:
+            rig.runner.hall_mode = "blocked"
+            rig.runner.input_count = 4
+            original_runner = rig.runner
+
+            def unverified_result(*args, **kwargs):
+                return dict(original_runner(*args, **kwargs), accounting_verified=False)
+
+            rig.service.hall_of_war_runner = unverified_result
+            report, = rig.once()
+            run, = rig.runs()
+            assert run is not None
+            self.assertEqual(report["status"], "blocked")
+            self.assertIs(run.state, RunState.BLOCKED)
+            self.assertFalse(report["result"]["accounting_verified"])
+            flow = rig.state.get_flow(HALL_OF_WAR_FLOW_ID)
+            assert flow is not None
+            assert flow.blocked_reason is not None
+            self.assertTrue(flow.blocked)
+            self.assertIn("CONSUMPTION_ACCOUNTING_UNVERIFIED", flow.blocked_reason)
+
+
 class PartialResultTests(unittest.TestCase):
     def test_partial_result_keeps_consumption_blocks_restart_and_is_never_retried(self):
         for flow_id, spec in ROUTES.items():

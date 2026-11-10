@@ -1,7 +1,48 @@
 # Current handoff
 
+## Current entry point — issue 114 source checkpoint
+
+This worktree is the isolated `fix/live-first-recovery-114` source snapshot for
+offline implementation-plan review, not a resumed live operator. Start with
+[the source checkpoint brief](../research/issue-114-source-checkpoint.md) and
+[issue 114](https://github.com/mattebad/Puzzles_Survival_Automation/issues/114).
+
+The dated continuation notices below are historical. Their statements that
+update integration is incomplete or its canary has never run are superseded:
+current source includes the integration; later retained evidence records the
+failed Cash Mall terminal context and a separate Back observation. No new
+Training acceptance, runtime enablement, or live authorization is implied.
+
+
 Updated 2026-11-09. This file is volatile session state.
 Current owner direction and planning live in [tracker #53](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53) and its tickets.
+
+## Latest continuation notice — 2026-11-09 18:32 UTC snapshot
+
+Read [the comprehensive fresh-session handoff](CONTINUATION_HANDOFF_20261109.md)
+and [the paste-ready continuation prompt](prompts/CONTINUE_20261109.md) first.
+This assistant is paused at the owner's request; generating this handoff did not resume live input.
+
+- Correction checkout remains `fix/manual-walkthrough-corrections-20261109`, HEAD `7994eed`,
+  with important uncommitted fixes. Original is on `canary/owner-route-reacceptance-20261109`,
+  HEAD `412c4b7`, not main. Preserve both dirty trees; their source is not interchangeable.
+- The old universal final-accounting blocker below is superseded: known-progress inspection
+  and normal-return marker corrections are implemented, and five supported reviews succeeded.
+  The latest Research stop was the exact update popup, not missing Research cost/accounting proof.
+- **The update restart canary has NOT run.** Latest zero-input capture showed
+  `New version detected. Tap Confirm to update.` The owner approved shared detection and
+  bounded game-only restart with zero update Confirm/download inputs.
+- **Integration is incomplete:** nested workers placed update service/CLI and several tests
+  in Original instead of the correction worktree. The comprehensive handoff lists exact
+  files/provenance. Consolidate only attributable hunks; do not copy whole differing files.
+  Three changed-line Pyright errors remain. The correction tree's 188 passing tests did
+  not exercise those misplaced new tests/service changes.
+- Latest supported read-only status: service OFF, scheduler ineligible, all 24 flows OFF.
+  No new restart/input, merge, deployment or permanent enablement during handoff preparation.
+  GitHub's latest 14:45 blocker comment has not yet been superseded with these later outcomes.
+- `task.enableLsp=true` was saved to global OMP configuration at the owner's explicit request.
+  Old workers are complete/parked. Give future nested workers absolute paths and the actual workspace.
+
 
 ## Manual walkthrough correction state (2026-11-09)
 
@@ -164,18 +205,19 @@ Current owner direction and planning live in [tracker #53](https://github.com/ma
   target comparison now uses the semantic pixel digest rather than comparing it with PNG bytes.
   A later visit collected available output, then stopped at the same-Farm radial with its
   caption occluded. The mapped-owner-relative radial correction passed its retained-pixel
-  regression. No new Boost was sent; the existing exhausted failure window remains a blocker.
-- **Canonical continuation blocker, not missing live permission:** supported inspection refuses
-  the retained positive-effect windows (#77/#70/#78/#67) and Research's interrupted marker.
-  Source investigation found no durable service-run-to-Core-effect journal join in native
-  request/outcome, and `record_executor_consumption()` does not persist its
-  `terminal_accounting` proof. Individual positive Core reconciliation does not establish
-  complete whole-visit accounting. No permissive continuation, fabricated receipt, historical
-  counter reset or future-only receipt/schema scaffold was added. The earlier direct Training
-  marker acknowledgement was not used as final admission proof; the following run was fenced
-  OFF and its failure retained. Existing blocked records require authoritative run/attempt-bound
-  complete accounting and supported terminal reconciliation before those canaries resume.
-- **Final current posture:** `post-replay-disabled-state-20261109T143957577458Z.json`
+  regression. No new Boost was sent. The eligible known-progress review later completed;
+  the original positive effect and failed visit remain retained, not relabelled acceptance.
+- **Superseded blocker, corrected before pause:** generic whole-visit final-accounting proof
+  is not a universal gameplay prerequisite. Existing owner-bound `inspect-rearm` now supports
+  explicit `--review-known-progress`, checking real Core/Bot effects and retained run/native
+  identities under runtime ownership/Core transaction/CAS. The normal-return service fix clears
+  only its own eligible interrupted marker after terminal projection, without discarding actual
+  uncertainty, duplicate protection, raw counters or failed history.
+- Supported reviews already succeeded for Research, Farm, Material Production, Training and
+  Donations. Do not repeat them without a new eligible blocker. Latest Research then issued one
+  navigation tap, zero starts, and stopped on the update popup; its marker cleared correctly.
+  Full manifests, audit identities and exact scope are in the comprehensive continuation handoff.
+- **Historical 14:39 posture:** `post-replay-disabled-state-20261109T143957577458Z.json`
   records service OFF, scheduler ineligible, all 24 flows OFF, zero consequential Core UNKNOWN
   and an empty runtime input-lock table. Home return was assisted; Training Applied was
   positively observed. Historical zero-cost navigation rows, original failed native results

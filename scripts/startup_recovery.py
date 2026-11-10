@@ -29,15 +29,17 @@ from scripts.bluestacks_popup_recognition import (
     MAX_VIP_POPUP_INPUTS, classify_popup_recovery, recognize_reset_popup,
     vip_popup_handled,
     NETWORK_DISCONNECT_IDENTITY, NETWORK_DISCONNECT_TARGET,
-    recognize_network_disconnect,
+    recognize_network_disconnect, recognize_shared_interruption,
 )
 from scripts.startup_surface_recognition import (
+    CASH_MALL,
+    CASH_MALL_SAFE_BACK_TARGET_IDENTITY,
     SCARLETT_EXPECTED_SUCCESSOR,
     SCARLETT_MAX_INPUTS,
     SCARLETT_SAFE_BACK_ROI,
     SCARLETT_SAFE_BACK_TARGET_IDENTITY,
     SCARLETT_THREE_DAY_PACK,
-    is_exact_scarlett_recognition,
+    is_exact_startup_surface_recognition,
     recognize_startup_surface,
 )
 
@@ -62,7 +64,7 @@ class NetworkDisconnectError(StartupRecoveryError):
 
 def require_network_clear(captured: CapturedNativeFrame) -> None:
     """Stop a route; never dismiss or recover from inside its pending input."""
-    detail = recognize_network_disconnect(captured.frame)
+    detail = recognize_shared_interruption(captured.frame)
     if detail.get("recognized") or detail.get("blocking_unknown_modal"):
         raise NetworkDisconnectError(captured, detail)
 
@@ -170,11 +172,11 @@ def classify_startup_frame(
             "unclassified", flow_id, None, None, False,
             "initial_frame_not_decodable", frame_sha256=frame_sha256,
         )
-    network = recognize_network_disconnect(frame)
+    network = recognize_shared_interruption(frame)
     if network.get("recognized") or network.get("blocking_unknown_modal"):
         return StartupRecoveryPlan(
             "recovery_required" if network.get("recognized") else "blocked",
-            flow_id, NETWORK_DISCONNECT_IDENTITY if network.get("recognized") else None,
+            flow_id, str(network.get("popup_identity") or NETWORK_DISCONNECT_IDENTITY) if network.get("recognized") else None,
             "shared_network_recovery" if network.get("recognized") else None,
             False, str(network["reason"]), frame_sha256=frame_sha256,
             recognition=network,
@@ -184,10 +186,10 @@ def classify_startup_frame(
         return StartupRecoveryPlan(
             "recovery_required",
             flow_id,
-            SCARLETT_THREE_DAY_PACK,
+            str(startup_detail["surface_identity"]),
             "shared_startup_surface_recovery",
             False,
-            "exact Scarlett startup surface requires shared recovery",
+            "exact known startup surface requires shared recovery",
             surface_kind=str(startup_detail.get("surface_kind") or "full_page"),
             frame_sha256=frame_sha256,
             recognition=dict(startup_detail),
@@ -779,15 +781,15 @@ def _contextual_startup_details(captured):
     popup = recognize_reset_popup(captured.frame)
     if not isinstance(surface, dict) or not isinstance(popup, dict):
         raise StartupRecoveryError("startup recognizer returned no current classification")
-    network = recognize_network_disconnect(captured.frame)
+    network = recognize_shared_interruption(captured.frame)
     if network.get("recognized") or network.get("blocking_unknown_modal"):
         popup = dict(popup, blocking_unknown_modal=True, network_interruption=network)
     identity = None
     if not popup.get("blocking_unknown_modal"):
         if surface.get("recognized"):
-            if (not popup.get("recognized") and is_exact_scarlett_recognition(surface)
+            if (not popup.get("recognized") and is_exact_startup_surface_recognition(surface)
                     and surface.get("frame_sha256") == captured.sha256):
-                identity = SCARLETT_THREE_DAY_PACK
+                identity = surface["surface_identity"]
         elif not surface.get("commercial_looking") and _contextual_exact_vip(popup):
             identity = "VIP_POINTS_GET_PTS"
     return identity, surface, popup
@@ -861,7 +863,8 @@ def recover_contextual_startup_overlay(
         return result("startup_source_not_recoverable")
     source = captured
     targets = {"VIP_POINTS_GET_PTS": VIP_RESET_TARGET,
-               SCARLETT_THREE_DAY_PACK: SCARLETT_SAFE_BACK_TARGET_IDENTITY}
+               SCARLETT_THREE_DAY_PACK: SCARLETT_SAFE_BACK_TARGET_IDENTITY,
+               CASH_MALL: CASH_MALL_SAFE_BACK_TARGET_IDENTITY}
     actions = getattr(runtime, "frame_actions", None)
     seen = {identity for identity, target in targets.items()
             if any(isinstance(item, tuple) and len(item) >= 2 and item[1] == target
@@ -1029,7 +1032,7 @@ SCARLETT_BACK_ACTION = "DISMISS_SCARLETT_THREE_DAY_PACK"
 SCARLETT_BACK_ACTION_KEY = "startup-recovery:scarlett-three-day-pack-back"
 
 
-def _scarlett_observation(
+def _startup_surface_observation(
     captured: CapturedNativeFrame,
     detail: dict[str, object],
     *,
@@ -1051,13 +1054,13 @@ def _scarlett_observation(
         corrupt=False,
         black=not bool(np.any(captured.frame)),
         source_state=(
-            SCARLETT_THREE_DAY_PACK
+            str(detail["surface_identity"])
             if not successor
             else "RETAINED_STARTUP_SUCCESSOR"
         ),
         overlay_state="none" if not successor else "none_observed",
         target_identity=(
-            SCARLETT_SAFE_BACK_TARGET_IDENTITY if roi and not successor else None
+            str(detail["safe_exit_target_identity"]) if roi and not successor else None
         ),
         target_roi=roi if not successor else None,
         recognized=True,
@@ -1073,7 +1076,7 @@ def _scarlett_observation(
         ),
         evidence_refs=(str(captured.path),),
         critical_roi_hashes=(
-            (("scarlett_safe_back", _roi_hash(captured.frame, roi)),)
+            (("startup_safe_back", _roi_hash(captured.frame, roi)),)
             if roi and not successor
             else ()
         ),
@@ -1100,7 +1103,7 @@ def _scarlett_observation(
     )
 
 
-def _scarlett_request(
+def _startup_surface_request(
     task_id: str,
     owner: str,
     session_id: str,
@@ -1112,7 +1115,7 @@ def _scarlett_request(
         action_key=action_key,
         task_id=task_id,
         task_mode="supervised_validation",
-        semantic_action=SCARLETT_BACK_ACTION,
+        semantic_action=SCARLETT_BACK_ACTION if observation.source_state == SCARLETT_THREE_DAY_PACK else "DISMISS_CASH_MALL",
         expected_runtime_profile_id=NATIVE_RUNTIME_PROFILE_ID,
         observation=observation,
         monotonic_now=time.monotonic(),
@@ -1123,18 +1126,18 @@ def _scarlett_request(
         unresolved_action=False,
         duplicate_action_key=False,
         action_class=ActionClass.NAVIGATION_ONLY,
-        action_kind=SCARLETT_BACK_ACTION,
-        subject=SCARLETT_SAFE_BACK_TARGET_IDENTITY,
+        action_kind=SCARLETT_BACK_ACTION if observation.source_state == SCARLETT_THREE_DAY_PACK else "DISMISS_CASH_MALL",
+        subject=observation.target_identity,
         resource_or_currency="none",
         maximum_cost=0,
         free_only=True,
-        semantic_preconditions=(SCARLETT_THREE_DAY_PACK, "full_page", "in_game_back"),
+        semantic_preconditions=(str(observation.source_state), "full_page", "in_game_back"),
         semantic_postconditions=(SCARLETT_EXPECTED_SUCCESSOR,),
         runtime_session_id=session_id,
     )
 
 
-def _recover_scarlett_surface(
+def _recover_startup_surface(
     runtime: LocalBlueStacksRuntime,
     *,
     task_id: str,
@@ -1147,8 +1150,8 @@ def _recover_scarlett_surface(
     action_store_factory: Callable[[], SafetyStore] | None,
 ) -> StartupRecoveryResult:
     del initial_frame
-    if not is_exact_scarlett_recognition(initial_detail):
-        raise StartupRecoveryError("exact Scarlett recognition is not input-authoritative")
+    if not is_exact_startup_surface_recognition(initial_detail):
+        raise StartupRecoveryError("exact startup surface recognition is not input-authoritative")
     if runtime.input_count >= runtime.max_inputs:
         raise StartupRecoveryError("startup recovery input budget is exhausted")
     scope = str(recovery_scope or "startup")
@@ -1156,7 +1159,10 @@ def _recover_scarlett_surface(
     scope_digest = hashlib.sha256(json.dumps(
         (task_id, scope, str(runtime.session.resolve())), separators=(",", ":")
     ).encode()).hexdigest()[:16]
-    action_key = f"{SCARLETT_BACK_ACTION_KEY}:{scope_digest}"
+    identity = str(initial_detail["surface_identity"])
+    target_identity = str(initial_detail["safe_exit_target_identity"])
+    prefix = SCARLETT_BACK_ACTION_KEY if identity == SCARLETT_THREE_DAY_PACK else "startup-recovery:cash-mall-back"
+    action_key = f"{prefix}:{scope_digest}"
     store = action_store_factory() if action_store_factory is not None else SafetyStore(STARTUP_RECOVERY_STORE_PATH)
     owner = f"startup-recovery:{task_id}"
     try:
@@ -1172,15 +1178,16 @@ def _recover_scarlett_surface(
         authorization_frame = runtime.capture("startup-recovery-scarlett-authorization-before")
         authorization_detail = recognize_startup_surface(authorization_frame.frame, authorization_frame.png)
         if (
-            not is_exact_scarlett_recognition(authorization_detail)
+            not is_exact_startup_surface_recognition(authorization_detail)
+            or authorization_detail.get("surface_identity") != identity
             or authorization_detail.get("safe_exit_roi")
             != initial_detail.get("safe_exit_roi")
         ):
             raise StartupRecoveryError(
                 "Scarlett stable identity or safe Back target changed before authorization"
             )
-        authorized_observation = _scarlett_observation(authorization_frame, authorization_detail)
-        request = _scarlett_request(task_id, owner, str(runtime.session), action_key, authorized_observation)
+        authorized_observation = _startup_surface_observation(authorization_frame, authorization_detail)
+        request = _startup_surface_request(task_id, owner, str(runtime.session), action_key, authorized_observation)
         policy = CentralPolicy(supervised_tasks=frozenset({task_id}))
         authorized = policy.evaluate(request)
         if not authorized.authorized:
@@ -1192,7 +1199,8 @@ def _recover_scarlett_surface(
             current = runtime.capture("startup-recovery-scarlett-dispatch-before")
             detail = recognize_startup_surface(current.frame, current.png)
             if (
-                not is_exact_scarlett_recognition(detail)
+                not is_exact_startup_surface_recognition(detail)
+                or detail.get("surface_identity") != identity
                 or detail.get("safe_exit_roi")
                 != authorization_detail.get("safe_exit_roi")
             ):
@@ -1200,7 +1208,7 @@ def _recover_scarlett_surface(
                     "Scarlett stable identity or safe Back target changed before dispatch"
                 )
             holder.update(before=current, detail=detail)
-            return _scarlett_observation(current, detail)
+            return _startup_surface_observation(current, detail)
 
         def transport(_intent) -> TransportResult:
             before = holder.get("before")
@@ -1215,7 +1223,7 @@ def _recover_scarlett_surface(
                 raise StartupRecoveryError("Scarlett safe Back target is no longer exact")
             runtime.tap(
                 before,
-                target_identity=SCARLETT_SAFE_BACK_TARGET_IDENTITY,
+                target_identity=target_identity,
                 target_roi=tuple(int(value) for value in target),
                 action_key=action_key,
                 action_class="navigation",
@@ -1234,7 +1242,7 @@ def _recover_scarlett_surface(
                 and recognize_successor(post.frame)
             )
             holder.update(post=post, after=after, successor=disappeared, successor_admissible=successor_admissible)
-            return (_scarlett_observation(post, after, successor=disappeared),)
+            return (_startup_surface_observation(post, after, successor=disappeared),)
 
         def reconcile(_intent, observation: Observation) -> bool:
             after = holder.get("after")
@@ -1257,17 +1265,17 @@ def _recover_scarlett_surface(
             else result.status.value
         )
         terminal_reason = (
-            "evidence_required_unknown_scarlett_successor"
+            "evidence_required_unknown_startup_successor"
             if confirmed and not successor_admissible
             else result.reason
         )
         evidence = StartupRecoveryResult(
-            terminal_status, input_count, SCARLETT_THREE_DAY_PACK,
+            terminal_status, input_count, identity,
             "RETAINED_STARTUP_SUCCESSOR" if confirmed else None,
             authorized_observation.frame_sha256,
             post.sha256 if isinstance(post, CapturedNativeFrame) else None,
             action_key, terminal_reason, surface_kind="full_page",
-            safe_exit_target_identity=SCARLETT_SAFE_BACK_TARGET_IDENTITY,
+            safe_exit_target_identity=target_identity,
             safe_exit_roi=SCARLETT_SAFE_BACK_ROI,
             forbidden_purchase_rois=tuple(tuple(int(value) for value in region) for region in initial_detail["forbidden_purchase_rois"]),
             expected_successor=SCARLETT_EXPECTED_SUCCESSOR,
@@ -1471,7 +1479,7 @@ def recover_known_startup_overlay(
             raise StartupRecoveryError(
                 "startup recovery source provenance hash is invalid"
             )
-        return _recover_scarlett_surface(
+        return _recover_startup_surface(
             runtime,
             task_id=task_id,
             initial_frame=probe,
@@ -1539,6 +1547,7 @@ def recover_network_disconnect(
     checkpoint: Callable[[], None],
     observe_context: Callable[[CapturedNativeFrame], str],
     relaunch: Callable[[], dict[str, object]],
+    restart: Callable[[], dict[str, object]] | None = None,
     scope_key: str,
     authorization: str,
     recognize_successor: Callable[[CapturedNativeFrame], bool] | None = None,
@@ -1564,6 +1573,7 @@ def recover_network_disconnect(
     checkpoint()
     before_count = runtime.input_count
     launches = 0
+    stops = 0
     episode = state_manager.get_network_recovery(scope_key)
     mono_deadline = (
         monotonic_clock() + max(0.0, episode.deadline_at_utc - utc_clock())
@@ -1623,17 +1633,22 @@ def recover_network_disconnect(
         # block. It still owns this episode and must never regain Confirm.
         unresolved = (
             action_store.has_action_block() or network_action_pending()
-            or episode is not None and episode.relaunch_attempts == 1
-            and episode.relaunch_transport_status in {"attempted", "unknown"}
+            or episode is not None and (
+                episode.relaunch_attempts == 1
+                and episode.relaunch_transport_status in {"attempted", "unknown"}
+                or episode.restart_attempts == 1
+                and episode.restart_transport_status in {"attempted", "unknown"}
+            )
         )
         value = {
             "status": status, "reason": reason, "scope_key": scope_key,
             "authorization": authorization, "episode_id": episode.episode_id if episode else None,
             "episode": asdict(episode) if episode else None,
+            "interruption_identity": episode.interruption_identity if episode else None,
             "episode_source_sha256": episode.source_frame_hash if episode else None,
             "input_count": count, "game_input_count": count,
-            "system_launch_count": launches,
-            "accounting_verified": count in (0, 1) and launches in (0, 1),
+            "system_launch_count": launches, "system_stop_count": stops,
+            "accounting_verified": count in (0, 1) and launches in (0, 1) and stops in (0, 1),
             "unresolved_action": unresolved,
             "route_ready": status == "recovered" and not unresolved,
             "next_observe_at_utc": episode.next_observe_at_utc if episode else None,
@@ -1702,7 +1717,7 @@ def recover_network_disconnect(
         if not budget_open():
             return finish("manual_required", "network_recovery_deadline_exhausted")
         post = take("network-recovery-relaunch-after")
-        after = recognize_network_disconnect(post.frame)
+        after = recognize_shared_interruption(post.frame)
         if (not connected(post, observe_context(post))
                 or after.get("recognized") or after.get("blocking_unknown_modal") or not budget_open()):
             record("MANUAL_REQUIRED", "network_connected_context_not_verified")
@@ -1713,11 +1728,75 @@ def recover_network_disconnect(
     if not _contextual_startup_frame_valid(source):
         return finish("blocked", "network_source_not_intact")
     context = observe_context(source)
-    detail = recognize_network_disconnect(source.frame)
+    detail = recognize_shared_interruption(source.frame)
+    is_update = detail.get("recognized") and detail.get("popup_identity") == "UPDATE_RESTART_REQUIRED"
+    if is_update:
+        episode = state_manager.begin_network_recovery(
+            scope_key=scope_key, source_frame_hash=source.sha256,
+            now_utc_epoch=utc_clock(), timeout_seconds=timeout_seconds,
+            interruption_identity="UPDATE_RESTART_REQUIRED",
+        )
+        mono_deadline = monotonic_clock() + max(0.0, episode.deadline_at_utc - utc_clock())
+        if (action_store.has_action_block() or network_action_pending()
+                or not action_store.lease_valid_for(owner, utc_clock())
+                or state_manager._db.execute(
+                    "SELECT 1 FROM actions WHERE state IN ('RESERVED','DISPATCHING','UNKNOWN') LIMIT 1"
+                ).fetchone() is not None
+                or episode.interruption_identity != "UPDATE_RESTART_REQUIRED"
+                or episode.confirm_attempts or episode.relaunch_attempts):
+            return finish("unresolved", "update_prior_action_or_episode_requires_inspection")
+        if (restart is None or context != "UNKNOWN" or episode.status not in {"OPEN", "DEFERRED"}
+                or episode.restart_attempts or not budget_open()):
+            return finish("manual_required", "update_restart_budget_or_context_denied")
+        immediate = take("update-restart-immediate-before")
+        exact = recognize_shared_interruption(immediate.frame)
+        if (not exact.get("recognized") or exact.get("popup_identity") != "UPDATE_RESTART_REQUIRED"
+                or observe_context(immediate) != "UNKNOWN"):
+            record("MANUAL_REQUIRED", "update_source_changed_before_restart")
+            return finish("manual_required", "update_source_changed_before_restart")
+        checkpoint()
+        if action_store.has_action_block():
+            return finish("unresolved", "update_prior_action_requires_inspection")
+        reserved = state_manager.reserve_network_recovery_step(
+            episode.episode_id, "restart", expected_row_version=episode.row_version,
+            now_utc_epoch=utc_clock(),
+        )
+        if reserved is None:
+            return finish("manual_required", "update_restart_budget_or_state_denied")
+        episode = reserved
+        try:
+            startup = restart()
+        except Exception as exc:
+            startup = getattr(exc, "startup_result", {})
+            if isinstance(startup, dict):
+                stops = startup.get("system_stop_count", 0)
+                launches = startup.get("system_launch_count", 0)
+            record("MANUAL_REQUIRED", "update_restart_transport_unknown",
+                   step="restart", transport_status="unknown")
+            return finish("unresolved", "update_restart_transport_unknown")
+        stops = startup.get("system_stop_count")
+        launches = startup.get("system_launch_count")
+        if (type(stops) is not int or stops != 1 or type(launches) is not int or launches != 1
+                or startup.get("game_input_count") != 0 or runtime.input_count != before_count
+                or startup.get("transport_status") != "returned" or not budget_open()):
+            record("MANUAL_REQUIRED", "update_restart_accounting_or_deadline_invalid",
+                   step="restart", transport_status="unknown")
+            return finish("unresolved", "update_restart_accounting_or_deadline_invalid")
+        record("OPEN", "update_restart_transport_returned", step="restart", transport_status="returned")
+        post = take("update-restart-fresh-context")
+        after = recognize_shared_interruption(post.frame)
+        if (after.get("recognized") or after.get("blocking_unknown_modal")
+                or not connected(post, observe_context(post)) or not budget_open()):
+            record("MANUAL_REQUIRED", "update_restart_fresh_context_not_verified")
+            return finish("manual_required", "update_restart_fresh_context_not_verified")
+        record("RECOVERED", "update_restart_fresh_context_verified")
+        return finish("recovered", "update_restart_fresh_context_verified")
     if not (detail.get("recognized") or detail.get("blocking_unknown_modal")) and connected(source, context):
         if action_store.has_action_block() or network_action_pending():
             return finish("unresolved", "prior_action_requires_inspection")
-        if episode is not None and episode.relaunch_transport_status in {"attempted", "unknown"}:
+        if episode is not None and (
+                episode.relaunch_transport_status in {"attempted", "unknown"}
+                or episode.restart_transport_status in {"attempted", "unknown"}):
             return finish("unresolved", "network_relaunch_requires_inspection")
         if episode is not None and episode.status != "RECOVERED":
             record("RECOVERED", "fresh_connected_context_observed")
@@ -1840,7 +1919,7 @@ def recover_network_disconnect(
             checkpoint()
             sleep(min(poll_seconds, max(0.0, mono_deadline - monotonic_clock())))
             post = take(f"network-recovery-after-{index:03d}")
-            after = recognize_network_disconnect(post.frame)
+            after = recognize_shared_interruption(post.frame)
             observed = observe_context(post)
             clear = not (after.get("recognized") or after.get("blocking_unknown_modal"))
             route_connected = clear and connected(post, observed)
@@ -1977,7 +2056,7 @@ def inspect_network_disconnect_context(
         result["terminal_sha256"] = captured.sha256
         if not _contextual_startup_frame_valid(captured, after=captures[-2] if ordinal else None):
             return finish("network_inspection_capture_not_fresh")
-        detail = recognize_network_disconnect(captured.frame)
+        detail = recognize_shared_interruption(captured.frame)
         if (detail.get("recognized") or detail.get("blocking_unknown_modal")
                 or observe_context(captured) != "HOME_BASE"
                 or not _contextual_startup_frame_valid(captured, after=captures[-2] if ordinal else None)):

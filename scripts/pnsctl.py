@@ -8,7 +8,7 @@ cleanup commands for the local BlueStacks development runtime.
 from __future__ import annotations
 
 import argparse
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 import hashlib
@@ -701,8 +701,11 @@ class ApplicationStartupError(OperatorError):
 def _network_dialog(frame_bytes: bytes) -> dict[str, Any]:
     import cv2
     import numpy as np
-    from scripts.bluestacks_popup_recognition import recognize_network_disconnect
-    return recognize_network_disconnect(cv2.imdecode(np.frombuffer(frame_bytes, dtype=np.uint8), cv2.IMREAD_COLOR))
+    from scripts.bluestacks_popup_recognition import recognize_shared_interruption
+    frame = cv2.imdecode(np.frombuffer(frame_bytes, dtype=np.uint8), cv2.IMREAD_COLOR)
+    if frame is None:
+        raise OperatorError("network recovery frame could not be decoded")
+    return recognize_shared_interruption(frame)
 
 
 def _owner_bound_network_recovery(*, runtime_input_lock, checkpoint, session_directory,
@@ -727,6 +730,7 @@ def _owner_bound_network_recovery(*, runtime_input_lock, checkpoint, session_dir
     leased = False
     runtime = None
     launches = 0
+    stops = 0
     try:
         if store.has_action_block():
             raise OperatorError("network recovery cannot bypass an unresolved action")
@@ -789,6 +793,59 @@ def _owner_bound_network_recovery(*, runtime_input_lock, checkpoint, session_dir
             launches = started.get("system_launch_count")
             return started
 
+        def restart() -> dict[str, object]:
+            nonlocal launches, stops
+            fenced()
+            if not allow_relaunch:
+                raise OperatorError("current startup already consumed its launch budget")
+            episode = state_manager.get_network_recovery(FIXED_RUNTIME_SCOPE)
+            if (episode is None or episode.interruption_identity != "UPDATE_RESTART_REQUIRED"
+                    or episode.restart_attempts != 1 or episode.restart_transport_status != "attempted"):
+                raise OperatorError("update restart requires its persisted reserved episode")
+            result: dict[str, object] = {
+                "system_stop_count": 0, "system_launch_count": 0, "game_input_count": 0,
+            }
+            def restart_fence():
+                fenced()
+                current = state_manager.get_network_recovery(FIXED_RUNTIME_SCOPE)
+                if (current is None or current.episode_id != episode.episode_id
+                        or current.status not in {"OPEN", "DEFERRED"}
+                        or current.restart_attempts != 1 or current.restart_transport_status != "attempted"
+                        or not current.updated_at_utc <= time.time() < current.deadline_at_utc
+                        or store.has_action_block()
+                        or state_manager._db.execute(
+                            "SELECT 1 FROM actions WHERE state IN ('RESERVED','DISPATCHING','UNKNOWN') LIMIT 1"
+                        ).fetchone() is not None):
+                    raise OperatorError("update restart original budget, Core or deadline fence denied")
+            try:
+                restart_fence()
+                before, frame = _development_launcher_observation()
+                (runtime.session / "update-stop-before.png").write_bytes(frame)
+                exact = _network_dialog(frame)
+                if (before["foreground_package"] != BLUESTACKS_PACKAGE
+                        or not exact.get("recognized")
+                        or exact.get("popup_identity") != "UPDATE_RESTART_REQUIRED"):
+                    raise OperatorError("update restart requires a fresh exact update dialog")
+                restart_fence()
+                result["system_stop_count"] = 1
+                stops = 1
+                with (runtime.session / "update-stop-attempt.json").open("x", encoding="utf-8") as stream:
+                    json.dump(result, stream, indent=2, sort_keys=True)
+                _stop_game_process(checkpoint=restart_fence)
+                started = owner_bound_application_startup(
+                    runtime_input_lock=runtime_input_lock, checkpoint=restart_fence,
+                    session_directory=runtime.session / "application-update-restart", require_ready=True,
+                    state_manager=state_manager, recovery_launch_episode_id=episode.episode_id,
+                )
+                launches = started["system_launch_count"]
+                result.update(started, system_stop_count=1)
+                return result
+            except Exception as exc:
+                failed = getattr(exc, "startup_result", {})
+                if isinstance(failed, dict):
+                    result.update(system_launch_count=failed.get("system_launch_count", 0))
+                launches = result["system_launch_count"]
+                raise ApplicationStartupError(str(exc), result) from exc
         if inspect_only:
             return inspect_network_disconnect_context(
                 runtime, state_manager=state_manager, action_store=store, owner=owner,
@@ -798,9 +855,9 @@ def _owner_bound_network_recovery(*, runtime_input_lock, checkpoint, session_dir
 
         return recover_network_disconnect(
             runtime, state_manager=state_manager, action_store=store, owner=owner,
-            checkpoint=fenced, observe_context=context, relaunch=relaunch,
+            checkpoint=fenced, observe_context=context, relaunch=relaunch, restart=restart,
             scope_key=FIXED_RUNTIME_SCOPE,
-            authorization="Current operator explicitly selected bounded network recovery: one Confirm, at most one permitted launcher-only game launch, zero resource spend.",
+            authorization="Current operator explicitly selected shared interruption recovery: exact10054 Confirm/launcher recovery or one exact-update game-only stop/start, no update Confirm/download inputs.",
             recognize_successor=recognize_successor,
         )
     except Exception as exc:
@@ -809,13 +866,14 @@ def _owner_bound_network_recovery(*, runtime_input_lock, checkpoint, session_dir
         # Even a lost owner/post-capture failure must retain the actual attempted
         # inputs. Never turn the exception into readiness or renew its budget.
         failed = {
-            "status": "unresolved" if runtime.input_count else "blocked",
+            "status": "unresolved" if runtime.input_count or stops or launches else "blocked",
             "reason": f"network_recovery_stopped:{type(exc).__name__}:{exc}",
             "scope_key": FIXED_RUNTIME_SCOPE, "game_input_count": runtime.input_count,
             "input_count": runtime.input_count, "system_launch_count": launches,
+            "system_stop_count": stops,
             "accounting_verified": (type(launches) is int and launches in (0, 1)
                                     and runtime.input_count in (0, 1)),
-            "unresolved_action": store.has_action_block() or bool(runtime.input_count), "route_ready": False,
+            "unresolved_action": store.has_action_block() or bool(runtime.input_count or stops or launches), "route_ready": False,
             "frame_directory": str(runtime.frames), "transport_events": str(runtime.events),
         }
         failed_path = runtime.session / "network-recovery-stopped.json"
@@ -915,8 +973,14 @@ def owner_bound_application_startup(*, runtime_input_lock, checkpoint, session_d
             episode = recovery_episode()
             if (episode is None or episode.episode_id != recovery_launch_episode_id
                     or episode.status not in {"OPEN", "DEFERRED"}
-                    or episode.confirm_attempts != 1 or episode.confirm_transport_status != "returned"
-                    or episode.relaunch_attempts != 1 or episode.relaunch_transport_status != "attempted"
+                    or not (
+                        episode.interruption_identity == "UPDATE_RESTART_REQUIRED"
+                        and episode.restart_attempts == 1 and episode.restart_transport_status == "attempted"
+                        and episode.confirm_attempts == 0 and episode.relaunch_attempts == 0
+                        or episode.interruption_identity != "UPDATE_RESTART_REQUIRED"
+                        and episode.confirm_attempts == 1 and episode.confirm_transport_status == "returned"
+                        and episode.relaunch_attempts == 1 and episode.relaunch_transport_status == "attempted"
+                    )
                     or not episode.updated_at_utc <= time.time() < episode.deadline_at_utc):
                 raise OperatorError("network recovery original launch budget or deadline exhausted")
 
@@ -949,7 +1013,9 @@ def owner_bound_application_startup(*, runtime_input_lock, checkpoint, session_d
             return False
         if not encountered and not (active is not None and active.status != "RECOVERED"):
             return False
-        if detail.get("blocking_unknown_modal") or not network_recovery:
+        if (detail.get("blocking_unknown_modal") and not (
+                detail.get("recognized") and detail.get("popup_identity") == "UPDATE_RESTART_REQUIRED")
+                or not network_recovery):
             raise OperatorError("network interruption requires exact authorized recovery:" + str(detail.get("reason")))
         recovery = _owner_bound_network_recovery(
             runtime_input_lock=runtime_input_lock, checkpoint=fence,
@@ -961,6 +1027,7 @@ def owner_bound_application_startup(*, runtime_input_lock, checkpoint, session_d
             network_recovery=recovery, game_input_count=recovery["game_input_count"],
             input_count=recovery["input_count"],
             system_launch_count=result["system_launch_count"] + recovery["system_launch_count"],
+            system_stop_count=recovery.get("system_stop_count", 0),
             dispatch=recovery["game_input_count"] > 0, route_ready=recovery["route_ready"],
             action="bounded_network_recovery",
         )
@@ -1080,6 +1147,24 @@ def owner_bound_application_startup(*, runtime_input_lock, checkpoint, session_d
         raise ApplicationStartupError(str(exc), result) from exc
 
 
+def _stop_game_process(*, checkpoint) -> str:
+    """Shared game-only stop transport; callers own authority and durable budget."""
+    checkpoint()
+    stopped = _run_fixed_bluestacks_adb("shell", "am", "force-stop", BLUESTACKS_PACKAGE)
+    checkpoint()
+    processes = str(_run_fixed_bluestacks_adb("shell", "ps", "-A")).splitlines()
+    rows = [line.split() for line in processes[1:] if line.split()]
+    if not processes or not rows or processes[0].split()[-1:] != ["NAME"]:
+        raise OperatorError("cold stop process observation is unreadable")
+    if any(row[-1] == BLUESTACKS_PACKAGE or row[-1].startswith(BLUESTACKS_PACKAGE + ":") for row in rows):
+        raise OperatorError("game process remains after the single cold stop")
+    checkpoint()
+    observed, _ = _development_launcher_observation()
+    if observed["foreground_package"] not in BLUESTACKS_LAUNCHER_PACKAGES:
+        raise OperatorError("cold stop did not expose the known BlueStacks launcher")
+    return str(stopped)
+
+
 def _cold_restart_game(*, runtime_input_lock, session_directory: Path) -> dict[str, Any]:
     """Explicit operator test: stop only a clean idle game, then reuse startup."""
     from automation_service.state import BotStateManager
@@ -1136,17 +1221,7 @@ def _cold_restart_game(*, runtime_input_lock, session_directory: Path) -> dict[s
             result["system_stop_count"] = 1
             with (session_directory / "stop-attempt.json").open("x", encoding="utf-8") as stream:
                 json.dump(result, stream, indent=2, sort_keys=True)
-            stop_result = _run_fixed_bluestacks_adb("shell", "am", "force-stop", BLUESTACKS_PACKAGE)
-            checkpoint()
-            processes = str(_run_fixed_bluestacks_adb("shell", "ps", "-A")).splitlines()
-            rows = [line.split() for line in processes[1:] if line.split()]
-            if not processes or not rows or processes[0].split()[-1:] != ["NAME"]:
-                raise OperatorError("cold stop process observation is unreadable")
-            remaining = [row[-1] for row in rows if (
-                row[-1] == BLUESTACKS_PACKAGE or row[-1].startswith(BLUESTACKS_PACKAGE + ":")
-            )]
-            if remaining:
-                raise OperatorError("game process remains after the single cold stop")
+            stop_result = _stop_game_process(checkpoint=checkpoint)
             stopped, stopped_frame = _development_launcher_observation()
             if stopped["foreground_package"] not in BLUESTACKS_LAUNCHER_PACKAGES:
                 raise OperatorError("cold stop did not expose the known BlueStacks launcher")
@@ -3050,6 +3125,153 @@ def bluestacks_reconcile_campaign_atlas_survey_action(
     return json.dumps(result, sort_keys=True)
 
 
+@contextmanager
+def _known_progress_inspection(flow_id: str, evidence_path: Path):
+    """Hold the existing runtime owner and Core write fence through Bot review/CAS."""
+    from automation_service.registry import canonical_entry
+    from automation_service.state import BotStateManager, FlowInspectionDenied, REPOSITORY_ROOT, _inspection_evidence
+    from safe_action_core.store import CURRENT_SCHEMA_VERSION, is_no_effect_cancelled
+    from scripts.navigation_development_boundary import (
+        CANONICAL_ACTION_STORE_PATH, NavigationBoundaryError, RuntimeInputLock, require_fixed_orchestrator_path,
+    )
+    from tasks.runtime_identity import resource_fixed_runtime_binding
+
+    allowed = {
+        ALLIANCE_DONATION_FLOW_ID, NANO_MATERIAL_PRODUCTION_FLOW_ID,
+        FOOD_FARM_BOOST_FLOW_ID, TROOP_TRAINING_FLOW_ID, RECOMMENDED_RESEARCH_FLOW_ID,
+    }
+    if flow_id not in allowed:
+        raise FlowInspectionDenied("KNOWN_PROGRESS_FLOW_UNSUPPORTED")
+    entry = canonical_entry(flow_id)
+    binding = resource_fixed_runtime_binding()
+    reference, evidence_digest = _inspection_evidence(evidence_path)
+    retained_path = REPOSITORY_ROOT / reference
+    owner = "operator:inspect-known-progress"
+    invocation = f"inspect-known-progress-{time.time_ns()}"
+    try:
+        with RuntimeInputLock(owner=owner, invocation_id=invocation) as ownership:
+            path = require_fixed_orchestrator_path(None, CANONICAL_ACTION_STORE_PATH, "canonical action history")
+            if path.is_symlink() or not path.is_file():
+                raise FlowInspectionDenied("CORE_HISTORY_UNAVAILABLE")
+            connection = sqlite3.connect(path.as_uri() + "?mode=rw", uri=True, timeout=0, isolation_level=None)
+            connection.row_factory = sqlite3.Row
+            try:
+                # No Core rows are changed. This fence prevents reconciliation
+                # from invalidating the checked statuses before the Bot CAS.
+                connection.execute("BEGIN IMMEDIATE")
+
+                def review(window: dict[str, Any]) -> dict[str, Any]:
+                    ownership.assert_held(owner, invocation)
+                    if _inspection_evidence(retained_path)[1] != evidence_digest:
+                        raise FlowInspectionDenied("REVIEW_EVIDENCE_CHANGED")
+                    evidence = json.loads(retained_path.read_text(encoding="utf-8"))
+                    if not isinstance(evidence, dict):
+                        raise FlowInspectionDenied("REVIEW_EVIDENCE_INVALID")
+                    if (
+                        evidence.get("flow_id") != flow_id or window.get("flow_id") != flow_id
+                        or evidence.get("generation") != window["generation"]
+                        or evidence.get("row_version") != window["row_version"]
+                        or evidence.get("last_attempt_seq") != window["last_attempt_seq"]
+                        or evidence.get("run_ids") != sorted(row["run_id"] for row in window["runs"])
+                        or Path(window["state_path"]).resolve() != Path(BotStateManager.DEFAULT_DB_PATH).resolve()
+                    ):
+                        raise FlowInspectionDenied("REVIEW_SCOPE_MISMATCH")
+                    schema = connection.execute("SELECT version FROM schema_version WHERE singleton=1").fetchone()
+                    if schema is None or schema["version"] != CURRENT_SCHEMA_VERSION:
+                        raise FlowInspectionDenied("CORE_SCHEMA_UNSUPPORTED")
+                    if connection.execute(
+                        "SELECT 1 FROM controller_lease WHERE released_at IS NULL AND expires_at>? LIMIT 1",
+                        (time.time(),),
+                    ).fetchone() is not None:
+                        raise FlowInspectionDenied("CORE_OWNER_ACTIVE")
+                    if connection.execute(
+                        "SELECT 1 FROM actions WHERE consequential=1 "
+                        "AND final_status IN ('prepared','input_sent','unresolved') LIMIT 1"
+                    ).fetchone() is not None:
+                        raise FlowInspectionDenied("CORE_EFFECT_UNRESOLVED")
+                    if connection.execute(
+                        "SELECT 1 FROM resource_reservations WHERE state NOT IN "
+                        "('RELEASED_NOT_SENT','EFFECT_CONFIRMED','NO_EFFECT_CONFIRMED','CLOSED') LIMIT 1"
+                    ).fetchone() is not None or connection.execute(
+                        "SELECT 1 FROM resource_effect_block_projection "
+                        "WHERE projection_state IN ('ACTIVE','CONFLICT') LIMIT 1"
+                    ).fetchone() is not None:
+                        raise FlowInspectionDenied("CORE_RESOURCE_UNRESOLVED")
+                    rows = [dict(row) for row in connection.execute(
+                        "SELECT * FROM actions WHERE task_id IN (?,?) AND consequential=1 ORDER BY action_id",
+                        (flow_id, entry.product_id),
+                    )]
+                    if evidence.get("core_action_ids") != [row["action_id"] for row in rows]:
+                        raise FlowInspectionDenied("REVIEW_EFFECT_IDENTITY_MISMATCH")
+                    facts = []
+                    for row in rows:
+                        if row["runtime_profile_id"] != binding.runtime_profile_id:
+                            raise FlowInspectionDenied("REVIEW_EFFECT_SCOPE_MISMATCH")
+                        if row["final_status"] == "confirmed":
+                            if not row["expected_postcondition"] or not json.loads(row["reconciliation_result_json"] or "null"):
+                                raise FlowInspectionDenied("CORE_EFFECT_AMBIGUOUS")
+                        elif not is_no_effect_cancelled(row):
+                            raise FlowInspectionDenied("CORE_EFFECT_AMBIGUOUS")
+                        facts.append({
+                            key: row[key] for key in (
+                                "action_id", "action_key", "task_id", "game_day_id", "runtime_profile_id",
+                                "semantic_action", "consequential", "final_status", "final_reason",
+                                "expected_postcondition", "reconciliation_result_json", "updated_at",
+                            )
+                        })
+                    # These routes prepare every consuming action in Core before
+                    # transport. A native lifecycle failure is not itself an
+                    # uncertain gameplay effect; current Core/Bot status is.
+                    names = evidence.get("native_evidence")
+                    if (not isinstance(names, list) or not names
+                            or any(not isinstance(name, str) or not name for name in names)
+                            or len(set(names)) != len(names)):
+                        raise FlowInspectionDenied("REVIEW_NATIVE_EVIDENCE_REQUIRED")
+                    latest = max(window["runs"], key=lambda row: row["terminal_at_utc"])
+                    latest_seen = False
+                    retained = []
+                    for name in names:
+                        events_path = REPOSITORY_ROOT / name
+                        events_reference, digest = _inspection_evidence(events_path)
+                        matched_capture = None
+                        for line in events_path.read_text(encoding="utf-8").splitlines():
+                            event = json.loads(line)
+                            if not isinstance(event, dict):
+                                raise FlowInspectionDenied("REVIEW_NATIVE_EVIDENCE_INVALID")
+                            if event.get("type") != "capture":
+                                continue
+                            label = event.get("label", "")
+                            if (not isinstance(label, str) or not isinstance(event.get("timestamp"), str)
+                                    or not isinstance(event.get("path"), str)):
+                                raise FlowInspectionDenied("REVIEW_NATIVE_EVIDENCE_INVALID")
+                            captured = datetime.fromisoformat(event["timestamp"].replace("Z", "+00:00")).timestamp()
+                            if not (
+                                (label.startswith(latest["occurrence_key"] + ":")
+                                 or label == f"{flow_id}-initial-source")
+                                and latest["claimed_at_utc"] <= captured <= latest["terminal_at_utc"] + 2
+                            ):
+                                continue
+                            frame_reference, frame_digest = _inspection_evidence(Path(event["path"]))
+                            if frame_digest != event.get("sha256"):
+                                raise FlowInspectionDenied("REVIEW_NATIVE_CAPTURE_MISMATCH")
+                            matched_capture = {"reference": frame_reference, "sha256": frame_digest}
+                            latest_seen = True
+                            break
+                        retained.append({
+                            "reference": events_reference, "sha256": digest, "scoped_capture": matched_capture,
+                        })
+                    if not latest_seen:
+                        raise FlowInspectionDenied("REVIEW_NATIVE_ATTEMPT_MISMATCH")
+                    return {"core_actions": facts, "native_evidence": retained, "evidence_sha256": evidence_digest}
+
+                yield review
+            finally:
+                connection.rollback()
+                connection.close()
+    except (NavigationBoundaryError, OSError, ValueError, KeyError, TypeError, sqlite3.Error) as exc:
+        raise FlowInspectionDenied("KNOWN_PROGRESS_REVIEW_UNAVAILABLE") from exc
+
+
 # Canonical service commands whose own parser is authoritative: pnsctl forwards
 # their raw syntax instead of duplicating options, validation, or help.
 _CANONICAL_SERVICE_COMMANDS = frozenset({"serve", "inspect-rearm"})
@@ -3279,7 +3501,7 @@ def parser() -> argparse.ArgumentParser:
     resource_recovery.add_argument("--live", action="store_true")
     resource_recovery.add_argument("--yes", action="store_true")
     development_reconnect = development_sub.add_parser(
-        "recover-network", help="bounded exact10054 recovery; requires --live --yes",
+        "recover-network", help="bounded exact10054 reconnect or exact recognized game-update restart; requires --live --yes",
     )
     development_reconnect.add_argument("--live", action="store_true")
     development_reconnect.add_argument("--yes", action="store_true")
@@ -3434,7 +3656,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         command, canonical_argv = canonical
         if command == "inspect-rearm":
             # State-only audited rearm; it never reaches runtime or transport.
-            return automation_main(canonical_argv)
+            return automation_main(canonical_argv, inspection_authority=_known_progress_inspection)
         return automation_main(
             canonical_argv,
             application_startup=owner_bound_application_startup,

@@ -566,6 +566,11 @@ def classify_home_base_live(
 def is_clean_home_frame(frame: np.ndarray) -> bool:
     """Require independent current-frame Home proof before Atlas grants navigation."""
 
+    from scripts.bluestacks_popup_recognition import recognize_shared_interruption
+    interruption = recognize_shared_interruption(frame)
+    if interruption.get("recognized") or interruption.get("blocking_unknown_modal"):
+        return False
+
     home = classify_home_base_live(
         frame, cash_mall_rejected=True, safe_os_surface=True
     )

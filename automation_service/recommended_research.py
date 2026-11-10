@@ -359,7 +359,13 @@ def _normalized_result(
             evidence_refs=evidence,
             unresolved_action=True,
         )
-    if not verified or result.get("effect_reconciliation_required") is True:
+    known_blocked_effects = (
+        status == "blocked"
+        and result.get("accounting_verified") is True
+        and calls == committed
+        and result.get("effect_reconciliation_required") is False
+    )
+    if (not verified and not known_blocked_effects) or result.get("effect_reconciliation_required") is True:
         if calls or result.get("effect_reconciliation_required") is True:
             return NormalizedResult(
                 NormalizedOutcome.RECONCILIATION_REQUIRED,
@@ -417,7 +423,7 @@ def _normalized_result(
         NormalizedOutcome.BLOCKED,
         reason,
         action_count=actions,
-        verified=True,
+        verified=verified,
         observed_progress={"status": status},
         consequence=consequence,
         evidence_refs=evidence,

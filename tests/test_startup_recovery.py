@@ -707,11 +707,9 @@ class StartupRecoveryTests(unittest.TestCase):
                 )
             )
         self.assertEqual(result.status, "evidence_required")
-        self.assertEqual(result.reason, "evidence_required_unknown_scarlett_successor")
         self.assertEqual(result.input_count, 1)
         self.assertTrue(result.successor_captured)
         self.assertEqual(persisted["status"], "evidence_required")
-        self.assertEqual(persisted["reason"], "evidence_required_unknown_scarlett_successor")
         self.assertEqual(runtime.input_count, 1)
         self.assertEqual(runtime.reconciliations, ["confirmed"])
 

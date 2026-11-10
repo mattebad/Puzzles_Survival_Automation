@@ -70,7 +70,7 @@ exact set; `tests/test_catalog_and_pnsctl.py` fails if the parser and this table
 | `automation-service pulse` | One offline UTC scheduler pulse | `dry_run`, no runtime or transport; initializes flow rows in the state DB | Operator (rehearsal) |
 | `automation-service inspect-rearm <flow-id>` | Audited zero-effect inspection rearm of an exhausted, disabled, blocked flow | Forwarded verbatim to the canonical service CLI, which owns its options and state transition; state-only (no device, runtime or transport); `--preview` is read-only; put `--state-path` before `inspect-rearm`. Exit 2 with a JSON reason on denial | Operator |
 | `development-session launch-game` | Start the game from the BlueStacks launcher | Requires `--live --yes` and the runtime input lock; `--cold-restart` is described below; issues no gameplay input | Operator (live) |
-| `development-session recover-network` | Qualify exact `[10054]` reconnect only | Requires current authorization plus `--live --yes`, existing canonical SQLite, disabled controls/no service owner/run, and the one input lock. Persist at most one Confirm/one permitted launcher-only start per episode; unknown stops without retry. Offline-proven; native successor acceptance `evidence_required`. | Operator (live) |
+| `development-session recover-network` | Qualify exact `[10054]` reconnect or exact update-required game restart | Requires current authorization plus `--live --yes`, existing canonical SQLite, disabled controls/no service owner/run, and the one input lock. At most one Confirm/permitted launch for 10054, or one game-only stop/start with zero game clicks for the exact update; original deadline <=90 seconds. Unknown stops without retry. Native acceptance remains scenario-specific. | Operator (live) |
 | `development-session observe` | Capture and recognize the current screen | Zero gameplay input; owns the runtime lock while running | Operator |
 | `bluestacks verify-flow <session-dir>` | Verify a retained session's result, frames, events, ledger, capability audit, journal, runtime owner and terminal state | Offline, reads retained files only; the route validator receives a read-only retained-evidence context with no runtime ownership or input authority. Only Campaign AP, Campaign proving, Enhancement, World Map, Recruitment, Bioenhancer, Personal Might and Supply Depot sessions have an offline adapter; any other retained flow fails closed | Operator |
 | `bluestacks recover-home` | Manual navigation-only Troop Training Home recovery | Admitted only by canonical SQLite Training action/resource history (a Training pending or confirmed-queue candidate, no unrelated unresolved effect, no blocking Resource effect); acquires the singleton runtime input lock itself, so it is refused while an executing service pass or another owner holds it, and rereads the unchanged history under the lock before connecting. Runs only the native return-home route within the canonical Training input ceiling; never resolves, retries or clears a Training action | Operator (live) |
@@ -86,15 +86,18 @@ Core actions. It attempts one stop, verifies process exit and the known launcher
 owner-bound startup. It never retries an uncertain stop/start and issues no gameplay inputs.
 Its fresh captures and terminal result are retained in the development session directory.
 
-For #104, an authorized native service may explicitly opt into `serve --live
---recover-network-disconnect`. Default startup will stop on the exact network dialog, never
-mistake foreground for readiness. Recovery borrows that service owner and preserves its fences;
-successful recovery consumes its actual navigation input, credits zero gameplay actions and
-defers for a fresh route claim/context. Standalone `development-session recover-network --live
---yes` instead requires all controls off and no service owner/run. Both share the same persistent
-90-second/one-Confirm/one-permitted-launch episode, even across restart/reset. No generic
-Confirm, cold-stop, resource spend, unknown-effect retry or permanent enablement is admitted.
-The real Confirm successor and recovered route still need current authorized native proof.
+An authorized native service may explicitly opt into `serve --live
+--recover-network-disconnect`. Default startup stops on a shared interruption and never
+mistakes foreground Home behind a modal for readiness. Recovery borrows the service owner
+and preserves its fences; it credits zero gameplay actions and defers for a fresh route claim/context.
+Standalone `development-session recover-network --live --yes` requires all controls off and
+no service owner/run. Both reuse the persistent episode and original deadline (at most90seconds).
+Exact10054 permits one Confirm and at most one launcher-only start. The exact
+`New version detected. Tap Confirm to update.` interruption instead permits at most one
+game-only stop/start, zero update Confirm/download/game clicks and zero spend. Restart intent
+is durable before transport; persistent update, manual state or uncertain transport stops
+without renewing that budget. Fresh connected context is required before any later route.
+These implemented/offline guards do not establish native acceptance of either scenario.
 
 The implemented combined Daily Rewards route is `serve --flow daily-rewards` through the supported
 `pnsctl automation-service` boundary. In one visit it attempts aggregate Claim at most once for

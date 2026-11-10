@@ -19,7 +19,7 @@ import re
 import sqlite3
 import threading
 import time
-from typing import Any, Iterable, Iterator
+from typing import Any, Callable, Iterable, Iterator
 from uuid import uuid4
 
 from safe_action_core.path_safety import canonical_state_root
@@ -63,10 +63,11 @@ class NetworkRecoveryStatus(str, Enum):
 
 
 class NetworkRecoveryStep(str, Enum):
-    """The only two recovery inputs an episode may budget, once each."""
+    """Identity-specific recovery inputs, each durably budgeted at most once."""
 
     CONFIRM = "confirm"
     RELAUNCH = "relaunch"
+    RESTART = "restart"
 
 
 class NetworkRecoveryTransportStatus(str, Enum):
@@ -297,7 +298,7 @@ class DispatchValidation:
 
 @dataclass(frozen=True)
 class NetworkRecoveryEpisode:
-    """One persistent disconnect-recovery episode and its step budgets.
+    """One persistent interruption-recovery episode and its step budgets.
 
     The record is state, not input authority: a caller still needs the
     existing input lock, current fences, and Core permission before any
@@ -319,6 +320,9 @@ class NetworkRecoveryEpisode:
     last_frame_hash: str
     reason: str
     row_version: int
+    interruption_identity: str = "NETWORK_DISCONNECTED_10054"
+    restart_attempts: int = 0
+    restart_transport_status: NetworkRecoveryTransportStatus = NetworkRecoveryTransportStatus.NOT_ATTEMPTED
 
 
 class StateError(RuntimeError):
@@ -1063,7 +1067,9 @@ class BotStateManager:
                     prior_row_version INTEGER NOT NULL CHECK (prior_row_version >= 0),
                     consecutive_failures INTEGER NOT NULL CHECK (consecutive_failures >= 1),
                     prior_failure_baseline INTEGER NOT NULL CHECK (prior_failure_baseline >= 0),
-                    failure_baseline INTEGER NOT NULL CHECK (failure_baseline = consecutive_failures),
+                    failure_baseline INTEGER NOT NULL CHECK (
+                        failure_baseline >= prior_failure_baseline AND failure_baseline <= consecutive_failures
+                    ),
                     max_attempts INTEGER NOT NULL CHECK (max_attempts >= 1),
                     prior_blocked_reason TEXT,
                     last_attempt_seq INTEGER REFERENCES flow_attempts(attempt_seq),
@@ -1084,6 +1090,29 @@ class BotStateManager:
                     BEGIN SELECT RAISE(ABORT, 'flow_inspections is append-only'); END;
                 """
             )
+            existing_recovery = {
+                str(item["name"])
+                for item in db.execute("PRAGMA table_info(runtime_recovery_episodes)")
+            }
+            recovery_migrations = (
+                ("interruption_identity",
+                 "TEXT NOT NULL DEFAULT 'NETWORK_DISCONNECTED_10054' "
+                 "CHECK (length(interruption_identity) > 0)"),
+                ("restart_attempts",
+                 "INTEGER NOT NULL DEFAULT 0 CHECK (restart_attempts IN (0, 1)) "
+                 "CHECK (restart_attempts = 0 OR ("
+                 "interruption_identity = 'UPDATE_RESTART_REQUIRED' "
+                 "AND confirm_attempts = 0 AND relaunch_attempts = 0))"),
+                ("restart_transport_status",
+                 "TEXT NOT NULL DEFAULT 'not_attempted' "
+                 "CHECK (restart_transport_status IN ('not_attempted', 'attempted', 'returned', 'unknown')) "
+                 "CHECK ((restart_attempts = 0) = (restart_transport_status = 'not_attempted'))"),
+            )
+            for column, declaration in recovery_migrations:
+                if column not in existing_recovery:
+                    db.execute(
+                        f"ALTER TABLE runtime_recovery_episodes ADD COLUMN {column} {declaration}"
+                    )
             existing = {
                 str(item["name"])
                 for item in db.execute("PRAGMA table_info(runs)").fetchall()
@@ -1147,12 +1176,38 @@ class BotStateManager:
                    WHERE binding_fingerprint IS NOT NULL"""
             )
         self._migrate_run_occurrence_uniqueness()
+        self._migrate_inspection_baseline_constraint()
         # executescript() above commits the schema transaction, so the
         # rename runs in its own transaction: all of it or none of it.  Once
         # applied, the read-only check keeps later opens write-free.
         if _renamed_flow_ids_pending(self._db):
             with self._transaction() as db:
                 _migrate_renamed_flow_ids(db)
+
+    def _migrate_inspection_baseline_constraint(self) -> None:
+        """Retain the existing audit while allowing an under-budget marker review."""
+        with self._transaction() as db:
+            sql = db.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='flow_inspections'"
+            ).fetchone()["sql"]
+            old = re.search(r"CHECK\s*\(\s*failure_baseline\s*=\s*consecutive_failures\s*\)", sql)
+            if old is None:
+                return
+            definitions = [
+                row["sql"] for row in db.execute(
+                    "SELECT sql FROM sqlite_master WHERE tbl_name='flow_inspections' "
+                    "AND type IN ('index','trigger') AND sql IS NOT NULL"
+                )
+            ]
+            replacement = sql.replace("flow_inspections", "flow_inspections_review_upgrade", 1).replace(
+                old.group(0), "CHECK (failure_baseline >= prior_failure_baseline AND failure_baseline <= consecutive_failures)"
+            )
+            db.execute(replacement)
+            db.execute("INSERT INTO flow_inspections_review_upgrade SELECT * FROM flow_inspections")
+            db.execute("DROP TABLE flow_inspections")
+            db.execute("ALTER TABLE flow_inspections_review_upgrade RENAME TO flow_inspections")
+            for definition in definitions:
+                db.execute(definition)
 
     def _migrate_run_occurrence_uniqueness(self) -> None:
         """Atomically preserve run/action identities while changing uniqueness."""
@@ -1898,6 +1953,7 @@ class BotStateManager:
         attested_untracked_failures: int,
         attested_zero_gameplay_attempts: frozenset[int] = frozenset(),
         attested_zero_gameplay_runs: frozenset[str] = frozenset(),
+        known_progress_review: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
     ) -> FlowInspectionReview:
         """Evaluate every canonical fact required for a zero-effect rearm."""
 
@@ -1917,11 +1973,16 @@ class BotStateManager:
             summary["attested_zero_gameplay_attempts"] = sorted(attested_zero_gameplay_attempts)
         if attested_zero_gameplay_runs:
             summary["attested_zero_gameplay_runs"] = sorted(attested_zero_gameplay_runs)
+        if known_progress_review is not None and (attested_zero_gameplay_attempts or attested_zero_gameplay_runs):
+            return FlowInspectionReview(state, False, "REVIEW_ATTESTATION_CONFLICT", None, None, summary)
         last_seq: int | None = None
         required: int | None = None
 
         def deny(reason: str) -> FlowInspectionReview:
             return FlowInspectionReview(state, False, reason, last_seq, required, summary)
+
+        if known_progress_review is not None and not callable(known_progress_review):
+            return deny("KNOWN_PROGRESS_AUTHORITY_INVALID")
 
         clock = db.execute("SELECT high_water_utc FROM clock_state WHERE singleton_id = 1").fetchone()
         service = db.execute("SELECT enabled FROM service_control WHERE singleton_id = 1").fetchone()
@@ -1950,9 +2011,21 @@ class BotStateManager:
             return deny("FLOW_ENABLED")
         if not state.blocked:
             return deny("FLOW_NOT_BLOCKED")
-        if (state.blocked_reason or "").startswith("EXECUTOR_INTERRUPTED_REQUIRES_INSPECTION"):
-            return deny("EXECUTOR_INTERRUPTED")
-        if state.retry_window_failures < state.max_attempts:
+        blocked_reason = state.blocked_reason or ""
+        interrupted = blocked_reason.startswith("EXECUTOR_INTERRUPTED_REQUIRES_INSPECTION")
+        if interrupted:
+            if known_progress_review is None:
+                return deny("EXECUTOR_INTERRUPTED")
+            if not blocked_reason.startswith("EXECUTOR_INTERRUPTED_REQUIRES_INSPECTION:"):
+                return deny("EXECUTOR_INTERRUPTED")
+            marker_run = db.execute(
+                "SELECT * FROM runs WHERE run_id=? AND flow_id=?",
+                (blocked_reason.split(":", 1)[1], flow_id),
+            ).fetchone()
+            if (marker_run is None or marker_run["state"] not in {"BLOCKED", "FAILED"}
+                    or marker_run["terminal_at_utc"] is None):
+                return deny("EXECUTOR_INTERRUPTED")
+        if state.retry_window_failures < state.max_attempts and not (interrupted and known_progress_review is not None):
             return deny("RETRY_NOT_EXHAUSTED")
         if db.execute(
             """SELECT 1 FROM actions JOIN runs ON runs.run_id = actions.run_id
@@ -1981,6 +2054,10 @@ class BotStateManager:
             run for run in runs
             if advanced_at is None or float(run["claimed_at_utc"]) > advanced_at
         ]
+        if interrupted and known_progress_review is not None and (
+            not window_runs or marker_run["run_id"] != window_runs[-1]["run_id"]
+        ):
+            return deny("EXECUTOR_INTERRUPTED")
         summary["runs"] = [
             {
                 "run_id": run["run_id"],
@@ -2028,17 +2105,21 @@ class BotStateManager:
                  *sorted(attested_zero_gameplay_attempts)),
             ).fetchone() is not None:
                 denial = None
-            if denial is not None:
+            if denial is not None and known_progress_review is None:
                 return deny(denial)
-            # Canonical actions survive a reclaim; any dispatch is consequential.
-            if db.execute(
-                """SELECT 1 FROM actions WHERE run_id = ?
-                   AND (dispatching_at_utc IS NOT NULL OR state NOT IN ('CANCELLED', 'BLOCKED'))
-                   LIMIT 1""",
-                (run["run_id"],),
-            ).fetchone() is not None:
-                return deny("CONSEQUENTIAL_ATTEMPT")
-        if set(attested_zero_gameplay_runs) != accounting_legacy_runs:
+            # A reviewed terminal dispatch remains progress; uncertain actions
+            # never become admissible merely because aggregate totals are zero.
+            action_rows = db.execute("SELECT * FROM actions WHERE run_id=?", (run["run_id"],)).fetchall()
+            for action in action_rows:
+                dispatched = action["dispatching_at_utc"] is not None or action["state"] not in {"CANCELLED", "BLOCKED"}
+                if dispatched and (
+                    known_progress_review is None
+                    or action["state"] not in {"SUCCEEDED", "NO_EFFECT"}
+                    or action["completed_at_utc"] is None
+                    or not action["successor_binding_digest"]
+                ):
+                    return deny("CONSEQUENTIAL_ATTEMPT")
+        if known_progress_review is None and set(attested_zero_gameplay_runs) != accounting_legacy_runs:
             return deny("LEGACY_ACCOUNTING_ATTESTATION_MISMATCH")
         if not any(run["state"] in {RunState.BLOCKED.value, RunState.FAILED.value} for run in window_runs):
             return deny("FAILURE_HISTORY_MISMATCH")
@@ -2085,13 +2166,13 @@ class BotStateManager:
             )
             # A zero-counter orphan or unverified accounting record requires an
             # exact modern attempt attestation; no legacy orphan bypass exists.
-            if denial in {"ACCOUNTING_UNVERIFIED", "ZERO_GAMEPLAY_UNVERIFIED"}:
+            if known_progress_review is None and denial in {"ACCOUNTING_UNVERIFIED", "ZERO_GAMEPLAY_UNVERIFIED"}:
                 accounting_attempts.add(int(attempt["attempt_seq"]))
                 if int(attempt["attempt_seq"]) in attested_zero_gameplay_attempts:
                     continue
-            if denial is not None:
+            if denial is not None and known_progress_review is None:
                 return deny(denial)
-        if set(attested_zero_gameplay_attempts) != accounting_attempts:
+        if known_progress_review is None and set(attested_zero_gameplay_attempts) != accounting_attempts:
             return deny("ACCOUNTING_ATTESTATION_MISMATCH")
         tracked = sum(
             1 for attempt in attempts
@@ -2125,6 +2206,37 @@ class BotStateManager:
             (*history_ids, state.consecutive_failures, last_seq),
         ).fetchone() is not None:
             return deny("DUPLICATE_INSPECTION")
+        if known_progress_review is not None:
+            if any(row["state"] not in {"BLOCKED", "FAILED"} for row in summary["runs"]) or any(
+                row["attempt_state"] not in {"BLOCKED", "FAILED"} for row in summary["attempts"]
+            ):
+                return deny("ATTEMPT_UNACCOUNTED")
+            for item, row in zip(summary["runs"], window_runs):
+                item["claimed_at_utc"] = float(row["claimed_at_utc"])
+            for item, row in zip(summary["attempts"], attempts):
+                item["claimed_at_utc"] = float(row["claimed_at_utc"])
+                item["occurrence_key"] = row["occurrence_key"]
+                item["reset_id"] = row["reset_id"]
+            summary["state_path"] = self.db_path
+            summary["flow_id"] = flow_id
+            summary["generation"] = state.generation
+            summary["row_version"] = state.row_version
+            summary["last_attempt_seq"] = last_seq
+            summary["bot_actions"] = [dict(row) for row in db.execute(
+                "SELECT actions.* FROM actions JOIN runs ON runs.run_id=actions.run_id WHERE runs.flow_id=?",
+                (flow_id,),
+            )]
+            proof = known_progress_review(summary)
+            if (not isinstance(proof, dict) or not isinstance(proof.get("core_actions"), list)
+                    or not isinstance(proof.get("native_evidence"), list)
+                    or not proof.get("evidence_sha256")):
+                return deny("KNOWN_PROGRESS_AUTHORITY_INVALID")
+            summary["known_progress"] = proof
+            summary["review_kind"] = "known_progress"
+            summary["failure_baseline"] = (
+                state.consecutive_failures if state.retry_window_failures >= state.max_attempts
+                else state.inspected_failure_baseline
+            )
         return FlowInspectionReview(state, True, "ELIGIBLE", last_seq, required, summary)
 
     def review_flow_inspection(
@@ -2134,6 +2246,7 @@ class BotStateManager:
         attested_untracked_failures: int = 0,
         attested_zero_gameplay_attempts: Iterable[int] = (),
         attested_zero_gameplay_runs: Iterable[str] = (),
+        known_progress_review: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
         now_utc_epoch: float | None = None,
     ) -> FlowInspectionReview:
         """Read-only preview of :meth:`inspect_rearm_flow` eligibility; never mutates."""
@@ -2152,6 +2265,7 @@ class BotStateManager:
                 self._db, flow, now=now, attested_untracked_failures=attested_untracked_failures,
                 attested_zero_gameplay_attempts=attested_attempts,
                 attested_zero_gameplay_runs=attested_runs,
+                known_progress_review=known_progress_review,
             )
 
     def inspect_rearm_flow(
@@ -2166,14 +2280,16 @@ class BotStateManager:
         attested_untracked_failures: int = 0,
         attested_zero_gameplay_attempts: Iterable[int] = (),
         attested_zero_gameplay_runs: Iterable[str] = (),
+        known_progress_review: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
         now_utc_epoch: float | None = None,
     ) -> FlowInspection:
-        """Rearm one exhausted, zero-effect, operator-inspected blocked flow.
+        """Audit a disabled flow's retry rearm or explicit terminal-marker review.
 
         The flow stays disabled; generation, max attempts, run/action rows,
         occurrence and reset identity are unchanged.  The stored failure count
-        is retained and becomes the inspected baseline, so the next window is
-        exactly ``max_attempts`` failures.  Every failed check raises
+        is retained. Exhausted windows advance only the audited baseline;
+        an under-budget terminal-marker review retains the remaining window.
+        Every failed check raises
         :class:`FlowInspectionDenied` without changing state.
 
         ``attested_zero_gameplay_attempts`` names, by ledger sequence, exactly
@@ -2187,6 +2303,11 @@ class BotStateManager:
         window run IDs with no ledger rows. It never substitutes for modern
         per-attempt attestation or the exact untracked-failure count. Their
         terminal identities and the attested IDs are retained in window_summary.
+
+        ``known_progress_review`` is an operator-composition capability, not an
+        attestation boolean. It must reread scoped canonical effect status under
+        held runtime ownership through this method's CAS. Confirmed effects are
+        retained progress, not accepted whole-visit accounting or native PASS.
         """
 
         flow_id = _text(flow_id, "flow_id")
@@ -2217,6 +2338,7 @@ class BotStateManager:
                 db, flow, now=now, attested_untracked_failures=attested_untracked_failures,
                 attested_zero_gameplay_attempts=attested_attempts,
                 attested_zero_gameplay_runs=attested_runs,
+                known_progress_review=known_progress_review,
             )
             if not review.eligible:
                 raise FlowInspectionDenied(review.reason)
@@ -2230,7 +2352,7 @@ class BotStateManager:
             inspection = FlowInspection(
                 uuid4().hex, flow_id, now, int(flow["generation"]), int(flow["row_version"]),
                 int(flow["consecutive_failures"]), int(flow["inspected_failure_baseline"]),
-                int(flow["consecutive_failures"]), int(flow["max_attempts"]),
+                int(review.window_summary.get("failure_baseline", flow["consecutive_failures"])), int(flow["max_attempts"]),
                 flow["blocked_reason"], review.last_attempt_seq, attested_untracked_failures,
                 review.window_summary, reason, evidence_reference, evidence_sha256,
             )
@@ -2253,10 +2375,10 @@ class BotStateManager:
             )
             updated = db.execute(
                 """UPDATE flow_state SET blocked = 0, blocked_reason = NULL,
-                   inspected_failure_baseline = consecutive_failures, row_version = row_version + 1
+                   inspected_failure_baseline = ?, row_version = row_version + 1
                    WHERE flow_id = ? AND enabled = 0 AND blocked = 1 AND generation = ?
                      AND row_version = ? AND consecutive_failures = ?""",
-                (flow_id, expected_generation, expected_row_version, expected_consecutive_failures),
+                (inspection.failure_baseline, flow_id, expected_generation, expected_row_version, expected_consecutive_failures),
             )
             if updated.rowcount != 1:
                 raise FlowInspectionDenied("STALE_FLOW_STATE")
@@ -4409,6 +4531,11 @@ class BotStateManager:
             None if next_observe is None else float(next_observe),
             float(row["updated_at_utc"]), row["last_frame_hash"], row["reason"],
             int(row["row_version"]),
+            _row_value(row, "interruption_identity", "NETWORK_DISCONNECTED_10054"),
+            int(_row_value(row, "restart_attempts", 0)),
+            NetworkRecoveryTransportStatus(
+                _row_value(row, "restart_transport_status", "not_attempted")
+            ),
         )
 
     def _network_recovery_by_id(
@@ -4452,17 +4579,19 @@ class BotStateManager:
         source_frame_hash: str,
         now_utc_epoch: float,
         timeout_seconds: float = 90.0,
+        interruption_identity: str = "NETWORK_DISCONNECTED_10054",
     ) -> NetworkRecoveryEpisode:
         """Return the scope's active episode unchanged, or open a new one.
 
-        Episodes are keyed by scope only, never by frame hash, date, or
-        process, so a re-observed disconnect never receives a fresh budget.
+        Episodes are keyed by scope only, never by identity, frame hash, date,
+        or process, so a re-observed interruption never receives a fresh budget.
         A new episode opens only after every earlier one is RECOVERED; history
         rows are retained.  This records state; it grants no input authority.
         """
 
         scope = _text(scope_key, "scope_key")
         source = _frame_hash(source_frame_hash, "source_frame_hash")
+        identity = _text(interruption_identity, "interruption_identity")
         now = _epoch(now_utc_epoch, "now_utc_epoch", allow_none=False)
         assert now is not None
         timeout = _recovery_timeout(timeout_seconds, "timeout_seconds")
@@ -4480,10 +4609,15 @@ class BotStateManager:
                    (episode_id, scope_key, status, source_frame_hash, confirm_attempts,
                     relaunch_attempts, confirm_transport_status, relaunch_transport_status,
                     started_at_utc, deadline_at_utc, next_observe_at_utc, updated_at_utc,
-                    last_frame_hash, reason, row_version)
+                    last_frame_hash, reason, row_version, interruption_identity)
                    VALUES (?, ?, 'OPEN', ?, 0, 0, 'not_attempted', 'not_attempted',
-                           ?, ?, NULL, ?, ?, 'disconnect_observed', 0)""",
-                (episode_id, scope, source, now, now + timeout, now, source),
+                           ?, ?, NULL, ?, ?, ?, 0, ?)""",
+                (
+                    episode_id, scope, source, now, now + timeout, now, source,
+                    "update_restart_observed" if identity == "UPDATE_RESTART_REQUIRED"
+                    else "disconnect_observed",
+                    identity,
+                ),
             )
             return self._network_recovery_by_id(db, episode_id)
 
@@ -4500,7 +4634,9 @@ class BotStateManager:
         Requires an OPEN/DEFERRED row at ``expected_row_version``, a time at
         or after the observation not-before and before the original deadline.
         Relaunch additionally requires a reserved Confirm whose transport
-        ``returned``.  Every rejection returns ``None`` and renews nothing.
+        ``returned``. Restart is exclusive to UPDATE_RESTART_REQUIRED with no
+        network steps spent; network inputs are exclusive to network episodes.
+        Every rejection returns ``None`` and renews nothing.
         The commit happens before return; it grants no input authority.
         """
 
@@ -4528,6 +4664,14 @@ class BotStateManager:
             if now < float(row["updated_at_utc"]) or now >= float(row["deadline_at_utc"]):
                 return None
             if row["next_observe_at_utc"] is not None and now < float(row["next_observe_at_utc"]):
+                return None
+            if target is NetworkRecoveryStep.RESTART:
+                if (row["interruption_identity"] != "UPDATE_RESTART_REQUIRED"
+                        or int(row["confirm_attempts"]) != 0
+                        or int(row["relaunch_attempts"]) != 0):
+                    return None
+            elif (row["interruption_identity"] != "NETWORK_DISCONNECTED_10054"
+                    or int(row["restart_attempts"]) != 0):
                 return None
             if (int(row[attempts_column]) != 0
                     or row[transport_column] != NetworkRecoveryTransportStatus.NOT_ATTEMPTED.value):

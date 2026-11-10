@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import hashlib
+from pathlib import Path
 import unittest
 from unittest import mock
 
+import cv2
 import numpy as np
 
 from scripts import bluestacks_popup_recognition as recognition
@@ -13,6 +16,7 @@ from scripts.bluestacks_popup_recognition import (
     NETWORK_DISCONNECT_TARGET,
     parse_disconnect_message,
     recognize_network_disconnect,
+    recognize_shared_interruption,
 )
 
 
@@ -255,6 +259,62 @@ class NetworkDisconnectRecognitionTests(unittest.TestCase):
                 self.assertFalse(detail["blocking_unknown_modal"])
                 self.assertEqual(detail["reason"], "profile_dimensions_mismatch")
 
+
+class SharedInterruptionRecognitionTests(unittest.TestCase):
+    FIXTURE = Path(__file__).parent / "fixtures/runtime-update-restart/update-required.png"
+    FIXTURE_SHA256 = "41ccef4bf09e3a994e92d3360e7503ac2adc46189e3ecd76ffe0faed00f322a5"
+
+    def retained_update_frame(self) -> np.ndarray:
+        data = self.FIXTURE.read_bytes()
+        self.assertEqual(hashlib.sha256(data).hexdigest(), self.FIXTURE_SHA256)
+        frame = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+        if frame is None:
+            self.fail("retained update frame could not be decoded")
+        return frame
+
+    def test_real_retained_update_blocks_home_without_a_click_target(self):
+        # Real native pixels and bounded OCR, not a mocked update identity.
+        frame = self.retained_update_frame()
+        self.assertFalse(recognize_network_disconnect(frame)["recognized"])
+        detail = recognize_shared_interruption(frame)
+        self.assertTrue(detail["recognized"])
+        self.assertEqual(detail["popup_identity"], "UPDATE_RESTART_REQUIRED")
+        self.assertEqual(detail["reason"], "update_restart_required")
+        self.assertTrue(detail["blocking_unknown_modal"])
+        self.assertEqual(detail["message_text"], recognition.UPDATE_RESTART_MESSAGE)
+        self.assertEqual(detail["panel_bounds"], (81, 391, 721, 722))
+        self.assertEqual(detail["measured_button_bounds"], (277, 619, 523, 697))
+        for field in ("target", "target_identity", "target_center"):
+            self.assertIsNone(detail[field])
+
+    def test_retained_modal_without_update_text_is_blocking_not_restart_permission(self):
+        frame = self.retained_update_frame()
+        # Remove only the observed line using an adjacent blank panel row.
+        # The same modal/Confirm over Home is not itself restart authority.
+        frame[490:550, 90:710] = frame[560:561, 90:710]
+        detail = recognize_shared_interruption(frame)
+        self.assertFalse(detail["recognized"])
+        self.assertIsNone(detail["popup_identity"])
+        self.assertTrue(detail["blocking_unknown_modal"])
+        self.assertEqual(detail["reason"], "update_modal_unrecognized")
+        for field in ("target", "target_identity", "target_center"):
+            self.assertIsNone(detail[field])
+
+    def test_composite_preserves_exact_10054_and_rejects_wrong_code(self):
+        frame = disconnect_frame()
+        for message, exact in ((EXACT_MESSAGE, True), ("Disconnected. Reconnect now?[100540]", False)):
+            with self.subTest(message=message), mock.patch.object(
+                recognition, "_read_disconnect_message", return_value=message
+            ), mock.patch.object(recognition, "_read_disconnect_confirm", return_value="confirm"):
+                expected = recognize_network_disconnect(frame)
+                self.assertEqual(recognize_shared_interruption(frame), expected)
+                self.assertEqual(expected["recognized"], exact)
+                if exact:
+                    self.assertEqual(expected["popup_identity"], NETWORK_DISCONNECT_IDENTITY)
+                    self.assertEqual(expected["target_identity"], NETWORK_DISCONNECT_TARGET)
+                else:
+                    self.assertTrue(expected["blocking_unknown_modal"])
+                    self.assertIsNone(expected["target"])
 
 
 if __name__ == "__main__":

@@ -210,5 +210,20 @@ class CanonicalServeFacadeTests(unittest.TestCase):
             session.assert_not_called()
 
 
+    def test_known_progress_review_requires_operator_composition_even_for_preview(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "bot.sqlite3"
+            with BotStateManager(path):
+                pass
+            output = io.StringIO()
+            with redirect_stdout(output):
+                code = cli.main([
+                    "--state-path", str(path), "inspect-rearm", RECOMMENDED_RESEARCH_FLOW_ID,
+                    "--review-known-progress", "--preview", "--evidence", str(Path(directory) / "review.json"),
+                ])
+            self.assertEqual(code, 2)
+            self.assertEqual(json.loads(output.getvalue())["reason"], "OPERATOR_INSPECTION_AUTHORITY_REQUIRED")
+
+
 if __name__ == "__main__":
     unittest.main()

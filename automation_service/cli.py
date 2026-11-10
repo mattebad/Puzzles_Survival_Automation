@@ -16,7 +16,7 @@ import sys
 import signal
 import threading
 import time
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, ContextManager, Mapping, Sequence
 from uuid import uuid4
 
 from .adapters import AdapterError, FakeDeviceAdapter, ReplayDeviceAdapter
@@ -97,7 +97,7 @@ def build_parser() -> argparse.ArgumentParser:
     serve = subparsers.add_parser("serve")
     serve.add_argument("--live", action="store_true", help="explicitly permit the selected native routes")
     serve.add_argument("--recover-network-disconnect", action="store_true",
-                       help="authorize one exact10054 Confirm and at most one permitted game launch per persistent episode")
+                       help="authorize shared exact10054 Confirm/relaunch or exact update game-only stop/relaunch recovery, once per persistent episode")
     serve.add_argument("--flow", action="append", choices=tuple(servable_flow_names()), required=True,
                        help="required route to serve; repeat to select routes")
     serve.add_argument("--campaign-stage", default="1-15-9")
@@ -169,6 +169,9 @@ def build_parser() -> argparse.ArgumentParser:
                          metavar="RUN_ID",
                          help="legacy run with unverified accounting and no attempt-ledger rows whose zero "
                               "gameplay effect --evidence proves; repeat for exactly every such window run")
+    inspect.add_argument("--review-known-progress", action="store_true",
+                         help="operator-owned review of retained attempts against current canonical effects; "
+                              "preserves confirmed progress and raw failures, never declares native PASS")
     inspect.add_argument("--evidence", type=Path, default=None,
                          help="retained inspection evidence file inside the repository")
     inspect.add_argument("--reason", default=None)
@@ -323,7 +326,11 @@ def _flow_failure_facts(flow: FlowState | None) -> dict[str, object] | None:
     }
 
 
-def _inspect_rearm(args: argparse.Namespace, state_path: Path) -> int:
+def _inspect_rearm(
+    args: argparse.Namespace, state_path: Path, *,
+    inspection_authority: Callable[..., ContextManager] | None = None,
+    known_progress_review: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+) -> int:
     """Preview or apply one audited zero-effect inspected retry rearm."""
 
     if not _database_probe(state_path):
@@ -331,6 +338,11 @@ def _inspect_rearm(args: argparse.Namespace, state_path: Path) -> int:
         return 2
     now = float(args.now_utc_epoch) if args.now_utc_epoch is not None else time.time()
     try:
+        if args.review_known_progress and known_progress_review is None:
+            if inspection_authority is None or args.evidence is None:
+                raise FlowInspectionDenied("OPERATOR_INSPECTION_AUTHORITY_REQUIRED")
+            with inspection_authority(args.flow_id, args.evidence) as review:
+                return _inspect_rearm(args, state_path, known_progress_review=review)
         if args.preview:
             with BotStateManager(state_path, read_only=True) as state:
                 review = state.review_flow_inspection(
@@ -338,6 +350,7 @@ def _inspect_rearm(args: argparse.Namespace, state_path: Path) -> int:
                     attested_untracked_failures=args.attest_untracked_failures,
                     attested_zero_gameplay_attempts=tuple(args.attest_zero_gameplay_attempt),
                     attested_zero_gameplay_runs=tuple(args.attest_zero_gameplay_run),
+                    known_progress_review=known_progress_review,
                     now_utc_epoch=now,
                 )
             print(json.dumps({
@@ -370,6 +383,7 @@ def _inspect_rearm(args: argparse.Namespace, state_path: Path) -> int:
                 attested_untracked_failures=args.attest_untracked_failures,
                 attested_zero_gameplay_attempts=tuple(args.attest_zero_gameplay_attempt),
                 attested_zero_gameplay_runs=tuple(args.attest_zero_gameplay_run),
+                known_progress_review=known_progress_review,
                 now_utc_epoch=now,
             )
             flow = state.get_flow(args.flow_id)
@@ -396,6 +410,7 @@ def main(
     *,
     application_startup: Callable[..., Mapping[str, Any]] | None = None,
     native_route_bindings: Mapping[str, NativeRouteBoundary] | None = None,
+    inspection_authority: Callable[..., ContextManager] | None = None,
 ) -> int:
     """Run the service CLI.
 
@@ -409,7 +424,9 @@ def main(
         return int(exc.code)
     if args.command == "inspect-rearm":
         # State-only operator decision: no adapter, device, or serve mode is opened.
-        return _inspect_rearm(args, Path(resolve_state_path(args.state_path)))
+        return _inspect_rearm(
+            args, Path(resolve_state_path(args.state_path)), inspection_authority=inspection_authority,
+        )
     native_serve = args.command == "serve" and args.adapter == "bluestacks"
     if args.adapter == "bluestacks" and (
         not native_serve or args.mode != "supervised" or not args.live

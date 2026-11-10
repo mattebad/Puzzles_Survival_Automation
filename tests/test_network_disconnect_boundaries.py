@@ -62,8 +62,9 @@ MESSAGES = {
     1: "Disconnected. Reconnect now?[10054]",
     2: "Disconnected. Reconnect now?[10053]",
     3: "Exit the game now?",
+    4: "New version detected. Tap Confirm to update.",
 }
-DIALOG_MARKERS = {"disconnect": 1, "wrong_code": 2, "other_confirm": 3}
+DIALOG_MARKERS = {"disconnect": 1, "wrong_code": 2, "other_confirm": 3, "update": 4}
 NOT_RECOGNIZED_POPUP = {"recognized": False, "blocking_unknown_modal": False, "reason": "not_recognized"}
 NOT_RECOGNIZED_SURFACE = {"recognized": False, "commercial_looking": False}
 
@@ -77,11 +78,13 @@ def screen_frame(kind: str) -> np.ndarray:
         frame[0:3, 6:9] = HOME_FLAG
     marker = DIALOG_MARKERS.get(kind)
     if marker is not None:
-        x0, y0, x1, y1 = DISCONNECT_PANEL_EXPECTED
+        panel = (81, 391, 721, 722) if kind == "update" else DISCONNECT_PANEL_EXPECTED
+        button = (277, 619, 523, 697) if kind == "update" else DISCONNECT_BUTTON_EXPECTED
+        x0, y0, x1, y1 = panel
         frame[y0:y1, x0:x1] = PANEL_GRAY
-        x0, y0, x1, y1 = DISCONNECT_BUTTON_EXPECTED
+        x0, y0, x1, y1 = button
         frame[y0:y1, x0:x1] = GOLD_BGR
-        cx, cy = CONFIRM_CENTER
+        cx, cy = box_center(button)
         frame[cy - 11:cy + 11, cx - 50:cx + 50] = LABEL_GRAY
         frame[0:3, 0:3] = marker
     return frame
@@ -100,12 +103,13 @@ def sha(kind: str) -> str:
 
 
 def read_message(frame: np.ndarray) -> str:
-    return MESSAGES.get(int(frame[1, 1, 0]), "")
+    return recognition.normalized(MESSAGES.get(int(frame[1, 1, 0]), ""))
 
 
 def read_confirm(frame: np.ndarray, bounds) -> str:
-    dialog = int(frame[1, 1, 0]) in MESSAGES
-    return "confirm" if dialog and tuple(bounds) == DISCONNECT_BUTTON_EXPECTED else ""
+    marker = int(frame[1, 1, 0])
+    button = (277, 619, 523, 697) if marker == 4 else DISCONNECT_BUTTON_EXPECTED
+    return "confirm" if marker in MESSAGES and tuple(bounds) == button else ""
 
 
 def clean_home(frame: np.ndarray) -> bool:
@@ -123,6 +127,7 @@ class FakeDevice:
         self.sequence: list[str] = []
         self.taps: list[tuple[str, tuple[int, int]]] = []
         self.launches: list[tuple[str, ...]] = []
+        self.stops: list[tuple[str, ...]] = []
         self.unexpected: list[tuple[str, ...]] = []
 
     def foreground(self) -> str:
@@ -151,6 +156,12 @@ class FakeDevice:
             return self.focus()
         if arguments[:4] == ("shell", "cmd", "package", "resolve-activity"):
             return f"{BLUESTACKS_PACKAGE}/.MainActivity\n"
+        if arguments == ("shell", "am", "force-stop", BLUESTACKS_PACKAGE):
+            self.stops.append(arguments)
+            self.screen = "launcher"
+            return ""
+        if arguments == ("shell", "ps", "-A"):
+            return "USER PID PPID VSZ RSS WCHAN ADDR S NAME\nroot 1 0 0 0 0 0 S init\n"
         if arguments[:4] == ("shell", "am", "start", "-W"):
             self.launches.append(arguments)
             self.screen = self.after_launch
@@ -282,6 +293,20 @@ class StartupNetworkCase(unittest.TestCase):
 
 
 class DefaultStartupNetworkGuardTests(StartupNetworkCase):
+    def test_update_requires_shared_recovery_opt_in_without_confirm_or_stop(self):
+        self.device.screen = "update"
+        for require_ready in (True, False):
+            with self.subTest(require_ready=require_ready):
+                result, directory = self.failed_start(require_ready=require_ready)
+                self.assertEqual((result["game_input_count"], result["system_launch_count"]), (0, 0))
+                self.assertEqual(result.get("system_stop_count", 0), 0)
+                self.assertEqual((directory / "before.png").read_bytes(), encode("update"))
+        self.assert_no_input()
+        self.assertEqual(self.device.stops, [])
+        self.assertEqual(self.device.launches, [])
+        self.recover.assert_not_called()
+        self.assertIsNone(self.episode())
+
     def test_foreground_disconnect_is_never_already_foreground_and_retains_before(self):
         self.device.screen = "disconnect"
         for require_ready in (True, False):

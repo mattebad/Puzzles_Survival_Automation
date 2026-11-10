@@ -1,0 +1,11 @@
+{
+  "fixture": "update-required.png",
+  "sha256": "41ccef4bf09e3a994e92d3360e7503ac2adc46189e3ecd76ffe0faed00f322a5",
+  "source": ".local-captures/development-sessions/observe-20261109T181552560981Z/observe.png",
+  "derivation": "Byte-identical copy of the retained zero-input native observation; source unchanged.",
+  "native_shape": [1280, 800, 3],
+  "observed_text": "New version detected. Tap Confirm to update.",
+  "measured_panel_bounds": [81, 391, 721, 722],
+  "measured_gold_component_bounds": [277, 619, 523, 697],
+  "authority": "Recognition evidence only; no Confirm or download input authority."
+}

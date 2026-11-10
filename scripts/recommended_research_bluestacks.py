@@ -2961,15 +2961,19 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
         progress_facts = dict(semantic_progress)
         progress_facts["start_action"] = start_action_facts
         if not start_verified or active_state["value"] is None or start_result.status != "completed":
+            committed = int(semantic_progress.get("start_semantically_verified") is True)
+            requires_reconciliation = bool(
+                start_calls != committed or context.action_store.has_action_block()
+            )
             return _normal_result(
                 context,
-                status="unresolved",
+                status="unresolved" if requires_reconciliation else "blocked",
                 reason="research_start_successor_unknown",
                 game_day_id=game_day_id,
                 start_calls=start_calls,
-                committed_action_count=int(semantic_progress.get("start_semantically_verified") is True),
-                effect_reconciliation_required=True,
-                identical_retry_denied=True,
+                committed_action_count=committed,
+                effect_reconciliation_required=requires_reconciliation,
+                identical_retry_denied=bool(start_calls or requires_reconciliation),
                 route_steps=step,
                 partial_target=detail.first_recommendation_identity,
                 **progress_facts,
@@ -2980,12 +2984,12 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
         if not home_verified:
             return _normal_result(
                 context,
-                status="unresolved",
+                status="blocked",
                 reason="research_confirmed_but_home_successor_unverified",
                 game_day_id=game_day_id,
                 start_calls=start_calls,
                 committed_action_count=1,
-                effect_reconciliation_required=True,
+                effect_reconciliation_required=False,
                 identical_retry_denied=True,
                 terminal_home_verified=False,
                 route_steps=step,
@@ -3017,10 +3021,11 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             row = None
             row_lookup_failed = True
         row_status = row.get("final_status") if isinstance(row, Mapping) else None
+        committed = int(calls == 1 and row_status == "confirmed")
         possible_effect = bool(
-            calls
+            row_lookup_failed
             or row_status in {"prepared", "input_sent", "unresolved"}
-            or row_lookup_failed
+            or calls != committed
         )
         if (
             not possible_effect and not context.action_store.has_action_block()
@@ -3076,9 +3081,6 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
         action_facts = locals().get("start_action_facts")
         if isinstance(action_facts, Mapping):
             progress_facts["start_action"] = dict(action_facts)
-        committed = int(
-            calls == 1 and semantic_progress.get("start_semantically_verified") is True
-        )
         try:
             partial = _normal_result(
                 context,

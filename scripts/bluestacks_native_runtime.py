@@ -404,11 +404,11 @@ class LocalBlueStacksRuntime:
         if not isinstance(action_class, str) or not action_class.strip():
             raise RuntimeError("action class is required")
         from scripts.bluestacks_popup_recognition import (
-            NETWORK_DISCONNECT_TARGET, recognize_network_disconnect,
+            NETWORK_DISCONNECT_TARGET, recognize_shared_interruption,
         )
-        detail = recognize_network_disconnect(source.frame)
+        detail = recognize_shared_interruption(source.frame)
         if action_class == "network_reconnect":
-            if (not detail.get("recognized") or consequential
+            if (not detail.get("recognized") or detail.get("popup_identity") == "UPDATE_RESTART_REQUIRED" or consequential
                     or target_identity != NETWORK_DISCONNECT_TARGET
                     or target_roi != detail.get("target")
                     or not action_key.startswith("network-recovery:")):

@@ -134,7 +134,7 @@ from .registry import (
     canonical_flow_specs,
     servable_flow_names,
 )
-from .state import BotStateManager, RunState, StateBusyError, resolve_state_path
+from .state import BotStateManager, RunRecord, RunState, StateBusyError, resolve_state_path
 from .scheduler import DisabledProductionAuthority, PulseReport, UtcPulseCoordinator
 _CANONICAL_TABLE_COLUMNS = {
     "service_control": {
@@ -870,8 +870,11 @@ class AutomationService:
         entry_by_flow = {entry.flow_id: entry for entry in entries}
         previous_resets = {}
         executor_results = {}
+        returned_executor_run_id: str | None = None
         with RuntimeInputLock(owner="automation-service", invocation_id=state.owner_instance_id) as owner:
             def execute(run, facts):
+                nonlocal returned_executor_run_id
+                returned_executor_run_id = None
                 flow_id = run.flow_id
                 descriptor = effective_descriptors[flow_id]
                 executor_results[flow_id] = {}
@@ -1024,6 +1027,11 @@ class AutomationService:
                             recovery = startup_result.get("network_recovery")
                             count = startup_result.get("game_input_count")
                             launches = startup_result.get("system_launch_count")
+                            stops = startup_result.get("system_stop_count", 0)
+                            update_restart = (
+                                isinstance(recovery, dict)
+                                and recovery.get("interruption_identity") == "UPDATE_RESTART_REQUIRED"
+                            )
                             if (not isinstance(recovery, dict) or recovery.get("status") != "recovered"
                                     or recovery.get("scope_key") != FIXED_RUNTIME_SCOPE
                                     or recovery.get("accounting_verified") is not True
@@ -1042,17 +1050,36 @@ class AutomationService:
                                     or any(c not in "0123456789abcdef" for c in recovery["source_sha256"])
                                     or not 0 <= recovery["system_launch_count"] <= launches):
                                 raise ServiceError("APPLICATION_NETWORK_RECOVERY_ACCOUNTING_INVALID")
+                            if (type(stops) is not int or stops not in (0, 1)
+                                    or type(recovery.get("system_stop_count", 0)) is not int
+                                    or recovery.get("system_stop_count", 0) != stops
+                                    or (not update_restart and stops)
+                                    or (update_restart and (
+                                        count != 0
+                                        or recovery.get("system_stop_count") != recovery["system_launch_count"]
+                                        or startup_result.get("system_stop_count") != stops))):
+                                raise ServiceError("APPLICATION_NETWORK_RECOVERY_ACCOUNTING_INVALID")
                             episode = state.get_network_recovery(FIXED_RUNTIME_SCOPE)
-                            if (count or recovery["system_launch_count"]) and (
+                            if (update_restart or count or recovery["system_launch_count"]
+                                    or episode is not None
+                                    and getattr(episode, "interruption_identity", None) == "UPDATE_RESTART_REQUIRED") and (
                                 episode is None or episode.episode_id != recovery.get("episode_id")
                                 or episode.status != "RECOVERED"
                                 or episode.source_frame_hash != recovery.get("episode_source_sha256")
                                 or episode.last_frame_hash != recovery.get("terminal_sha256")
-                                or count and (episode.confirm_attempts != 1
-                                              or episode.confirm_transport_status != "returned")
-                                or recovery["system_launch_count"] and (
-                                    episode.relaunch_attempts != 1
-                                    or episode.relaunch_transport_status != "returned")
+                                or (update_restart and (
+                                    episode.interruption_identity != "UPDATE_RESTART_REQUIRED"
+                                    or episode.confirm_attempts != 0
+                                    or episode.relaunch_attempts != 0
+                                    or episode.restart_attempts != 1
+                                    or episode.restart_transport_status != "returned"))
+                                or (not update_restart and (
+                                    getattr(episode, "interruption_identity", None) == "UPDATE_RESTART_REQUIRED"
+                                    or count and (episode.confirm_attempts != 1
+                                                  or episode.confirm_transport_status != "returned")
+                                    or recovery["system_launch_count"] and (
+                                        episode.relaunch_attempts != 1
+                                        or episode.relaunch_transport_status != "returned")))
                             ):
                                 raise ServiceError("APPLICATION_NETWORK_RECOVERY_EPISODE_INVALID")
                             checkpoint_fences()
@@ -1065,6 +1092,7 @@ class AutomationService:
                                 "account_id": account_id, "server_id": server_id, "reset_id": identity.reset_id,
                                 "completed_at_utc": now, "application_startup": startup_result,
                                 "network_recovery": recovery, "system_launch_count": launches,
+                                "system_stop_count": stops,
                             }
                             record_consumption()
                             executor_results[flow_id] = result
@@ -1185,6 +1213,7 @@ class AutomationService:
                                       system_launch_count=startup_result.get("system_launch_count"))
                     executor_results[flow_id] = result
                     consumed_actions = record_consumption()
+                    returned_executor_run_id = run.run_id
                     if route_normalized is not None:
                         checkpoint()
                         return route_normalized
@@ -1544,6 +1573,7 @@ class AutomationService:
                         observed_progress=result,
                     )
                 except Exception as exc:
+                    returned_executor_run_id = None
                     failed_startup = getattr(exc, "startup_result", None)
                     if isinstance(failed_startup, dict):
                         startup_result = failed_startup
@@ -1613,7 +1643,8 @@ class AutomationService:
                             accounting_error = str(accounting_exc)
                     if startup_result is not None:
                         result = dict(result, application_startup=startup_result,
-                                      system_launch_count=startup_result.get("system_launch_count"))
+                                      system_launch_count=startup_result.get("system_launch_count"),
+                                      system_stop_count=startup_result.get("system_stop_count", 0))
                     reason = f"{prefix}_REQUIRES_INSPECTION:{exc}"
                     if accounting_error:
                         reason += f"; accounting_rejected:{accounting_error}"
@@ -1775,7 +1806,35 @@ class AutomationService:
                             and not state.has_unresolved_actions(retained_run.run_id)
                         )
                         deferred = result.outcome is SchedulerTaskOutcome.DEFERRED
-                        if completed or deferred or rollover_deferred:
+                        returned_progress = executor_results.get(entry.flow_id, {})
+                        # A normal guard stop is not an executor crash. Only
+                        # release our marker after its exact terminal projection
+                        # and after every attempted effect is accounted for.
+                        known_returned_stop = (
+                            report.candidate is not None
+                            and isinstance(report.candidate.claim, RunRecord)
+                            and returned_executor_run_id == report.candidate.claim.run_id
+                            and result.outcome in {
+                                SchedulerTaskOutcome.BLOCKED,
+                                SchedulerTaskOutcome.MANUAL_REQUIRED,
+                            }
+                            and result.unresolved_action is False
+                            and (returned_run := state.get_run(report.candidate.claim.run_id)) is not None
+                            and returned_run.state is RunState.BLOCKED
+                            and returned_run.terminal_outcome == result.outcome.value
+                            and returned_run.consumed_actions == result.action_count
+                            and (
+                                returned_run.consumed_actions == 0
+                                or returned_progress.get("committed_action_count")
+                                == returned_run.consumed_actions
+                            )
+                            and not state.has_unresolved_actions(returned_run.run_id)
+                            and returned_progress.get("status") not in {
+                                "unresolved", "reconciliation_required",
+                            }
+                            and returned_progress.get("effect_reconciliation_required") is not True
+                        )
+                        if completed or deferred or rollover_deferred or known_returned_stop:
                             claim = report.candidate.claim
                             unblocked = state.unblock_flow(
                                 entry.flow_id, expected_generation=claim.claimed_flow_generation,

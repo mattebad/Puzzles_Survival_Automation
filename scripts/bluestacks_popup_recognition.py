@@ -1,8 +1,8 @@
 """Current BlueStacks popup recognition shared by active flows.
 
 This module contains the retained, benign VIP Points reset-popup recognition
-contract and the exact ``Disconnected. Reconnect now?[10054]`` network
-disconnect recognition contract.  It intentionally does not own transport,
+contract, exact ``Disconnected. Reconnect now?[10054]`` recognition, and the
+observed update-required interruption. It intentionally does not own transport,
 persistence, or runtime authority: a recognition result never grants input.
 """
 
@@ -68,6 +68,17 @@ DISCONNECT_BUTTON_PANEL_CENTER_TOLERANCE = 12
 DISCONNECT_CODE_PATTERN = re.compile(r"[\[({]\s*(\d+)\s*[\])}]\s*$")
 DISCONNECT_MESSAGE_PATTERN = re.compile(r"disconnected\s*[.,]?\s*reconnect\s+now\s*\??")
 
+UPDATE_RESTART_IDENTITY = "UPDATE_RESTART_REQUIRED"
+UPDATE_RESTART_MESSAGE = "new version detected. tap confirm to update."
+# Measured from the retained native observation (sha256 41ccef4b...2a5).
+# This shorter panel is not the disconnect layout; its button is evidence only.
+UPDATE_PANEL_EXPECTED = (81, 391, 721, 722)
+UPDATE_PANEL_EDGE_ROWS = (450, 710)
+UPDATE_PANEL_TOP_SEARCH = (370, 420)
+UPDATE_PANEL_BOTTOM_SEARCH = (710, 745)
+UPDATE_BUTTON_SEARCH_REGION = (180, 600, 620, 715)
+UPDATE_BUTTON_EXPECTED = (277, 619, 523, 697)
+
 
 def crop(frame: np.ndarray, roi: tuple[int, int, int, int]) -> np.ndarray:
     x0, y0, x1, y1 = roi
@@ -115,9 +126,17 @@ def _region_mean(gray: np.ndarray, roi: tuple[int, int, int, int]) -> float:
     return float(crop(gray, roi).mean())
 
 
-def _measure_disconnect_panel(gray: np.ndarray) -> dict[str, Any]:
-    """Measure the current modal panel edges inside bounded profile searches."""
-    row0, row1 = DISCONNECT_PANEL_EDGE_ROWS
+def _measure_disconnect_panel(
+    gray: np.ndarray,
+    *,
+    expected: tuple[int, int, int, int] = DISCONNECT_PANEL_EXPECTED,
+    edge_rows: tuple[int, int] = DISCONNECT_PANEL_EDGE_ROWS,
+    top_search: tuple[int, int] = DISCONNECT_PANEL_TOP_SEARCH,
+    bottom_search: tuple[int, int] = DISCONNECT_PANEL_BOTTOM_SEARCH,
+    require_outside_contrast: bool = True,
+) -> dict[str, Any]:
+    """Measure modal edges inside bounded native-profile searches."""
+    row0, row1 = edge_rows
     col0, col1 = DISCONNECT_PANEL_EDGE_COLUMNS
     column_steps = np.diff(gray[row0:row1, :].mean(axis=0))
     row_steps = np.diff(gray[:, col0:col1].mean(axis=1))
@@ -132,16 +151,19 @@ def _measure_disconnect_panel(gray: np.ndarray) -> dict[str, Any]:
 
     left, left_contrast = rising(column_steps, DISCONNECT_PANEL_LEFT_SEARCH)
     right, right_contrast = falling(column_steps, DISCONNECT_PANEL_RIGHT_SEARCH)
-    top, top_contrast = rising(row_steps, DISCONNECT_PANEL_TOP_SEARCH)
-    bottom, bottom_contrast = falling(row_steps, DISCONNECT_PANEL_BOTTOM_SEARCH)
+    top, top_contrast = rising(row_steps, top_search)
+    bottom, bottom_contrast = falling(row_steps, bottom_search)
     bounds = (left, top, right, bottom)
     margin_mean = min(_region_mean(gray, roi) for roi in DISCONNECT_PANEL_MARGIN_REGIONS)
     outside_mean = max(_region_mean(gray, roi) for roi in DISCONNECT_OUTSIDE_REGIONS)
     edge_contrast = min(left_contrast, right_contrast, top_contrast, bottom_contrast)
     geometry_valid = bool(
-        _bounds_within(bounds, DISCONNECT_PANEL_EXPECTED, DISCONNECT_PANEL_TOLERANCE)
+        _bounds_within(bounds, expected, DISCONNECT_PANEL_TOLERANCE)
         and edge_contrast >= DISCONNECT_PANEL_MIN_EDGE_CONTRAST
-        and margin_mean - outside_mean >= DISCONNECT_MIN_OUTSIDE_CONTRAST
+        and (
+            not require_outside_contrast
+            or margin_mean - outside_mean >= DISCONNECT_MIN_OUTSIDE_CONTRAST
+        )
     )
     body = crop(gray, DISCONNECT_BODY_BLANK_REGION)
     body_blank = bool(
@@ -162,9 +184,12 @@ def _measure_disconnect_button(
     frame: np.ndarray,
     panel_bounds: tuple[int, int, int, int],
     panel_valid: bool,
+    *,
+    search_region: tuple[int, int, int, int] = DISCONNECT_BUTTON_SEARCH_REGION,
+    expected: tuple[int, int, int, int] = DISCONNECT_BUTTON_EXPECTED,
 ) -> dict[str, Any]:
     """Derive the single gold Confirm button from current pixels."""
-    search = crop(frame, DISCONNECT_BUTTON_SEARCH_REGION)
+    search = crop(frame, search_region)
     lower, upper = DISCONNECT_BUTTON_GOLD_HSV
     gold = cv2.inRange(
         cv2.cvtColor(search, cv2.COLOR_BGR2HSV),
@@ -183,12 +208,12 @@ def _measure_disconnect_button(
         left, top, width, height, area = candidates[0]
         bounds = translate_crop_bounds(
             (left, top, left + width, top + height),
-            DISCONNECT_BUTTON_SEARCH_REGION,
+            search_region,
         )
         center = ((bounds[0] + bounds[2]) // 2, (bounds[1] + bounds[3]) // 2)
         panel_center_x = (panel_bounds[0] + panel_bounds[2]) // 2
         geometry_valid = bool(
-            _bounds_within(bounds, DISCONNECT_BUTTON_EXPECTED, DISCONNECT_BUTTON_TOLERANCE)
+            _bounds_within(bounds, expected, DISCONNECT_BUTTON_TOLERANCE)
             and area / float(width * height) >= DISCONNECT_BUTTON_MIN_FILL
             and point_inside(bounds, center, margin=DISCONNECT_BUTTON_LABEL_INSET)
             and (
@@ -354,6 +379,77 @@ def recognize_network_disconnect(frame: np.ndarray) -> dict[str, Any]:
         target=bounds,
         target_center=((bounds[0] + bounds[2]) // 2, (bounds[1] + bounds[3]) // 2),
         reason="network_disconnect_10054_recognized",
+    )
+    return result
+
+
+def recognize_shared_interruption(frame: np.ndarray) -> dict[str, Any]:
+    """Recognize exact disconnect or update interruption, never a generic Confirm.
+
+    The update mapping deliberately has no input target: only the existing
+    lifecycle owner may authorize a bounded game restart. An unrecognized modal
+    at the observed update geometry remains blocking, including over Home.
+    """
+    result = recognize_network_disconnect(frame)
+    if result["recognized"] or result["reason"] == "profile_dimensions_mismatch":
+        return result
+
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    panel = _measure_disconnect_panel(
+        gray,
+        expected=UPDATE_PANEL_EXPECTED,
+        edge_rows=UPDATE_PANEL_EDGE_ROWS,
+        top_search=UPDATE_PANEL_TOP_SEARCH,
+        bottom_search=UPDATE_PANEL_BOTTOM_SEARCH,
+        # Home outside this dark modal is brighter, unlike the disconnect
+        # source. Require measured edges, button and exact text instead.
+        require_outside_contrast=False,
+    )
+    if not panel["geometry_valid"]:
+        return result
+
+    button = _measure_disconnect_button(
+        frame,
+        panel["bounds"],
+        True,
+        search_region=UPDATE_BUTTON_SEARCH_REGION,
+        expected=UPDATE_BUTTON_EXPECTED,
+    )
+    message = _read_disconnect_message(frame)
+    confirm = None
+    isolated = False
+    if button["geometry_valid"]:
+        confirm = _read_disconnect_confirm(frame, button["bounds"])
+        isolated = _disconnect_label_isolated(frame, button["bounds"])
+    exact_update = bool(
+        message == UPDATE_RESTART_MESSAGE
+        and button["geometry_valid"]
+        and confirm == "confirm"
+        and isolated
+    )
+    result.update(
+        recognized=exact_update,
+        popup_identity=UPDATE_RESTART_IDENTITY if exact_update else None,
+        target_identity=None,
+        target=None,
+        target_center=None,
+        blocking_unknown_modal=True,
+        reason="update_restart_required" if exact_update else "update_modal_unrecognized",
+        message_text=message,
+        message_identity=message == UPDATE_RESTART_MESSAGE,
+        code_text=None,
+        code_identity=False,
+        matched_confirm_text=confirm,
+        literal_confirm=confirm == "confirm",
+        label_isolated=isolated,
+        panel_bounds=panel["bounds"],
+        panel_geometry_valid=True,
+        body_blank=False,
+        button_candidates=button["candidates"],
+        measured_button_bounds=button["bounds"],
+        button_geometry_valid=button["geometry_valid"],
+        text_region=DISCONNECT_TEXT_REGION,
+        button_search_region=UPDATE_BUTTON_SEARCH_REGION,
     )
     return result
 

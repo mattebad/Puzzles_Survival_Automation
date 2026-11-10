@@ -310,6 +310,18 @@ class RecommendedResearchServiceRunnerTests(unittest.TestCase):
         self.assertTrue(native["start_semantically_verified"])
         self.assertTrue(native["identical_retry_denied"])
 
+        known_partial = dict(
+            partial, status="blocked", effect_reconciliation_required=False,
+            terminal_home_verified=False,
+        )
+        known, _ = self._run([
+            _outcome({}, failure="native cleanup failed after confirmed research", partial=known_partial)
+        ])
+        self.assertEqual(known.outcome.value, "blocked")
+        self.assertFalse(known.unresolved_action)
+        self.assertEqual(known.action_count, 1)
+        self.assertTrue(known.consequence["native_result"]["identical_retry_denied"])
+
         malformed = _result(
             "unresolved",
             research_transport_calls="unknown",

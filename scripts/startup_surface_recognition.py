@@ -47,6 +47,11 @@ SCARLETT_FORBIDDEN_PURCHASE_ROIS = (
 SCARLETT_EXPECTED_SUCCESSOR = "retained_successor_required"
 SCARLETT_MAX_INPUTS = 1
 
+CASH_MALL = "CASH_MALL"
+CASH_MALL_TITLE_ROI = (300, 8, 515, 55)
+CASH_MALL_SAFE_BACK_TARGET_IDENTITY = "cash-mall-in-game-back"
+CASH_MALL_FORBIDDEN_ROIS = ((180, 0, 800, 1280), (0, 65, 180, 1280))
+
 COMMERCIAL_TERMS = frozenset(
     {
         "buy",
@@ -374,9 +379,81 @@ def recognize_scarlett_three_day_pack(
     return result.to_mapping()
 
 
+def _cash_mall_recognition(
+    frame: np.ndarray, frame_bytes: bytes | None,
+) -> dict[str, Any]:
+    """Bind only the current Cash Mall title and isolated standard game Back."""
+    from scripts.bluestacks_popup_recognition import recognize_shared_interruption
+
+    try:
+        title = _normalise(call_ocr(
+            tesseract_string,
+            cv2.resize(_crop(frame, CASH_MALL_TITLE_ROI), None, fx=4.0, fy=4.0),
+            call_timeout=3.0, config="--psm 7",
+        ))
+    except Exception:
+        title = ""
+
+    title_identity = _letters(title) == "cashmall"
+    arrow = _scarlett_back_arrow(frame) if title_identity else None
+    interruption = recognize_shared_interruption(frame) if title_identity else {}
+    recognized = bool(
+        title_identity and arrow is not None
+        and _frame_bytes_match_pixels(frame, frame_bytes)
+        and not interruption.get("recognized") and not interruption.get("blocking_unknown_modal")
+    )
+    return StartupSurfaceRecognition(
+        recognized, CASH_MALL if recognized else None,
+        "full_page" if recognized else None,
+        NATIVE_RUNTIME_PROFILE_ID if recognized else None,
+        NATIVE_WIDTH, NATIVE_HEIGHT, _raw_frame_hash(frame, frame_bytes),
+        title, title_identity,
+        ("title:Cash Mall", "visible_in_game_back_upper_left", "purchase_regions_excluded")
+        if recognized else (),
+        CASH_MALL_SAFE_BACK_TARGET_IDENTITY if recognized else None,
+        SCARLETT_SAFE_BACK_ROI if recognized else None,
+        CASH_MALL_FORBIDDEN_ROIS if recognized else (),
+        SCARLETT_EXPECTED_SUCCESSOR if recognized else None,
+        1 if recognized else 0, 1 if arrow is not None else 0, recognized,
+        _evidence_roi_hashes(frame),
+        "exact_cash_mall_title_and_safe_back" if recognized else "cash_mall_not_safely_bound",
+        recognized, arrow,
+    ).to_mapping()
+
+
+def is_exact_startup_surface_recognition(recognition: Mapping[str, Any]) -> bool:
+    """Validate either allowlisted page; never authorize an arrow by itself."""
+    if recognition.get("surface_identity") != CASH_MALL:
+        return is_exact_scarlett_recognition(recognition)
+    arrow = recognition.get("measured_back_roi")
+    return bool(
+        recognition.get("recognized") is True
+        and recognition.get("runtime_profile_id") == NATIVE_RUNTIME_PROFILE_ID
+        and (recognition.get("width"), recognition.get("height")) == SCARLETT_NATIVE_GEOMETRY
+        and recognition.get("surface_kind") == "full_page"
+        and _letters(str(recognition.get("title_text") or "")) == "cashmall"
+        and recognition.get("safe_exit_target_identity") == CASH_MALL_SAFE_BACK_TARGET_IDENTITY
+        and recognition.get("safe_exit_roi") == SCARLETT_SAFE_BACK_ROI
+        and recognition.get("forbidden_purchase_rois") == CASH_MALL_FORBIDDEN_ROIS
+        and recognition.get("purchase_exclusion_verified") is True
+        and recognition.get("title_identity") is True
+        and recognition.get("page_context_verified") is True
+        and recognition.get("expected_successor") == SCARLETT_EXPECTED_SUCCESSOR
+        and recognition.get("max_inputs") == 1 and recognition.get("target_count") == 1
+        and isinstance(arrow, (tuple, list)) and len(arrow) == 4
+        and SCARLETT_SAFE_BACK_ROI[0] <= arrow[0] < arrow[2] <= SCARLETT_SAFE_BACK_ROI[2]
+        and SCARLETT_SAFE_BACK_ROI[1] <= arrow[1] < arrow[3] <= SCARLETT_SAFE_BACK_ROI[3]
+        and re.fullmatch(r"[0-9a-f]{64}", str(recognition.get("frame_sha256") or "")) is not None
+    )
+
+
 def recognize_startup_surface(frame: np.ndarray, frame_bytes: bytes | None = None) -> dict[str, Any]:
-    """Return exact Scarlett recognition or conservative commercial evidence."""
+    """Return exact known startup-page recognition or blocking commercial evidence."""
     scarlett = recognize_scarlett_three_day_pack(frame, frame_bytes)
+    if _valid_frame(frame) and not scarlett.get("recognized"):
+        cash_mall = _cash_mall_recognition(frame, frame_bytes)
+        if cash_mall["recognized"]:
+            return dict(cash_mall, commercial_looking=False, commercial_terms=(), commercial_text="")
     if scarlett.get("recognized"):
         return {
             **scarlett,

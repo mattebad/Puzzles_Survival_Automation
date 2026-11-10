@@ -1,10 +1,12 @@
 """Recovery-only startup must release gameplay eligibility, not gameplay credit."""
 from __future__ import annotations
 
+from dataclasses import replace
 import hashlib
 import time
 import sqlite3
 import unittest
+from unittest import mock
 
 import cv2
 
@@ -150,6 +152,112 @@ class RecoveryOccurrenceTests(unittest.TestCase):
         self.assertEqual(report["result"]["system_launch_count"], 1)
         self.assertEqual((prelude.consumed_inputs, prelude.consumed_actions), (1, 0))
         self.assert_fresh_claim(case, ULTIMATE_FLOW_ID, prelude)
+
+    def test_update_restart_preserves_daily_and_cooldown_occurrences_without_game_input(self):
+        for flow_id in (ULTIMATE_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID,
+                        RESOURCE_ITEM_FLOW_ID, RECRUITMENT_FLOW_ID):
+            with self.subTest(flow_id=flow_id):
+                case, device, _core, _attempts = self.case(flow_id, screen="update")
+                report, prelude = self.serve_once(case, flow_id)
+                self.assertEqual(report["status"], "deferred", report)
+                self.assertEqual(device.taps, [])
+                self.assertEqual((len(device.stops), len(device.launches)), (1, 1))
+                self.assertEqual(device.unexpected, [])
+                self.assertEqual(case.runtimes, [])
+                self.assertEqual((prelude.consumed_inputs, prelude.consumed_actions), (0, 0))
+                result = report["result"]
+                self.assertEqual((result["system_stop_count"], result["system_launch_count"]), (1, 1))
+                recovery = result["network_recovery"]
+                self.assertEqual(recovery["interruption_identity"], "UPDATE_RESTART_REQUIRED")
+                episode = case.state.get_network_recovery(FIXED_RUNTIME_SCOPE)
+                self.assertEqual(episode.episode_id, recovery["episode_id"])
+                self.assertEqual(episode.status, "RECOVERED")
+                self.assertEqual((episode.confirm_attempts, episode.relaunch_attempts,
+                                  episode.restart_attempts), (0, 0, 1))
+                self.assertEqual(episode.restart_transport_status, "returned")
+                self.assert_fresh_claim(case, flow_id, prelude)
+
+    def test_update_returned_restart_episode_allows_zero_transport_resume_without_gameplay(self):
+        case, device, _core, _attempts = self.case(ULTIMATE_FLOW_ID, screen="update")
+        real_startup = case.service.application_startup
+
+        def resumed(*args):
+            result = real_startup(*args)
+            result["system_stop_count"] = result["system_launch_count"] = 0
+            result["network_recovery"]["system_stop_count"] = 0
+            result["network_recovery"]["system_launch_count"] = 0
+            return result
+
+        case.service.application_startup = resumed
+        report, prelude = self.serve_once(case, ULTIMATE_FLOW_ID)
+        self.assertEqual(report["status"], "deferred", report)
+        self.assertEqual((prelude.consumed_inputs, prelude.consumed_actions), (0, 0))
+        self.assertEqual(device.taps, [])
+        self.assert_fresh_claim(case, ULTIMATE_FLOW_ID, prelude)
+
+    def test_update_recovery_requires_actual_returned_restart_episode_even_without_new_input(self):
+        variants = {
+            "missing_episode": None,
+            "open_episode": {"status": "OPEN"},
+            "unused_restart_budget": {"restart_attempts": 0},
+            "attempted_restart": {"restart_transport_status": "attempted"},
+            "unknown_restart": {"restart_transport_status": "unknown"},
+            "wrong_identity": {"interruption_identity": "NETWORK_DISCONNECT_10054"},
+            "confirm_budget_used": {"confirm_attempts": 1},
+            "relaunch_budget_used": {"relaunch_attempts": 1},
+        }
+        for name, changes in variants.items():
+            with self.subTest(variant=name):
+                case, device, _core, _attempts = self.case(ULTIMATE_FLOW_ID, screen="update")
+                real_startup = case.service.application_startup
+
+                def tampered(*args):
+                    result = real_startup(*args)
+                    episode = case.state.get_network_recovery(FIXED_RUNTIME_SCOPE)
+                    observed = None if changes is None else replace(episode, **changes)
+                    patcher = mock.patch.object(case.state, "get_network_recovery", return_value=observed)
+                    patcher.start()
+                    self.addCleanup(patcher.stop)
+                    # A fresh invocation can report no new transport. Durable
+                    # restart proof remains mandatory; zero input is no bypass.
+                    result["system_stop_count"] = result["system_launch_count"] = 0
+                    result["network_recovery"]["system_stop_count"] = 0
+                    result["network_recovery"]["system_launch_count"] = 0
+                    return result
+
+                case.service.application_startup = tampered
+                report, prelude = self.serve_once(case, ULTIMATE_FLOW_ID)
+                self.assertEqual(report["status"], "blocked", report)
+                self.assertEqual((prelude.consumed_inputs, prelude.consumed_actions), (0, 0))
+                self.assertTrue(case.state.get_flow(ULTIMATE_FLOW_ID).blocked)
+                self.assertEqual(case.runtimes, [])
+                self.assertEqual(device.taps, [])
+
+    def test_update_recovery_rejects_confirm_and_inconsistent_stop_accounting(self):
+        for name in ("confirm_input", "missing_stop", "two_stops", "boolean_stop", "missing_identity"):
+            with self.subTest(variant=name):
+                case, device, _core, _attempts = self.case(ULTIMATE_FLOW_ID, screen="update")
+                real_startup = case.service.application_startup
+
+                def tampered(*args):
+                    result = real_startup(*args)
+                    recovery = result["network_recovery"]
+                    if name == "confirm_input":
+                        result["game_input_count"] = result["input_count"] = 1
+                        recovery["game_input_count"] = recovery["input_count"] = 1
+                    elif name == "missing_identity":
+                        recovery.pop("interruption_identity")
+                    else:
+                        stops = {"missing_stop": 0, "two_stops": 2, "boolean_stop": True}[name]
+                        result["system_stop_count"] = recovery["system_stop_count"] = stops
+                    return result
+
+                case.service.application_startup = tampered
+                report, prelude = self.serve_once(case, ULTIMATE_FLOW_ID)
+                self.assertEqual(report["status"], "blocked", report)
+                self.assertEqual(prelude.consumed_actions, 0)
+                self.assertEqual(case.runtimes, [])
+                self.assertEqual(device.taps, [])
 
     def test_daily_once_routes_keep_their_only_occurrence_and_recovery_charge(self):
         for flow_id in (ULTIMATE_FLOW_ID, ENHANCEMENT_FLOW_ID,

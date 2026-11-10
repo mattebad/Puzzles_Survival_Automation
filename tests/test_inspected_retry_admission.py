@@ -16,6 +16,15 @@ import sqlite3
 import tempfile
 from typing import Callable, TypeVar
 import unittest
+from datetime import datetime, timezone
+from unittest.mock import patch
+
+from automation_service import state as state_module
+from automation_service.registry import RECOMMENDED_RESEARCH_FLOW_ID
+from safe_action_core.models import ActionIntent, PolicyDecision, PolicyResult
+from safe_action_core.store import SafetyStore
+from scripts import navigation_development_boundary as boundary, pnsctl
+from tasks.runtime_identity import FIXED_RUNTIME_PROFILE_ID
 
 from automation_service.cli import main as cli_main
 from automation_service.contracts import FlowSpec, NormalizedOutcome, NormalizedResult
@@ -859,6 +868,257 @@ class InspectedRetrySchedulerCliTests(unittest.TestCase):
                 self.assertEqual(handler.plan_calls, 6)
             finally:
                 state.close()
+
+
+class KnownProgressInspectionTests(unittest.TestCase):
+    """Real Bot/Core/owner databases; only their filesystem roots are isolated."""
+
+    def setUp(self) -> None:
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.folder = Path(folder.name)
+        self.path = self.folder / "bot.sqlite3"
+        self.core_path = self.folder / "core.sqlite3"
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(patch.object(state_module, "REPOSITORY_ROOT", self.folder))
+        stack.enter_context(patch.object(BotStateManager, "DEFAULT_DB_PATH", self.path))
+        stack.enter_context(patch.object(boundary, "CANONICAL_ACTION_STORE_PATH", self.core_path))
+        stack.enter_context(patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", self.folder / "owner.sqlite3"))
+        self.state = open_state(self.path)
+        self.state.initialize_flows([FlowSpec(
+            RECOMMENDED_RESEARCH_FLOW_ID, priority=3, cadence="daily_once_per_reset", max_attempts=3,
+        )])
+        self.addCleanup(self.state.close)
+        self.core = SafetyStore(self.core_path)
+        self.addCleanup(self.core.close)
+        self.evidence = self.folder / "inspection.json"
+        self.events = self.folder / "events.jsonl"
+        self.frame = self.folder / "frame.png"
+
+    def seed_effect(self, *, unresolved: bool = False) -> str:
+        action_id = "known-progress-action"
+        intent = ActionIntent(
+            action_id=action_id, action_key="known-progress:test-invocation",
+            task_id=RECOMMENDED_RESEARCH_FLOW_ID, semantic_action="known_partial_effect",
+            source_state="KNOWN_SOURCE", target_identity="known-target", target_roi=(1, 1, 2, 2),
+            source_frame_sha256="a" * 64, source_frame_captured_at=1_200.0,
+            runtime_profile_id=FIXED_RUNTIME_PROFILE_ID, game_day_id=RESET,
+            expected_postcondition="known-positive-postcondition", consequence="known-progress",
+            cost_type="none", cost_amount=0, quantity=1, evidence_refs=(str(self.events),),
+        )
+        self.core.prepare_action(
+            intent, PolicyResult(PolicyDecision.AUTHORIZE, "AUTHORIZED", "fixture", 1_200.0, {}), 1_200.0,
+        )
+        self.core.mark_input_sent(action_id, 1_200.0, {"dispatched": True})
+        if unresolved:
+            self.core.mark_unresolved(action_id, 1_201.0, "successor_unknown")
+        else:
+            self.core.mark_confirmed(action_id, 1_201.0, {"postcondition": "observed"})
+        return action_id
+
+    def retain_review(self, run: RunRecord) -> None:
+        flow = flow_of(self.state, RECOMMENDED_RESEARCH_FLOW_ID)
+        current = present(self.state.get_run(run.run_id), "terminal review run")
+        self.frame.write_bytes(b"retained capture fixture")
+        terminal_at = present(current.terminal_at_utc, "terminal review time")
+        self.events.write_text(json.dumps({
+            "type": "capture", "label": f"{RECOMMENDED_RESEARCH_FLOW_ID}-initial-source",
+            "path": str(self.frame), "sha256": hashlib.sha256(self.frame.read_bytes()).hexdigest(),
+            "timestamp": datetime.fromtimestamp(terminal_at, timezone.utc).isoformat(),
+        }) + "\n", encoding="utf-8")
+        attempts = ledger(self.path)
+        last_attempt_seq = attempts[-1][0]
+        assert type(last_attempt_seq) is int
+        self.evidence.write_text(json.dumps({
+            "flow_id": RECOMMENDED_RESEARCH_FLOW_ID, "generation": flow.generation,
+            "row_version": flow.row_version, "last_attempt_seq": last_attempt_seq,
+            "run_ids": [current.run_id], "native_evidence": ["events.jsonl"],
+            "core_action_ids": sorted(row["action_id"] for row in self.core.list_actions_for_task(
+                RECOMMENDED_RESEARCH_FLOW_ID
+            )),
+        }), encoding="utf-8")
+
+    def command(self, *, preview: bool = False, expected: FlowState | None = None) -> tuple[int, dict[str, object]]:
+        flow = expected or flow_of(self.state, RECOMMENDED_RESEARCH_FLOW_ID)
+        args = [
+            "automation-service", "--state-path", str(self.path), "inspect-rearm",
+            RECOMMENDED_RESEARCH_FLOW_ID, "--review-known-progress", "--evidence", str(self.evidence),
+            "--reason", "review known progress without accepting the failed native visit",
+            "--now-utc-epoch", "1400",
+        ]
+        if preview:
+            args.append("--preview")
+        else:
+            args.extend([
+                "--expected-generation", str(flow.generation), "--expected-row-version", str(flow.row_version),
+                "--expected-consecutive-failures", str(flow.consecutive_failures),
+            ])
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = pnsctl.main(args)
+        return code, json_object(json.loads(output.getvalue().strip().splitlines()[-1]))
+
+    def test_confirmed_partial_progress_preserves_history_and_holds_both_fences(self) -> None:
+        runs = exhaust(self.state, 1_000.0, flow_id=RECOMMENDED_RESEARCH_FLOW_ID, third=AttemptSpec(
+            inputs=3, actions=1, reason="native_failed; accounting_rejected:lower_bound",
+        ))
+        action_id = self.seed_effect()
+        self.retain_review(runs[-1])
+        before_ledger = ledger(self.path)
+        before_run = self.state.get_run(runs[-1].run_id)
+        before_core = self.core.get_action(action_id)
+        before_evidence = self.events.read_bytes()
+        flow = flow_of(self.state, RECOMMENDED_RESEARCH_FLOW_ID)
+        self.assertEqual(self.state.review_flow_inspection(
+            RECOMMENDED_RESEARCH_FLOW_ID, now_utc_epoch=1_400.0,
+        ).reason, "CONSEQUENTIAL_ATTEMPT")
+        with pnsctl._known_progress_inspection(RECOMMENDED_RESEARCH_FLOW_ID, self.evidence) as review:
+            inspection = self.state.inspect_rearm_flow(
+                RECOMMENDED_RESEARCH_FLOW_ID, expected_generation=flow.generation,
+                expected_row_version=flow.row_version, expected_consecutive_failures=3,
+                reason="preserve confirmed partial effect", evidence_path=self.evidence,
+                known_progress_review=review, now_utc_epoch=1_400.0,
+            )
+            with self.assertRaises(boundary.NavigationBoundaryError):
+                with boundary.RuntimeInputLock(owner="competitor", invocation_id="other"):
+                    self.fail("runtime ownership was released before the review completed")
+            with contextlib.closing(sqlite3.connect(self.core_path, timeout=0)) as competing:
+                with self.assertRaises(sqlite3.OperationalError):
+                    competing.execute("BEGIN IMMEDIATE")
+        self.assertEqual(ledger(self.path), before_ledger)
+        self.assertEqual(self.state.get_run(runs[-1].run_id), before_run)
+        self.assertEqual(self.core.get_action(action_id), before_core)
+        self.assertEqual(self.events.read_bytes(), before_evidence)
+        after = flow_of(self.state, RECOMMENDED_RESEARCH_FLOW_ID)
+        self.assertEqual((after.consecutive_failures, after.inspected_failure_baseline, after.max_attempts), (3, 3, 3))
+        self.assertEqual((after.enabled, after.blocked), (False, False))
+        self.assertEqual(inspection.window_summary["known_progress"]["core_actions"][0]["final_status"], "confirmed")
+
+    def test_actual_core_unknown_rejects_then_positive_reconciliation_permits_same_review(self) -> None:
+        runs = exhaust(self.state, 1_000.0, flow_id=RECOMMENDED_RESEARCH_FLOW_ID)
+        action_id = self.seed_effect(unresolved=True)
+        self.retain_review(runs[-1])
+        before = flow_of(self.state, RECOMMENDED_RESEARCH_FLOW_ID)
+        code, result = self.command(preview=True)
+        self.assertEqual((code, result["reason"]), (2, "CORE_EFFECT_UNRESOLVED"))
+        self.assertEqual(flow_of(self.state, RECOMMENDED_RESEARCH_FLOW_ID), before)
+        self.assertEqual(self.state.list_flow_inspections(RECOMMENDED_RESEARCH_FLOW_ID), ())
+        self.core.reconcile_confirmed(action_id, 1_350.0, {"positive_postcondition": "observed"})
+        code, result = self.command()
+        self.assertEqual((code, result["status"]), (0, "rearmed"))
+        self.assertEqual(self.core.get_action(action_id)["final_status"], "confirmed")
+
+    def test_terminal_noop_guard_review_needs_no_summary_or_positive_effect_and_keeps_remaining_window(self) -> None:
+        arm(self.state, 1_000.0, RECOMMENDED_RESEARCH_FLOW_ID)
+        run = present(attempt(self.state, 1_000.0, AttemptSpec(
+            inputs=2, reason="normal_pre_start_guard_refusal",
+        ), flow_id=RECOMMENDED_RESEARCH_FLOW_ID), "run")
+        disarm(self.state, 1_050.0, RECOMMENDED_RESEARCH_FLOW_ID)
+        self.state.block_flow(
+            RECOMMENDED_RESEARCH_FLOW_ID, f"EXECUTOR_INTERRUPTED_REQUIRES_INSPECTION:{run.run_id}",
+        )
+        self.retain_review(run)
+        self.assertEqual(self.state.review_flow_inspection(
+            RECOMMENDED_RESEARCH_FLOW_ID, now_utc_epoch=1_400.0,
+        ).reason, "EXECUTOR_INTERRUPTED")
+        before_ledger = ledger(self.path)
+        code, result = self.command()
+        self.assertEqual((code, result["status"]), (0, "rearmed"))
+        flow = flow_of(self.state, RECOMMENDED_RESEARCH_FLOW_ID)
+        self.assertEqual((flow.consecutive_failures, flow.inspected_failure_baseline, flow.retry_window_failures), (1, 0, 1))
+        (audit,) = self.state.list_flow_inspections(RECOMMENDED_RESEARCH_FLOW_ID)
+        self.assertEqual((audit.prior_failure_baseline, audit.failure_baseline), (0, 0))
+        self.assertEqual(ledger(self.path), before_ledger)
+        self.assertEqual(self.core.list_actions_for_task(RECOMMENDED_RESEARCH_FLOW_ID), [])
+        arm(self.state, 1_500.0, RECOMMENDED_RESEARCH_FLOW_ID)
+        self.assertIsNotNone(attempt(self.state, 1_500.0, flow_id=RECOMMENDED_RESEARCH_FLOW_ID))
+        self.assertIsNotNone(attempt(self.state, 1_600.0, flow_id=RECOMMENDED_RESEARCH_FLOW_ID))
+        self.assertIsNone(attempt(self.state, 1_700.0, flow_id=RECOMMENDED_RESEARCH_FLOW_ID))
+
+    def test_stale_review_cas_and_effect_identity_mismatch_do_not_mutate_state(self) -> None:
+        runs = exhaust(self.state, 1_000.0, flow_id=RECOMMENDED_RESEARCH_FLOW_ID)
+        self.seed_effect()
+        self.retain_review(runs[-1])
+        before = flow_of(self.state, RECOMMENDED_RESEARCH_FLOW_ID)
+        self.state.block_flow(
+            RECOMMENDED_RESEARCH_FLOW_ID, present(before.blocked_reason, "blocked review reason"),
+        )
+        code, result = self.command(expected=before)
+        self.assertEqual((code, result["reason"]), (2, "STALE_FLOW_STATE"))
+        code, result = self.command(preview=True)
+        self.assertEqual((code, result["reason"]), (2, "REVIEW_SCOPE_MISMATCH"))
+        self.retain_review(runs[-1])
+        evidence = json.loads(self.evidence.read_text())
+        evidence["core_action_ids"] = []
+        self.evidence.write_text(json.dumps(evidence), encoding="utf-8")
+        code, result = self.command()
+        self.assertEqual((code, result["reason"]), (2, "REVIEW_EFFECT_IDENTITY_MISMATCH"))
+        self.assertEqual(self.state.list_flow_inspections(RECOMMENDED_RESEARCH_FLOW_ID), ())
+
+    def test_existing_runtime_owner_and_changed_capture_reject_without_audit(self) -> None:
+        runs = exhaust(self.state, 1_000.0, flow_id=RECOMMENDED_RESEARCH_FLOW_ID)
+        self.retain_review(runs[-1])
+        before = flow_of(self.state, RECOMMENDED_RESEARCH_FLOW_ID)
+        with boundary.RuntimeInputLock(owner="active-operator", invocation_id="active-visit"):
+            code, result = self.command(preview=True)
+        self.assertEqual((code, result["reason"]), (2, "KNOWN_PROGRESS_REVIEW_UNAVAILABLE"))
+        self.frame.write_bytes(b"changed evidence")
+        code, result = self.command()
+        self.assertEqual((code, result["reason"]), (2, "REVIEW_NATIVE_CAPTURE_MISMATCH"))
+        self.assertEqual(flow_of(self.state, RECOMMENDED_RESEARCH_FLOW_ID), before)
+        self.assertEqual(self.state.list_flow_inspections(RECOMMENDED_RESEARCH_FLOW_ID), ())
+
+    def test_legacy_audit_constraint_migration_preserves_rows_indexes_and_append_only_protection(self) -> None:
+        exhaust(self.state, 1_000.0, flow_id=RECOMMENDED_RESEARCH_FLOW_ID)
+        self.evidence.write_text("ordinary zero-effect inspection evidence", encoding="utf-8")
+        flow = flow_of(self.state, RECOMMENDED_RESEARCH_FLOW_ID)
+        self.state.inspect_rearm_flow(
+            RECOMMENDED_RESEARCH_FLOW_ID, expected_generation=flow.generation,
+            expected_row_version=flow.row_version, expected_consecutive_failures=3,
+            reason="ordinary inspection", evidence_path=self.evidence, now_utc_epoch=1_400.0,
+        )
+        self.state.close()
+        with contextlib.closing(sqlite3.connect(self.path)) as db:
+            before = db.execute("SELECT * FROM flow_inspections ORDER BY inspection_id").fetchall()
+            definitions = db.execute(
+                "SELECT sql FROM sqlite_master WHERE tbl_name='flow_inspections' "
+                "AND type IN ('index','trigger') AND sql IS NOT NULL ORDER BY name"
+            ).fetchall()
+            sql = db.execute("SELECT sql FROM sqlite_master WHERE name='flow_inspections'").fetchone()[0]
+            sql = sql.replace("flow_inspections", "legacy_inspections", 1).replace(
+                "failure_baseline >= prior_failure_baseline AND failure_baseline <= consecutive_failures",
+                "failure_baseline = consecutive_failures",
+            )
+            db.execute(sql)
+            db.execute("INSERT INTO legacy_inspections SELECT * FROM flow_inspections")
+            db.execute("DROP TABLE flow_inspections")
+            db.execute("ALTER TABLE legacy_inspections RENAME TO flow_inspections")
+            for (definition,) in definitions:
+                db.execute(definition)
+            db.commit()
+        self.state = open_state(self.path)
+        self.addCleanup(self.state.close)
+        with contextlib.closing(sqlite3.connect(self.path)) as db:
+            self.assertEqual(db.execute("SELECT * FROM flow_inspections ORDER BY inspection_id").fetchall(), before)
+            self.assertIn(
+                "failure_baseline >= prior_failure_baseline",
+                db.execute("SELECT sql FROM sqlite_master WHERE name='flow_inspections'").fetchone()[0],
+            )
+            self.assertEqual(db.execute(
+                "SELECT sql FROM sqlite_master WHERE tbl_name='flow_inspections' "
+                "AND type IN ('index','trigger') AND sql IS NOT NULL ORDER BY name"
+            ).fetchall(), definitions)
+            for statement in ("UPDATE flow_inspections SET reason='changed'", "DELETE FROM flow_inspections"):
+                with self.assertRaises(sqlite3.DatabaseError):
+                    db.execute(statement)
+
+    def test_real_bot_unknown_remains_blocked_despite_known_progress_review(self) -> None:
+        runs = exhaust(self.state, 1_000.0, flow_id=RECOMMENDED_RESEARCH_FLOW_ID, third=AttemptSpec(unknown_action=True))
+        self.retain_review(runs[-1])
+        code, result = self.command()
+        self.assertEqual((code, result["reason"]), (2, "UNRESOLVED_ACTION"))
+        self.assertEqual(self.state.list_flow_inspections(RECOMMENDED_RESEARCH_FLOW_ID), ())
 
 
 if __name__ == "__main__":

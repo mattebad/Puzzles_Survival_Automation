@@ -97,6 +97,9 @@ class NetworkRecoveryStateTests(unittest.TestCase):
         self.assertEqual((episode.confirm_attempts, episode.relaunch_attempts), (0, 0))
         self.assertIs(episode.confirm_transport_status, NetworkRecoveryTransportStatus.NOT_ATTEMPTED)
         self.assertIs(episode.relaunch_transport_status, NetworkRecoveryTransportStatus.NOT_ATTEMPTED)
+        self.assertEqual(episode.interruption_identity, "NETWORK_DISCONNECTED_10054")
+        self.assertEqual(episode.restart_attempts, 0)
+        self.assertIs(episode.restart_transport_status, NetworkRecoveryTransportStatus.NOT_ATTEMPTED)
         self.assertEqual(episode.started_at_utc, NOW)
         self.assertEqual(episode.deadline_at_utc, NOW + 90.0)
         self.assertIsNone(episode.next_observe_at_utc)
@@ -369,6 +372,11 @@ class NetworkRecoveryStateTests(unittest.TestCase):
             with closing(sqlite3.connect(self.path)) as raw:
                 raw.execute(
                     """INSERT INTO runtime_recovery_episodes
+                       (episode_id, scope_key, status, source_frame_hash,
+                        confirm_attempts, relaunch_attempts, confirm_transport_status,
+                        relaunch_transport_status, started_at_utc, deadline_at_utc,
+                        next_observe_at_utc, updated_at_utc, last_frame_hash, reason,
+                        row_version)
                        SELECT 'netrec-duplicate', scope_key, status, source_frame_hash,
                               confirm_attempts, relaunch_attempts, confirm_transport_status,
                               relaunch_transport_status, started_at_utc, deadline_at_utc,
@@ -441,6 +449,215 @@ class NetworkRecoveryStateTests(unittest.TestCase):
                     expected_row_version=episode.row_version, now_utc_epoch=NOW + 1,
                 )
         self.assertEqual(self.manager.get_network_recovery(SCOPE), episode)
+
+    def test_update_restart_spends_one_durable_budget_before_transport(self) -> None:
+        before = gameplay_snapshot(self.manager)
+        episode = self.begin(interruption_identity="UPDATE_RESTART_REQUIRED")
+        reserved = self.manager.reserve_network_recovery_step(
+            episode.episode_id, NetworkRecoveryStep.RESTART,
+            expected_row_version=episode.row_version, now_utc_epoch=NOW + 1,
+        )
+        assert reserved is not None
+        self.assertEqual(reserved.restart_attempts, 1)
+        self.assertEqual((reserved.confirm_attempts, reserved.relaunch_attempts), (0, 0))
+        self.assertIs(reserved.restart_transport_status, NetworkRecoveryTransportStatus.ATTEMPTED)
+        self.assertEqual(reserved.row_version, episode.row_version + 1)
+        # A second connection sees the committed reservation before stop/start.
+        with BotStateManager(self.path, owner_instance_id="competitor") as competitor:
+            self.assertEqual(competitor.get_network_recovery(SCOPE), reserved)
+            self.assertIsNone(competitor.reserve_network_recovery_step(
+                episode.episode_id, "restart",
+                expected_row_version=episode.row_version, now_utc_epoch=NOW + 1,
+            ))
+        returned = self.update(
+            reserved, "OPEN", now=NOW + 2, step="restart", transport_status="returned",
+        )
+        assert returned is not None
+        self.assertIs(returned.restart_transport_status, NetworkRecoveryTransportStatus.RETURNED)
+        self.assertIsNone(self.manager.reserve_network_recovery_step(
+            returned.episode_id, "restart",
+            expected_row_version=returned.row_version, now_utc_epoch=NOW + 3,
+        ))
+        self.assertIsNone(self.update(
+            returned, "OPEN", now=NOW + 3, step="restart", transport_status="unknown",
+        ))
+        self.assertEqual(gameplay_snapshot(self.manager), before)
+
+    def test_restart_unknown_transport_is_irreversible_even_while_open(self) -> None:
+        episode = self.begin(interruption_identity="UPDATE_RESTART_REQUIRED")
+        self.assertIsNone(self.update(
+            episode, "OPEN", now=NOW + 1, step="restart", transport_status="returned",
+        ))
+        reserved = self.manager.reserve_network_recovery_step(
+            episode.episode_id, "restart",
+            expected_row_version=episode.row_version, now_utc_epoch=NOW + 1,
+        )
+        assert reserved is not None
+        unknown = self.update(
+            reserved, "OPEN", now=NOW + 2, step="restart", transport_status="unknown",
+        )
+        assert unknown is not None
+        self.assertIsNone(self.update(
+            unknown, "OPEN", now=NOW + 3, step="restart", transport_status="returned",
+        ))
+        self.assertIsNone(self.manager.reserve_network_recovery_step(
+            unknown.episode_id, "restart",
+            expected_row_version=unknown.row_version, now_utc_epoch=NOW + 3,
+        ))
+        self.assertEqual(self.begin(
+            interruption_identity="UPDATE_RESTART_REQUIRED", now_utc_epoch=NOW + DAY,
+        ), unknown)
+
+    def test_restart_rejects_episode_with_any_network_budget_spent(self) -> None:
+        for confirm, relaunch in ((1, 0), (1, 1)):
+            with self.subTest(confirm=confirm, relaunch=relaunch):
+                episode = self.begin(
+                    scope_key=f"spent:{confirm}:{relaunch}",
+                    interruption_identity="UPDATE_RESTART_REQUIRED",
+                )
+                # Even an imported inconsistent identity must not borrow restart.
+                with closing(sqlite3.connect(self.path)) as raw:
+                    raw.execute(
+                        """UPDATE runtime_recovery_episodes
+                           SET confirm_attempts = ?, confirm_transport_status = 'returned',
+                               relaunch_attempts = ?, relaunch_transport_status = ?
+                           WHERE episode_id = ?""",
+                        (confirm, relaunch, "returned" if relaunch else "not_attempted",
+                         episode.episode_id),
+                    )
+                    raw.commit()
+                self.assertIsNone(self.manager.reserve_network_recovery_step(
+                    episode.episode_id, "restart",
+                    expected_row_version=episode.row_version, now_utc_epoch=NOW + 1,
+                ))
+
+    def test_restart_crash_reopen_preserves_attempted_and_unknown_budget(self) -> None:
+        episode = self.begin(interruption_identity="UPDATE_RESTART_REQUIRED")
+        reserved = self.manager.reserve_network_recovery_step(
+            episode.episode_id, "restart",
+            expected_row_version=episode.row_version, now_utc_epoch=NOW + 1,
+        )
+        assert reserved is not None
+        self.manager.close()
+        self.manager = BotStateManager(self.path, owner_instance_id="after-crash")
+        self.assertEqual(self.manager.get_network_recovery(SCOPE), reserved)
+        self.assertIsNone(self.manager.reserve_network_recovery_step(
+            reserved.episode_id, "restart",
+            expected_row_version=reserved.row_version, now_utc_epoch=NOW + 2,
+        ))
+        unknown = self.update(
+            reserved, "MANUAL_REQUIRED", now=NOW + 2,
+            step="restart", transport_status="unknown",
+        )
+        assert unknown is not None
+        self.manager.close()
+        self.manager = BotStateManager(self.path, owner_instance_id="after-unknown")
+        self.assertEqual(self.begin(
+            interruption_identity="UPDATE_RESTART_REQUIRED",
+            source_frame_hash=frame("new-update-frame"), now_utc_epoch=NOW + DAY,
+        ), unknown)
+        self.assertEqual(self.begin(now_utc_epoch=NOW + DAY), unknown)
+        self.assertIs(unknown.restart_transport_status, NetworkRecoveryTransportStatus.UNKNOWN)
+        self.assertIsNone(self.update(
+            unknown, "MANUAL_REQUIRED", now=NOW + 3,
+            step="restart", transport_status="returned",
+        ))
+        self.assertIsNone(self.update(unknown, "OPEN", now=NOW + 3))
+        self.assertIsNone(self.manager.reserve_network_recovery_step(
+            unknown.episode_id, "restart",
+            expected_row_version=unknown.row_version, now_utc_epoch=NOW + 3,
+        ))
+        self.assertEqual(len(history(self.manager)), 1)
+
+    def test_update_restart_not_before_deadline_and_manual_do_not_renew(self) -> None:
+        episode = self.begin(interruption_identity="UPDATE_RESTART_REQUIRED", timeout_seconds=10)
+        deferred = self.update(
+            episode, "DEFERRED", now=NOW + 1, next_observe_at_utc=NOW + 5,
+        )
+        assert deferred is not None
+        for invalid_now in (NOW, NOW + 4, NOW + 10, NOW + 11):
+            with self.subTest(now=invalid_now):
+                self.assertIsNone(self.manager.reserve_network_recovery_step(
+                    deferred.episode_id, "restart",
+                    expected_row_version=deferred.row_version, now_utc_epoch=invalid_now,
+                ))
+        self.assertEqual(self.begin(
+            interruption_identity="UPDATE_RESTART_REQUIRED", now_utc_epoch=NOW + DAY,
+        ), deferred)
+        manual = self.update(deferred, "MANUAL_REQUIRED", now=NOW + 10)
+        assert manual is not None
+        self.assertEqual(manual.restart_attempts, 0)
+        self.assertEqual(manual.deadline_at_utc, NOW + 10)
+        self.assertIsNone(self.manager.reserve_network_recovery_step(
+            manual.episode_id, "restart",
+            expected_row_version=manual.row_version, now_utc_epoch=NOW + 11,
+        ))
+
+    def test_interruption_identities_never_borrow_each_others_inputs(self) -> None:
+        network = self.begin()
+        self.assertEqual(self.begin(interruption_identity="UPDATE_RESTART_REQUIRED"), network)
+        self.assertIsNone(self.manager.reserve_network_recovery_step(
+            network.episode_id, "restart",
+            expected_row_version=network.row_version, now_utc_epoch=NOW + 1,
+        ))
+        update = self.begin(
+            scope_key="device:update", interruption_identity="UPDATE_RESTART_REQUIRED",
+        )
+        for step in ("confirm", "relaunch"):
+            with self.subTest(step=step):
+                self.assertIsNone(self.manager.reserve_network_recovery_step(
+                    update.episode_id, step,
+                    expected_row_version=update.row_version, now_utc_epoch=NOW + 1,
+                ))
+        self.assertEqual(self.begin(scope_key="device:update"), update)
+        recovered = self.update(network, "RECOVERED", now=NOW + 2)
+        assert recovered is not None
+        fresh = self.begin(
+            interruption_identity="UPDATE_RESTART_REQUIRED", now_utc_epoch=NOW + 3,
+        )
+        self.assertNotEqual(fresh.episode_id, network.episode_id)
+        self.assertEqual(fresh.interruption_identity, "UPDATE_RESTART_REQUIRED")
+        self.assertEqual(fresh.restart_attempts, 0)
+
+    def test_unknown_identity_grants_no_recovery_inputs(self) -> None:
+        episode = self.begin(interruption_identity="UNRECOGNIZED_INTERRUPTION")
+        for step in NetworkRecoveryStep:
+            with self.subTest(step=step):
+                self.assertIsNone(self.manager.reserve_network_recovery_step(
+                    episode.episode_id, step,
+                    expected_row_version=episode.row_version, now_utc_epoch=NOW + 1,
+                ))
+
+    def test_prior_episode_columns_read_and_migrate_without_renewing_budget(self) -> None:
+        episode = self.confirm_returned()
+        self.manager.close()
+        # Retain the exact old columns, simulating a DB predating update recovery.
+        with closing(sqlite3.connect(self.path)) as raw:
+            raw.executescript("""
+                CREATE TABLE prior_recovery AS SELECT
+                    episode_id, scope_key, status, source_frame_hash,
+                    confirm_attempts, relaunch_attempts, confirm_transport_status,
+                    relaunch_transport_status, started_at_utc, deadline_at_utc,
+                    next_observe_at_utc, updated_at_utc, last_frame_hash, reason, row_version
+                FROM runtime_recovery_episodes;
+                DROP TABLE runtime_recovery_episodes;
+                ALTER TABLE prior_recovery RENAME TO runtime_recovery_episodes;
+                PRAGMA journal_mode = DELETE;
+            """)
+        before = self.path.read_bytes()
+        with BotStateManager(self.path, owner_instance_id="readonly", read_only=True) as readonly:
+            self.assertEqual(readonly.get_network_recovery(SCOPE), episode)
+        self.assertEqual(self.path.read_bytes(), before)
+        self.manager = BotStateManager(self.path, owner_instance_id="migrator")
+        migrated = self.manager.get_network_recovery(SCOPE)
+        self.assertEqual(migrated, episode)
+        self.assertEqual(self.begin(
+            interruption_identity="UPDATE_RESTART_REQUIRED", now_utc_epoch=NOW + DAY,
+        ), episode)
+        self.assertIsNone(self.manager.reserve_network_recovery_step(
+            episode.episode_id, "restart",
+            expected_row_version=episode.row_version, now_utc_epoch=NOW + 3,
+        ))
 
 
 if __name__ == "__main__":
