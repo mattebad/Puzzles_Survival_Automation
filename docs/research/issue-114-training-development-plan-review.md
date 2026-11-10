@@ -8,7 +8,7 @@ Offline, code-only plan review for [issue 114](https://github.com/mattebad/Puzzl
 
 1. **Accounting fix shape.** The mismatch is attempted-vs-admitted, and the native boundary already counts *admitted* inputs. The fix is to record *why* a session attempt was never admitted, not to move or roll back the session increment (section 2, A1–A4).
 2. **Drop the proposed `operator_request_id` extension for Training.** Training already has `timer` cadence. Its next-due comes from the positively observed queue timer, and continuous variants already claim and start generation N+1 in the same visit. A development repeat therefore needs no manual-repeat bypass. The existing bypass skips `next_due_at_utc`, which is the opposite of what completion-gated cycles need (B5).
-3. **"Core/ResourceEffectAuthority" is misattributed for Training.** Training starts and claims are authorized by `CentralPolicy` → `safe_action_core/approved_base_routes.py::_training` and journaled by `SafeActionExecutor`/`SafetyStore`. `ResourceEffectAuthority` is not on that path (no reference in either Training module). The plan must change `_training`'s closed tables, not REA.
+3. **Boundary of `ResourceEffectAuthority` for Training.** Training start and claim *dispatch* is authorized by `CentralPolicy` → `safe_action_core/approved_base_routes.py::_training` and journaled by `SafeActionExecutor`/`SafetyStore`. Neither Training module references REA. REA history is still consulted on the Training **recovery** path: `scripts/pnsctl.py::_troop_training_recovery_history` (:426-461) refuses recovery on ACTIVE/CONFLICT or other-reset CLEARED resource-effect blocks. Preserve that guard unchanged. The development-profile change belongs in `_training`'s closed tables and in history derivation. No REA change is required unless a caller proves otherwise.
 
 | Item | Value |
 | --- | --- |
@@ -40,14 +40,14 @@ Call path (SV):
   - duplicate or missing action key (:424-425);
   - identical source/target fingerprint (:435-436).
 
-  `tap` writes the `dispatch` event (:557-570) *before* `_dispatch_transport` (:574). On success, `_dispatch_transport` writes no transport-outcome event.
+  `tap` writes the `dispatch` event (:557-570) *before* `_dispatch_transport` (:574). `_dispatch_transport` (:507-530) reports the transport result only to a delegated runtime ledger, via `mark_transported` / `mark_reconciled(unresolved=True)`, and only when a delegated context is active. It writes no transport-outcome row to the runtime `events.jsonl`.
 
   So:
   - `runtime.input_count` = **admitted**;
   - `session.input_count` = **attempted**;
   - the journal `dispatch` row = **admitted intent**, not delivery.
 
-  Nothing records "ADB call returned", and even that would not prove physical delivery.
+  On the service path, the runtime journal therefore holds no "ADB call returned" record. Even such a record would not prove physical delivery.
 - **A3 (SV mechanism; HE instance): a pre-admission rejection produces session = runtime + 1.** `_accounting_snapshot` (`scripts/base_route_native_runtime.py:344-372`) reports `max(session, runtime)` and sets `verified` only on equality. `_BoundNativeRoute.run` (:532-541) turns inequality into failure "native route input accounting is inconsistent".
   - The S4 7/8 receipt is consistent with exactly one pre-admission rejection.
   - Which rejection it was is **ER**: the receipt was not inspected. Stale-frame (OCR inside the `authorize` callbacks at `troop_training_bluestacks.py:1408-1419` and :158-175) and identical-fingerprint rejections are plausible candidates. Treat both as [INFERENCE].
@@ -82,10 +82,10 @@ Call path (SV):
 - **B5 (SV): Training is excluded from manual repeat, and doesn't need it.**
   - `serve` allows `operator_request_id` only for Enhancement/Ultimate/Hall (`automation_service/service.py:851-855`).
   - The claim-time `repeat_daily` bypass of `next_due_at_utc` requires a `daily_once_per_reset` or daily occurrence (`automation_service/state.py:2736-2756`).
-  - Training is registered with `cadence="timer"` (`automation_service/registry.py:950-957`).
+  - Training is registered with `cadence="timer"` (`automation_service/registry.py:950-957`). Scheduled eligibility applies the once-per-reset skip only to `DAILY_ONCE_PER_RESET` (`automation_service/scheduler.py:656-664`) and the occurrence-limit check only to `RESET_BOUNDED` (:668-679). Every class is gated by `next_due_at_utc`, the retry window and `retry_not_before` (:697-706). A same-reset re-claim of Training is therefore admitted once `next_due_at_utc` has passed, provided the service and flow are enabled and unblocked.
   - Its due time comes from `troop_training_next_due` (`automation_service/troop_training.py:480-538`): the earliest positively observed active-queue completion, `next_due_utc` (+60 s on partial), or the next reset.
   - The tab loop already claims a completed continuous batch and starts the next generation in the same visit (`troop_training_bluestacks.py:2417-2453`, where once_daily `continue`s after the claim at :2421-2423).
-  - Conclusion: development repeats need the claim → start path for all four variants, not a manual-repeat exception.
+  - Conclusion: development repeats need the claim → start path for all four variants, not a manual-repeat exception. It is ER whether the Training flow row's live recurrence projection matches this, since I opened no database. The implementer must check it with the supported read-only status interface before relying on it.
 - **B6 (SV): service reporting would label a development visit as production success.**
   - For Training, `status=="completed"` becomes `NormalizedOutcome.COMPLETE_FOR_RESET` with reason `TROOP_TRAINING..._PASS_VERIFIED` (`automation_service/service.py:1402-1423`).
   - The same file's maintenance precedent reports `DEFERRED` with the proven timer instead of completing the occurrence (:1356-1371).
@@ -95,7 +95,7 @@ Call path (SV):
 - **C1 (SV): original batch facts are already persisted. No schema change is needed.**
   - `SafetyStore.actions` stores `quantity` and `policy_request_json` (`safe_action_core/store.py:743-746, 1106-1117`).
   - `policy_request_json` is `snapshot(PolicyRequest)` (`safe_action_core/policy.py:365`; `safe_action_core/models.py:1088-1108`), which includes every `semantic_preconditions` token: tier, `quantity_mode`, `configured_quantity`, `training_policy`, generation and per-reset count.
-  - Pending quantity is read from `row["quantity"]` (`automation_service/troop_training.py:211-216`).
+  - Pending quantity is read from `row["quantity"]` (`automation_service/troop_training.py:211-216`). `derive_training_action_state` never reads `policy_request_json`. Tier, mode, policy and profile are therefore persisted but **not restored or validated today**, so the plan needs an explicit fail-closed decoder (step 4).
 - **C2 (SV): identity spans reset and restart.**
   - The start key is `troop-training:<identity>:<reset-digest>:<variant>:g<N>:start` (`automation_service/troop_training.py:85-98`). Generation is a per-variant global maximum over *confirmed* starts across resets (:173-174, :196).
   - The claim key is `<start>:claim` and carries `confirmed_start_reset_id` (`troop_training_bluestacks.py:1640-1672`).
@@ -112,7 +112,7 @@ Call path (SV):
 - **C5 (SV): a non-canonical (manual) queue blocks a fixed-quantity variant.**
   - With no pending canonical key, fixed mode expects `config.quantity` (`tasks/troop_training.py:543-544`); current_max accepts the observed quantity read-only (:545-548).
   - A completed non-canonical queue stops the visit: "completed legacy/unknown queue requires manual reconciliation" (`troop_training_bluestacks.py:1619-1620`).
-  - The Nov 9 manual queues (Fighter/Vehicle x1510, Shooter/Rider x250; HE, #67) are therefore likely to block the first development visit until handled by an owner decision (section 6).
+  - The Nov 9 manual queues (Fighter/Vehicle x1510, Shooter/Rider x250; HE, #67) are therefore likely to block the first development visit. That blocking is the correct fail-closed outcome for an external change; the owner decides what happens next (section 6).
 - **C6 (SV): the preset is required on the start path.** Start tokens carry `saved_commander_talent_preset_verified=true` (:2187-2188), and `_ensure_training_preset` runs before each start (:2195). Reuse of same-visit Applied proof without a redundant Apply is #95's contract (HE: native Training Applied reconciled). Nothing here requires a tree edit or Reset.
 - **C7 (SV): provenance hash used as scene validity.** The navigation wrapper's `authorize` raises "navigation frame changed before input" whenever the recaptured `before` hash differs from the planning source (:168-170). The only exception is the owned commander-talent Back rebind (:171-175). On animated surfaces this stops navigation by design. HE: the reverted consolidation hit the animated-Home variant of this.
 
@@ -149,7 +149,7 @@ Each step lists what changes and why. No new module, registry, DSL, wrapper or D
    - **Unchanged:** the production table and its 250/once_daily rules.
 4. **History: derive per-batch original facts from persisted tokens.** File: `automation_service/troop_training.py::derive_training_action_state`.
    - **Per-batch facts.** For each confirmed pending start, parse `policy_request_json.semantic_preconditions` into the batch's `training_profile`, tier, mode, configured and selected quantity. Rows without a profile token are production (they could only pass the production table). Rows missing or carrying contradictory tokens raise `TrainingActionHistoryError`, the existing manual-reconciliation path.
-   - **Replace the hard 250.** Replace :214-215 with "batch quantity equals its own recorded configured quantity for fixed mode".
+   - **Replace the universal 250 with a profile-scoped one.** The check at :214-215 becomes: a *production*-profile Shooter/Rider batch must still have quantity 250, unchanged; a *development*-profile batch must equal its recorded configured quantity (2 or 10). A batch whose decoded profile, quantity and tokens disagree fails closed.
    - **Split counts.** Split `start_counts` and `prior_daily_initiations` by profile: production once_daily uses *production-profile* starts only; development uses its own count.
    - **Extend state.** Add per-pending-batch facts to `TrainingActionState` (replacing the bare `prior_batch_quantities` mapping, so there is one source).
    - **Callers to update together:** native entry (:2748), post-claim re-derivation (:1742), `pnsctl._troop_training_recovery_history`.
@@ -160,8 +160,8 @@ Each step lists what changes and why. No new module, registry, DSL, wrapper or D
    - **Owner decision:** the cap value (section 6). No new store.
 6. **Controller/route uses batch facts for reconcile and claim.** Files: `tasks/troop_training.py` (`reconcile_active_queue`, `plan_claim`, `reconcile_claim`) and `troop_training_bluestacks.py::_claim_completed_tab` / `_train`.
    - **Batch facts, not current config.** Validate active and completed canonical queues against the pending batch's recorded tier and quantity, not `config`, and emit claim tokens from them.
-   - **Generalize fixed-mode checks.** Replace the native fixed-250 check (:2123-2126) with "selected equals configured within capacity".
-   - **Non-canonical queues in the development profile only.** Treat a non-canonical active queue as observe-only (no claim identity, no adoption, skip the variant), mirroring the current_max branch. Leave production's fixed branch byte-for-byte as is.
+   - **Generalize fixed-mode checks.** Replace the native fixed-250 check (:2123-2126) with "selected equals the active profile's configured quantity within capacity". Under the production profile that is still exactly 250, and Core's production table keeps enforcing it.
+   - **Non-canonical queues fail closed in the development profile.** For a non-canonical active or completed queue: no adoption as a canonical batch, no claim identity, and no new start on that camp. Report it as an external/manual change that needs owner reconciliation. Production's existing branches stay unchanged: current_max observes the queue read-only, fixed mode blocks, and a completed unknown queue stops the visit.
    - **Dev tiers.** Keep dev tiers identical to production. The pending-batch tier checks then stay consistent across mode changes, and that equality is an explicit invariant of the profile.
 7. **Service projection.** File: `automation_service/service.py` Training branch (:1402-1423).
    - When the result's `training_profile` is development, normalize `completed`/`partial` to `DEFERRED` with the `troop_training_next_due` timer. This follows the existing maintenance precedent (:1356-1371), and the reason code must not be the production `PASS_VERIFIED`.
@@ -176,14 +176,14 @@ Each step lists what changes and why. No new module, registry, DSL, wrapper or D
 | --- | --- | --- | --- |
 | Pre-admission rejection | Runtime refuses before its count (`bluestacks_native_runtime.py:416-436`); the run fails "inconsistent accounting" | Typed `not_admitted`; attempt still charged; accounting verified only if `session == runtime + not_admitted` | No typed reason today; a safe refusal becomes an unverifiable run (A4) |
 | Uncertain transport | Possibly-sent → Core UNRESOLVED; global `has_action_block` before the next session; no identical key | Unchanged; `pnsctl reconcile` with evidence only | No post-transport journal event (step 1); no physical-delivery proof exists or is claimed |
-| Busy queue | `reconcile_active_queue` read-only; due = projected completion | Same, using batch facts | Fixed-mode non-canonical queue blocks the visit (C5) |
+| Busy queue | `reconcile_active_queue` read-only for canonical batches; due = projected completion | Same, using decoded batch facts | Non-canonical queue in fixed mode blocks the visit (C5); keep that and surface it as an external change |
 | Original-quantity pending work | Quantity from `row.quantity`; key keeps original reset | Profile, tier and mode from `policy_request_json`; claim tokens from the batch | Dev Shooter/Rider rejected by history (B4); claim tokens use the current config (C3) |
 | Completed claim | Core exact `<start>:claim`; post-claim re-derivation must show no pending and the same generation (:1742-1755) | Same | Once_daily skips restart after claim (:2421-2423): correct for production; dev needs the continuous-like path |
 | Subsequent same-reset generation | Next key = max confirmed + 1; candidate already present → blocked for the reset | Same; plus dev cumulative cap | A cancelled or blocked row at the candidate generation blocks that variant for the rest of the reset (:228-229); keep as is, ER whether it occurs |
 | Prod ↔ dev mode change | None profile-aware | Pending batch reconciled and claimed under its original profile; production once_daily counts production starts only | B4/C3/step 4 |
 | Reset / restart | Keys and counts are rebuilt from SafetyStore each visit; global UNKNOWN block | Unchanged | none beyond the above |
 | Exhausted session / retry window | `max_attempts`/`retry_not_before`, block on exhaustion (`state.py:2757-2766`); audited inspect/rearm (carryover) | Unchanged; no limit increase or history clearing | A4 inflates failures with explainable refusals until step 1 lands |
-| External or manual change | Unknown completed queue → manual reconciliation (:1619-1620); preset re-verified via #95 helper | Observe-only for active non-canonical queues in dev; completed ones still stop | Nov 9 manual queues (HE) likely hit this first; owner decision |
+| External or manual change | Non-canonical active queue in fixed mode → blocked; unknown completed queue → manual reconciliation (:1619-1620); preset re-verified via #95 helper; REA recovery guard in `pnsctl` | Unchanged fail-closed stop, reported as an external change; owner reconciles; no adoption or fabricated rows | Nov 9 manual queues (HE) likely hit this first; owner decision |
 
 ## 5. Verification split
 
