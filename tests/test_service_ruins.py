@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from itertools import count
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -37,7 +38,10 @@ from tasks.ruins_challenge import (
     RUINS_CHALLENGE_RESULT_POSTCONDITION,
     ruins_daily_action_key,
 )
-from tasks.runtime_identity import resource_fixed_runtime_binding
+from tasks.runtime_identity import (
+    derive_resource_runtime_identity,
+    resource_fixed_runtime_binding,
+)
 from tasks.scheduler_task_result import SchedulerIdentity
 WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
@@ -133,7 +137,7 @@ class FakeNative:
 
 class RuinsServiceTests(unittest.TestCase):
     def setUp(self) -> None:
-        today = datetime.now(timezone.utc)
+        today = datetime(2026, 11, 8, tzinfo=timezone.utc)
         self.now = today.replace(hour=12, minute=0, second=0, microsecond=0).timestamp()
         binding = resource_fixed_runtime_binding()
         self.identity = SchedulerIdentity(
@@ -148,11 +152,11 @@ class RuinsServiceTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
-    def run_fake(self, native: FakeNative):
+    def run_fake(self, native: FakeNative, *, utc_clock=None):
         runner = RuinsRunner(
             native,
             output_directory=self.root,
-            utc_clock=lambda: self.now,
+            utc_clock=utc_clock or (lambda: self.now),
             monotonic_clock=lambda: 10.0,
             settle_seconds=0,
         )
@@ -224,6 +228,30 @@ class RuinsServiceTests(unittest.TestCase):
         self.assertEqual(result["ruins_dispatch_count"], 1)
         self.assertTrue(result["terminal_home_verified"])
         self.assertEqual(result["next_due_at_utc"], result["completed_at_utc"] + REOBSERVE_SECONDS)
+
+    def test_clock_progress_preserves_the_original_authorized_reset_window(self):
+        clock = count(self.now, 0.25)
+        native = FakeNative(self.now, challenge_status="unavailable", challenge_calls=0)
+        result = self.run_fake(native, utc_clock=lambda: next(clock))
+        self.assertEqual(result["status"], "completed")
+        self.assertTrue(result["terminal_home_verified"])
+        self.assertEqual(result["ruins_dispatch_count"], 0)
+        self.assertGreater(result["next_due_at_utc"], result["completed_at_utc"])
+
+    def test_clock_progress_cannot_renew_expired_original_authority(self):
+        backend = derive_resource_runtime_identity(
+            resource_fixed_runtime_binding(),
+            datetime.fromtimestamp(self.now, timezone.utc),
+        )
+        assert backend.expires_utc is not None
+        expired_at = datetime.fromisoformat(
+            backend.expires_utc.replace("Z", "+00:00")
+        ).timestamp() + 0.25
+        clock = iter((self.now, expired_at))
+        native = FakeNative(self.now, challenge_status="unavailable", challenge_calls=0)
+        with self.assertRaises(ValueError):
+            self.run_fake(native, utc_clock=lambda: next(clock))
+        self.assertIsNone(native.request)
 
     def test_adapter_rejects_scheduler_task_alias_and_wrong_reset(self):
         native = FakeNative(self.now, challenge_status="unavailable", challenge_calls=0)

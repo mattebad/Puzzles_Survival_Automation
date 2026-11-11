@@ -33,6 +33,8 @@ from .ruins_challenge import (
 PROFILE_SIZE = (800, 1280)
 Box = tuple[int, int, int, int]
 Target = tuple[str, Box]
+RUINS_OVERVIEW_HEADER_ROI: Box = (175, 0, 650, 75)
+RUINS_OVERVIEW_CONTROLS_ROI: Box = (190, 100, 760, 175)
 _PROGRESS_RE = re.compile(r"(\d+)\s*/\s*(\d+)")
 _POINTS_RE = re.compile(r"\b(\d{2,7})\b")
 _DAY_RE = re.compile(r"\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b", re.IGNORECASE)
@@ -69,6 +71,28 @@ def _ocr(frame: np.ndarray, box: Box | None = None, *, psm: int = 11) -> str:
     image = frame if box is None else frame[box[1]:box[3], box[0]:box[2]]
     enlarged = cv2.resize(image, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
     return _normalized(call_ocr(tesseract_string, enlarged, config=f"--psm {psm}"))
+
+
+def _wallet_points(frame: np.ndarray) -> int | None:
+    """Read the complete numeric wallet field, excluding its currency artwork."""
+
+    box = (109, 112, 195, 165)
+    crop = frame[box[1]:box[3], box[0]:box[2]]
+    hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+    digits = cv2.inRange(
+        hsv, np.array([0, 0, 160], dtype=np.uint8),
+        np.array([179, 85, 255], dtype=np.uint8),
+    )
+    visible = cv2.findNonZero(digits)
+    if visible is None:
+        return None
+    x, y, width, height = cv2.boundingRect(visible)
+    if x < 2 or y < 2 or x + width > crop.shape[1] - 2 or y + height > crop.shape[0] - 2:
+        return None
+    text = _ocr(frame, box, psm=7)
+    if re.fullmatch(r"(?:[0-9]+|[0-9]{1,3}(?:[ ,][0-9]{3})+)", text) is None:
+        return None
+    return int(text.replace(",", "").replace(" ", ""))
 
 
 def _ocr_boxes(frame: np.ndarray, *, psm: int = 11) -> list[tuple[str, Box]]:
@@ -254,7 +278,7 @@ def recognize_ruins_frame(frame: np.ndarray, *, reset_identity: str | None = Non
         raise ValueError("Ruins frame must be a native 800x1280 image")
     digest = hashlib.sha256(frame.tobytes()).hexdigest()
     full_text = _ocr(frame)
-    header = _ocr(frame, (0, 0, 800, 120), psm=7)
+    header = _ocr(frame, RUINS_OVERVIEW_HEADER_ROI, psm=7)
     is_ruins = "uins challenge" in header or "uins challenge" in full_text
     is_home = not is_ruins and "headquarters" in full_text and "uins" in full_text
     targets: list[Target] = []
@@ -278,15 +302,14 @@ def recognize_ruins_frame(frame: np.ndarray, *, reset_identity: str | None = Non
             RuinsScreenObservation(False, "UNKNOWN", False, None, RuinsControlState.UNKNOWN, RuinsControlState.UNKNOWN,
                                    RuinsControlState.UNKNOWN, (), "unknown", digest, reset_identity), digest, (), diagnostics)
 
-    points = parse_points(_ocr(frame, (40, 120, 175, 180), psm=7))
-    control_text = _ocr(frame, (150, 100, 800, 210), psm=6)
+    points = _wallet_points(frame)
+    control_text = _ocr(frame, RUINS_OVERVIEW_CONTROLS_ROI, psm=6)
     for label, identity in (("exchange", "exchange"), ("progress", "progress"), ("total rank", "total-rank")):
         if label in control_text:
             targets.append((identity, (150, 100, 800, 210)))
     boxes = _ocr_boxes(frame)
     dense_boxes: list[tuple[str, Box]] | None = None
     rows: list[RuinsChallengeRow] = []
-    lower_text = full_text
     for identity in KNOWN_CHALLENGE_IDENTITIES:
         needle = _normalized(identity)
         aliases = (needle, *_IDENTITY_OCR_ALIASES.get(needle, ()))

@@ -201,6 +201,60 @@ class NavigationDevelopmentBoundaryTests(unittest.TestCase):
                 ):
                     _ = session.runtime_input_lock
 
+    def test_retained_transport_adoption_extends_one_source_and_rejects_mixed_counters(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            journal = str(root / "runtime" / "events.jsonl")
+            with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
+                with boundary.DevelopmentSession(
+                    owner="development",
+                    invocation_id="development-1",
+                    session_directory=root / "session",
+                    max_inputs=4,
+                ) as session:
+                    # Startup recovery adopts its transport; the same runtime journal's
+                    # later cumulative total extends it, and repeating a total is idempotent.
+                    self.assertEqual(session.adopt_retained_transport_count(1, source=journal), 1)
+                    self.assertEqual(session.adopt_retained_transport_count(1, source=journal), 1)
+                    self.assertEqual(session.adopt_retained_transport_count(3, source=journal), 3)
+                    for count, source, message in (
+                        (2, journal, "decreased"),
+                        (4, f"{journal}.other", "source differs"),
+                        (5, journal, "exceeds development-session limit"),
+                    ):
+                        with self.subTest(count=count, source=source):
+                            with self.assertRaisesRegex(boundary.DevelopmentSessionError, message):
+                                session.adopt_retained_transport_count(count, source=source)
+                            self.assertEqual(session.input_count, 3)
+                    dispatched = []
+                    session.run_action(
+                        action_class="navigation",
+                        label="session-owned-input",
+                        capture=lambda _label: _frame(),
+                        dispatch=dispatched.append,
+                        recognize=lambda _after: "ready",
+                    )
+                    self.assertEqual((len(dispatched), session.input_count), (1, 4))
+                    with self.assertRaisesRegex(boundary.DevelopmentSessionError, "changed after"):
+                        session.adopt_retained_transport_count(4, source=journal)
+                    self.assertEqual(session.input_count, 4)
+                with boundary.DevelopmentSession(
+                    owner="development",
+                    invocation_id="development-2",
+                    session_directory=root / "restarted-session",
+                    max_inputs=4,
+                ) as restarted:
+                    restarted.run_action(
+                        action_class="navigation",
+                        label="session-owned-before-adoption",
+                        capture=lambda _label: _frame(),
+                        dispatch=lambda _before: None,
+                        recognize=lambda _after: "ready",
+                    )
+                    with self.assertRaisesRegex(boundary.DevelopmentSessionError, "conflicts"):
+                        restarted.adopt_retained_transport_count(2, source=journal)
+                    self.assertEqual(restarted.adopt_retained_transport_count(1, source=journal), 1)
+
     def test_cross_process_lock_contention(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = str(Path(directory) / "cross.sqlite3")

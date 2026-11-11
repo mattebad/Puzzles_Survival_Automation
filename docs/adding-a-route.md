@@ -158,7 +158,24 @@ Existing layout exceptions:
   are `evidence_required`, with no current native live acceptance claimed. Ruins attempts the current
   zero-cost challenge first, then independent green-ready overview chests even if it is unavailable;
   Help counts actual successful free requests, preserves partial quota, and uses Help All only when
-  the exact request count is known.
+  the exact request count is known. Help recognizes the Alliance menu by its centered title,
+  exact bottom-bar labels and clear overlay, and binds the bottom-bar Alliance Help target.
+  That opens the distinct Alliance Help hub; only its current recognized Speedup Help row
+  may be opened, never Transport Resources or Reinforce Allies. A positively recognized
+  Alliance menu, Help hub or Speedup Help starting context first returns to fresh Home
+  through at most three distinct rebound Back controls before normal entry; unknown or
+  unchanged sources/successors send no repeated input. Native effect acceptance remains separate.
+  Verified recovery, entry and terminal navigation use distinct phase/step identities, allowing
+  a later return through identical menu pixels without weakening gameplay duplicate protection.
+  Ruins completes bounded zoom normalization and calculated Atlas pans with fresh localization,
+  mapped building binding and route-owned successor recognition. Session accounting adopts only
+  a monotonic cumulative dispatch total from the same retained journal, including startup inputs;
+  missing journal rows, interleaved inputs or unchanged/unknown successors fail closed.
+  The native overview title and controls use the same isolated regions as Daily Shops.
+  Wallet OCR excludes the coin artwork and includes the complete numeric field; missing,
+  boundary-clipped or ambiguous text produces an unknown balance, never a guessed maximum
+  or concatenated digits. Actual retained overview pixels and counterfactual failure cases
+  prove these guards offline, not challenge/chest live acceptance.
 * **Batch C Alliance Donation, Alliance Shop, and Daily Shops**: canonical-service-only routes with
   fixed native bindings; they add no legacy operator registry entries. `REGISTERED` describes code
   composition only; production posture and SQLite runtime controls remain disabled, and current

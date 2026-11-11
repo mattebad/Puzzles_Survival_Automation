@@ -27,7 +27,7 @@ from automation_service.registry import (
 from tasks.alliance_help import (
     CONSEQUENCE, CONTROL_CLASS, DAILY_REQUEST_LIMIT, HELP_ALL_TARGET_IDENTITY,
     INDIVIDUAL_TARGET_IDENTITY, POSTCONDITION, SEMANTIC_ACTION, SOURCE_STATE,
-    HelpAction, HelpObservation, HelpPlan, HelpRequest, alliance_help_action_key,
+    HelpAction, HelpObservation, HelpRequest, alliance_help_action_key,
     choose_help_action, verified_request_delta,
 )
 from tasks.home_nav_recognition import recognize_home_nav
@@ -41,7 +41,22 @@ MAX_ACTIONS = DAILY_REQUEST_LIMIT
 MAX_INPUTS = ALLIANCE_HELP_MAX_INPUTS
 HELP_ALL_ROI = (277, 1188, 523, 1268)
 HELP_ALL_LABEL_ROI = (260, 1165, 540, 1280)
-HELP_PAGE_TITLE_ROI = (170, 0, 630, 75)
+# Centered header text only. Wider bands include the Back chevron and border art, which made
+# production Tesseract return empty/garbled titles on retained native Alliance and Help frames.
+SCREEN_TITLE_ROI = (260, 6, 540, 60)
+# Label line of the Alliance menu bottom bar (Shop, Mail, Help, Operations); icons sit above it.
+ALLIANCE_MENU_BAR_ROI = (60, 1252, 740, 1280)
+ALLIANCE_MENU_BAR_LABELS = ("alliance shop", "alliance mail", "alliance help", "operations")
+ALLIANCE_MENU_LABEL_GAP = 20
+ALLIANCE_MENU_ICON_TOP = 1190
+ROUTE_CONTEXT_ALLIANCE_MENU = "alliance_menu"
+ROUTE_CONTEXT_SPEEDUP_HELP = "speedup_help"
+ROUTE_CONTEXT_HELP_HUB = "alliance_help_hub"
+# Centered row labels of the intermediate Alliance Help hub; only Speedup Help is ever bound.
+HELP_HUB_LABEL_ROI = (200, 90, 600, 450)
+HELP_HUB_ROW_LABELS = ("speedup help", "transport resources", "reinforce allies")
+HELP_HUB_LINE_TOLERANCE = 12
+HELP_HUB_TARGET_PAD = (24, 16)
 ALLIANCE_COIN_ROI = (205, 135, 755, 185)
 HELP_SUCCESS_ROI = (80, 230, 760, 465)
 NO_REQUESTS_ROI = (80, 430, 760, 700)
@@ -189,15 +204,11 @@ def recognize_help_screen(
             or type(frame_sha256) is not str or not re.fullmatch(r"[0-9a-f]{64}", frame_sha256)):
         return HelpObservation("UNKNOWN", float(captured_at or 0), str(frame_sha256 or ""),
                                False, False, (), recognizer_reason="invalid_frame_identity")
-    title = _norm(_ocr_text(frame, HELP_PAGE_TITLE_ROI, psm=7, reader=text_reader))
+    title = _norm(_ocr_text(frame, SCREEN_TITLE_ROI, psm=7, reader=text_reader))
     if title.replace(" ", "") != "speeduphelp":
         return HelpObservation("UNKNOWN", float(captured_at), frame_sha256, False,
                                0 <= current - captured_at <= 30.0, (), recognizer_reason="speedup_help_title_unrecognized")
-    try:
-        overlay = (overlay_reader or _default_overlay_reader)(frame)
-    except Exception as exc:
-        overlay = {"recognized": True, "reason": f"overlay_recognizer_failed:{type(exc).__name__}"}
-    overlay_clear = overlay.get("recognized") is False and overlay.get("state") in {"none_observed", "none"}
+    overlay_clear, overlay_reason = _overlay_evidence(frame, overlay_reader)
     requests = _individual_controls(frame, reader=token_reader)
     help_all_roi, help_all_free = _help_all_control(frame, reader=text_reader)
     body = _norm(_ocr_text(frame, NO_REQUESTS_ROI, psm=6, reader=text_reader))
@@ -219,7 +230,7 @@ def recognize_help_screen(
         daily_alliance_coin_balance=coin[0] if coin else None,
         daily_alliance_coin_limit=coin[1] if coin else None,
         help_success_message=success_message, help_all_success_count=None,
-        recognizer_reason=None if overlay_clear else str(overlay.get("reason") or "unknown_overlay"),
+        recognizer_reason=None if overlay_clear else overlay_reason,
     )
 
 
@@ -228,23 +239,104 @@ def _default_overlay_reader(frame: np.ndarray) -> Mapping[str, object]:
     return _generic_modal_overlay_evidence(frame)
 
 
-def _alliance_menu(frame: np.ndarray, *, text_reader: Callable[..., str] | None = None) -> bool:
-    title = _norm(_ocr_text(frame, (150, 0, 650, 105), psm=7, reader=text_reader))
-    return title == "alliance" and not _default_overlay_reader(frame).get("recognized")
+def _overlay_evidence(frame: np.ndarray, overlay_reader: Callable[[np.ndarray], Mapping[str, object]] | None = None
+                      ) -> tuple[bool, str]:
+    """Return whether the generic modal recognizer positively reports no overlay."""
+    try:
+        overlay = (overlay_reader or _default_overlay_reader)(frame)
+    except Exception as exc:
+        return False, f"overlay_recognizer_failed:{type(exc).__name__}"
+    clear = overlay.get("recognized") is False and overlay.get("state") in {"none_observed", "none"}
+    return clear, str(overlay.get("reason") or "unknown_overlay")
+
+
+def _alliance_menu_bar(frame: np.ndarray, *, token_reader: Callable[..., Mapping[str, Sequence[object]]] | None = None
+                       ) -> dict[str, tuple[int, int, int, int]] | None:
+    """Bind the exact four Alliance menu bottom-bar labels left to right, or nothing."""
+    groups: list[list[HelpToken]] = []
+    for token in sorted(_ocr_tokens(frame, ALLIANCE_MENU_BAR_ROI, reader=token_reader), key=lambda item: item.roi[0]):
+        if groups and token.roi[0] - max(item.roi[2] for item in groups[-1]) <= ALLIANCE_MENU_LABEL_GAP:
+            groups[-1].append(token)
+        else:
+            groups.append([token])
+    # OCR may split one word ("allian" + "ce"); compare each label without spaces.
+    labels = tuple("".join(token.text.replace(" ", "") for token in group) for group in groups)
+    if labels != tuple(label.replace(" ", "") for label in ALLIANCE_MENU_BAR_LABELS):
+        return None
+    return {label: (min(token.roi[0] for token in group), min(token.roi[1] for token in group),
+                    max(token.roi[2] for token in group), max(token.roi[3] for token in group))
+            for label, group in zip(ALLIANCE_MENU_BAR_LABELS, groups)}
+
+
+def _alliance_menu(frame: np.ndarray, *, text_reader: Callable[..., str] | None = None,
+                   token_reader: Callable[..., Mapping[str, Sequence[object]]] | None = None,
+                   overlay_reader: Callable[[np.ndarray], Mapping[str, object]] | None = None) -> bool:
+    """Exact Alliance title, positively clear overlay, and the exact Alliance bottom bar."""
+    title = _norm(_ocr_text(frame, SCREEN_TITLE_ROI, psm=7, reader=text_reader))
+    return (title == "alliance" and _overlay_evidence(frame, overlay_reader)[0]
+            and _alliance_menu_bar(frame, token_reader=token_reader) is not None)
 
 
 def _menu_help_target(frame: np.ndarray, *, token_reader: Callable[..., Mapping[str, Sequence[object]]] | None = None
                      ) -> tuple[int, int, int, int] | None:
-    tokens = _ocr_tokens(frame, (80, 120, 720, 1120), reader=token_reader)
-    candidates = []
-    for token in tokens:
-        if token.text != "help":
-            continue
-        x0, y0, x1, y1 = token.roi
-        roi = (max(80, x0 - 50), max(120, y0 - 24), min(720, x1 + 50), min(1120, y1 + 24))
-        if _orange_button(frame, roi):
-            candidates.append(roi)
-    return candidates[0] if len(candidates) == 1 else None
+    """Bind the bottom-bar Alliance Help entry: its recognized label plus the icon above it."""
+    bar = _alliance_menu_bar(frame, token_reader=token_reader)
+    if bar is None:
+        return None
+    x0, _y0, x1, y1 = bar["alliance help"]
+    return (x0, ALLIANCE_MENU_ICON_TOP, x1, y1)
+
+
+def _help_hub_rows(frame: np.ndarray, *, token_reader: Callable[..., Mapping[str, Sequence[object]]] | None = None
+                   ) -> dict[str, tuple[int, int, int, int]] | None:
+    """Bind the exact three Alliance Help hub rows top to bottom, or nothing."""
+    lines: list[list[HelpToken]] = []
+    tokens = _ocr_tokens(frame, HELP_HUB_LABEL_ROI, reader=token_reader)
+    for token in sorted(tokens, key=lambda item: ((item.roi[1] + item.roi[3]) // 2, item.roi[0])):
+        center = (token.roi[1] + token.roi[3]) // 2
+        if lines and abs(center - (lines[-1][0].roi[1] + lines[-1][0].roi[3]) // 2) <= HELP_HUB_LINE_TOLERANCE:
+            lines[-1].append(token)
+        else:
+            lines.append([token])
+    labels = tuple(" ".join(token.text for token in sorted(line, key=lambda item: item.roi[0])) for line in lines)
+    if labels != HELP_HUB_ROW_LABELS:
+        return None
+    return {label: (min(token.roi[0] for token in line), min(token.roi[1] for token in line),
+                    max(token.roi[2] for token in line), max(token.roi[3] for token in line))
+            for label, line in zip(HELP_HUB_ROW_LABELS, lines)}
+
+
+def _help_hub(frame: np.ndarray, *, text_reader: Callable[..., str] | None = None,
+              token_reader: Callable[..., Mapping[str, Sequence[object]]] | None = None,
+              overlay_reader: Callable[[np.ndarray], Mapping[str, object]] | None = None) -> bool:
+    """Exact 'Alliance Help' title, positively clear overlay, and the exact three hub rows."""
+    title = _norm(_ocr_text(frame, SCREEN_TITLE_ROI, psm=7, reader=text_reader))
+    return (title == "alliance help" and _overlay_evidence(frame, overlay_reader)[0]
+            and _help_hub_rows(frame, token_reader=token_reader) is not None)
+
+
+def _hub_speedup_target(frame: np.ndarray, *, token_reader: Callable[..., Mapping[str, Sequence[object]]] | None = None
+                        ) -> tuple[int, int, int, int] | None:
+    """Bind only the current Speedup Help row label; Transport/Reinforce rows are never targets."""
+    rows = _help_hub_rows(frame, token_reader=token_reader)
+    if rows is None:
+        return None
+    x0, y0, x1, y1 = rows["speedup help"]
+    pad_x, pad_y = HELP_HUB_TARGET_PAD
+    return (max(0, x0 - pad_x), max(0, y0 - pad_y), min(800, x1 + pad_x), min(1280, y1 + pad_y))
+
+
+def _route_context(captured: Any, *, now: float) -> str | None:
+    """Positively recognize an existing route-owned Alliance menu, Help hub, or fresh clear Help source."""
+    if _alliance_menu(captured.frame):
+        return ROUTE_CONTEXT_ALLIANCE_MENU
+    if _help_hub(captured.frame):
+        return ROUTE_CONTEXT_HELP_HUB
+    help_screen = recognize_help_screen(captured.frame, captured_at=captured.captured_monotonic,
+                                        frame_sha256=captured.sha256, now=now)
+    if help_screen.screen_state == SOURCE_STATE and help_screen.source_fresh and help_screen.overlay_clear:
+        return ROUTE_CONTEXT_SPEEDUP_HELP
+    return None
 
 
 @lru_cache(maxsize=1)
@@ -293,7 +385,8 @@ def _current_observation(runtime: Any, captured: Any, *, observer=recognize_help
                     now=time.monotonic() if now is None else now)
 
 
-def _navigation(*, session: Any, runtime: Any, name: str, binder: Callable[[Any], tuple[str, tuple[int, int, int, int]] | None],
+def _navigation(*, session: Any, runtime: Any, phase: str, name: str,
+                binder: Callable[[Any], tuple[str, tuple[int, int, int, int]] | None],
                 successor: Callable[[Any], bool], settle_seconds: float) -> tuple[Any | None, str]:
     current: dict[str, Any] = {}
 
@@ -304,8 +397,14 @@ def _navigation(*, session: Any, runtime: Any, name: str, binder: Callable[[Any]
         current["identity"], current["roi"] = bound
 
     def dispatch(before: Any) -> None:
-        runtime.tap(before, target_identity=current["identity"], target_roi=current["roi"],
-                    action_key=f"alliance-help-navigation:{name}:{before.sha256[:16]}")
+        # Native dedup checks BOTH action keys and (pixels, target identity, ROI).
+        # Recovery and terminal return are distinct verified traversals, even when
+        # Alliance renders byte-identically. Keep the target stable within a phase
+        # so a repeated unchanged step still hits the native fingerprint guard.
+        runtime.tap(before,
+                    target_identity=f"{current['identity']}:{phase}:{name}",
+                    target_roi=current["roi"],
+                    action_key=f"alliance-help-navigation:{phase}:{name}:{session.input_count}:{before.sha256[:16]}")
 
     def recognize(after: Any) -> str:
         current["after"] = after
@@ -537,6 +636,7 @@ class AllianceHelpActionBoundary:
         transport_calls = 0
         dispatch_input_start: int | None = None
         semantic_success = False
+        dispatch_evidence: list[dict[str, Any]] = []
 
         def recapture():
             nonlocal recapture_returned
@@ -600,6 +700,22 @@ class AllianceHelpActionBoundary:
                 return settled
             return self.runtime.capture(f'alliance-help-result-settled-{ordinal:02d}-2')
 
+        def dispatch_help(before: Any) -> None:
+            start = self.runtime.input_count
+            try:
+                self.runtime.tap(before,
+                    target_identity=INDIVIDUAL_TARGET_IDENTITY,
+                    target_roi=dispatch_plan.target_roi, action_key=action_key,
+                    action_class='free_action', consequential=False)
+            finally:
+                if self.runtime.input_count > start:
+                    dispatch_evidence.append({
+                        "immediate_before_sha256": before.sha256,
+                        "target_identity": INDIVIDUAL_TARGET_IDENTITY,
+                        "target_roi": dispatch_plan.target_roi,
+                        "action_key": action_key,
+                    })
+
         def transport(_intent: Any):
             nonlocal transport_calls, dispatch_input_start
             self.validate_identity()
@@ -609,10 +725,7 @@ class AllianceHelpActionBoundary:
                 outcome = self.session.run_action(
                     action_class='free_action', label=f'alliance-help-request-{ordinal:02d}',
                     capture=single_immediate,
-                    dispatch=lambda before: self.runtime.tap(before,
-                        target_identity=INDIVIDUAL_TARGET_IDENTITY,
-                        target_roi=immediate_plan.target_roi, action_key=action_key,
-                        action_class='free_action', consequential=False),
+                    dispatch=dispatch_help,
                     recognize=lambda after: successor(after),
                     settled_successor=settled_successor, consequence_class=CONSEQUENCE)
             finally:
@@ -659,6 +772,7 @@ class AllianceHelpActionBoundary:
         return {**base,
             "status": "confirmed" if verified else "reconciliation_required" if transport_calls or result_action.get("final_status") in {"input_sent", "unresolved"} else "blocked",
             "reason": execution.reason, "help_transport_calls": transport_calls,
+            "help_dispatch_evidence": dispatch_evidence,
             "committed_action_count": 1 if verified else 0,
             "verified_request_count": 1 if verified else 0,
             "effect_reconciliation_required": bool(transport_calls and not verified),
@@ -684,29 +798,42 @@ class AllianceHelpActionBoundary:
                 for frame in post]}
 
 
-def _return_home(*, session: Any, runtime: Any, settle_seconds: float,
+# Route-owned Back hierarchy: each context has one distinct Back step and one exact successor.
+_BACK_STEPS: dict[str, tuple[str, str | None]] = {
+    ROUTE_CONTEXT_SPEEDUP_HELP: ("back-speedup-help", ROUTE_CONTEXT_HELP_HUB),
+    ROUTE_CONTEXT_HELP_HUB: ("back-help-hub", ROUTE_CONTEXT_ALLIANCE_MENU),
+    ROUTE_CONTEXT_ALLIANCE_MENU: ("back-alliance-home", None),
+}
+
+
+def _return_home(*, session: Any, runtime: Any, phase: str, settle_seconds: float,
                  monotonic_clock: Callable[[], float] = time.monotonic) -> tuple[Any | None, list[str]]:
+    """Speedup Help -> hub -> Alliance -> Home with at most three distinct, never-repeated Backs."""
     current = session.observe(runtime.capture, label="alliance-help-return-source")
     route: list[str] = []
-    for ordinal in range(2):
+    for _ordinal in range(len(_BACK_STEPS)):
         if _home(current.frame):
             return current, route
-        if _alliance_menu(current.frame):
-            name = "back-alliance-home"
-        else:
-            help_screen = recognize_help_screen(current.frame,
-                captured_at=current.captured_monotonic, frame_sha256=current.sha256,
-                now=monotonic_clock())
-            if help_screen.screen_state != SOURCE_STATE:
-                return None, route
-            name = "back-speedup-help"
-        successor = lambda after: _home(after.frame) or _alliance_menu(after.frame) or (
-            recognize_help_screen(after.frame, captured_at=after.captured_monotonic,
-                frame_sha256=after.sha256, now=monotonic_clock()).screen_state == SOURCE_STATE)
-        def bind_back(before: Any):
+        context = _route_context(current, now=monotonic_clock())
+        if context is None:
+            return None, route
+        name, expected_next = _BACK_STEPS[context]
+        if name in route:
+            return None, route
+
+        # Exact successors only: an unchanged screen is unknown and is never tapped again.
+        def successor(after: Any, expected_next: str | None = expected_next) -> bool:
+            return _home(after.frame) or (
+                expected_next is not None
+                and _route_context(after, now=monotonic_clock()) == expected_next
+            )
+
+        def bind_back(before: Any, expected_context: str = context):
+            if _route_context(before, now=monotonic_clock()) != expected_context:
+                return None
             target = _back_target(before.frame)
             return ("alliance-help-back", target) if target is not None else None
-        after, status = _navigation(session=session, runtime=runtime, name=name,
+        after, status = _navigation(session=session, runtime=runtime, phase=phase, name=name,
             binder=bind_back, successor=successor, settle_seconds=settle_seconds)
         if status != "completed" or after is None:
             return None, route
@@ -777,35 +904,62 @@ def run_alliance_help(
     if not count_ok:
         result.update(status="reconciliation_required", reason=count_reason,
                       effect_reconciliation_required=True, identical_retry_denied=True)
-    if not _home(initial.frame):
-        result["reason"] = "alliance_help_requires_current_clean_home"
-        _write_result(session, result)
-        return result
+    entry_home = initial if _home(initial.frame) else None
+    if entry_home is None:
+        start_context = _route_context(initial, now=monotonic_clock())
+        if start_context is None:
+            result["reason"] = "alliance_help_requires_current_clean_home"
+            _write_result(session, result)
+            return result
+        # Existing route-owned Back navigation from a positively recognized Alliance/Help
+        # context to a fresh Home; any unknown successor stops without a repeated input.
+        recovery: dict[str, Any] = {"source_context": start_context, "verified_navigation": []}
+        try:
+            home, recovery["verified_navigation"] = _return_home(session=session, runtime=runtime,
+                phase="recovery", settle_seconds=settle_seconds, monotonic_clock=monotonic_clock)
+            entry_home = home if home is not None and _home(home.frame) else None
+        except Exception as exc:
+            recovery["error"] = f"{type(exc).__name__}:{exc}"
+        recovery["home_verified"] = entry_home is not None
+        recovery["home_frame"] = ({"frame_path": str(entry_home.path), "frame_sha256": entry_home.sha256}
+                                  if entry_home is not None else None)
+        result["route_context_recovery"] = recovery
     try:
         if not count_ok:
             result.update(status="reconciliation_required", reason=count_reason,
                           confirmed_request_count=count,
                           effect_reconciliation_required=True, identical_retry_denied=True)
+        elif entry_home is None:
+            result["reason"] = "alliance_help_route_context_recovery_unproven"
         elif count == DAILY_REQUEST_LIMIT:
             result.update(status="complete_for_reset", reason="ten_requests_already_confirmed",
                           confirmed_request_count=count, no_work=True)
         else:
             current, nav_status = _navigation(session=session, runtime=runtime,
-                name="open-alliance", binder=lambda before: (
+                phase="entry", name="open-alliance", binder=lambda before: (
                     ("home-nav-alliance", roi) if (roi := _home_alliance_target(before.frame)) else None),
                 successor=lambda after: _alliance_menu(after.frame), settle_seconds=settle_seconds)
             if nav_status != "completed" or current is None:
                 result["reason"] = "alliance_menu_successor_unproven"
             else:
                 current, nav_status = _navigation(session=session, runtime=runtime,
-                    name="open-speedup-help", binder=lambda before: (
+                    phase="entry", name="open-help-hub", binder=lambda before: (
                         ("alliance-menu-help", roi) if _alliance_menu(before.frame)
                         and (roi := _menu_help_target(before.frame)) is not None else None),
-                    successor=lambda after: recognize_help_screen(after.frame,
-                        captured_at=after.captured_monotonic, frame_sha256=after.sha256,
-                        now=monotonic_clock()).screen_state == SOURCE_STATE,
-                    settle_seconds=settle_seconds)
-                if nav_status != "completed" or current is None:
+                    successor=lambda after: _help_hub(after.frame), settle_seconds=settle_seconds)
+                hub_reached = nav_status == "completed" and current is not None
+                if hub_reached:
+                    current, nav_status = _navigation(session=session, runtime=runtime,
+                        phase="entry", name="open-speedup-help", binder=lambda before: (
+                            ("help-hub-speedup-help", roi) if _help_hub(before.frame)
+                            and (roi := _hub_speedup_target(before.frame)) is not None else None),
+                        successor=lambda after: recognize_help_screen(after.frame,
+                            captured_at=after.captured_monotonic, frame_sha256=after.sha256,
+                            now=monotonic_clock()).screen_state == SOURCE_STATE,
+                        settle_seconds=settle_seconds)
+                if not hub_reached:
+                    result["reason"] = "alliance_help_hub_successor_unproven"
+                elif nav_status != "completed" or current is None:
                     result["reason"] = "speedup_help_successor_unproven"
                 else:
                     action = AllianceHelpActionBoundary(session=session, runtime=runtime,
@@ -871,21 +1025,32 @@ def run_alliance_help(
     result["max_inputs"] = MAX_INPUTS
     result["max_actions"] = MAX_ACTIONS
     native_calls = getattr(runtime, "frame_actions", None)
+    dispatch_evidence = [
+        dispatch for action in result.get("request_actions", ())
+        for dispatch in action.get("help_dispatch_evidence", ())
+    ]
     dispatch_accounting_valid = isinstance(native_calls, set) and all(
-        isinstance(item, tuple) and len(item) == 3 for item in native_calls)
+        isinstance(item, tuple) and len(item) == 3
+        and isinstance(item[2], tuple) and len(item[2]) == 4
+        for item in native_calls)
     if dispatch_accounting_valid:
-        help_dispatches = sorted(item for item in native_calls
-            if item[1] in {INDIVIDUAL_TARGET_IDENTITY, HELP_ALL_TARGET_IDENTITY})
+        help_dispatches = {item for item in native_calls
+            if item[1] in {INDIVIDUAL_TARGET_IDENTITY, HELP_ALL_TARGET_IDENTITY}}
+        dispatch_accounting_valid = (
+            len(dispatch_evidence) == len(help_dispatches)
+            and {(item["immediate_before_sha256"], item["target_identity"], item["target_roi"])
+                 for item in dispatch_evidence} == help_dispatches)
         measured_help_calls = len(help_dispatches)
-        result["help_dispatch_evidence"] = [
-            {"immediate_before_sha256": item[0], "target_identity": item[1], "action_key": item[2]}
-            for item in help_dispatches]
+        result["help_dispatch_evidence"] = dispatch_evidence
         result["help_transport_calls"] = measured_help_calls
     else:
         result["help_dispatch_evidence"] = []
-    if not store.has_action_block():
+    if entry_home is None:
+        # Recovery Back successor was unknown: never repeat it as a terminal return.
+        result["verified_navigation"] = []
+    elif not store.has_action_block():
         home, back_steps = _return_home(session=session, runtime=runtime,
-            settle_seconds=settle_seconds, monotonic_clock=monotonic_clock)
+            phase="terminal", settle_seconds=settle_seconds, monotonic_clock=monotonic_clock)
         result["verified_navigation"] = back_steps
         if home is not None and _home(home.frame):
             result["terminal_home_verified"] = True
@@ -893,7 +1058,7 @@ def run_alliance_help(
     else:
         try:
             home, back_steps = _return_home(session=session, runtime=runtime,
-                settle_seconds=settle_seconds, monotonic_clock=monotonic_clock)
+                phase="terminal", settle_seconds=settle_seconds, monotonic_clock=monotonic_clock)
             result["verified_navigation"] = back_steps
             if home is not None and _home(home.frame):
                 result["terminal_home_verified"] = True
@@ -981,20 +1146,32 @@ def _service_driver(context: Any, arguments: Mapping[str, object]) -> Mapping[st
     startup_key = hashlib.sha256(
         f"{FLOW_ID}\0{identity.reset_id}\0{context.occurrence_key}".encode("utf-8")
     ).hexdigest()
-    startup = context.prepare_startup(
-        source_context="alliance_help",
-        recognize_successor=lambda captured: _home(captured.frame),
-        action_key=f"{FLOW_ID}:startup:{startup_key}",
-        settle_seconds=context.settle_seconds,
-    )
-    startup_evidence = {
-        "source_context": startup.source_context, "reason": startup.reason,
-        "input_count": startup.input_count, "accounting_verified": startup.accounting_verified,
-        "resume_ready": startup.resume_ready, "dismissed": startup.dismissed,
-        "popup_absent": startup.popup_absent, "steps": list(startup.steps),
-        "settled_reference": startup.settled_reference.to_mapping()
-        if startup.settled_reference is not None else None,
-    }
+    initial = context.initial_frame
+    start_context = None if _home(initial.frame) else _route_context(initial, now=context.monotonic_clock())
+    if start_context is not None:
+        # Route-owned Alliance/Help context with a positively clear overlay: bind it without
+        # startup input; run_alliance_help returns it to fresh Home via the bound Back target.
+        context.bind_initial_observation(initial, extra={"alliance_help_start_context": start_context})
+        startup_evidence = {
+            "source_context": start_context, "reason": "route_context_bound_without_startup_input",
+            "input_count": 0, "accounting_verified": True, "resume_ready": True,
+            "dismissed": None, "popup_absent": None, "steps": [], "settled_reference": None,
+        }
+    else:
+        startup = context.prepare_startup(
+            source_context="alliance_help",
+            recognize_successor=lambda captured: _home(captured.frame),
+            action_key=f"{FLOW_ID}:startup:{startup_key}",
+            settle_seconds=context.settle_seconds,
+        )
+        startup_evidence = {
+            "source_context": startup.source_context, "reason": startup.reason,
+            "input_count": startup.input_count, "accounting_verified": startup.accounting_verified,
+            "resume_ready": startup.resume_ready, "dismissed": startup.dismissed,
+            "popup_absent": startup.popup_absent, "steps": list(startup.steps),
+            "settled_reference": startup.settled_reference.to_mapping()
+            if startup.settled_reference is not None else None,
+        }
     return run_alliance_help(
         session=context.session, runtime=context.runtime, store=context.action_store,
         identity=identity, validate_identity=validate_identity,

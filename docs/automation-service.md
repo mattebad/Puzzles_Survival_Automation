@@ -83,6 +83,11 @@ earlier source scopes; accepted daily routes are not forced to repeat for covera
   records the critical-path comparison at its historical revision. Later shared OCR
   time limits and Enhancement changes are separately scoped; this is not a new
   whole-head midnight or two-hour rerun.
+- Ruins keeps the initially verified Resource authority expiry for its finite
+  invocation. Re-deriving the same fixed account/server/reset at a later clock
+  tick must not require a newly derived expiry to equal that original expiry,
+  and must not extend it. Offline clock-progress and expired-authority checks
+  cover this boundary; current challenge/chest live acceptance remains separate.
 
 ## Canonical `pnsctl` serve facade
 
@@ -144,6 +149,13 @@ is not a completed native acceptance run; permanent controls remain disabled.
 
 B adds Ruins/Help; C adds Donation, Alliance Shop and Daily Shops. These are implemented and
 offline-proven, not newly live-accepted; production and SQLite runtime controls remain disabled.
+Ruins reconciles a claimed overview chest using its exact medal gain, unchanged category/reset
+and disappearance of that ready target; the category itself may remain visible. An unavailable
+challenge does not prevent independent ready chest claims. Help counts confirmed successful
+individual free requests, including delayed pending-to-success transitions; neither tap count
+nor repeated Help All inputs establishes progress. Native replay exercises both paths offline;
+finished-route live acceptance remains `evidence_required`.
+
 Donations count actual successful HOT-tech donations, not ranking points. Alliance Shop requires
 one affordable allowlisted Weekly offer or the exact one-star Other fallback, quantity one total.
 Daily Shops bounds each approved three-star Chip/Module tab purchase by observed stock and

@@ -10,15 +10,14 @@ import hashlib
 import json
 from pathlib import Path
 import time
-
-import cv2
-
-ROOT = Path(__file__).resolve().parents[1]
+from typing import Callable
 
 from safe_action_core import Observation
-from scripts.bluestacks_native_runtime import IntegratedRouteResult, LocalBlueStacksRuntime, NativeRuntimePort
-from scripts.home_atlas_bluestacks import BlueStacksLocalizeFirstHomeDriver, HomeDriverDisposition, ScrcpyMotionEventZoomTransport, identity_from_captured
+from automation_service.native_execution import NativeRouteBoundary
+from scripts.bluestacks_native_runtime import CapturedNativeFrame, IntegratedRouteResult, NativeRuntimePort
+from scripts.home_atlas_bluestacks import BlueStacksLocalizeFirstHomeDriver, HomeDriverDisposition, HomeDriverStep, ScrcpyMotionEventZoomTransport, identity_from_captured
 from tasks.home_atlas import load_home_atlas
+from tasks.home_atlas_planner import DirectPanPlan
 from scripts.startup_normalization import is_clean_home_frame
 from tasks.home_atlas_vision import BlueStacksHomeLocalizer, bind_visible_building
 from tasks.home_context import HomeReadyObservation
@@ -40,6 +39,7 @@ from tasks.ruins_challenge import (
 from tasks.ruins_challenge_runtime import RuinsRuntimeController
 from tasks.ruins_challenge_continuation import make_claim_record, write_continuation
 from tasks.ruins_challenge_vision import (
+    RuinsFrameRecognition,
     recognize_ruins_detail_with_targets,
     recognize_ruins_frame,
     recognize_ruins_result_with_targets,
@@ -60,11 +60,15 @@ from scripts.navigation_development_boundary import (
     make_source_safety_facts,
 )
 
+ROOT = Path(__file__).resolve().parents[1]
+
 
 RUINS_HOME_ATLAS_BUILDING_ID = "home.building.ruins"
 RUINS_LIST_SCROLL_TARGET = "ruins-list-scroll"
 MAXIMUM_RUINS_CHEST_SCROLLS = 3
 MAXIMUM_HOME_ZOOM_INPUTS = 2
+MAXIMUM_HOME_PAN_INPUTS = 4
+RUINS_HOME_PAN_TARGET = "home-camera-click-drag"
 _ORDINARY_RUINS_TARGETS = frozenset(
     {"ruins-attack", "ruins-dispatch", "ruins-result-continue", "ruins-reward-claim", "reset-popup-close"}
 )
@@ -76,7 +80,7 @@ def ruins_challenge_navigation_route_declaration() -> NavigationRouteDeclaration
     return NavigationRouteDeclaration(
         allowed_source_states=frozenset({"HOME_BASE", "RUINS_CHALLENGE", "RUINS_CHALLENGE_DETAIL", "RUINS_DISPATCH_DETAIL", "CHAT"}),
         allowed_target_identities=frozenset(
-            {RUINS_HOME_ATLAS_BUILDING_ID, RUINS_LIST_SCROLL_TARGET, "home-zoom-out", "system-back"}
+            {RUINS_HOME_ATLAS_BUILDING_ID, RUINS_LIST_SCROLL_TARGET, RUINS_HOME_PAN_TARGET, "home-zoom-out", "system-back"}
         ),
         allowed_gesture_classes=frozenset({"tap", "swipe", "back", "zoom_out"}),
     )
@@ -97,7 +101,7 @@ class RuinsIntegratedRoute:
         product_revision: str,
         runtime_identity: VerifiedRuntimeIdentity,
         action_executor,
-        initial_capture=None,
+        initial_capture: CapturedNativeFrame | None = None,
         home_driver: BlueStacksLocalizeFirstHomeDriver | None = None,
         zoom_transport=None,
         post_input_delay: float = 1.0,
@@ -164,6 +168,7 @@ class RuinsIntegratedRoute:
             HomeReadyObservation(True, True, runtime_identity, False, False),
             RUINS_HOME_ATLAS_BUILDING_ID,
             maximum_zoom_inputs=MAXIMUM_HOME_ZOOM_INPUTS,
+            maximum_pans=MAXIMUM_HOME_PAN_INPUTS,
         )
 
         self.zoom_transport = zoom_transport
@@ -355,8 +360,8 @@ class RuinsIntegratedRoute:
         return result.get("status") if isinstance(result, dict) else str(result)
 
 
-    def _recover_home_zoom_before_ruins_binding(self) -> tuple[object | None, str | None]:
-        """Normalize supported Home zoom before binding Ruins; unknown states fail closed."""
+    def _recover_home_zoom_before_ruins_binding(self) -> tuple[CapturedNativeFrame | None, HomeDriverStep | None, str | None]:
+        """Return the settled frame and its already-planned step without observing twice."""
         for ordinal in range(1, MAXIMUM_HOME_ZOOM_INPUTS + 1):
             before = self.runtime.capture(f"ruins-home-zoom-{ordinal:02d}-immediate-before")
             step = self.home_driver.observe(before.frame)
@@ -365,11 +370,11 @@ class RuinsIntegratedRoute:
                 HomeDriverDisposition.BIND,
                 HomeDriverDisposition.PAN,
             }:
-                return before, None
+                return before, step, None
             if step.disposition is HomeDriverDisposition.BLOCKED:
-                return None, f"home_zoom_recovery_blocked:{step.reason}"
+                return None, None, f"home_zoom_recovery_blocked:{step.reason}"
             if step.disposition is not HomeDriverDisposition.RECOVER_ZOOM:
-                return None, f"home_zoom_recovery_unsupported:{step.disposition.value}"
+                return None, None, f"home_zoom_recovery_unsupported:{step.disposition.value}"
             try:
                 self.runtime.dispatch_zoom_out(
                     before,
@@ -387,25 +392,79 @@ class RuinsIntegratedRoute:
                 )
                 self.home_driver.record_zoom_input_dispatched(step.source_frame_sha256)
             except NavigationBoundaryError as exc:
-                return None, str(exc)
+                return None, None, str(exc)
             except Exception as exc:
-                return None, f"android_zoom_transport_failed:{type(exc).__name__}:{exc}"
+                return None, None, f"android_zoom_transport_failed:{type(exc).__name__}:{exc}"
             self.runtime.capture(f"ruins-home-zoom-{ordinal:02d}-immediate-post")
             if self.post_input_delay > 0:
                 time.sleep(self.post_input_delay)
             settled = self.runtime.capture(f"ruins-home-zoom-{ordinal:02d}-settled")
             if settled.sha256 == before.sha256:
-                return None, "home_zoom_recovery_no_progress"
+                return None, None, "home_zoom_recovery_no_progress"
             post_step = self.home_driver.observe(settled.frame)
             if post_step.disposition is HomeDriverDisposition.BLOCKED:
-                return None, f"home_zoom_post_reclassification_blocked:{post_step.reason}"
+                return None, None, f"home_zoom_post_reclassification_blocked:{post_step.reason}"
             if post_step.disposition in {
                 HomeDriverDisposition.COMPLETE,
                 HomeDriverDisposition.BIND,
                 HomeDriverDisposition.PAN,
             }:
-                return settled, None
-        return None, "home_zoom_recovery_exhausted"
+                return settled, post_step, None
+        return None, None, "home_zoom_recovery_exhausted"
+
+    def _pan_home_before_ruins_binding(
+        self, captured: CapturedNativeFrame, step: HomeDriverStep,
+    ) -> tuple[CapturedNativeFrame | None, str | None]:
+        """Execute only calculated Home plans; every input needs measured fresh progress."""
+        for ordinal in range(1, MAXIMUM_HOME_PAN_INPUTS + 1):
+            if step.disposition in {HomeDriverDisposition.COMPLETE, HomeDriverDisposition.BIND}:
+                return captured, None
+            if step.disposition is not HomeDriverDisposition.PAN:
+                return None, f"home_atlas_pan_blocked:{step.reason}"
+            plan = step.plan
+            if not isinstance(plan, DirectPanPlan) or plan.drag_start is None or plan.drag_end is None:
+                return None, "home_atlas_pan_geometry_unavailable"
+            if not is_clean_home_frame(captured.frame):
+                return None, "home_atlas_pan_requires_clean_home"
+            before_localization = step.localization
+            if (
+                not before_localization.recognized
+                or before_localization.stale
+                or before_localization.overlay
+            ):
+                return None, "home_atlas_pan_source_not_localized"
+            action_key = f"ruins:home-pan:{ordinal}:{captured.sha256}"
+            self._prepare_navigation(captured, source_state="HOME_BASE")
+            self.runtime.swipe(
+                captured,
+                start=plan.drag_start,
+                end=plan.drag_end,
+                action_key=action_key,
+                target_identity=RUINS_HOME_PAN_TARGET,
+            )
+            self.runtime.capture(f"ruins-home-pan-{ordinal:02d}-immediate-post")
+            if self.post_input_delay > 0:
+                time.sleep(self.post_input_delay)
+            settled = self.runtime.capture(f"ruins-home-pan-{ordinal:02d}-settled")
+            after_localization = self.home_driver.localizer.localize(settled.frame)
+            progress = self.home_driver.record_pan_progress(before_localization, after_localization)
+            verified = bool(
+                settled.sha256 != captured.sha256
+                and is_clean_home_frame(settled.frame)
+                and progress.accepted
+            )
+            self.runtime.reconcile(
+                action_key, "confirmed" if verified else "unresolved", settled,
+                f"home_atlas_pan:{progress.reason}",
+            )
+            if not verified:
+                return None, f"home_atlas_pan_successor_not_verified:{progress.reason}"
+            captured = settled
+            # Reuse this localization, but obtain a new current-frame plan/binding.
+            step = self.home_driver.observe(captured.frame, localization=after_localization)
+        if step.disposition in {HomeDriverDisposition.COMPLETE, HomeDriverDisposition.BIND}:
+            return captured, None
+        return None, "home_atlas_pan_input_limit"
 
 
     def _return_home(self, captured, recognition, actions: int) -> IntegratedRouteResult:
@@ -443,22 +502,27 @@ class RuinsIntegratedRoute:
         return bool(BlueStacksHomeLocalizer(self.atlas, self.atlas_path).localize(frame).recognized)
 
 
-    def _current_frame_ruins_binding(self, captured):
-        localization = BlueStacksHomeLocalizer(self.atlas, self.atlas_path).localize(captured.frame)
-        if not localization.recognized:
+    def _current_frame_ruins_binding(self, captured: CapturedNativeFrame) -> tuple[int, int, int, int] | None:
+        localization = self.home_driver.localizer.localize(captured.frame)
+        if not localization.recognized or localization.stale or localization.overlay:
             return None
-        binding = bind_visible_building(captured.frame,
-        localization,
-        self.atlas.lookup_building(RUINS_HOME_ATLAS_BUILDING_ID), home_is_clean=is_clean_home_frame)
+        building = self.atlas.lookup_building(RUINS_HOME_ATLAS_BUILDING_ID)
+        binding = bind_visible_building(
+            captured.frame, localization, building, home_is_clean=is_clean_home_frame,
+        )
         if (
             binding is None
             or binding.building_id != RUINS_HOME_ATLAS_BUILDING_ID
             or binding.frame_sha256 != localization.frame_sha256
+            or binding.atlas_anchor != building.interaction_anchor
+            or not binding.semantic_evidence
+            or binding.confidence < 0.80
             or binding.overlay_intersects
             or binding.ambiguous_overlap
         ):
             return None
-        return tuple(binding.target_roi)
+        left, top, right, bottom = binding.target_roi
+        return left, top, right, bottom
 
     def _claim_one_chest(self, captured, recognition):
         observation = recognition.observation
@@ -594,7 +658,16 @@ class RuinsIntegratedRoute:
                     and next_observation.reset_identity == self.reset_identity
                     and post_recognition.target(target_identity) is None
                     and delta == modal.medal_amount
-                    and (next_row is None or next_row.chest_state == RuinsChestState.CLAIMED)
+                    # Native vision leaves a spent, still-visible chest UNKNOWN.
+                    # The exact modal reward delta plus disappearance of its bound
+                    # green target reconciles this action, not an OCR-only CLAIMED label.
+                    and next_row is not None
+                    and next_row.recognized
+                    and self._fully_visible_chest_row(next_row)
+                    and next_row.reset_identity == row.reset_identity
+                    and next_row.availability == RuinsAvailability.UNAVAILABLE
+                    and next_row.challenge_control == RuinsControlState.HIDDEN
+                    and next_row.chest_state in {RuinsChestState.UNKNOWN, RuinsChestState.CLAIMED}
                 )
                 facts["captures"].append((post_capture, post_recognition, delta, proven))
                 return RUINS_CHEST_CLAIM_POSTCONDITION if proven else "unknown"
@@ -629,15 +702,10 @@ class RuinsIntegratedRoute:
                     post_recognition,
                 )
             post_capture, post_recognition, reward_delta, _proven = captures[-1]
-            after = post_recognition.observation.row(row.identity)
-            if after is None:
-                after = replace(
-                    row,
-                    chest_state=RuinsChestState.CLAIMED,
-                    source_frame_sha256=post_capture.sha256,
-                )
-            else:
-                after = replace(after, chest_state=RuinsChestState.CLAIMED)
+            after = replace(
+                post_recognition.observation.row(row.identity),
+                chest_state=RuinsChestState.CLAIMED,
+            )
             reconciled = self.controller.reconcile_chest(row, after, action_key=action_key)
             if reconciled.kind != "chest_reconciled":
                 self.unresolved_action = True
@@ -1120,7 +1188,8 @@ class RuinsIntegratedRoute:
             return IntegratedRouteResult("unresolved", reconciled.reason, 0, str(self.runtime.session))
         return list_capture, list_recognition, result_observation.result
 
-    def run(self, *, max_steps: int = 30) -> IntegratedRouteResult:
+    def _enter_ruins(self) -> IntegratedRouteResult | tuple[CapturedNativeFrame, RuinsFrameRecognition]:
+        """Reach a positively recognized Ruins-owned list before gameplay is considered."""
         if not self.runtime.execute:
             return IntegratedRouteResult(
                 "blocked",
@@ -1131,22 +1200,26 @@ class RuinsIntegratedRoute:
         captured = self.initial_capture or self.runtime.capture("ruins-canonical-home-source")
         if not is_clean_home_frame(captured.frame):
             return IntegratedRouteResult("blocked", "canonical_clean_home_required", 0, str(self.runtime.session))
-        preparation = self.home_driver.observe(captured.frame)
-        if preparation.disposition is HomeDriverDisposition.BLOCKED:
+        # The driver records each proposed zoom source. Let one owner observe and
+        # consume that plan; observing this same frame twice rejects it as a retry.
+        captured, preparation, preparation_error = self._recover_home_zoom_before_ruins_binding()
+        if (
+            preparation_error is not None
+            or captured is None
+            or preparation is None
+            or not is_clean_home_frame(captured.frame)
+        ):
             return IntegratedRouteResult(
                 "blocked",
-                f"home_atlas_preflight_blocked:{preparation.reason}",
+                preparation_error or "home_zoom_did_not_restore_clean_home",
                 0,
                 str(self.runtime.session),
             )
-        if preparation.disposition is HomeDriverDisposition.RECOVER_ZOOM:
-            captured, preparation_error = self._recover_home_zoom_before_ruins_binding()
-            if preparation_error is not None or captured is None or not is_clean_home_frame(captured.frame):
+        if preparation.disposition is HomeDriverDisposition.PAN:
+            captured, preparation_error = self._pan_home_before_ruins_binding(captured, preparation)
+            if preparation_error is not None or captured is None:
                 return IntegratedRouteResult(
-                    "blocked",
-                    preparation_error or "home_zoom_did_not_restore_clean_home",
-                    0,
-                    str(self.runtime.session),
+                    "blocked", preparation_error or "home_atlas_pan_failed", 0, str(self.runtime.session),
                 )
         target = self._current_frame_ruins_binding(captured)
         if target is None:
@@ -1169,6 +1242,13 @@ class RuinsIntegratedRoute:
             or recognition.observation.reset_identity != self.reset_identity
         ):
             return IntegratedRouteResult("blocked", "Ruins list not positively recognized", 0, str(self.runtime.session))
+        return captured, recognition
+
+    def run(self, *, max_steps: int = 30) -> IntegratedRouteResult:
+        entry = self._enter_ruins()
+        if isinstance(entry, IntegratedRouteResult):
+            return entry
+        captured, recognition = entry
         self.controller.observe_list(recognition.observation)
         if recognition.observation.points_balance is not None:
             self._points_balance = recognition.observation.points_balance
@@ -1319,6 +1399,41 @@ class RuinsIntegratedRoute:
         )
 
 
+def _retained_dispatch_count(events_path) -> int:
+    """Count unique transport dispatch rows retained by one native runtime session."""
+
+    action_keys: set[str] = set()
+    for line in Path(events_path).read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        if not isinstance(row, dict) or row.get("type") != "dispatch":
+            continue
+        action_key = row.get("action_key")
+        if not isinstance(action_key, str) or not action_key or action_key in action_keys:
+            raise ValueError("Ruins retained dispatch journal has a missing or duplicate action key")
+        action_keys.add(action_key)
+    return len(action_keys)
+
+
+def adopt_ruins_route_transports(context) -> int:
+    """Bind the Ruins runtime's journal-proven transports to the borrowed session.
+
+    Ruins dispatches Home zoom, navigation and canonical-executor inputs through
+    the native runtime rather than ``DevelopmentSession.run_action``.  The
+    session owns those inputs by adopting the runtime's cumulative count from
+    the same retained journal used for startup recovery, and only after that
+    count is proven equal to the journal's unique dispatch rows.
+    """
+
+    runtime_count = context.runtime.input_count
+    retained_count = _retained_dispatch_count(context.runtime.events)
+    if type(runtime_count) is not int or runtime_count != retained_count:
+        raise ValueError("Ruins runtime input count differs from its retained dispatch journal")
+    return context.session.adopt_retained_transport_count(
+        runtime_count, source=str(context.runtime.events)
+    )
+
 
 def execute_ruins_route(context, arguments):
     """Fixed service driver for one canonical Home-to-Ruins visit."""
@@ -1400,7 +1515,7 @@ def execute_ruins_route(context, arguments):
         partial.setdefault("challenge_transport_calls", challenge_calls)
         partial.setdefault("chest_claim_transport_calls", chest_calls)
         partial.setdefault("unresolved_action", challenge_calls + chest_calls > 0)
-        exc.partial_result = partial
+        setattr(exc, "partial_result", partial)
         return exc
 
     route = RuinsIntegratedRoute(
@@ -1420,8 +1535,15 @@ def execute_ruins_route(context, arguments):
     try:
         outcome = route.run()
     except Exception as exc:
+        try:
+            adopt_ruins_route_transports(context)
+        except Exception as accounting_exc:
+            partial = dict(getattr(exc, "partial_result", {}) or {})
+            partial.setdefault("accounting_error", f"{type(accounting_exc).__name__}: {accounting_exc}")
+            setattr(exc, "partial_result", partial)
         raise attach_partial(exc)
     try:
+        adopt_ruins_route_transports(context)
         context.validate_identity()
         home_reference = None
         if route.terminal_home_verified and route.terminal_home_capture is not None:
@@ -1498,7 +1620,9 @@ def execute_ruins_route(context, arguments):
     }
 
 
-def create_service_binding(make_native_route_binding):
+def create_service_binding(
+    make_native_route_binding: Callable[..., NativeRouteBoundary],
+) -> NativeRouteBoundary:
     """Build the fixed native lifecycle binding without opening a runtime."""
 
     if not callable(make_native_route_binding):
