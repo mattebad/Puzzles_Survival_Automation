@@ -55,6 +55,9 @@ _RESOURCE_AMOUNT_RE = re.compile(r"^[0-9][0-9,]*(?:\.[0-9]+)?[KMB]?$", re.IGNORE
 _EXACT_AMOUNT_RE = re.compile(r"^[0-9][0-9,]*$", re.ASCII)
 _TIMER_RE = re.compile(r"(?<![0-9])([0-9]{1,2}):([0-5][0-9]):([0-5][0-9])(?![0-9])", re.ASCII)
 
+# Keep Back/border art out of title OCR, without clipping the glyphs at y=17.
+SCREEN_TITLE_ROI = (260, 6, 540, 60)
+
 
 @dataclass(frozen=True)
 class TextWord:
@@ -109,7 +112,8 @@ def _words(
         return ()
     crop = np.ascontiguousarray(frame[y0:y1, x0:x1])
     reader = ocr_reader or tesseract_data
-    data = call_ocr(reader, crop, config="--psm 6", timeout=5.0)
+    # call_ocr owns the bounded per-call timeout; passing ``timeout`` here collides with it (TypeError).
+    data = call_ocr(reader, crop, config="--psm 6")
     if not isinstance(data, Mapping):
         return ()
     fields = ("text", "left", "top", "width", "height", "conf", "block_num", "par_num", "line_num")
@@ -192,6 +196,44 @@ def _hot_binding(frame: np.ndarray, words: tuple[TextWord, ...]) -> tuple[TextWo
     if best is None:
         return None, None
     return best[1], best[2]
+
+
+def _tree_hot_marker(frame: np.ndarray, *, ocr_reader=None) -> TextWord | None:
+    """Read HOT inside measured red ribbons, including the viewport's bottom edge."""
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    mask = (((hsv[:, :, 0] <= 9) | (hsv[:, :, 0] >= 170))
+            & (hsv[:, :, 1] >= 100) & (hsv[:, :, 2] >= 70)).astype(np.uint8)
+    mask[:235] = 0  # Fixed chrome is not scrollable tree content.
+    markers = []
+    for contour in cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[0]:
+        x, y, width, height = cv2.boundingRect(contour)
+        if not (80 <= width <= 160 and 25 <= height <= 65 and 40 <= x < x + width <= 760):
+            continue
+        # The ribbon's left third contains the star; OCR only its text-bearing interior.
+        roi = (x + width * 30 // 100, y + height // 10,
+               x + width * 85 // 100, y + height * 92 // 100)
+        words = _words(frame, roi, ocr_reader=ocr_reader)
+        if len(words) == 1 and _normalize(words[0].text) == "hot":
+            markers.append(words[0])
+    return markers[0] if len(markers) == 1 else None
+
+
+def _tree_hot_label(words: tuple[TextWord, ...], marker: TextWord) -> TextLine | None:
+    if marker.roi[3] + 100 >= 1270:
+        return None  # A visible first label line is not proof that its suffix is on-screen.
+    center = (marker.roi[0] + marker.roi[2]) // 2
+    below = tuple(word for word in words
+                  if marker.roi[3] + 5 <= word.roi[1] < marker.roi[3] + 100
+                  and word.roi[3] < 1270
+                  and abs((word.roi[0] + word.roi[2]) // 2 - center) <= 80)
+    lines = _lines(below)
+    if not lines or len(lines) > 2:
+        return None
+    text = " ".join(line.text for line in lines)
+    if len(_normalize(text)) < 7 or any(char.isdigit() for char in text):
+        return None
+    roi = _union([word.roi for word in below])
+    return TextLine(text, roi, below) if roi else None
 
 
 def _exact_integer(text: str) -> int | None:
@@ -313,7 +355,7 @@ def _panel_observation(
         target_visible = False
     premium_roi = premium[-1] if premium is not None else None
     isolated = bool(
-        chosen is not None and premium_roi is not None
+        chosen is not None and target_roi is not None and premium_roi is not None
         and not (target_roi[0] < premium_roi[2] and premium_roi[0] < target_roi[2]
                  and target_roi[1] < premium_roi[3] and premium_roi[1] < target_roi[3])
     )
@@ -367,6 +409,30 @@ def _panel_observation(
                            "current_hot_panel" if hot else "current_hot_marker_unproven")
 
 
+def _alliance_tech_entry(words: tuple[TextWord, ...]) -> ROI | None:
+    """Bind the menu label, not the OCR line shared with Alliance War."""
+    matches: list[ROI] = []
+    for line in _lines(words):
+        for left, right in zip(line.words, line.words[1:]):
+            if (_normalize(left.text) == "alliance" and _normalize(right.text) == "tech"
+                    and 400 <= left.roi[0] < right.roi[0]
+                    and 430 <= left.roi[1] <= 880
+                    and abs(left.roi[1] - right.roi[1]) <= 12
+                    and 0 <= right.roi[0] - left.roi[2] <= 30):
+                bound = _union([left.roi, right.roi], pad_x=18, pad_y=14)
+                if bound is not None:
+                    matches.append(bound)
+    return matches[0] if len(matches) == 1 else None
+
+
+def _alliance_menu_clear(frame: np.ndarray) -> bool:
+    from scripts.daily_row_claim_bluestacks import _generic_modal_overlay_evidence
+
+    overlay = _generic_modal_overlay_evidence(frame)
+    return overlay.get("recognized") is False and overlay.get("state") in {"none_observed", "none"}
+
+
+
 def recognize_surface(
     captured: Any,
     *,
@@ -383,27 +449,31 @@ def recognize_surface(
     if home.is_home and is_clean_home_frame(frame):
         return DonationSurface("HOME", digest, evidence_ref)
     words = _words(frame, (0, 35, 800, 1195), ocr_reader=ocr_reader)
-    lines = _lines(words)
-    lines_norm = tuple((line, _normalize(line.text)) for line in lines)
     panel = _panel_observation(captured, reset_id=reset_id, evidence_ref=evidence_ref, words=words)
     if panel is not None:
         return panel
-    header = next(((line, text) for line, text in lines_norm if line.roi[1] < 150), None)
-    if header and "alliance tech" in header[1]:
-        hot_word, tech_line = _hot_binding(frame, words)
+    title_words = _words(frame, SCREEN_TITLE_ROI, ocr_reader=ocr_reader)
+    header = _normalize(" ".join(word.text for word in sorted(title_words, key=lambda word: word.roi[0])))
+    if header == "alliance tech":
+        tree_words = _words(frame, (40, 235, 760, 1280), ocr_reader=ocr_reader)
+        hot_word = _tree_hot_marker(frame, ocr_reader=ocr_reader)
+        tech_line = _tree_hot_label(tree_words, hot_word) if hot_word else None
         tech_slug = _slug(tech_line.text) if tech_line else None
-        target_roi = _union([hot_word.roi, tech_line.roi], pad_x=18, pad_y=12) if hot_word and tech_line else None
+        target_roi = (_union([hot_word.roi] + ([tech_line.roi] if tech_line else []),
+                             pad_x=18, pad_y=12) if hot_word else None)
+        # The unique current HOT widget authorizes navigation only. A clipped
+        # tree label never supplies a guessed identity or donation authority.
+        target_identity = f"alliance-tech:hot:{tech_slug or 'current-selected-node'}" if hot_word else None
         return DonationSurface("TECH_TREE", digest, evidence_ref,
-                               f"alliance-tech:hot:{tech_slug}" if tech_slug else None,
-                               target_roi, tech_line.text.strip() if tech_line else None,
+                               target_identity, target_roi, tech_line.text.strip() if tech_line else None,
                                tech_slug, hot_roi=hot_word.roi if hot_word else None,
-                               reason="current_hot_bound" if target_roi else "waiting_for_auto_hot_scroll")
-    if header and _normalize(header[1]) == "alliance":
-        entry = next((line for line, text in lines_norm if "alliance tech" in text and 430 <= line.roi[1] <= 880), None)
-        target_roi = _union([entry.roi], pad_x=18, pad_y=14) if entry else None
+                               reason=("current_hot_bound" if target_roi else
+                                       "waiting_for_auto_hot_scroll"))
+    if header == "alliance" and _alliance_menu_clear(frame):
+        target_roi = _alliance_tech_entry(words)
         return DonationSurface("ALLIANCE_HOME", digest, evidence_ref,
-                               "alliance:tech-entry" if entry else None, target_roi,
-                               reason="alliance_tech_entry_bound" if entry else "alliance_tech_entry_not_visible")
+                               "alliance:tech-entry" if target_roi else None, target_roi,
+                               reason="alliance_tech_entry_bound" if target_roi else "alliance_tech_entry_not_visible")
     return DonationSurface("UNKNOWN", digest, evidence_ref, reason="alliance_surface_unrecognized")
 
 
@@ -517,10 +587,17 @@ def _same_donation_facts(left: DonationObservation, right: DonationObservation) 
         "screen_state", "auto_hot_marker", "tech_identity", "target_identity", "target_roi", "panel_bounds",
         "control_class", "donate_control_visible", "control_enabled", "quantity", "resource_identity",
         "resource_known", "donation_amount", "resource_balance", "available_attempts", "attempt_capacity",
-        "active_recharge_timer", "next_attempt_available_in_seconds", "game_day_id", "overlay_state",
-        "reset_guard_active", "runtime_profile_id", "recognized",
+        "game_day_id", "overlay_state", "reset_guard_active", "runtime_profile_id", "recognized",
     )
-    return all(getattr(left, name) == getattr(right, name) for name in fields)
+    if not all(getattr(left, name) == getattr(right, name) for name in fields):
+        return False
+    attempts = left.available_attempts
+    if type(attempts) is int and attempts > 0:
+        # With an unchanged positive attempt count the recharge countdown only describes the next refill;
+        # a tick between captures neither consumes nor grants an attempt, so it cannot change authorization.
+        return True
+    return (left.active_recharge_timer == right.active_recharge_timer
+            and left.next_attempt_available_in_seconds == right.next_attempt_available_in_seconds)
 
 
 def _unknown_policy_observation(captured: CapturedNativeFrame, evidence_ref: str) -> Observation:
@@ -583,6 +660,10 @@ def _navigation_action(
         pending["after"] = (captured, surface)
         if surface.state != destination_state:
             return "unknown"
+        if destination_state == "DONATION_PANEL" and (
+                surface.donation is None or not surface.donation.recognized
+                or not surface.donation.auto_hot_marker or not surface.tech_slug):
+            return "unknown"
         if expected_tech_slug is not None and surface.tech_slug != expected_tech_slug:
             return "unknown"
         return destination_state
@@ -616,6 +697,8 @@ def _bind_surface_target(_captured: CapturedNativeFrame, surface: DonationSurfac
     if surface.target_identity is None or surface.target_roi is None:
         return None
     return surface.target_identity, surface.target_roi
+
+
 
 
 def _back_action(context: Any, surface: DonationSurface) -> tuple[CapturedNativeFrame, DonationSurface] | None:
@@ -969,14 +1052,14 @@ def run_alliance_donation(context: Any, arguments: Mapping[str, object]) -> Mapp
         current = menu
 
         hot_deadline = float(context.monotonic_clock()) + MAX_AUTO_HOT_WAIT_SECONDS
-        while current[1].state == "TECH_TREE" and current[1].target_roi is None:
+        while current is not None and current[1].state == "TECH_TREE" and current[1].target_roi is None:
             if float(context.monotonic_clock()) >= hot_deadline:
                 result["reason"] = "alliance_donation_auto_hot_marker_not_visible"
                 return _finish(context, result, current, committed_this_run)
             context.checkpoint()
             time.sleep(min(0.5, max(0.05, float(context.settle_seconds))))
             current = _capture(context, "alliance-donation-wait-auto-hot")
-        if current[1].state != "TECH_TREE" or current[1].target_roi is None or current[1].tech_slug is None:
+        if current is None or current[1].state != "TECH_TREE" or current[1].target_roi is None:
             result["reason"] = "alliance_donation_auto_hot_tree_unrecognized"
             return _finish(context, result, current, committed_this_run)
         tree_slug = current[1].tech_slug

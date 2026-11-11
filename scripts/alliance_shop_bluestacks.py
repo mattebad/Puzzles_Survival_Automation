@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import re
 import time
-from typing import Any, Callable, Mapping, Protocol
+from typing import Any, Mapping, Protocol
 
 import cv2
 import numpy as np
@@ -356,12 +356,14 @@ class _OcrWord:
 
 
 def _norm(value: str) -> str:
-    return re.sub(r"[^0-9a-z★]+", "", value.casefold())
+    return re.sub(r"[^0-9a-z★]+", "", value.casefold().replace("*", "★"))
 
 
-def _ocr_words(captured) -> tuple[_OcrWord, ...]:
+def _ocr_words(captured, roi=None, *, psm=6) -> tuple[_OcrWord, ...]:
     from scripts.bounded_tesseract import call_ocr, tesseract_data
-    data = call_ocr(tesseract_data, captured.frame, config="--psm 6")
+    x_offset, y_offset = (roi[0], roi[1]) if roi else (0, 0)
+    frame = captured.frame[roi[1]:roi[3], roi[0]:roi[2]] if roi else captured.frame
+    data = call_ocr(tesseract_data, frame, config=f"--psm {psm}")
     words = []
     for index, raw in enumerate(data.get("text", ())):
         text = str(raw).strip()
@@ -372,6 +374,7 @@ def _ocr_words(captured) -> tuple[_OcrWord, ...]:
             line = (int(data["block_num"][index]), int(data["par_num"][index]), int(data["line_num"][index]))
         except (KeyError, TypeError, ValueError, IndexError):
             continue
+        x, y = x + x_offset, y + y_offset
         if text and confidence >= 35 and 0 <= x < x + width <= 800 and 0 <= y < y + height <= 1280:
             words.append(_OcrWord(text, (x, y, x + width, y + height), line))
     return tuple(words)
@@ -410,23 +413,252 @@ def _numbers(line):
     return values
 
 
-def _icon(captured, word):
-    x0, y0, _x1, y1 = word.roi
-    cy = (y0 + y1) // 2
-    if x0 < 42 or cy < 20 or cy + 20 > 1280:
-        return None
-    patch = captured.frame[cy - 20:cy + 20, x0 - 42:x0 - 5]
-    return cv2.resize(cv2.cvtColor(patch, cv2.COLOR_BGR2GRAY), (32, 32))
+def _offer_buttons(captured):
+    """Measured gold offer controls, excluding item art and red Use controls."""
+    hsv = cv2.cvtColor(captured.frame, cv2.COLOR_BGR2HSV)
+    mask = cv2.inRange(hsv, np.array((10, 75, 100), dtype=np.uint8),
+                       np.array((40, 255, 255), dtype=np.uint8))
+    contours, _hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    buttons = []
+    for contour in contours:
+        x, y, width, height = cv2.boundingRect(contour)
+        if (530 <= x and 230 <= y and 120 <= width <= 220 and 45 <= height <= 80
+                and cv2.contourArea(contour) >= width * height * 0.8):
+            buttons.append((x, y, x + width, y + height))
+    return tuple(sorted(buttons, key=lambda roi: roi[1]))
 
 
-def _icon_matches(a, b):
-    if a is None or b is None or a.shape != b.shape:
+def _offer_button(captured, item):
+    matches = []
+    for button in _offer_buttons(captured):
+        x0, y0, _x1, _y1 = button
+        title_words = _ocr_words(captured, (200, max(230, y0 - 100), x0 - 8, y0))
+        if len(_hits(title_words, item)) == 1:
+            matches.append(button)
+    return matches[0] if len(matches) == 1 else None
+
+
+def _header_coin(captured):
+    """Current Alliance Coin balance icon; dialogs blur it, so offers cache this reference."""
+    return cv2.cvtColor(captured.frame[14:58, 560:604], cv2.COLOR_BGR2GRAY)
+
+
+def _alliance_coin_box(captured, roi, *, reference=None, sizes=range(22, 33)):
+    """Locate the Alliance Coin inside ``roi``; diamonds and unknown icons fail."""
+    # The native balance coin has a + overlay at its lower right. Match its
+    # unobscured interior at current scale, retaining the existing 0.86 gate.
+    reference = _header_coin(captured) if reference is None else reference
+    left, top, right, bottom = roi
+    search = cv2.cvtColor(captured.frame[top:bottom, left:right], cv2.COLOR_BGR2GRAY)
+    best_score, best_box = -1.0, None
+    for size in sizes:
+        if search.shape[0] < size or search.shape[1] < size:
+            continue
+        yy, xx = np.indices((size, size))
+        mask = (((xx - size / 2) ** 2 + (yy - size / 2) ** 2 < (size * 0.42) ** 2)
+                & ~((xx >= size * 0.45) & (yy >= size * 0.45))).astype(np.uint8) * 255
+        scores = cv2.matchTemplate(
+            search, cv2.resize(reference, (size, size)), cv2.TM_CCOEFF_NORMED, mask=mask,
+        )
+        scores = np.where(np.isfinite(scores), scores, -1.0)
+        _low, score, _low_at, (x, y) = cv2.minMaxLoc(scores)
+        if score > best_score:
+            best_score = score
+            best_box = (left + x, top + y, left + x + size, top + y + size)
+    return best_box if best_score >= 0.86 else None
+
+
+def _offer_field(captured, roi, label):
+    values = []
+    for line in _lines(_ocr_words(captured, roi)):
+        text = " ".join(word.text for word in line)
+        match = re.fullmatch(rf"{label}\s*:\s*(\d+(?:,\d{{3}})*)", text, re.IGNORECASE)
+        if match:
+            values.append(int(match.group(1).replace(",", "")))
+    return values[0] if len(values) == 1 else None
+
+
+def _same_offer_view(before, after):
+    # The refresh countdown above the cards is deliberately not list state.
+    return np.array_equal(before.frame[230:1280, 40:760], after.frame[230:1280, 40:760])
+
+
+def _selected_tab(captured, label, roi):
+    """Bind the red selected tab around a current OCR label, not label presence."""
+    hits = _hits(_ocr_words(captured, roi, psm=7), label)
+    if len(hits) != 1:
         return False
-    first, second = a.astype(np.float32), b.astype(np.float32)
-    first -= float(first.mean())
-    second -= float(second.mean())
-    norm = float(np.linalg.norm(first) * np.linalg.norm(second))
-    return norm > 1e-6 and float(np.sum(first * second) / norm) >= 0.86
+    x0, y0, x1, y1 = hits[0]
+    patch = captured.frame[max(roi[1], y0 - 8):min(roi[3], y1 + 8),
+                           max(roi[0], x0 - 8):min(roi[2], x1 + 8)].astype(np.float32)
+    if patch.size == 0:
+        return False
+    blue, green, red = patch[:, :, 0], patch[:, :, 1], patch[:, :, 2]
+    return float(np.mean((red > 55) & (red > green * 1.4) & (red > blue * 1.3))) >= 0.45
+
+
+ALLIANCE_DIALOG_ITEMS = (*ALLIANCE_WEEKLY_ITEMS, ALLIANCE_FALLBACK_ITEM)
+
+
+@dataclass(frozen=True)
+class _DialogLayout:
+    """Measured allowlisted Alliance quantity modal controls; values are read separately."""
+
+    button: tuple[int, int, int, int]
+    buy: tuple[int, int, int, int]
+    item: str
+    title: tuple[int, int, int, int]
+    select: tuple[int, int, int, int]
+    close: tuple[int, int, int, int]
+
+
+def _filled_rects(mask, accept, *, offset=(0, 0), fill=0.9):
+    contours, _hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    found = []
+    for contour in contours:
+        x, y, width, height = cv2.boundingRect(contour)
+        if accept(x + offset[0], width, height) and cv2.contourArea(contour) >= width * height * fill:
+            found.append((x + offset[0], y + offset[1], x + offset[0] + width, y + offset[1] + height))
+    return found
+
+
+def _dialog_buy_button(captured):
+    """The modal's one centred gold Buy control; offer-card Buy controls are narrower."""
+    hsv = cv2.cvtColor(captured.frame, cv2.COLOR_BGR2HSV)
+    mask = cv2.inRange(hsv, np.array((10, 75, 100), dtype=np.uint8),
+                       np.array((40, 255, 255), dtype=np.uint8))
+    buttons = _filled_rects(
+        mask, lambda x, width, height: 200 <= width <= 300 and 55 <= height <= 100
+        and abs(x + width / 2 - 400) <= 40,
+    )
+    return buttons[0] if len(buttons) == 1 else None
+
+
+def _dialog_close(captured, roi):
+    """One white diagonal-cross glyph in the modal header, never Back or a guessed corner."""
+    left, top, right, bottom = roi
+    hsv = cv2.cvtColor(captured.frame[top:bottom, left:right], cv2.COLOR_BGR2HSV)
+    white = cv2.inRange(hsv, np.array((0, 0, 200), dtype=np.uint8),
+                        np.array((180, 60, 255), dtype=np.uint8))
+    count, labels, stats, _centroids = cv2.connectedComponentsWithStats(white)
+    steps = np.linspace(0.1, 0.9, 9)
+    found = []
+    for label in range(1, count):
+        x, y, width, height, _area = (int(value) for value in stats[label])
+        if not (24 <= width <= 50 and 24 <= height <= 50 and abs(width - height) <= 6):
+            continue
+        glyph = labels[y:y + height, x:x + width] == label
+        diagonal = sum(bool(glyph[int(t * (height - 1)), int(t * (width - 1))]) for t in steps)
+        anti = sum(bool(glyph[int(t * (height - 1)), int((1 - t) * (width - 1))]) for t in steps)
+        edges = (glyph[0, width // 2], glyph[height - 1, width // 2],
+                 glyph[height // 2, 0], glyph[height // 2, width - 1])
+        if diagonal >= 8 and anti >= 8 and not any(edges) and 0.3 <= float(glyph.mean()) <= 0.6:
+            found.append((left + x, top + y, left + x + width, top + y + height))
+    return found[0] if len(found) == 1 else None
+
+
+def _dialog_layout(captured):
+    button = _dialog_buy_button(captured)
+    if button is None:
+        return None
+    bx0, by0, bx1, by1 = button
+    buys = _hits(_ocr_words(captured, (bx0 + 2, by0 + 2, bx1 - 2, by1 - 2), psm=7), "Buy")
+    if len(buys) != 1:
+        return None
+    words = _ocr_words(captured, (40, max(0, by0 - 420), 760, by0))
+    selects = _hits(words, "Select Quantity")
+    titles = [(item, hit) for item in ALLIANCE_DIALOG_ITEMS for hit in _hits(words, item)]
+    if len(selects) != 1 or len(titles) != 1 or not titles[0][1][3] < selects[0][1]:
+        return None
+    item, title = titles[0]
+    close = _dialog_close(captured, (bx1, max(0, title[1] - 110), 800, title[1] - 10))
+    if close is None:
+        return None
+    return _DialogLayout(button, buys[0], item, title, selects[0], close)
+
+
+def _dialog_quantity(captured, top, bottom):
+    """Selected quantity from the measured value box and its ``/maximum`` label."""
+    gray = cv2.cvtColor(captured.frame, cv2.COLOR_BGR2GRAY)
+    strips = _filled_rects(
+        cv2.inRange(gray[top:bottom, 40:760], 49, 58),
+        lambda _x, width, height: width >= 400 and 50 <= height <= 90, offset=(40, top),
+    )
+    if len(strips) != 1:
+        return None
+    sx0, sy0, sx1, sy1 = strips[0]
+    boxes = _filled_rects(
+        cv2.inRange(gray[sy0 + 3:sy1 - 3, sx0:sx1], 36, 47),
+        lambda _x, width, height: 70 <= width <= 150 and 35 <= height <= 60, offset=(sx0, sy0 + 3),
+    )
+    if len(boxes) != 1:
+        return None
+    x0, y0, x1, y1 = boxes[0]
+    selected_words = _ocr_words(captured, (x0 + 3, y0 + 3, x1 - 3, y1 - 3), psm=7)
+    selected = [value for line in _lines(selected_words) for value, _word in _numbers(line)]
+    maximum_words = _ocr_words(captured, (x1 + 2, y0, sx1 - 2, y1), psm=7)
+    if len(selected_words) != 1 or len(selected) != 1 or len(maximum_words) != 1:
+        return None
+    maximum = re.fullmatch(r"/\s*(\d+)", maximum_words[0].text)
+    if maximum is None or not 1 <= selected[0] <= int(maximum.group(1)):
+        return None
+    return selected[0], int(maximum.group(1))
+
+
+ALLIANCE_PURCHASE_SUBJECTS = {
+    "Joy Coin": "joy_coin",
+    "Timed Recruit Coin": "timed_recruit_coin",
+    "Bioenhance Scheme": "bioenhance_scheme",
+    ALLIANCE_FALLBACK_ITEM: "one_star_gear_enhance_material",
+}
+
+
+def _purchase_request_terms(action, request, reset_id):
+    """Exact allowlisted ordinary quantity-one request terms, or None."""
+    preconditions = tuple(request["semantic_preconditions"])
+    if len(preconditions) != 12:
+        return None
+    shop = preconditions[0].removeprefix("shop=")
+    subject = preconditions[1].removeprefix("item=")
+    price = int(preconditions[3].removeprefix("unit_price="))
+    stock = int(preconditions[4].removeprefix("stock="))
+    balance = int(preconditions[5].removeprefix("balance="))
+    quantity = int(preconditions[6].removeprefix("quantity="))
+    total = int(preconditions[7].removeprefix("total="))
+    source = (
+        "ALLIANCE_SHOP_WEEKLY_QUANTITY_DIALOG" if shop == "weekly_offers"
+        else "ALLIANCE_SHOP_OTHER_QUANTITY_DIALOG" if shop == "other" else None
+    )
+    expected_preconditions = (
+        f"shop={shop}", f"item={subject}", "currency=ALLIANCE_COINS",
+        f"unit_price={price}", f"stock={stock}", f"balance={balance}",
+        "quantity=1", f"total={price}",
+        f"alliance_shop_reset_id={reset_id}",
+        "alliance_shop_action_ordinal=1", "alliance_shop_action_count_before=0",
+        "alliance_shop_action_limit=1",
+    )
+    allowed_subject = (
+        shop == "weekly_offers" and subject in {"joy_coin", "timed_recruit_coin", "bioenhance_scheme"}
+    ) or (shop == "other" and subject == "one_star_gear_enhance_material")
+    if (
+        source is None or not allowed_subject or quantity != 1 or total != price
+        or stock < 1 or balance < price
+        or action.get("cost_amount") != price
+        or request.get("task_id") != FLOW_ID
+        or request.get("task_mode") != "supervised_validation"
+        or request.get("action_kind") != "alliance_shop_purchase-v2"
+        or request.get("semantic_action") != "PURCHASE_ALLIANCE_SHOP_OFFER"
+        or request.get("subject") != subject
+        or request.get("resource_or_currency") != "ALLIANCE_COINS"
+        or request.get("maximum_cost") != price
+        or request.get("free_only") is not False
+        or request.get("semantic_preconditions") != list(expected_preconditions)
+        or request.get("semantic_postconditions") != ["ALLIANCE_SHOP_PURCHASE_RECONCILED"]
+        or request.get("allowed_confirmation_dialogs") != [source]
+    ):
+        return None
+    return {"shop": shop, "subject": subject, "unit_price": price, "stock": stock, "balance": balance}
+
 
 
 class AllianceShopLivePort:
@@ -441,6 +673,10 @@ class AllianceShopLivePort:
         self.currency_icons: dict[str, np.ndarray] = {}
         self.last_dialog = None
         self.offer_evidence = {}
+        # Logical navigation identity: each (phase, step, exact source) dispatches at most once,
+        # and a phase whose step made no positive progress never gets another blind attempt.
+        self.navigation_keys: set[str] = set()
+        self.stalled_phases: set[str] = set()
 
     def _capture(self, label):
         self.context.checkpoint()
@@ -455,18 +691,29 @@ class AllianceShopLivePort:
         return bool(is_clean_home_frame(captured.frame))
 
     def _page(self, captured):
-        words = self._words(captured)
-        if _has(words, "Weekly Offers"):
-            return "weekly", words
-        if _has(words, "Other"):
-            return "other", words
-        if _has(words, "Alliance Shop"):
-            return "alliance", words
-        if _has(words, "Alliance"):
-            return "alliance_menu", words
+        # Home footer and unselected tabs are not screen titles.
         if self._home(captured):
-            return "home", words
-        return "unknown", words
+            return "home", ()
+        from scripts.alliance_donation_bluestacks import recognize_surface, SCREEN_TITLE_ROI
+        title = _ocr_words(captured, SCREEN_TITLE_ROI)
+        header = _norm(" ".join(word.text for word in sorted(title, key=lambda word: word.roi[0])))
+        if header == "alliance":
+            surface = recognize_surface(
+                captured, reset_id=self.context.identity.reset_id,
+                evidence_ref=str(captured.path),
+            )
+            return ("alliance_menu", self._words(captured)) if surface.state == "ALLIANCE_HOME" else ("unknown", ())
+        if header != "allianceshop":
+            return "unknown", ()
+        from scripts.alliance_donation_bluestacks import _alliance_menu_clear
+        if not _alliance_menu_clear(captured.frame):
+            return "unknown", ()
+        if _selected_tab(captured, "Weekly Offers", (40, 85, 281, 155)):
+            return "weekly", self._words(captured)
+        if _selected_tab(captured, "Shop", (281, 85, 521, 155)):
+            page = "other" if _selected_tab(captured, "Other", (617, 165, 758, 220)) else "alliance"
+            return page, self._words(captured)
+        return "unknown", ()
 
     def action_status(self, action_key):
         import hashlib
@@ -497,49 +744,12 @@ class AllianceShopLivePort:
         try:
             request = json.loads(action["policy_request_json"])
             proof = json.loads(action["reconciliation_result_json"])
-            preconditions = tuple(request["semantic_preconditions"])
+            terms = _purchase_request_terms(action, request, self.context.identity.reset_id)
             references = tuple(Path(value) for value in proof["evidence_refs"])
-            if len(preconditions) != 12:
-                return "unresolved"
-            shop = preconditions[0].removeprefix("shop=")
-            subject = preconditions[1].removeprefix("item=")
-            price = int(preconditions[3].removeprefix("unit_price="))
-            stock = int(preconditions[4].removeprefix("stock="))
-            balance = int(preconditions[5].removeprefix("balance="))
-            quantity = int(preconditions[6].removeprefix("quantity="))
-            total = int(preconditions[7].removeprefix("total="))
-            source = (
-                "ALLIANCE_SHOP_WEEKLY_QUANTITY_DIALOG" if shop == "weekly_offers"
-                else "ALLIANCE_SHOP_OTHER_QUANTITY_DIALOG" if shop == "other" else None
-            )
-            expected_preconditions = (
-                f"shop={shop}", f"item={subject}", "currency=ALLIANCE_COINS",
-                f"unit_price={price}", f"stock={stock}", f"balance={balance}",
-                "quantity=1", f"total={price}",
-                f"alliance_shop_reset_id={self.context.identity.reset_id}",
-                "alliance_shop_action_ordinal=1", "alliance_shop_action_count_before=0",
-                "alliance_shop_action_limit=1",
-            )
-            allowed_subject = (
-                shop == "weekly_offers" and subject in {"joy_coin", "timed_recruit_coin", "bioenhance_scheme"}
-            ) or (shop == "other" and subject == "one_star_gear_enhance_material")
             digest = proof["frame_sha256"]
             root = Path(request["runtime_session_id"]).resolve(strict=True)
             if (
-                source is None or not allowed_subject or quantity != 1 or total != price
-                or stock < 1 or balance < price
-                or action.get("cost_amount") != price
-                or request.get("task_id") != FLOW_ID
-                or request.get("task_mode") != "supervised_validation"
-                or request.get("action_kind") != "alliance_shop_purchase-v2"
-                or request.get("semantic_action") != "PURCHASE_ALLIANCE_SHOP_OFFER"
-                or request.get("subject") != subject
-                or request.get("resource_or_currency") != "ALLIANCE_COINS"
-                or request.get("maximum_cost") != price
-                or request.get("free_only") is not False
-                or request.get("semantic_preconditions") != list(expected_preconditions)
-                or request.get("semantic_postconditions") != ["ALLIANCE_SHOP_PURCHASE_RECONCILED"]
-                or request.get("allowed_confirmation_dialogs") != [source]
+                terms is None
                 or proof.get("confirmed") is not True
                 or not isinstance(digest, str) or len(digest) != 64
                 or len(references) < 4
@@ -573,8 +783,12 @@ class AllianceShopLivePort:
             return False
         if len(target) != 4 or not (0 <= target[0] < target[2] <= 800 and 0 <= target[1] < target[3] <= 1280):
             return False
+        key = f"alliance-shop:{action_name}:{before.sha256}"
+        if key in self.navigation_keys:
+            return False
         self.context.checkpoint()
-        dispatch(before, target, f"alliance-shop:{action_name}:{before.sha256}")
+        self.navigation_keys.add(key)
+        dispatch(before, target, key)
         after = self._capture(f"alliance-shop-{action_name}-immediate-post")
         if recognize(after):
             return True
@@ -583,9 +797,12 @@ class AllianceShopLivePort:
         settled = self._capture(f"alliance-shop-{action_name}-settled")
         return bool(recognize(settled))
 
-    def _tap_text(self, label, target_identity, action_name, recognize):
+    def _tap_text(self, label, target_identity, action_name, recognize, *, source_pages, roi=None):
         def bind(before):
-            matches = _hits(self._words(before), label)
+            if self._page(before)[0] not in source_pages:
+                raise ValueError("Alliance navigation source changed")
+            words = _ocr_words(before, roi, psm=6 if roi[1] >= 1180 else 7) if roi else self._words(before)
+            matches = _hits(words, label)
             if len(matches) != 1:
                 raise ValueError(f"Alliance {label!r} target is not uniquely recognized")
             return matches[0]
@@ -606,107 +823,124 @@ class AllianceShopLivePort:
             recognize,
         )
 
-    def _back(self):
-        def recognize(after):
-            page, _words = self._page(after)
-            return page in {"weekly", "other", "alliance", "alliance_menu", "home"}
+    def _back(self, phase):
+        """One Back from a recognized Alliance page; success needs a different known page."""
+        known = {"weekly", "other", "alliance", "alliance_menu"}
+        source: dict[str, str] = {}
+        def bind(before):
+            page = self._page(before)[0]
+            if page not in known:
+                raise ValueError("Alliance Back source is not recognized")
+            source["page"] = page
+            return (0, 0, 800, 1280)
+        def progressed(after):
+            page = self._page(after)[0]
+            return page != source["page"] and page in known | {"home"}
+        target_identity = f"android-back:alliance-shop-{phase}"
         return self._tap(
-            "system-back", "return-home", lambda _before: (0, 0, 800, 1280),
-            lambda before, _roi, key: self.runtime.back(before, action_key=key), recognize,
+            target_identity, f"{phase}-return-home", bind,
+            lambda before, _roi, key: self.runtime.back(
+                before, action_key=key, target_identity=target_identity,
+            ),
+            progressed,
         )
 
     def enter_weekly_offers(self):
         if not self._home(self._capture("alliance-shop-home-source")):
             return False
-        if not self._tap_text("Alliance", "home.alliance-entry", "open-alliance",
-                              lambda frame: self._page(frame)[0] in {"alliance", "alliance_menu"}):
+        from scripts.alliance_donation_bluestacks import _home_alliance_target
+        def bind_home(before):
+            if not self._home(before):
+                raise ValueError("Alliance entry requires fresh clean Home")
+            target = _home_alliance_target(before)
+            if target is None:
+                raise ValueError("Alliance Home footer is not recognized")
+            return target[1]
+        if not self._tap_roi(
+            bind_home, "home-nav:alliance", "open-alliance",
+            lambda frame: self._page(frame)[0] == "alliance_menu",
+        ):
             return False
         if not self._tap_text("Alliance Shop", "alliance:shop-entry", "open-shop",
-                              lambda frame: self._page(frame)[0] == "alliance"):
+                              lambda frame: self._page(frame)[0] in {"alliance", "weekly", "other"},
+                              source_pages={"alliance_menu"}, roi=(40, 1180, 760, 1280)):
             return False
+        if self._page(self._capture("alliance-shop-open-shop-current-tab"))[0] == "weekly":
+            self.current_tab = "weekly"
+            return True
         if not self._tap_text("Weekly Offers", "alliance-shop:weekly-tab", "open-weekly",
-                              lambda frame: self._page(frame)[0] == "weekly"):
+                              lambda frame: self._page(frame)[0] == "weekly",
+                              source_pages={"alliance", "other"}, roi=(40, 85, 281, 155)):
             return False
         self.current_tab = "weekly"
         return True
 
     def enter_other_offers(self):
         if not self._tap_text("Shop", "alliance-shop:standard-shop", "open-standard-shop",
-                              lambda frame: _has(self._words(frame), "Other")):
+                              lambda frame: self._page(frame)[0] == "alliance",
+                              source_pages={"weekly"}, roi=(281, 85, 521, 155)):
             return False
         if not self._tap_text("Other", "alliance-shop:other-tab", "open-other",
-                              lambda frame: self._page(frame)[0] == "other"):
+                              lambda frame: self._page(frame)[0] == "other",
+                              source_pages={"alliance"}, roi=(617, 165, 758, 220)):
             return False
         self.current_tab = "other"
         return True
 
     def _read_offer(self, captured, item, shop, rarity):
-        words = self._words(captured)
-        item_hits = _hits(words, item)
-        if len(item_hits) != 1:
+        button = _offer_button(captured, item)
+        if button is None:
             return None
-        item_roi = item_hits[0]
-        item_y = (item_roi[1] + item_roi[3]) / 2
-        price_lines = []
-        for line in _lines(words):
-            text = " ".join(word.text for word in line).casefold()
-            if any(token in text for token in ("owned", "stock", "remaining", "refresh", "total")):
-                continue
-            values = [entry for entry in _numbers(line) if entry[0] > 0]
-            distance = abs(sum((word.roi[1] + word.roi[3]) / 2 for word in line) / len(line) - item_y)
-            if len(values) == 1 and distance <= 125:
-                price_lines.append((distance, values[0]))
-        price_lines.sort(key=lambda row: row[0])
-        price = price_lines[0][1] if price_lines and (
-            len(price_lines) == 1 or price_lines[0][0] != price_lines[1][0]
-        ) else None
-        stock_fields = []
-        owned_fields = []
-        for line in _lines(words):
-            text = " ".join(word.text for word in line).casefold()
-            distance = abs(sum((word.roi[1] + word.roi[3]) / 2 for word in line) / len(line) - item_y)
-            values = _numbers(line)
-            if distance <= 160 and len(values) == 1:
-                if "remaining" in text or "stock" in text:
-                    stock_fields.append(values[0][0])
-                if "owned" in text:
-                    owned_fields.append(values[0][0])
-        stock = stock_fields[0] if len(stock_fields) == 1 else None
-        owned = owned_fields[0] if len(owned_fields) == 1 else None
-        balance = None
-        if price is not None:
-            price_icon = _icon(captured, price[1])
-            balances = []
-            for line in _lines(words):
-                for amount, word in _numbers(line):
-                    if word.roi[1] <= 220 and _icon_matches(price_icon, _icon(captured, word)):
-                        balances.append(amount)
-            if len(balances) == 1:
-                balance = balances[0]
-            if price_icon is not None:
-                self.currency_icons[f"{shop}:{item}"] = price_icon
+        x0, y0, x1, y1 = button
+        mid = (y0 + y1) // 2
+        buy_words = _ocr_words(captured, (x0 + 2, mid, x1 - 2, y1 - 1), psm=7)
+        coin = _alliance_coin_box(captured, (x0 + 2, max(0, y0 - 6), x1 - 2, mid + 4))
+        price = None
+        if coin is not None and _has(buy_words, "Buy"):
+            # OCR only the quote right of the matched coin; coin art is not a digit.
+            amount_words = _ocr_words(captured, (coin[2] + 1, y0, x1 - 2, mid + 2), psm=7)
+            amounts = [(value, word) for line in _lines(amount_words) for value, word in _numbers(line)]
+            price = amounts[0] if len(amounts) == 1 else None
+        footer_top, footer_bottom = max(230, y1 - 20), min(1280, y1 + 60)
+        owned = _offer_field(captured, (60, footer_top, 200, footer_bottom), "Owned")
+        stock = _offer_field(
+            captured, (205, footer_top, x0 - 8, footer_bottom),
+            "Remaining Qty" if shop == "Weekly Offers" else "Stock",
+        )
+        balance_words = _ocr_words(captured, (610, 12, 750, 58), psm=7)
+        balances = [value for line in _lines(balance_words) for value, _word in _numbers(line)]
+        coin_known = price is not None
+        balance = balances[0] if len(balances) == 1 and coin_known else None
+        if price is not None and coin_known:
+            self.currency_icons[f"{shop}:{item}"] = _header_coin(captured)
         return ShopOffer(
             shop_identity=shop,
             item_identity=item,
-            currency_identity="Alliance Coins",
+            currency_identity="Alliance Coins" if coin_known else "UNKNOWN",
             unit_price=price[0] if price else None,
             balance=balance,
             stock=stock,
             item_quantity=owned,
             rarity=rarity,
             available=(stock > 0 if stock is not None else None),
-            recognized=True,
+            recognized=bool(coin_known and balance is not None and price is not None
+                            and stock is not None and owned is not None),
             offer_identity=f"{shop}:{item}",
         )
 
-    def _scroll(self, captured, words, page):
-        buttons = _hits(words, "Buy")
+    def _scroll(self, captured, page):
+        buttons = _offer_buttons(captured)
         if len(buttons) < 2:
             return None
-        top = min(buttons, key=lambda roi: roi[1])
-        bottom = max(buttons, key=lambda roi: roi[1])
-        start = ((top[0] + top[2]) // 2, (bottom[1] + bottom[3]) // 2)
-        end = ((top[0] + top[2]) // 2, (top[1] + top[3]) // 2)
+        top, bottom = buttons[0], buttons[-1]
+        for button in (top, bottom):
+            x0, y0, x1, y1 = button
+            if not _has(_ocr_words(captured, (x0 + 2, (y0 + y1) // 2, x1 - 2, y1 - 1), psm=7), "Buy"):
+                return None
+        # Drag the measured description gutter, never a Buy control.
+        x = (200 + min(button[0] for button in buttons)) // 2
+        start = (x, (bottom[1] + bottom[3]) // 2)
+        end = (x, (top[1] + top[3]) // 2)
         if start[1] - end[1] < 80:
             return None
         self.context.checkpoint()
@@ -717,6 +951,8 @@ class AllianceShopLivePort:
             action_key=f"alliance-shop:{page}-scroll:{captured.sha256}",
             target_identity=f"alliance-shop:{page}-offer-list-scroll",
         )
+        if self.settle_seconds:
+            time.sleep(self.settle_seconds)
         settled = self._capture(f"alliance-shop-{page}-scroll-successor")
         if self._page(settled)[0] != page:
             return None
@@ -744,15 +980,20 @@ class AllianceShopLivePort:
                     offers[item] = offer
                     self.offer_evidence[item] = captured
             if any(
-                row.available is True and row.stock and row.balance is not None
+                row.recognized and row.currency_identity == "Alliance Coins"
+                and row.item_quantity is not None and row.available is True
+                and row.stock and row.balance is not None
                 and row.unit_price is not None and row.balance >= row.unit_price
                 for row in offers.values()
             ):
                 return scan_result(True)
-            successor = self._scroll(captured, self._words(captured), "weekly")
+            successor = self._scroll(captured, "weekly")
             if successor is None:
                 return scan_result(False, "WEEKLY_LIST_END_NOT_PROVEN")
-            if successor.sha256 == captured.sha256:
+            scanned.append(successor)
+            if _same_offer_view(successor, captured):
+                if any(not row.recognized for row in offers.values()):
+                    return scan_result(False, "WEEKLY_OFFER_FIELDS_UNRESOLVED")
                 return scan_result(True)
         return scan_result(False, "WEEKLY_SCAN_BOUND_REACHED")
 
@@ -774,54 +1015,73 @@ class AllianceShopLivePort:
             if offer is not None:
                 self.offer_evidence[offer.item_identity] = captured
                 return offer, True, ""
-            successor = self._scroll(captured, self._words(captured), "other")
+            successor = self._scroll(captured, "other")
             if successor is None:
                 return None, False, "OTHER_LIST_END_NOT_PROVEN"
-            if successor.sha256 == captured.sha256:
+            scanned.append(successor)
+            self.last_other_scan_evidence = {
+                "frame_refs": tuple(str(frame.path) for frame in scanned),
+                "frame_sha256s": tuple(frame.sha256 for frame in scanned),
+            }
+            if _same_offer_view(successor, captured):
                 return None, True, "EXACT_FALLBACK_NOT_PRESENT"
             captured = successor
         return None, False, "OTHER_SCAN_BOUND_REACHED"
 
     def _outer_buy_roi(self, captured, offer):
-        words = self._words(captured)
-        items, buys = _hits(words, offer.item_identity), _hits(words, "Buy")
-        if len(items) != 1 or not buys:
-            raise ValueError("Alliance offer row or Buy target is ambiguous")
-        y = (items[0][1] + items[0][3]) / 2
-        ranked = sorted((abs((roi[1] + roi[3]) / 2 - y), roi) for roi in buys)
-        if ranked[0][0] > 140 or (len(ranked) > 1 and ranked[0][0] == ranked[1][0]):
+        button = _offer_button(captured, offer.item_identity)
+        if button is None:
+            raise ValueError("Alliance offer row is ambiguous")
+        x0, y0, x1, y1 = button
+        words = _ocr_words(captured, (x0 + 2, (y0 + y1) // 2, x1 - 2, y1 - 1), psm=7)
+        buys = _hits(words, "Buy")
+        if len(buys) != 1:
             raise ValueError("Alliance outer Buy is not bound to the exact offer")
-        return ranked[0][1]
+        return buys[0]
 
     def _quantity_dialog(self, captured, offer):
-        words = self._words(captured)
-        if len(_hits(words, offer.item_identity)) != 1:
+        self.context.checkpoint()
+        layout = _dialog_layout(captured)
+        if layout is None or layout.item != offer.item_identity:
             return None
-        totals = [line for line in _lines(words) if "total" in " ".join(word.text for word in line).casefold()]
-        quantities = []
-        for line in _lines(words):
-            text = " ".join(word.text for word in line)
-            match = re.search(r"(?<!\d)(\d[\d,]*)\s*/\s*(\d[\d,]*)(?!\d)", text)
-            if match:
-                quantities.append((int(match.group(1).replace(",", "")), line))
-        if len(totals) != 1 or len(quantities) != 1:
+        quantity = _dialog_quantity(captured, layout.select[3] + 5, layout.button[1] - 5)
+        if quantity is None:
             return None
-        total_numbers = _numbers(totals[0])
-        if len(total_numbers) != 1:
-            return None
-        total, total_word = total_numbers[0]
-        expected_icon = self.currency_icons.get(offer.offer_identity)
-        if not _icon_matches(expected_icon, _icon(captured, total_word)):
-            return None
-        quantity, quantity_line = quantities[0]
-        quantity_y = sum((word.roi[1] + word.roi[3]) / 2 for word in quantity_line) / len(quantity_line)
-        buys = [roi for roi in _hits(words, "Buy") if (roi[1] + roi[3]) / 2 > quantity_y]
-        if not buys:
-            return None
-        buy_roi = max(buys, key=lambda roi: roi[1])
+        # The modal blurs the header, so bind its Total coin to this offer's current header
+        # coin, then read only the Total row to the coin's right.
+        title, reference = layout.title, self.currency_icons.get(offer.offer_identity)
+        coin = None if reference is None else _alliance_coin_box(
+            captured, (max(0, title[0] - 40), title[3], title[0] + 60, layout.select[1]),
+            reference=reference, sizes=range(22, 47),
+        )
+        total = None
+        if coin is not None:
+            words = _ocr_words(captured, (coin[2] + 1, max(0, coin[1] - 4), 760, coin[3] + 4), psm=7)
+            totals = [value for line in _lines(words) for value, _word in _numbers(line)]
+            if len(words) == 2 and _norm(words[0].text) == "total" and len(totals) == 1:
+                total = totals[0]
         return QuantityDialog(
-            offer.shop_identity, offer.item_identity, offer.currency_identity,
-            offer.unit_price, quantity, total, buy_roi, True,
+            offer.shop_identity, offer.item_identity,
+            offer.currency_identity if total is not None else "UNKNOWN",
+            offer.unit_price, quantity[0], total, layout.buy, total is not None,
+        )
+
+    def _own_dialog_close(self, captured):
+        """Close control of a positively recognized Alliance allowlist quantity modal."""
+        self.context.checkpoint()
+        layout = _dialog_layout(captured)
+        return None if layout is None else layout.close
+
+    def _close_own_dialog(self, phase, action_name):
+        def bind(before):
+            close = self._own_dialog_close(before)
+            if close is None:
+                raise ValueError("Alliance quantity dialog close control is not recognized")
+            return close
+        shop_pages = {self.current_tab} if self.current_tab else {"weekly", "alliance", "other"}
+        return self._tap_roi(
+            bind, f"alliance-shop:quantity-dialog-close:{phase}", action_name,
+            lambda frame: _dialog_layout(frame) is None and self._page(frame)[0] in shop_pages,
         )
 
     def open_quantity_dialog(self, offer):
@@ -829,7 +1089,7 @@ class AllianceShopLivePort:
         if self._page(captured)[0] != self.current_tab:
             return None
         try:
-            roi = self._outer_buy_roi(captured, offer)
+            self._outer_buy_roi(captured, offer)
         except ValueError:
             return None
         if not self._tap_roi(
@@ -843,16 +1103,7 @@ class AllianceShopLivePort:
         return self._quantity_dialog(dialog_frame, offer)
 
     def cancel_quantity_dialog(self):
-        captured = self._capture("alliance-shop-quantity-cancel-source")
-        hits = _hits(self._words(captured), "X")
-        if len(hits) != 1:
-            return False
-        return self._tap_roi(
-            lambda before: _hits(self._words(before), "X")[0]
-            if len(_hits(self._words(before), "X")) == 1 else None,
-            "alliance-shop:quantity-dialog-close", "cancel-quantity-dialog",
-            lambda frame: self._page(frame)[0] == self.current_tab,
-        )
+        return self._close_own_dialog("route", "cancel-quantity-dialog")
 
     def purchase_one(self, offer, dialog, action_key):
         if self.last_dialog is None:
@@ -862,29 +1113,33 @@ class AllianceShopLivePort:
             self.context, self, offer, dialog, action_key, settle_seconds=self.settle_seconds,
         )
 
-    def return_home(self):
-        for _ in range(4):
+    def return_home(self, *, phase="terminal"):
+        """Close/back only positively recognized own surfaces; one stalled step ends the phase."""
+        if phase in self.stalled_phases:
+            return False
+        for _ in range(5):
             captured = self._capture("alliance-shop-home-return-source")
             if self._home(captured):
                 return True
-            if self._page(captured)[0] not in {"weekly", "other", "alliance", "alliance_menu"}:
+            if self._own_dialog_close(captured) is not None:
+                moved = self._close_own_dialog(phase, f"{phase}-close-quantity-dialog")
+            elif self._page(captured)[0] in {"weekly", "other", "alliance", "alliance_menu"}:
+                moved = self._back(phase)
+            else:
                 return False
-            if not self._back():
+            if not moved:
+                self.stalled_phases.add(phase)
                 return False
         return self._home(self._capture("alliance-shop-home-return-final"))
 
 
 def _purchase_alliance_offer(context, port, offer, dialog, action_key, *, settle_seconds):
     import hashlib
+    from dataclasses import replace
     from safe_action_core import ActionClass, CentralPolicy, Observation, PolicyRequest, SafeActionExecutor, TransportResult
     from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
-    subject = {
-        "Joy Coin": "joy_coin",
-        "Timed Recruit Coin": "timed_recruit_coin",
-        "Bioenhance Scheme": "bioenhance_scheme",
-        ALLIANCE_FALLBACK_ITEM: "one_star_gear_enhance_material",
-    }.get(offer.item_identity)
+    subject = ALLIANCE_PURCHASE_SUBJECTS.get(offer.item_identity)
     shop = "weekly_offers" if offer.shop_identity == "Weekly Offers" else "other"
     source_state = (
         "ALLIANCE_SHOP_WEEKLY_QUANTITY_DIALOG"
@@ -998,15 +1253,8 @@ def _purchase_alliance_offer(context, port, offer, dialog, action_key, *, settle
         runtime_session_id=str(session.session_directory),
     )
     policy = CentralPolicy({FLOW_ID})
-    issued = policy.issue_capability(request)
-    store.audit(FLOW_ID, "capability_issued", context.utc_clock(), issued.audit, request.action_id)
-    if not issued.authorized or issued.capability is None:
-        return PurchaseEffect(
-            "blocked", None, False, 0, None, None, None, "", "", False,
-            action_key=action_key, reason=issued.reason_code,
-        )
     offer_source = port.offer_evidence.get(offer.item_identity)
-    frames = {"current": page_source, "offer_source": offer_source}
+    frames = {"policy_source": page_source, "current": page_source, "offer_source": offer_source}
     effect_data: dict[str, Any] = {}
 
     def as_observation(captured, *, source, roi, positive=False):
@@ -1065,6 +1313,7 @@ def _purchase_alliance_offer(context, port, offer, dialog, action_key, *, settle
                 valid_png=captured.frame.shape == (1280, 800, 3), corrupt=False,
                 black=not bool(np.any(captured.frame)), source_state=source_state,
                 overlay_state="none", recognized=False, ambiguous=True,
+                target_identity=None, target_roi=None,
                 evidence_refs=(str(captured.path),), ocr_result_frame_sha256=captured.sha256,
                 ocr_result_capture_completed_monotonic=captured.captured_monotonic,
                 package_foreground=runtime.measure_foreground_package() == "com.global.ztmslg",
@@ -1155,9 +1404,22 @@ def _purchase_alliance_offer(context, port, offer, dialog, action_key, *, settle
             and effect_data.get("terminal_home_verified") is True
         )
 
+    # The one-shot capability binds the exact immediate numeric readback, not the
+    # earlier planning frame. Keep the original request for Core's plan/change checks.
+    immediate_observation = recapture()
+    issued = policy.issue_capability(replace(
+        request, observation=immediate_observation, monotonic_now=context.monotonic_clock(),
+    ))
+    store.audit(FLOW_ID, "capability_issued", context.utc_clock(), issued.audit, request.action_id)
+    if not issued.authorized or issued.capability is None:
+        return PurchaseEffect(
+            "blocked", None, False, 0, None, None, None, "", "", False,
+            action_key=action_key, reason=issued.reason_code,
+        )
+
     execution = SafeActionExecutor(
         store, policy, context.owner, context.monotonic_clock, transport,
-        recapture, post_observe, reconcile, wall_clock=context.utc_clock,
+        lambda: immediate_observation, post_observe, reconcile, wall_clock=context.utc_clock,
         max_pre_dispatch_attempts=1,
     ).execute(request, issued.capability)
     action = store.get_action_by_key(action_key)
@@ -1184,7 +1446,7 @@ def _purchase_alliance_offer(context, port, offer, dialog, action_key, *, settle
         effect_data.get("currency_identity_after", ""),
         bool(effect_data.get("tab_successor_verified")),
         effect_reconciliation_required=terminal_status in {"input_sent", "unresolved"},
-        identical_retry_denied=dispatched or terminal_status not in {"cancelled"},
+        identical_retry_denied=terminal_status in {"prepared", "input_sent", "unresolved"},
         action_key=action_key,
         reason=execution.reason,
     )
@@ -1193,26 +1455,36 @@ def _purchase_alliance_offer(context, port, offer, dialog, action_key, *, settle
 def _service_driver(context, arguments: Mapping[str, object]) -> Mapping[str, object]:
     from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
+    action_key = arguments.get("action_key")
+    if not isinstance(action_key, str) or not action_key:
+        raise ValueError("Alliance Shop canonical action key is missing")
+    port = AllianceShopLivePort(context, settle_seconds=float(arguments.get("settle_seconds", 1.0)))
     context.validate_identity()
     source = context.session.observe(context.runtime.capture, label="alliance-shop-canonical-home-source")
+    if not context.is_clean_home(source.frame):
+        # Only a positively recognized own Alliance Shop page or quantity modal is closed or
+        # backed out; unknown/manual contexts return without input.
+        try:
+            port.return_home(phase="startup")
+        finally:
+            context.session.adopt_retained_transport_count(
+                context.runtime.input_count, source=str(context.runtime.events),
+            )
+        source = context.session.observe(context.runtime.capture, label="alliance-shop-recovered-home-source")
     if not context.is_clean_home(source.frame):
         return {
             "status": "blocked",
             "reason": "ALLIANCE_CANONICAL_HOME_NOT_RECOGNIZED",
             "purchase_transport_calls": 0,
             "committed_action_count": 0,
-            "accounting_verified": False,
+            "accounting_verified": context.accounting().verified,
             "terminal_home_verified": False,
             "effect_reconciliation_required": False,
             "identical_retry_denied": False,
-            "input_count": 0,
-            "total_input_count": 0,
+            "input_count": context.runtime.input_count,
+            "total_input_count": context.runtime.input_count,
         }
     context.bind_initial_observation(source, extra={"source_state": "HOME_BASE", "home_verified": True})
-    action_key = arguments.get("action_key")
-    if not isinstance(action_key, str) or not action_key:
-        raise ValueError("Alliance Shop canonical action key is missing")
-    port = AllianceShopLivePort(context, settle_seconds=float(arguments.get("settle_seconds", 1.0)))
     try:
         result = run_alliance_shop_route(port, action_key=action_key)
     finally:
@@ -1259,3 +1531,387 @@ def create_service_binding(make_native_route_binding):
         driver=_service_driver,
         lease_seconds=3600.0,
     )
+
+
+INSPECTION_DEADLINE_SECONDS = 120.0
+INSPECTION_OWNER = "pnsctl-development-session:alliance-shop-purchase-inspection"
+INSPECTION_REASON = "ALLIANCE_SHOP_DISPATCHED_PURCHASE_INSPECTED"
+
+
+class PurchaseInspectionRejected(RuntimeError):
+    """Retained proof, controls or Core admission is not exact; nothing was sent or changed."""
+
+
+@dataclass
+class _InspectionContext:
+    identity: Any
+    runtime_profile_id: str
+    checkpoint: Any
+    session: Any = None
+    runtime: Any = None
+    action_store: Any = None
+
+
+def _inspection_identity(reset_id):
+    from tasks.runtime_identity import resource_fixed_runtime_binding
+    from tasks.scheduler_task_result import SchedulerIdentity
+
+    binding = resource_fixed_runtime_binding()
+    return SchedulerIdentity(binding.account_id, binding.server_id, reset_id, PRODUCT_ID)
+
+
+def _canonical_action_view(action_id):
+    """Read-only canonical Core row plus every globally blocking consequential action."""
+    import sqlite3
+    from scripts import navigation_development_boundary as boundary
+
+    path = boundary.require_fixed_orchestrator_path(
+        None, boundary.CANONICAL_ACTION_STORE_PATH, "canonical action store",
+    )
+    if not path.is_file():
+        raise PurchaseInspectionRejected("canonical action history is missing")
+    connection = sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)
+    connection.row_factory = sqlite3.Row
+    try:
+        row = connection.execute("SELECT * FROM actions WHERE action_id=?", (action_id,)).fetchone()
+        blockers = sorted(str(item[0]) for item in connection.execute(
+            "SELECT action_id FROM actions WHERE consequential=1 "
+            "AND final_status IN ('prepared','input_sent','unresolved')"
+        ))
+    finally:
+        connection.close()
+    return (dict(row) if row is not None else None), blockers
+
+
+def _controls_snapshot(state):
+    """Service/route controls, lease and run snapshot; every control must be off."""
+    db = state._db
+    service = db.execute("SELECT * FROM service_control WHERE singleton_id=1").fetchone()
+    lease = db.execute("SELECT * FROM service_lease WHERE singleton_id=1").fetchone()
+    snapshot = {
+        "service": dict(service) if service is not None else {},
+        "lease": dict(lease) if lease is not None else {},
+        "flows": [dict(row) for row in db.execute("SELECT * FROM flow_state ORDER BY flow_id")],
+        "active_runs": int(db.execute(
+            "SELECT COUNT(*) FROM runs WHERE state IN ('CLAIMED','RUNNING','STOP_REQUESTED','RECOVERING')"
+        ).fetchone()[0]),
+    }
+    if (
+        snapshot["service"].get("enabled") or any(flow["enabled"] for flow in snapshot["flows"])
+        or snapshot["lease"].get("owner_instance_id") is not None or snapshot["active_runs"]
+    ):
+        raise PurchaseInspectionRejected("inspection requires disabled service/route controls and no operator")
+    return snapshot
+
+
+def _retained_purchase_proof(action, before, after, reset_id):
+    """Prove one dispatched quantity-one purchase from immutable original records only."""
+    import hashlib
+    import json
+    from datetime import datetime
+    from pathlib import Path
+    from scripts.bluestacks_native_runtime import captured_native_frame_from_png
+    from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
+    from tasks.purchases_disabled import canonical_purchase_action_key
+
+    def reject(reason):
+        raise PurchaseInspectionRejected(reason)
+
+    if action is None:
+        reject("selected Core action is missing")
+    key = canonical_purchase_action_key(FLOW_ID, PRODUCT_ID, _inspection_identity(reset_id), "alliance_shop")
+    expected = {
+        "action_key": key,
+        "action_id": hashlib.sha256(f"{key}:alliance-shop".encode()).hexdigest(),
+        "task_id": FLOW_ID,
+        "semantic_action": "PURCHASE_ALLIANCE_SHOP_OFFER",
+        "target_identity": "alliance-shop:inner-buy",
+        "game_day_id": reset_id,
+        "expected_postcondition": "ALLIANCE_SHOP_PURCHASE_RECONCILED",
+        "cost_type": "ALLIANCE_COINS",
+        "quantity": 1,
+        "consequential": 1,
+        "runtime_profile_id": ACTIVE_RUNTIME_PROFILE_ID,
+        "policy_decision": "authorize",
+        "final_status": "unresolved",
+    }
+    if any(action.get(field) != value for field, value in expected.items()):
+        reject("selected Core action is not this reset's exact unresolved Alliance Shop purchase")
+    try:
+        request = json.loads(action["policy_request_json"])
+        transport = json.loads(action["transport_result_json"] or "null")
+        target_roi = list(json.loads(action["target_roi_json"]))
+        terms = _purchase_request_terms(action, request, reset_id)
+        root_value = Path(request["runtime_session_id"])
+    except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+        terms = None
+    if (
+        terms is None or request.get("action_id") != action["action_id"]
+        or request.get("action_key") != key or request.get("game_day_id") != reset_id
+        or not isinstance(transport, dict) or transport.get("dispatched") is not True
+        or transport.get("transport_code") != "ALLIANCE_INNER_BUY_DISPATCHED"
+    ):
+        reject("original policy request or dispatched transport receipt is not exact")
+    if not root_value.is_absolute() or root_value.is_symlink() or not root_value.is_dir():
+        reject("original runtime session directory is not retained")
+    root = root_value.resolve(strict=True)
+
+    def retained(value):
+        path = Path(value)
+        if not path.is_absolute() or path.is_symlink() or not path.is_file():
+            reject(f"retained evidence is missing, relative or a link: {value}")
+        resolved = path.resolve(strict=True)
+        if not resolved.is_relative_to(root):
+            reject(f"retained evidence is outside the original session: {value}")
+        return resolved
+
+    before_path, after_path = retained(before), retained(after)
+    if before_path.parent.name != "frames" or after_path.parent != before_path.parent:
+        reject("paired frames are not from one original native journal")
+    journal = retained(before_path.parent.parent / "events.jsonl")
+    records = [json.loads(line) for line in journal.read_text(encoding="utf-8").splitlines() if line.strip()]
+    dispatches = [index for index, record in enumerate(records)
+                  if record.get("type") == "dispatch" and record.get("consequential") is True]
+    if len(dispatches) != 1:
+        reject("original journal does not hold exactly one consequential dispatch")
+    index = dispatches[0]
+    dispatch = records[index]
+    if (
+        dispatch.get("action_key") != key or dispatch.get("target_identity") != "alliance-shop:inner-buy"
+        or dispatch.get("source_sha256") != action["source_frame_sha256"]
+        or dispatch.get("execute") is not True or list(dispatch.get("target_roi") or ()) != target_roi
+    ):
+        reject("journal dispatch is not this action's inner Buy")
+    captures = [(position, record) for position, record in enumerate(records) if record.get("type") == "capture"]
+
+    def capture_record(path):
+        matches = [item for item in captures if Path(str(item[1].get("path", ""))).resolve() == path]
+        if len(matches) != 1:
+            reject(f"frame is not exactly one original journal capture: {path}")
+        return matches[0]
+
+    weekly = terms["shop"] == "weekly_offers"
+
+    def offer_label(label):
+        if weekly:
+            return label.startswith("alliance-shop-weekly-scan-")
+        return label in {"alliance-shop-other-fallback-source", "alliance-shop-other-scroll-successor"}
+
+    before_at, before_record = capture_record(before_path)
+    after_at, after_record = capture_record(after_path)
+    preceding = [item for item in captures if item[0] < index]
+    offer_sources = [position for position, record in preceding if offer_label(str(record.get("label")))]
+    if (
+        not preceding or not offer_sources or offer_sources[-1] != before_at
+        or preceding[-1][1].get("label") != "alliance-shop-inner-buy-immediate-before"
+        or preceding[-1][1].get("sha256") != dispatch.get("source_sha256")
+        or after_at < index or not re.fullmatch(r"alliance-shop-purchase-post-[1-3]", str(after_record.get("label")))
+        or any(record.get("type") == "dispatch" for record in records[index + 1:after_at])
+    ):
+        reject("frames are not the latest offer source and a post-Buy successor of the one dispatch")
+    immediate_record = preceding[-1][1]
+    stamps = [datetime.fromisoformat(record["timestamp"]).timestamp()
+              for record in (before_record, dispatch, after_record)]
+    if not (stamps[0] < stamps[1] < stamps[2]
+            and float(action["prepared_at"]) <= stamps[1] <= float(action["input_attempt_at"])):
+        reject("original journal timestamps do not bind the dispatched action")
+
+    def frame(path, record):
+        try:
+            captured = captured_native_frame_from_png(path.read_bytes(), captured_monotonic=0.0, path=path)
+        except RuntimeError:
+            reject(f"retained frame is not native 800x1280: {path}")
+        if captured.sha256 != record.get("sha256"):
+            reject(f"retained frame bytes differ from the original journal: {path}")
+        return captured
+
+    immediate_path = retained(str(immediate_record.get("path")))
+    offer_frame = frame(before_path, before_record)
+    immediate_frame = frame(immediate_path, immediate_record)
+    successor_frame = frame(after_path, after_record)
+    port = AllianceShopLivePort(
+        _InspectionContext(_inspection_identity(reset_id), ACTIVE_RUNTIME_PROFILE_ID, lambda: None),
+        settle_seconds=0,
+    )
+    item = next(name for name, value in ALLIANCE_PURCHASE_SUBJECTS.items() if value == terms["subject"])
+    tab, shop, rarity = ("weekly", "Weekly Offers", None) if weekly else ("other", "Other", 1)
+    price, stock, balance = terms["unit_price"], terms["stock"], terms["balance"]
+    offer = port._read_offer(offer_frame, item, shop, rarity) if port._page(offer_frame)[0] == tab else None
+    if (
+        offer is None or not offer.recognized or offer.currency_identity != "Alliance Coins"
+        or offer.unit_price != price or offer.stock != stock or offer.balance != balance
+        or offer.item_quantity is None
+    ):
+        reject("retained offer source does not show the exact original quote")
+    dialog = port._quantity_dialog(immediate_frame, offer)
+    if (
+        dialog is None or not dialog.recognized or dialog.selected_quantity != 1
+        or dialog.total != price or list(dialog.inner_buy_roi or ()) != target_roi
+    ):
+        reject("immediate-before frame is not the exact quantity-one dialog")
+    after_offer = (port._read_offer(successor_frame, item, shop, rarity)
+                   if port._page(successor_frame)[0] == tab else None)
+    if (
+        after_offer is None or after_offer.currency_identity != "Alliance Coins"
+        or after_offer.balance != balance - price or after_offer.stock != stock - 1
+        or after_offer.item_quantity != offer.item_quantity + 1
+    ):
+        reject("retained successor does not prove exactly one paired purchase effect")
+
+    def ref(path, record):
+        return {"path": str(path), "sha256": record["sha256"], "timestamp": record["timestamp"]}
+
+    return {
+        "action_id": action["action_id"], "action_key": key, "reset_id": reset_id,
+        "runtime_session_id": str(root), "item": item, "shop": shop, "currency": "ALLIANCE_COINS",
+        "unit_price": price, "quantity": 1,
+        "owned": [offer.item_quantity, after_offer.item_quantity],
+        "stock": [stock, after_offer.stock], "balance": [balance, after_offer.balance],
+        "offer_source": ref(before_path, before_record),
+        "immediate_before": ref(immediate_path, immediate_record),
+        "successor": ref(after_path, after_record),
+        "journal": {"path": str(journal), "sha256": hashlib.sha256(journal.read_bytes()).hexdigest(),
+                    "dispatch_timestamp": dispatch["timestamp"]},
+    }
+
+
+def inspect_dispatched_alliance_purchase(action_id, before, after, *, live=False):
+    """One-off inspection of one already-dispatched purchase; never a Buy or its replay.
+
+    Offline (default) verifies immutable retained proof with zero inputs. ``live`` adds at
+    most one Back from a positively recognized Alliance menu (zero from clean Home), a fresh
+    Home capture and existing ``SafetyStore.reconcile_confirmed`` under the singleton input
+    lock, without an execution lease.
+    """
+    import json
+    from datetime import datetime, timezone
+    from pathlib import Path
+    from automation_service.recruitment import recruitment_reset
+    from automation_service.state import BotStateManager
+    from scripts import navigation_development_boundary as boundary
+    from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+    from scripts.startup_recovery import require_network_clear
+    from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
+    from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_PACKAGE, BLUESTACKS_SERIAL
+
+    deadline = time.monotonic() + INSPECTION_DEADLINE_SECONDS
+    reset_id = recruitment_reset(time.time())
+    state_path = BotStateManager.DEFAULT_DB_PATH
+    if not state_path.is_file():
+        raise PurchaseInspectionRejected("canonical service state is missing")
+    with BotStateManager(state_path, read_only=True) as state:
+        controls = _controls_snapshot(state)
+        action, blockers = _canonical_action_view(action_id)
+        if blockers != [action_id]:
+            raise PurchaseInspectionRejected("selected action must be the sole globally blocking consequential action")
+        proof = _retained_purchase_proof(action, before, after, reset_id)
+        result = {"status": "verified_offline", "action_id": action_id, "input_count": 0,
+                  "core_mutated": False, "retained_proof": proof}
+        if not live:
+            return result
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        invocation_id = f"alliance-shop-purchase-inspection-{stamp}"
+        with boundary.RuntimeInputLock(owner=INSPECTION_OWNER, invocation_id=invocation_id) as lock:
+            def checkpoint():
+                lock.assert_held(INSPECTION_OWNER, invocation_id)
+                if time.monotonic() > deadline:
+                    raise RuntimeError("inspection deadline expired")
+                if _controls_snapshot(state) != controls:
+                    raise RuntimeError("service/route controls changed during inspection")
+
+            def require_unchanged():
+                checkpoint()
+                current, current_blockers = _canonical_action_view(action_id)
+                if current != action or current_blockers != [action_id] or recruitment_reset(time.time()) != reset_id:
+                    raise RuntimeError("canonical action, blockers or reset changed during inspection")
+
+            require_unchanged()
+            session = boundary.DevelopmentSession(
+                owner=INSPECTION_OWNER, invocation_id=invocation_id,
+                session_directory=Path(proof["runtime_session_id"]) / invocation_id,
+                max_inputs=1, runtime_input_lock=lock, checkpoint=checkpoint,
+            )
+            with session:
+                runtime = LocalBlueStacksRuntime.connect(
+                    adb=str(BLUESTACKS_ADB), serial=BLUESTACKS_SERIAL,
+                    output_directory=session.session_directory,
+                    workflow="alliance-shop-purchase-inspection", execute=True,
+                )
+                runtime.max_inputs = 1
+                runtime.checkpoint = checkpoint
+                runtime.observation_guard = require_network_clear
+                context = _InspectionContext(
+                    _inspection_identity(reset_id), ACTIVE_RUNTIME_PROFILE_ID, checkpoint, session, runtime,
+                )
+                port = AllianceShopLivePort(context, settle_seconds=1.0)
+                home, reason = None, ""
+                try:
+                    page = port._page(port._capture("alliance-shop-inspection-source"))[0]
+                    if page == "alliance_menu":
+                        port.return_home(phase="startup")
+                    elif page != "home":
+                        reason = f"ALLIANCE_SHOP_INSPECTION_SOURCE_NOT_ALLIANCE_MENU_OR_HOME:{page}"
+                    if not reason:
+                        fresh = port._capture("alliance-shop-inspection-fresh-home")
+                        if (port._home(fresh) and runtime.measure_device_state() == "device"
+                                and runtime.measure_foreground_package() == BLUESTACKS_PACKAGE):
+                            home = fresh
+                        else:
+                            reason = "ALLIANCE_SHOP_INSPECTION_FRESH_HOME_NOT_VERIFIED"
+                except Exception as exc:
+                    reason = f"ALLIANCE_SHOP_INSPECTION_STOPPED:{type(exc).__name__}:{exc}"
+                finally:
+                    session.adopt_retained_transport_count(runtime.input_count, source=str(runtime.events))
+                result.update(input_count=runtime.input_count, inspection_session=str(session.session_directory),
+                              runtime_events=str(runtime.events))
+                if home is None:
+                    session.terminal_status, session.blocker = "blocked", reason
+                    result.update(status="evidence_required", reason=reason)
+                    return result
+                require_unchanged()
+                record = session.session_directory / "inspection-proof.json"
+                evidence = {
+                    "confirmed": True,
+                    "frame_sha256": home.sha256,
+                    "evidence_refs": [
+                        proof["offer_source"]["path"], proof["immediate_before"]["path"],
+                        proof["journal"]["path"], proof["successor"]["path"], str(home.path), str(record),
+                    ],
+                    "reason": INSPECTION_REASON,
+                    "original_canary_accepted": False,
+                    "original_failure": {
+                        "final_reason": action["final_reason"],
+                        "reconciliation_result": json.loads(action["reconciliation_result_json"] or "null"),
+                    },
+                    "paired_effect": {name: proof[name] for name in (
+                        "item", "shop", "currency", "unit_price", "quantity", "owned", "stock", "balance",
+                    )},
+                    "inspection": {
+                        "invocation_id": invocation_id, "owner": INSPECTION_OWNER,
+                        "authorization": "Current owner authorized live; parent sole operator; one known "
+                                         "Alliance-menu Back maximum, no Buy replay, no history rewrite.",
+                        "input_count": runtime.input_count, "max_inputs": 1,
+                        "deadline_seconds": INSPECTION_DEADLINE_SECONDS,
+                        "fresh_home": {"path": str(home.path), "sha256": home.sha256},
+                        "runtime_events": str(runtime.events),
+                    },
+                }
+                with record.open("x", encoding="utf-8") as stream:
+                    json.dump(evidence, stream, indent=2, sort_keys=True)
+                    stream.write("\n")
+                store = boundary.open_canonical_action_store()
+                try:
+                    store.reconcile_confirmed(action_id, time.time(), evidence)
+                    store.audit(FLOW_ID, "operator_alliance_shop_purchase_inspection", time.time(), {
+                        "action_id": action_id, "reason": INSPECTION_REASON,
+                        "evidence": str(record), "original_canary_accepted": False,
+                    }, action_id)
+                    context.action_store = store
+                    reader = port.action_status(proof["action_key"])
+                finally:
+                    store.close()
+                session.terminal_status = "navigation_complete"
+                result.update(status="confirmed" if reader == "confirmed" else "confirmed_reader_rejected",
+                              core_mutated=True, strict_reader=reader, fresh_home_sha256=home.sha256,
+                              inspection_proof=str(record))
+                return result

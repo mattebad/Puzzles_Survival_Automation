@@ -170,6 +170,52 @@ Existing layout exceptions:
   by current stock and affordability. Preserve one tab's confirmed purchase across a later pulse.
   No current donation quota or purchase-effect live acceptance is claimed; the single donation information probe is not route
   acceptance.
+  Donation entry recognizes the centered Alliance title separately from Back/border art and
+  isolates adjacent Alliance Tech words from a shared multi-column OCR line. Known-context
+  failure recovery rebinds Back against a fresh surface; an unknown or changed source gets
+  no speculative return input. Real-pixel recognition proof is not donation-effect acceptance.
+  Donation's tree recognizer reads exact HOT text inside a unique measured red ribbon
+  through the bottom of the native viewport. That current widget permits navigation
+  to its panel even when the tree label is clipped; no name or technology is guessed,
+  and no corrective drag competes with the game's automatic scrolling. The fresh
+  panel must independently prove its full identity and current HOT marker before any
+  resource/attempt donation guards can authorize an effect. Missing, ambiguous or
+  changed-context evidence stops without speculative effects. Fixture provenance
+  uses original-workspace-relative paths; native pixels and source hashes are preserved.
+  Alliance Shop rebinds the fresh Home footer through the shared recognizer and distinguishes
+  the actual Alliance title and red-selected Shop tabs from incidental navigation labels.
+  Current offer fields are isolated against measured Buy controls; price OCR excludes the
+  matched currency artwork and keeps the original currency-match threshold. Inventory
+  scrolling avoids Buy controls, and end-of-list evidence excludes the ticking header.
+  Unresolved ownership, price, stock or currency remains incomplete, not preferred-offer
+  absence or fallback authority.
+  Quantity dialogs bind the exact allowlisted title, measured selected quantity and
+  numeric total independently; the Total coin must match the fresh offer-frame coin
+  at the existing threshold, never the blurred modal background. A positively identified
+  own modal may close through its freshly rebound white X and return via known Alliance
+  pages to verified Home, including on restart. Unknown modal structure receives no
+  guessed dismissal or Buy. Actual-pixel replay proves these guards, not purchase effects.
+  Startup and terminal returns use separate navigation phase identities, including
+  source/target duplicate identity. Each Back must reach a different known parent page;
+  unchanged or unknown successors stall that phase without another identical input.
+  This preserves legitimate revisits without weakening purchase-key protection.
+  Daily Shops reuses canonical Atlas startup normalization and its scrcpy simultaneous-pointer
+  transport for at most two accounted zoom inputs; the sequential virtual-touch pinch is not
+  a substitute for an observed camera transition. It then uses shared bounded calculated pans,
+  fresh mapped Ruins binding and route-owned Ruins/Exchange successors. Unknown or unchanged
+  navigation stops; an absent action-store lease dispatches nothing. These are offline-proven
+  entry guards, not purchase-effect or route-level live acceptance.
+  Ruins title and navigation controls use isolated current-frame regions shared with the
+  Ruins observer, rather than full-page OCR over decorative Back art. A supervised native
+  visit reached the actual Ruins overview after one scrcpy zoom and mapped entry; it made
+  no purchase and remains unaccepted. On restart, Daily Shops may return from its positively
+  recognized overview/shop context to freshly verified Home before a new mapped entry.
+  Unknown contexts receive no speculative Back; recovery inputs remain in canonical totals.
+  Shop identity uses the isolated title and uniquely gold-selected current Shop label,
+  not incidental item-description OCR. A clipped Rare Earth label permits one bounded
+  selector reveal, then a fresh exact-label binding; unknown selection or no progress
+  authorizes no guessed tab tap. Current native Shop pixels prove these recognition
+  guards offline, not purchase effects; missing Owned evidence still blocks buying.
 
 * **Batch D Nano Material Production and Nanoweapon**: canonical-service-only routes with fixed
   native bindings and no operator rows. Nano Material Production uses a non-reset-scoped timer

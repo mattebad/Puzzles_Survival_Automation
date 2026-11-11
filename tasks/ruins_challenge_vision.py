@@ -33,6 +33,8 @@ from .ruins_challenge import (
 PROFILE_SIZE = (800, 1280)
 Box = tuple[int, int, int, int]
 Target = tuple[str, Box]
+RUINS_OVERVIEW_HEADER_ROI: Box = (175, 0, 650, 75)
+RUINS_OVERVIEW_CONTROLS_ROI: Box = (190, 100, 760, 175)
 _PROGRESS_RE = re.compile(r"(\d+)\s*/\s*(\d+)")
 _POINTS_RE = re.compile(r"\b(\d{2,7})\b")
 _DAY_RE = re.compile(r"\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b", re.IGNORECASE)
@@ -254,7 +256,7 @@ def recognize_ruins_frame(frame: np.ndarray, *, reset_identity: str | None = Non
         raise ValueError("Ruins frame must be a native 800x1280 image")
     digest = hashlib.sha256(frame.tobytes()).hexdigest()
     full_text = _ocr(frame)
-    header = _ocr(frame, (0, 0, 800, 120), psm=7)
+    header = _ocr(frame, RUINS_OVERVIEW_HEADER_ROI, psm=7)
     is_ruins = "uins challenge" in header or "uins challenge" in full_text
     is_home = not is_ruins and "headquarters" in full_text and "uins" in full_text
     targets: list[Target] = []
@@ -279,14 +281,13 @@ def recognize_ruins_frame(frame: np.ndarray, *, reset_identity: str | None = Non
                                    RuinsControlState.UNKNOWN, (), "unknown", digest, reset_identity), digest, (), diagnostics)
 
     points = parse_points(_ocr(frame, (40, 120, 175, 180), psm=7))
-    control_text = _ocr(frame, (150, 100, 800, 210), psm=6)
+    control_text = _ocr(frame, RUINS_OVERVIEW_CONTROLS_ROI, psm=6)
     for label, identity in (("exchange", "exchange"), ("progress", "progress"), ("total rank", "total-rank")):
         if label in control_text:
             targets.append((identity, (150, 100, 800, 210)))
     boxes = _ocr_boxes(frame)
     dense_boxes: list[tuple[str, Box]] | None = None
     rows: list[RuinsChallengeRow] = []
-    lower_text = full_text
     for identity in KNOWN_CHALLENGE_IDENTITIES:
         needle = _normalized(identity)
         aliases = (needle, *_IDENTITY_OCR_ALIASES.get(needle, ()))

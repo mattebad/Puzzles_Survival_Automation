@@ -148,6 +148,14 @@ Donations count actual successful HOT-tech donations, not ranking points. Allian
 one affordable allowlisted Weekly offer or the exact one-star Other fallback, quantity one total.
 Daily Shops bounds each approved three-star Chip/Module tab purchase by observed stock and
 affordability, with paired item/currency effects. No purchase-effect native acceptance is claimed.
+Available HOT donation attempts remain usable while the recharge countdown changes. Shop results
+preserve known confirmed progress without converting it to UNKNOWN or permitting duplicate spend.
+Daily Shops stays in one visit across both tabs and returns Home once after evaluating both.
+Each inner Buy requires freshly paired currency and item-ownership evidence plus numeric
+quantity/total verification. Missing item-effect evidence defers that tab before Buy while the
+other tab remains independently eligible. Real-journal replay proves confirmed purchases survive
+restart without another spend; native purchase-effect acceptance remains `evidence_required`.
+
 
 Batch D adds canonical-only Nano Material Production and Nanoweapon; no operator rows are added,
 and the existing twelve operator routes remain. Production is a zero-resource, single-slot

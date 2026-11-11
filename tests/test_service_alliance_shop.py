@@ -21,6 +21,11 @@ from automation_service.recruitment import recruitment_reset
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 from tasks.runtime_identity import derive_resource_runtime_identity, resource_fixed_runtime_binding
 from tasks.scheduler_task_result import SchedulerIdentity
+from safe_action_core import SafetyStore
+from scripts.alliance_shop_bluestacks import AllianceShopPurchaseRoute
+from tasks.purchases_disabled import canonical_purchase_action_key
+from tests.test_alliance_shop_bluestacks import ActualSafetyStoreAlliancePort
+from tests.test_daily_shops_bluestacks import safety_store_purchase_context
 
 
 class FakeRuntimeInputLock:
@@ -177,6 +182,31 @@ class AllianceShopServiceAdapterTests(unittest.TestCase):
                 identity, None, lambda: None, runtime_input_lock=FakeRuntimeInputLock(),
                 occurrence_key=occurrence,
             )
+
+    def test_real_native_policy_confirmation_reaches_adapter_without_unknown_effect_flag(self):
+        _binding, identity, now = self._identity()
+        for fallback in (False, True):
+            with self.subTest(fallback=fallback), tempfile.TemporaryDirectory() as directory:
+                store = SafetyStore(Path(directory) / "actions.sqlite3")
+                try:
+                    context = safety_store_purchase_context(directory, store)
+                    context.identity = identity
+                    port = ActualSafetyStoreAlliancePort(context, fallback=fallback)
+                    key = canonical_purchase_action_key(
+                        ALLIANCE_SHOP_FLOW_ID, ALLIANCE_SHOP_PRODUCT_ID, identity, "alliance_shop",
+                    )
+                    payload = AllianceShopPurchaseRoute(port, action_key=key).run().to_mapping()
+                    payload.update(total_input_count=7, source_frame={
+                        "frame_path": "home-source.png", "frame_sha256": "a" * 64,
+                    })
+                    result = self._invoke(payload, identity, now)
+                    self.assertEqual(result["status"], "complete_for_reset", result)
+                    self.assertFalse(result["identical_retry_denied"])
+                    self.assertFalse(result["effect_reconciliation_required"])
+                    self.assertEqual(result["committed_action_count"], 1)
+                    self.assertEqual(store.get_action_by_key(key)["final_status"], "confirmed")
+                finally:
+                    store.close()
 
     def test_runner_preserves_native_purchase_proof_and_identity_without_runtime_scope(self):
         _binding, identity, now = self._identity()

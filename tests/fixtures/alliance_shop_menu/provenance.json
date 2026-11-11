@@ -1,0 +1,47 @@
+{
+  "scope": "Device-free Home/Alliance menu/selected Weekly/standard Shop/Other navigation regression. No purchase or live acceptance.",
+  "frames": [
+    {
+      "fixture": "canonical-home.png",
+      "source": ".local-captures/development-sessions/restart-resume-20261108T035832132346Z/alliance-shop73/native/ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE-20261108T044539516153Z-58cd84d5/alliance-shop-native-20261108T044539609546Z/frames/0002-alliance-shop-canonical-home-source.png",
+      "sha256": "4b5b8a5abc2af6726043285f6227ed7984fdc21a0a6b6436c14f205f0825cbd8",
+      "kind": "unaltered immutable Original native 800x1280 frame"
+    },
+    {
+      "fixture": "immediate-home.png",
+      "source": ".local-captures/development-sessions/restart-resume-20261108T035832132346Z/alliance-shop73/native/ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE-20261108T044539516153Z-58cd84d5/alliance-shop-native-20261108T044539609546Z/frames/0004-alliance-shop-open-alliance-immediate-before.png",
+      "sha256": "8db0aec65742f72d187404c4128485aeecd00441a4f9267e8566492a8a44dbf7",
+      "kind": "unaltered immutable Original native 800x1280 frame"
+    },
+    {
+      "fixture": "alliance-menu.png",
+      "source": ".local-captures/development-sessions/resumed-queue-20261108T014450968963Z/donation77/native/ALLIANCE-TECH-DONATION-BLUESTACKS-INTEGRATION-20261108T031100607513Z-2ce21e61/alliance-donation-20261108T031100707678Z/frames/0004-open-alliance-settled.png",
+      "sha256": "cc2efdf9f7962daf973b99756a8c644a56528ee4984c30d1d4142c3bcf9984e9",
+      "kind": "unaltered immutable Original native 800x1280 frame"
+    },
+    {
+      "fixture": "weekly-top.png",
+      "source": ".local-captures/development-sessions/gh72-76-step-20261106T223948253355Z/runtime/investigation-20261106T223948426984Z/frames/0003-settled-successor.png",
+      "sha256": "8da61bfaf5581fd15bbfc0226dd83b6883ca284b9ae7c402f81f215a023e082c",
+      "kind": "unaltered immutable Original native 800x1280 frame"
+    },
+    {
+      "fixture": "weekly-lower.png",
+      "source": ".local-captures/development-sessions/gh72-76-step-20261106T224009410181Z/runtime/investigation-20261106T224009594861Z/frames/0003-terminal.png",
+      "sha256": "1e03671d79bcfc327e312e542bb6008bf57c86286968d5f61321d8f527f1b1dc",
+      "kind": "unaltered immutable Original native 800x1280 frame"
+    },
+    {
+      "fixture": "standard-shop.png",
+      "source": ".local-captures/development-sessions/gh72-76-step-20261106T224032611767Z/runtime/investigation-20261106T224032780776Z/frames/0003-settled-successor.png",
+      "sha256": "ae2f14334914880e2be6a2b48db25aefb8cf1588f3c86309acec176042a74f4e",
+      "kind": "unaltered immutable Original native 800x1280 frame"
+    },
+    {
+      "fixture": "other.png",
+      "source": ".local-captures/development-sessions/gh72-76-step-20261106T224049640109Z/runtime/investigation-20261106T224049796838Z/frames/0003-settled-successor.png",
+      "sha256": "0b8a2ebc6f426439629da9b3c2c7366000e5d8fbf87f4de148a815a8f8167f3f",
+      "kind": "unaltered immutable Original native 800x1280 frame"
+    }
+  ]
+}
